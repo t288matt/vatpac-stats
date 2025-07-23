@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Text, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Text, Boolean, SmallInteger
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from .database import Base
+import json
 
 class Controller(Base):
     """Controller model representing ATC controllers"""
@@ -39,7 +40,7 @@ class Sector(Base):
     flights = relationship("Flight", back_populates="sector")
 
 class Flight(Base):
-    """Flight model representing active flights"""
+    """Flight model representing active flights - OPTIMIZED FOR STORAGE"""
     __tablename__ = "flights"
     
     id = Column(Integer, primary_key=True, index=True)
@@ -49,9 +50,10 @@ class Flight(Base):
     departure = Column(String(10), nullable=True)
     arrival = Column(String(10), nullable=True)
     route = Column(Text, nullable=True)
-    altitude = Column(Integer, nullable=True)
-    speed = Column(Integer, nullable=True)
-    position = Column(Text, nullable=True)  # JSON string for lat/lng
+    altitude = Column(SmallInteger, nullable=True)  # SMALLINT: 0-65,535 feet (saves 50% storage)
+    speed = Column(SmallInteger, nullable=True)     # SMALLINT: 0-65,535 knots (saves 50% storage)
+    position_lat = Column(Integer, nullable=True)   # Compressed lat: multiply by 1M for precision
+    position_lng = Column(Integer, nullable=True)   # Compressed lng: multiply by 1M for precision
     controller_id = Column(Integer, ForeignKey("controllers.id"), nullable=True)
     sector_id = Column(Integer, ForeignKey("sectors.id"), nullable=True)
     last_updated = Column(DateTime, default=datetime.utcnow)
@@ -59,6 +61,34 @@ class Flight(Base):
     # Relationships
     controller = relationship("Controller", back_populates="flights")
     sector = relationship("Sector", back_populates="flights")
+    
+    @property
+    def position(self):
+        """Get position as JSON string (for compatibility)"""
+        if self.position_lat and self.position_lng:
+            return json.dumps({
+                'lat': self.position_lat / 1000000.0,
+                'lng': self.position_lng / 1000000.0
+            })
+        return None
+    
+    @position.setter
+    def position(self, value):
+        """Set position from JSON string (for compatibility)"""
+        if isinstance(value, str):
+            try:
+                pos = json.loads(value)
+                self.position_lat = int(pos.get('lat', 0) * 1000000)
+                self.position_lng = int(pos.get('lng', 0) * 1000000)
+            except:
+                self.position_lat = None
+                self.position_lng = None
+        elif isinstance(value, dict):
+            self.position_lat = int(value.get('lat', 0) * 1000000)
+            self.position_lng = int(value.get('lng', 0) * 1000000)
+        else:
+            self.position_lat = None
+            self.position_lng = None
 
 class TrafficMovement(Base):
     """Traffic movement model for tracking arrivals/departures"""
@@ -77,6 +107,43 @@ class TrafficMovement(Base):
     
     # Relationships
     flight = relationship("Flight")
+
+class FlightSummary(Base):
+    """Flight summary for analytics - COMPRESSED HISTORICAL DATA"""
+    __tablename__ = "flight_summaries"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    callsign = Column(String(20), nullable=False, index=True)
+    aircraft_type = Column(String(10), nullable=True)
+    departure = Column(String(10), nullable=True)
+    arrival = Column(String(10), nullable=True)
+    route = Column(Text, nullable=True)
+    max_altitude = Column(SmallInteger, nullable=True)  # SMALLINT for storage efficiency
+    duration_minutes = Column(SmallInteger, nullable=True)  # SMALLINT: max 65,535 minutes
+    controller_id = Column(Integer, ForeignKey("controllers.id"), nullable=True)
+    sector_id = Column(Integer, ForeignKey("sectors.id"), nullable=True)
+    completed_at = Column(DateTime, nullable=False)
+    
+    # Relationships
+    controller = relationship("Controller")
+    sector = relationship("Sector")
+
+class MovementSummary(Base):
+    """Movement summary for analytics - COMPRESSED HISTORICAL DATA"""
+    __tablename__ = "movement_summaries"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    airport_icao = Column(String(10), nullable=False, index=True)
+    movement_type = Column(String(10), nullable=False)  # 'arrival' or 'departure'
+    aircraft_type = Column(String(10), nullable=True)
+    date = Column(DateTime, nullable=False, index=True)  # Date only
+    hour = Column(SmallInteger, nullable=False)  # 0-23 hour
+    count = Column(SmallInteger, default=1)  # Number of movements in this hour
+    
+    # Composite index for efficient queries
+    __table_args__ = (
+        {'sqlite_autoincrement': True}
+    )
 
 class AirportConfig(Base):
     """Airport configuration for movement detection"""

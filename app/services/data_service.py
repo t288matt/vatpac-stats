@@ -18,6 +18,7 @@ from ..database import get_db, SessionLocal
 from ..models import Controller, Flight, Sector, TrafficMovement
 from .vatsim_service import VATSIMService, VATSIMData, VATSIMController, VATSIMFlight
 from .traffic_analysis_service import get_traffic_analysis_service
+from ..models import FlightSummary, MovementSummary
 
 
 class DataServiceError(Exception):
@@ -330,40 +331,150 @@ class DataService:
             self.logger.error(f"Error detecting traffic movements: {e}")
             return 0
     
-    async def _cleanup_old_data(self) -> None:
-        """Clean up old data to prevent database bloat."""
-        db = SessionLocal()
+    async def _cleanup_old_data(self):
+        """Clean up old data to prevent database bloat while preserving data quality"""
         try:
-            # Remove flights older than 24 hours
-            cutoff_time = datetime.utcnow() - timedelta(hours=24)
-            old_flights = db.query(Flight).filter(
-                Flight.last_updated < cutoff_time
-            ).delete()
-            
-            # Remove offline controllers older than 1 hour
-            cutoff_time = datetime.utcnow() - timedelta(hours=1)
-            old_controllers = db.query(Controller).filter(
-                and_(
-                    Controller.status == "offline",
-                    Controller.last_seen < cutoff_time
-                )
-            ).delete()
-            
-            db.commit()
-            
-            if old_flights > 0 or old_controllers > 0:
-                self.logger.info("Cleaned up old data", extra={
-                    "old_flights": old_flights,
-                    "old_controllers": old_controllers
-                })
+            db = SessionLocal()
+            try:
+                # TIER 1: Real-time data (keep current)
+                # - Active flights: Keep all data
+                # - Active controllers: Keep all data
+                # - Recent movements: Keep for 24 hours
+                
+                # TIER 2: Historical data (aggregate after 1 hour)
+                # Clean up old flights (older than 1 hour) - they're no longer active
+                cutoff_time = datetime.utcnow() - timedelta(hours=1)
+                old_flights = db.query(Flight).filter(
+                    Flight.last_updated < cutoff_time
+                ).all()
+                
+                for flight in old_flights:
+                    # Store flight summary before deletion
+                    await self._store_flight_summary(flight)
+                    db.delete(flight)
+                
+                # TIER 3: Controller status management
+                # Mark controllers as offline if not seen in 30 minutes
+                controller_cutoff = datetime.utcnow() - timedelta(minutes=30)
+                offline_controllers = db.query(Controller).filter(
+                    and_(
+                        Controller.last_seen < controller_cutoff,
+                        Controller.status == "online"
+                    )
+                ).all()
+                
+                for controller in offline_controllers:
+                    controller.status = "offline"
+                
+                # TIER 4: Movement data retention (7 days for analytics)
+                movement_cutoff = datetime.utcnow() - timedelta(days=7)
+                old_movements = db.query(TrafficMovement).filter(
+                    TrafficMovement.timestamp < movement_cutoff
+                ).all()
+                
+                for movement in old_movements:
+                    # Store movement summary before deletion
+                    await self._store_movement_summary(movement)
+                    db.delete(movement)
+                
+                db.commit()
+                
+                cleaned_count = len(old_flights) + len(offline_controllers) + len(old_movements)
+                if cleaned_count > 0:
+                    self.logger.info(f"Data retention cleanup: {len(old_flights)} old flights, {len(offline_controllers)} offline controllers, {len(old_movements)} old movements")
+                
+            except Exception as e:
+                db.rollback()
+                self.logger.error(f"Failed to cleanup old data: {e}")
+                raise
+            finally:
+                db.close()
                 
         except Exception as e:
-            db.rollback()
-            self.logger.error("Failed to cleanup old data", extra={
-                "error": str(e)
-            })
-        finally:
-            db.close()
+            self.logger.error(f"Error during data cleanup: {e}")
+            raise DataServiceError(f"Data cleanup failed: {e}", "cleanup_old_data")
+    
+    async def _store_flight_summary(self, flight: Flight):
+        """Store flight summary for analytics before deletion - PRESERVES DATA QUALITY"""
+        try:
+            db = SessionLocal()
+            try:
+                # Calculate flight duration if we have timestamps
+                duration_minutes = 0
+                if hasattr(flight, 'created_at') and flight.created_at:
+                    duration_minutes = int((flight.last_updated - flight.created_at).total_seconds() / 60)
+                
+                # Create flight summary with ALL critical data preserved
+                summary = FlightSummary(
+                    callsign=flight.callsign,
+                    aircraft_type=flight.aircraft_type,
+                    departure=flight.departure,
+                    arrival=flight.arrival,
+                    route=flight.route,
+                    max_altitude=flight.altitude,
+                    duration_minutes=min(duration_minutes, 65535),  # Cap at SMALLINT max
+                    controller_id=flight.controller_id,
+                    sector_id=flight.sector_id,
+                    completed_at=flight.last_updated
+                )
+                
+                db.add(summary)
+                db.commit()
+                
+                self.logger.debug(f"Stored flight summary for {flight.callsign} - DATA QUALITY PRESERVED")
+                
+            except Exception as e:
+                db.rollback()
+                self.logger.error(f"Failed to store flight summary: {e}")
+            finally:
+                db.close()
+            
+        except Exception as e:
+            self.logger.error(f"Failed to store flight summary: {e}")
+    
+    async def _store_movement_summary(self, movement: TrafficMovement):
+        """Store movement summary for analytics before deletion - PRESERVES DATA QUALITY"""
+        try:
+            db = SessionLocal()
+            try:
+                # Check if summary already exists for this hour
+                existing_summary = db.query(MovementSummary).filter(
+                    and_(
+                        MovementSummary.airport_icao == movement.airport_icao,
+                        MovementSummary.movement_type == movement.movement_type,
+                        MovementSummary.aircraft_type == movement.aircraft_type,
+                        MovementSummary.date == movement.timestamp.date(),
+                        MovementSummary.hour == movement.timestamp.hour
+                    )
+                ).first()
+                
+                if existing_summary:
+                    # Increment count for existing summary
+                    existing_summary.count = min(existing_summary.count + 1, 65535)
+                    self.logger.debug(f"Updated movement summary for {movement.airport_icao} - DATA QUALITY PRESERVED")
+                else:
+                    # Create new summary
+                    summary = MovementSummary(
+                        airport_icao=movement.airport_icao,
+                        movement_type=movement.movement_type,
+                        aircraft_type=movement.aircraft_type,
+                        date=movement.timestamp.date(),
+                        hour=movement.timestamp.hour,
+                        count=1
+                    )
+                    db.add(summary)
+                    self.logger.debug(f"Created movement summary for {movement.airport_icao} - DATA QUALITY PRESERVED")
+                
+                db.commit()
+                
+            except Exception as e:
+                db.rollback()
+                self.logger.error(f"Failed to store movement summary: {e}")
+            finally:
+                db.close()
+            
+        except Exception as e:
+            self.logger.error(f"Failed to store movement summary: {e}")
     
     def get_network_status(self) -> Dict[str, Any]:
         """
