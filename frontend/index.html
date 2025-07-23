@@ -21,7 +21,7 @@
         }
 
         .container {
-            max-width: 1600px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
         }
@@ -46,186 +46,173 @@
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
+            gap: 20px;
             margin-bottom: 30px;
         }
 
         .stat-card {
             background: rgba(255, 255, 255, 0.95);
-            border-radius: 12px;
             padding: 20px;
+            border-radius: 15px;
             text-align: center;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255,255,255,0.2);
         }
 
-        .stat-number {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: #2d3748;
+        .stat-card h3 {
+            font-size: 2rem;
+            color: #667eea;
             margin-bottom: 5px;
         }
 
-        .stat-label {
+        .stat-card p {
+            color: #666;
             font-size: 0.9rem;
-            color: #718096;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
         }
 
         .charts-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 25px;
             margin-bottom: 30px;
         }
 
-        .chart-card {
+        .chart-container {
             background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
             border-radius: 15px;
-            padding: 20px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.1);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255,255,255,0.2);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
 
-        .chart-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
-        }
-
-        .chart-card h3 {
-            color: #4a5568;
-            margin-bottom: 15px;
+        .chart-container h3 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
             font-size: 1.2rem;
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 10px;
         }
 
-        .chart-container {
+        .chart-wrapper {
             position: relative;
             height: 300px;
-            width: 100%;
-        }
-
-        .refresh-button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 1rem;
-            margin-bottom: 20px;
-            transition: transform 0.2s ease;
-        }
-
-        .refresh-button:hover {
-            transform: translateY(-2px);
         }
 
         .loading {
             text-align: center;
-            padding: 40px;
-            color: #718096;
+            padding: 50px;
+            color: #666;
         }
 
         .error {
-            background: #fed7d7;
-            color: #c53030;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 10px 0;
-        }
-
-        .timestamp {
             text-align: center;
-            color: #718096;
-            font-size: 0.9rem;
+            padding: 20px;
+            color: #e74c3c;
+            background: rgba(231, 76, 60, 0.1);
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .refresh-info {
+            text-align: center;
+            color: white;
             margin-top: 20px;
+            opacity: 0.8;
         }
 
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-            font-size: 0.9rem;
-        }
-
-        .data-table th,
-        .data-table td {
-            padding: 8px;
-            text-align: left;
-            border-bottom: 1px solid #e2e8f0;
-        }
-
-        .data-table th {
-            background: #f7fafc;
-            font-weight: 600;
-            color: #4a5568;
-        }
-
-        .data-table tr:hover {
-            background: #f7fafc;
-        }
-
-        .status-online {
-            color: #38a169;
-            font-weight: 600;
-        }
-
-        .status-offline {
-            color: #e53e3e;
-            font-weight: 600;
-        }
-
-        .table-container {
-            max-height: 300px;
-            overflow-y: auto;
+        @media (max-width: 768px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>VATSIM Analytics Dashboard</h1>
-            <p>Comprehensive real-time VATSIM network analytics</p>
+            <h1>🚁 VATSIM Analytics Dashboard</h1>
+            <p>Real-time VATSIM network statistics and movement data</p>
         </div>
 
-        <button class="refresh-button" onclick="refreshData()">Refresh Data</button>
-
-        <div class="stats-grid" id="statsGrid">
-            <!-- Stats cards will be populated here -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3 id="controller-count">-</h3>
+                <p>Online Controllers</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="flight-count">-</h3>
+                <p>Active Flights</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="movement-count">-</h3>
+                <p>Traffic Movements</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="airport-count">-</h3>
+                <p>Active Airports</p>
+            </div>
         </div>
 
-        <div class="charts-grid" id="chartsGrid">
-            <!-- Charts will be populated here -->
+        <div class="charts-grid">
+            <div class="chart-container">
+                <h3>Controller Facilities</h3>
+                <div class="chart-wrapper">
+                    <canvas id="facilitiesChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3>Aircraft Types</h3>
+                <div class="chart-wrapper">
+                    <canvas id="aircraftChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3>Popular Routes</h3>
+                <div class="chart-wrapper">
+                    <canvas id="routesChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3>Controller Positions</h3>
+                <div class="chart-wrapper">
+                    <canvas id="positionsChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3>Recent Movements</h3>
+                <div class="chart-wrapper">
+                    <canvas id="movementsChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3>Movement Types</h3>
+                <div class="chart-wrapper">
+                    <canvas id="movementTypesChart"></canvas>
+                </div>
+            </div>
         </div>
 
-        <div class="timestamp" id="timestamp">
-            <!-- Timestamp will be populated here -->
+        <div class="refresh-info">
+            <p>🔄 Data refreshes automatically every 30 seconds</p>
         </div>
     </div>
 
     <script>
         let charts = {};
-        let data = {
-            networkStatus: null,
-            controllers: [],
-            flights: []
-        };
-
-        // Chart.js global configuration
-        Chart.defaults.font.family = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
-        Chart.defaults.color = '#4a5568';
 
         async function fetchData() {
             try {
-                // Fetch network status
-                const statusResponse = await fetch('/api/network/status');
-                data.networkStatus = await statusResponse.json();
+                const data = {};
 
                 // Fetch controllers
                 const controllersResponse = await fetch('/api/controllers');
@@ -235,279 +222,57 @@
                 const flightsResponse = await fetch('/api/flights');
                 data.flights = await flightsResponse.json();
 
-                updateDashboard();
-                document.getElementById('timestamp').textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+                // Fetch movement data
+                try {
+                    const movementsResponse = await fetch('/api/traffic/movements');
+                    data.movements = await movementsResponse.json();
+                } catch (error) {
+                    data.movements = [];
+                }
 
-            } catch (err) {
-                console.error('Error fetching data:', err);
-                document.getElementById('timestamp').textContent = 'Error fetching data';
+                return data;
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                return null;
             }
         }
 
-        function updateDashboard() {
-            updateStats();
-            updateCharts();
-        }
-
-        function updateStats() {
-            const statsGrid = document.getElementById('statsGrid');
-            statsGrid.innerHTML = `
-                <div class="stat-card">
-                    <div class="stat-number">${data.networkStatus?.online_controllers || 0}</div>
-                    <div class="stat-label">Online Controllers</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">${data.networkStatus?.active_flights || 0}</div>
-                    <div class="stat-label">Active Flights</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">${data.controllers.length}</div>
-                    <div class="stat-label">Total Controllers</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">${data.flights.length}</div>
-                    <div class="stat-label">Total Flights</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">${getUniqueFacilities().length}</div>
-                    <div class="stat-label">Active Facilities</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">${getUniqueAircraft().length}</div>
-                    <div class="stat-label">Aircraft Types</div>
-                </div>
-            `;
-        }
-
-        function updateCharts() {
-            updateChartsGrid();
-            createControllerFacilityChart();
-            createFlightAltitudeChart();
-            createAircraftTypeChart();
-            createControllerStatusChart();
-            createFlightRouteChart();
-            createAltitudeDistributionChart();
-            createControllerPositionChart();
-            createFlightDurationChart();
-        }
-
-        function updateChartsGrid() {
-            const chartsGrid = document.getElementById('chartsGrid');
-            chartsGrid.innerHTML = `
-                <div class="chart-card">
-                    <h3>Controller Facilities</h3>
-                    <div class="chart-container">
-                        <canvas id="facilityChart"></canvas>
-                    </div>
-                </div>
-                <div class="chart-card">
-                    <h3>Flight Altitude Distribution</h3>
-                    <div class="chart-container">
-                        <canvas id="altitudeChart"></canvas>
-                    </div>
-                </div>
-                <div class="chart-card">
-                    <h3>Aircraft Types</h3>
-                    <div class="chart-container">
-                        <canvas id="aircraftChart"></canvas>
-                    </div>
-                </div>
-                <div class="chart-card">
-                    <h3>Controller Status</h3>
-                    <div class="chart-container">
-                        <canvas id="statusChart"></canvas>
-                    </div>
-                </div>
-                <div class="chart-card">
-                    <h3>Popular Routes</h3>
-                    <div class="chart-container">
-                        <canvas id="routeChart"></canvas>
-                    </div>
-                </div>
-                <div class="chart-card">
-                    <h3>Altitude Distribution</h3>
-                    <div class="chart-container">
-                        <canvas id="altitudeDistChart"></canvas>
-                    </div>
-                </div>
-                <div class="chart-card">
-                    <h3>Controller Positions</h3>
-                    <div class="chart-container">
-                        <canvas id="positionChart"></canvas>
-                    </div>
-                </div>
-                <div class="chart-card">
-                    <h3>Recent Controllers</h3>
-                    <div class="table-container">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Callsign</th>
-                                    <th>Facility</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${data.controllers.slice(0, 10).map(controller => `
-                                    <tr>
-                                        <td>${controller.callsign}</td>
-                                        <td>${controller.facility}</td>
-                                        <td><span class="status-${controller.status}">${controller.status}</span></td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="chart-card">
-                    <h3>Recent Flights</h3>
-                    <div class="table-container">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Callsign</th>
-                                    <th>Route</th>
-                                    <th>Aircraft</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${data.flights.slice(0, 10).map(flight => `
-                                    <tr>
-                                        <td>${flight.callsign}</td>
-                                        <td>${flight.departure} → ${flight.arrival}</td>
-                                        <td>${flight.aircraft_type || 'N/A'}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            `;
-        }
-
-        function createControllerFacilityChart() {
-            const facilityData = getFacilityData();
-            const ctx = document.getElementById('facilityChart');
+        function updateStats(data) {
+            document.getElementById('controller-count').textContent = data.controllers.length;
+            document.getElementById('flight-count').textContent = data.flights.length;
+            document.getElementById('movement-count').textContent = data.movements.length;
             
-            if (charts.facilityChart) {
-                charts.facilityChart.destroy();
-            }
+            // Count unique airports from flights
+            const airports = new Set();
+            data.flights.forEach(flight => {
+                if (flight.departure) airports.add(flight.departure);
+                if (flight.arrival) airports.add(flight.arrival);
+            });
+            document.getElementById('airport-count').textContent = airports.size;
+        }
 
-            charts.facilityChart = new Chart(ctx, {
+        function createFacilitiesChart(data) {
+            const facilities = {};
+            data.controllers.forEach(controller => {
+                const facility = controller.facility || 'Unknown';
+                facilities[facility] = (facilities[facility] || 0) + 1;
+            });
+
+            const labels = Object.keys(facilities);
+            const values = Object.values(facilities);
+
+            if (charts.facilities) charts.facilities.destroy();
+
+            charts.facilities = new Chart(document.getElementById('facilitiesChart'), {
                 type: 'doughnut',
                 data: {
-                    labels: facilityData.labels,
+                    labels: labels,
                     datasets: [{
-                        data: facilityData.values,
+                        data: values,
                         backgroundColor: [
-                            '#667eea', '#764ba2', '#f093fb', '#f5576c',
-                            '#4facfe', '#00f2fe', '#43e97b', '#38f9d7'
-                        ],
-                        borderWidth: 2,
-                        borderColor: '#fff'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                padding: 20,
-                                usePointStyle: true
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        function createFlightAltitudeChart() {
-            const altitudeData = getAltitudeData();
-            const ctx = document.getElementById('altitudeChart');
-            
-            if (charts.altitudeChart) {
-                charts.altitudeChart.destroy();
-            }
-
-            charts.altitudeChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: altitudeData.labels,
-                    datasets: [{
-                        label: 'Average Altitude',
-                        data: altitudeData.values,
-                        borderColor: '#667eea',
-                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Altitude (ft)'
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        function createAircraftTypeChart() {
-            const aircraftData = getAircraftData();
-            const ctx = document.getElementById('aircraftChart');
-            
-            if (charts.aircraftChart) {
-                charts.aircraftChart.destroy();
-            }
-
-            charts.aircraftChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: aircraftData.labels,
-                    datasets: [{
-                        label: 'Aircraft Count',
-                        data: aircraftData.values,
-                        backgroundColor: '#764ba2',
-                        borderRadius: 5
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        }
-                    }
-                }
-            });
-        }
-
-        function createControllerStatusChart() {
-            const statusData = getStatusData();
-            const ctx = document.getElementById('statusChart');
-            
-            if (charts.statusChart) {
-                charts.statusChart.destroy();
-            }
-
-            charts.statusChart = new Chart(ctx, {
-                type: 'pie',
-                data: {
-                    labels: statusData.labels,
-                    datasets: [{
-                        data: statusData.values,
-                        backgroundColor: ['#38a169', '#e53e3e', '#d69e2e'],
-                        borderWidth: 2,
-                        borderColor: '#fff'
+                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
+                            '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'
+                        ]
                     }]
                 },
                 options: {
@@ -522,29 +287,89 @@
             });
         }
 
-        function createFlightRouteChart() {
-            const routeData = getRouteData();
-            const ctx = document.getElementById('routeChart');
-            
-            if (charts.routeChart) {
-                charts.routeChart.destroy();
-            }
+        function createAircraftChart(data) {
+            const aircraftTypes = {};
+            data.flights.forEach(flight => {
+                const type = flight.aircraft_type || 'Unknown';
+                aircraftTypes[type] = (aircraftTypes[type] || 0) + 1;
+            });
 
-            charts.routeChart = new Chart(ctx, {
-                type: 'horizontalBar',
+            const sortedTypes = Object.entries(aircraftTypes)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10);
+
+            const labels = sortedTypes.map(item => item[0]);
+            const values = sortedTypes.map(item => item[1]);
+
+            if (charts.aircraft) charts.aircraft.destroy();
+
+            charts.aircraft = new Chart(document.getElementById('aircraftChart'), {
+                type: 'bar',
                 data: {
-                    labels: routeData.labels,
+                    labels: labels,
                     datasets: [{
-                        label: 'Route Frequency',
-                        data: routeData.values,
-                        backgroundColor: '#4facfe',
-                        borderRadius: 5
+                        label: 'Aircraft Count',
+                        data: values,
+                        backgroundColor: '#36A2EB',
+                        borderColor: '#2693e6',
+                        borderWidth: 1
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    indexAxis: 'y',
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function createRoutesChart(data) {
+            const routes = {};
+            data.flights.forEach(flight => {
+                if (flight.departure && flight.arrival) {
+                    const route = `${flight.departure}-${flight.arrival}`;
+                    routes[route] = (routes[route] || 0) + 1;
+                }
+            });
+
+            const sortedRoutes = Object.entries(routes)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 8);
+
+            const labels = sortedRoutes.map(item => item[0]);
+            const values = sortedRoutes.map(item => item[1]);
+
+            if (charts.routes) charts.routes.destroy();
+
+            charts.routes = new Chart(document.getElementById('routesChart'), {
+                type: 'horizontalBar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Flight Count',
+                        data: values,
+                        backgroundColor: '#FFCE56',
+                        borderColor: '#FFB347',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
                     scales: {
                         x: {
                             beginAtZero: true
@@ -554,57 +379,28 @@
             });
         }
 
-        function createAltitudeDistributionChart() {
-            const altitudeDistData = getAltitudeDistributionData();
-            const ctx = document.getElementById('altitudeDistChart');
-            
-            if (charts.altitudeDistChart) {
-                charts.altitudeDistChart.destroy();
-            }
-
-            charts.altitudeDistChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: altitudeDistData.labels,
-                    datasets: [{
-                        label: 'Flights',
-                        data: altitudeDistData.values,
-                        backgroundColor: '#f093fb',
-                        borderRadius: 5
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        }
-                    }
-                }
+        function createPositionsChart(data) {
+            const positions = {};
+            data.controllers.forEach(controller => {
+                const position = controller.position || 'Unknown';
+                positions[position] = (positions[position] || 0) + 1;
             });
-        }
 
-        function createControllerPositionChart() {
-            const positionData = getPositionData();
-            const ctx = document.getElementById('positionChart');
-            
-            if (charts.positionChart) {
-                charts.positionChart.destroy();
-            }
+            const labels = Object.keys(positions);
+            const values = Object.values(positions);
 
-            charts.positionChart = new Chart(ctx, {
+            if (charts.positions) charts.positions.destroy();
+
+            charts.positions = new Chart(document.getElementById('positionsChart'), {
                 type: 'doughnut',
                 data: {
-                    labels: positionData.labels,
+                    labels: labels,
                     datasets: [{
-                        data: positionData.values,
+                        data: values,
                         backgroundColor: [
-                            '#667eea', '#764ba2', '#f093fb', '#f5576c',
-                            '#4facfe', '#00f2fe', '#43e97b', '#38f9d7'
-                        ],
-                        borderWidth: 2,
-                        borderColor: '#fff'
+                            '#4BC0C0', '#FF6384', '#36A2EB', '#FFCE56',
+                            '#9966FF', '#FF9F40', '#C9CBCF'
+                        ]
                     }]
                 },
                 options: {
@@ -619,145 +415,137 @@
             });
         }
 
-        function createFlightDurationChart() {
-            // This would be implemented if we had flight duration data
-            // For now, it's a placeholder
-        }
+        function createMovementsChart(data) {
+            if (!data.movements || data.movements.length === 0) {
+                // Show empty state
+                if (charts.movements) charts.movements.destroy();
+                
+                const ctx = document.getElementById('movementsChart');
+                const context = ctx.getContext('2d');
+                context.clearRect(0, 0, ctx.width, ctx.height);
+                
+                context.font = '16px Arial';
+                context.fillStyle = '#666';
+                context.textAlign = 'center';
+                context.fillText('No movement data available', ctx.width / 2, ctx.height / 2);
+                return;
+            }
 
-        // Data processing functions
-        function getFacilityData() {
-            const facilities = {};
-            data.controllers.forEach(controller => {
-                facilities[controller.facility] = (facilities[controller.facility] || 0) + 1;
+            // Group movements by hour
+            const hourlyMovements = {};
+            data.movements.forEach(movement => {
+                const hour = new Date(movement.timestamp).getHours();
+                hourlyMovements[hour] = (hourlyMovements[hour] || 0) + 1;
             });
-            
-            const sorted = Object.entries(facilities)
-                .sort(([,a], [,b]) => b - a)
-                .slice(0, 8);
-            
-            return {
-                labels: sorted.map(([facility]) => facility),
-                values: sorted.map(([,count]) => count)
-            };
-        }
 
-        function getAltitudeData() {
-            const altitudes = data.flights
-                .filter(flight => flight.altitude)
-                .map(flight => flight.altitude)
-                .slice(0, 20);
-            
-            return {
-                labels: altitudes.map((_, i) => `Flight ${i + 1}`),
-                values: altitudes
-            };
-        }
+            const labels = Array.from({length: 24}, (_, i) => `${i}:00`);
+            const values = labels.map((_, i) => hourlyMovements[i] || 0);
 
-        function getAircraftData() {
-            const aircraft = {};
-            data.flights.forEach(flight => {
-                if (flight.aircraft_type) {
-                    aircraft[flight.aircraft_type] = (aircraft[flight.aircraft_type] || 0) + 1;
+            if (charts.movements) charts.movements.destroy();
+
+            charts.movements = new Chart(document.getElementById('movementsChart'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Movements',
+                        data: values,
+                        borderColor: '#FF6384',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
                 }
             });
-            
-            const sorted = Object.entries(aircraft)
-                .sort(([,a], [,b]) => b - a)
-                .slice(0, 10);
-            
-            return {
-                labels: sorted.map(([type]) => type),
-                values: sorted.map(([,count]) => count)
-            };
         }
 
-        function getStatusData() {
-            const statuses = {};
-            data.controllers.forEach(controller => {
-                statuses[controller.status] = (statuses[controller.status] || 0) + 1;
+        function createMovementTypesChart(data) {
+            if (!data.movements || data.movements.length === 0) {
+                // Show empty state
+                if (charts.movementTypes) charts.movementTypes.destroy();
+                
+                const ctx = document.getElementById('movementTypesChart');
+                const context = ctx.getContext('2d');
+                context.clearRect(0, 0, ctx.width, ctx.height);
+                
+                context.font = '16px Arial';
+                context.fillStyle = '#666';
+                context.textAlign = 'center';
+                context.fillText('No movement data available', ctx.width / 2, ctx.height / 2);
+                return;
+            }
+
+            const movementTypes = {};
+            data.movements.forEach(movement => {
+                const type = movement.movement_type || 'Unknown';
+                movementTypes[type] = (movementTypes[type] || 0) + 1;
             });
-            
-            return {
-                labels: Object.keys(statuses),
-                values: Object.values(statuses)
-            };
-        }
 
-        function getRouteData() {
-            const routes = {};
-            data.flights.forEach(flight => {
-                const route = `${flight.departure} → ${flight.arrival}`;
-                routes[route] = (routes[route] || 0) + 1;
-            });
-            
-            const sorted = Object.entries(routes)
-                .sort(([,a], [,b]) => b - a)
-                .slice(0, 8);
-            
-            return {
-                labels: sorted.map(([route]) => route),
-                values: sorted.map(([,count]) => count)
-            };
-        }
+            const labels = Object.keys(movementTypes);
+            const values = Object.values(movementTypes);
 
-        function getAltitudeDistributionData() {
-            const ranges = {
-                '0-10k': 0,
-                '10k-20k': 0,
-                '20k-30k': 0,
-                '30k-40k': 0,
-                '40k+': 0
-            };
-            
-            data.flights.forEach(flight => {
-                if (flight.altitude) {
-                    if (flight.altitude <= 10000) ranges['0-10k']++;
-                    else if (flight.altitude <= 20000) ranges['10k-20k']++;
-                    else if (flight.altitude <= 30000) ranges['20k-30k']++;
-                    else if (flight.altitude <= 40000) ranges['30k-40k']++;
-                    else ranges['40k+']++;
+            if (charts.movementTypes) charts.movementTypes.destroy();
+
+            charts.movementTypes = new Chart(document.getElementById('movementTypesChart'), {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: [
+                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
+                            '#9966FF', '#FF9F40', '#C9CBCF'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
                 }
             });
-            
-            return {
-                labels: Object.keys(ranges),
-                values: Object.values(ranges)
-            };
         }
 
-        function getPositionData() {
-            const positions = {};
-            data.controllers.forEach(controller => {
-                if (controller.position) {
-                    positions[controller.position] = (positions[controller.position] || 0) + 1;
-                }
-            });
-            
-            const sorted = Object.entries(positions)
-                .sort(([,a], [,b]) => b - a)
-                .slice(0, 8);
-            
-            return {
-                labels: sorted.map(([position]) => position),
-                values: sorted.map(([,count]) => count)
-            };
+        async function updateDashboard() {
+            const data = await fetchData();
+            if (!data) {
+                document.querySelector('.container').innerHTML = 
+                    '<div class="error">Error loading data. Please try again.</div>';
+                return;
+            }
+
+            updateStats(data);
+            createFacilitiesChart(data);
+            createAircraftChart(data);
+            createRoutesChart(data);
+            createPositionsChart(data);
+            createMovementsChart(data);
+            createMovementTypesChart(data);
         }
 
-        function getUniqueFacilities() {
-            return [...new Set(data.controllers.map(c => c.facility))];
-        }
+        // Initial load
+        updateDashboard();
 
-        function getUniqueAircraft() {
-            return [...new Set(data.flights.map(f => f.aircraft_type).filter(Boolean))];
-        }
-
-        function refreshData() {
-            fetchData();
-        }
-
-        // Initialize dashboard
-        fetchData();
-        setInterval(fetchData, 30000); // Refresh every 30 seconds
+        // Auto-refresh every 30 seconds
+        setInterval(updateDashboard, 30000);
     </script>
 </body>
 </html> 

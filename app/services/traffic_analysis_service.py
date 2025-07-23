@@ -264,6 +264,36 @@ class TrafficAnalysisService:
         
         return min(confidence, 1.0)
     
+    def get_all_movements(self, hours: int = 24) -> List[Dict[str, Any]]:
+        """Get all traffic movements within time range"""
+        try:
+            cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+            
+            movements = self.db.query(TrafficMovement).filter(
+                and_(
+                    TrafficMovement.timestamp >= cutoff_time,
+                    TrafficMovement.confidence_score >= self.config.get('confidence_threshold', 0.7)
+                )
+            ).order_by(desc(TrafficMovement.timestamp)).all()
+            
+            return [
+                {
+                    'id': m.id,
+                    'callsign': m.callsign,
+                    'movement_type': m.movement_type,
+                    'aircraft_type': m.aircraft_type,
+                    'pilot_name': m.pilot_name,
+                    'timestamp': m.timestamp.isoformat(),
+                    'confidence_score': m.confidence_score,
+                    'detection_method': m.detection_method
+                }
+                for m in movements
+            ]
+        
+        except Exception as e:
+            logger.error(f"Error getting all movements: {e}")
+            return []
+
     def get_movements_by_airport(self, airport_icao: str, hours: int = 24) -> List[Dict[str, Any]]:
         """Get movements for a specific airport within time range"""
         try:

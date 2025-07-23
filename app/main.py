@@ -261,6 +261,21 @@ async def get_flights(db: Session = Depends(get_db)):
         logger.error(f"Error getting flights: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+@app.get("/api/traffic/movements")
+async def get_all_movements(
+    hours: int = 24,
+    db: Session = Depends(get_db)
+):
+    """Get all traffic movements"""
+    try:
+        traffic_service = get_traffic_analysis_service(db)
+        movements = traffic_service.get_all_movements(hours)
+        
+        return movements
+    except Exception as e:
+        logger.error(f"Error getting movements: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 @app.get("/api/traffic/movements/{airport_icao}")
 async def get_airport_movements(
     airport_icao: str, 
