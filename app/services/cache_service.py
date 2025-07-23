@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+"""
+Redis Caching Service for ATC Position Recommendation Engine
+
+This service provides intelligent caching to reduce database load
+and improve API response times for frequently accessed data.
+"""
+
+import redis
+import json
+import logging
+from typing import Dict, Any, Optional, List
+from datetime import datetime, timedelta
+import asyncio
+
+from ..config import get_config
+from ..utils.logging import get_logger_for_module
+
+logger = get_logger_for_module(__name__)
+
+class CacheService:
+    """Redis caching service for performance optimization"""
+    
+    def __init__(self):
+        self.config = get_config()
+        self.redis_client = None
+        self.cache_ttl = {
+            'active_controllers': 30,      # 30 seconds
+            'active_flights': 30,          # 30 seconds
+            'sector_status': 300,          # 5 minutes
+            'network_stats': 60,           # 1 minute
+            'traffic_movements': 300,      # 5 minutes
+            'airport_data': 600,           # 10 minutes
+            'analytics_data': 3600,        # 1 hour
+        }
+        
+    async def initialize(self):
+        """Initialize Redis connection"""
+        try:
+            self.redis_client = redis.Redis(
+                host=self.config.get('REDIS_HOST', 'localhost'),
+                port=self.config.get('REDIS_PORT', 6379),
+                db=0,
+                decode_responses=True,
+                socket_connect_timeout=5,
+                socket_timeout=5
+            )
+            # Test connection
+            self.redis_client.ping()
+            logger.info("Redis cache service initialized successfully")
+        except Exception as e:
+            logger.warning(f"Redis not available, using memory cache: {e}")
+            self.redis_client = None
+    
+    async def get_cached_data(self, key: str) -> Optional[Dict[str, Any]]:
+        """Get data from cache"""
+        try:
+            if not self.redis_client:
+                return None
+            
+            cached_data = self.redis_client.get(key)
+            if cached_data:
+                return json.loads(cached_data)
+            return None
+        except Exception as e:
+            logger.error(f"Error getting cached data for {key}: {e}")
+            return None
+    
+    async def set_cached_data(self, key: str, data: Dict[str, Any], ttl: Optional[int] = None) -> bool:
+        """Set data in cache with TTL"""
+        try:
+            if not self.redis_client:
+                return False
+            
+            ttl = ttl or self.cache_ttl.get(key, 300)
+            self.redis_client.setex(key, ttl, json.dumps(data))
+            return True
+        except Exception as e:
+            logger.error(f"Error setting cached data for {key}: {e}")
+            return False
+    
+    async def invalidate_cache(self, pattern: str) -> bool:
+        """Invalidate cache entries matching pattern"""
+        try:
+            if not self.redis_client:
+                return False
+            
+            keys = self.redis_client.keys(pattern)
+            if keys:
+                self.redis_client.delete(*keys)
+                logger.info(f"Invalidated {len(keys)} cache entries matching {pattern}")
+            return True
+        except Exception as e:
+            logger.error(f"Error invalidating cache for {pattern}: {e}")
+            return False
+    
+    async def get_controllers_cache(self) -> Optional[List[Dict[str, Any]]]:
+        """Get cached controllers data"""
+        return await self.get_cached_data('controllers:active')
+    
+    async def set_controllers_cache(self, controllers: List[Dict[str, Any]]) -> bool:
+        """Set cached controllers data"""
+        return await self.set_cached_data('controllers:active', {'data': controllers, 'timestamp': datetime.utcnow().isoformat()})
+    
+    async def get_flights_cache(self) -> Optional[List[Dict[str, Any]]]:
+        """Get cached flights data"""
+        return await self.get_cached_data('flights:active')
+    
+    async def set_flights_cache(self, flights: List[Dict[str, Any]]) -> bool:
+        """Set cached flights data"""
+        return await self.set_cached_data('flights:active', {'data': flights, 'timestamp': datetime.utcnow().isoformat()})
+    
+    async def get_network_stats_cache(self) -> Optional[Dict[str, Any]]:
+        """Get cached network statistics"""
+        return await self.get_cached_data('network:stats')
+    
+    async def set_network_stats_cache(self, stats: Dict[str, Any]) -> bool:
+        """Set cached network statistics"""
+        return await self.set_cached_data('network:stats', stats)
+    
+    async def get_traffic_movements_cache(self, airport_icao: str) -> Optional[List[Dict[str, Any]]]:
+        """Get cached traffic movements for airport"""
+        return await self.get_cached_data(f'traffic:movements:{airport_icao}')
+    
+    async def set_traffic_movements_cache(self, airport_icao: str, movements: List[Dict[str, Any]]) -> bool:
+        """Set cached traffic movements for airport"""
+        return await self.set_cached_data(f'traffic:movements:{airport_icao}', movements)
+    
+    async def get_cache_stats(self) -> Dict[str, Any]:
+        """Get cache statistics"""
+        try:
+            if not self.redis_client:
+                return {'status': 'disabled', 'reason': 'Redis not available'}
+            
+            info = self.redis_client.info()
+            return {
+                'status': 'active',
+                'connected_clients': info.get('connected_clients', 0),
+                'used_memory_human': info.get('used_memory_human', '0B'),
+                'keyspace_hits': info.get('keyspace_hits', 0),
+                'keyspace_misses': info.get('keyspace_misses', 0),
+                'hit_rate': self._calculate_hit_rate(info)
+            }
+        except Exception as e:
+            return {'status': 'error', 'error': str(e)}
+    
+    def _calculate_hit_rate(self, info: Dict[str, Any]) -> float:
+        """Calculate cache hit rate"""
+        hits = info.get('keyspace_hits', 0)
+        misses = info.get('keyspace_misses', 0)
+        total = hits + misses
+        return (hits / total * 100) if total > 0 else 0.0
+
+# Global cache service instance
+_cache_service = None
+
+async def get_cache_service() -> CacheService:
+    """Get or create cache service instance"""
+    global _cache_service
+    if _cache_service is None:
+        _cache_service = CacheService()
+        await _cache_service.initialize()
+    return _cache_service 
