@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATC Position Recommendation Engine - Sprint 3</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .sprint3-badge {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            display: inline-block;
+            margin-left: 10px;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+        }
+
+        .card h2 {
+            color: #4a5568;
+            margin-bottom: 20px;
+            font-size: 1.4rem;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .card h2 .ai-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .status-item {
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            transition: transform 0.2s ease;
+        }
+
+        .status-item:hover {
+            transform: scale(1.05);
+        }
+
+        .status-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .status-label {
+            font-size: 0.9rem;
+            color: #718096;
+            margin-top: 5px;
+        }
+
+        .list-item {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 10px;
+            background: #f7fafc;
+            border-left: 4px solid #4299e1;
+            transition: all 0.3s ease;
+        }
+
+        .list-item:hover {
+            background: #edf2f7;
+            transform: translateX(5px);
+        }
+
+        .priority-high {
+            border-left-color: #e53e3e;
+            background: #fed7d7;
+        }
+
+        .priority-medium {
+            border-left-color: #d69e2e;
+            background: #fef5e7;
+        }
+
+        .priority-low {
+            border-left-color: #38a169;
+            background: #f0fff4;
+        }
+
+        .heat-map-container {
+            height: 400px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 15px;
+        }
+
+        .chart-container {
+            height: 300px;
+            margin-top: 15px;
+        }
+
+        .alert-item {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 10px;
+            border-left: 5px solid;
+            background: #fff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .alert-high {
+            border-left-color: #e53e3e;
+            background: linear-gradient(135deg, #fed7d7 0%, #feb2b2 100%);
+        }
+
+        .alert-medium {
+            border-left-color: #d69e2e;
+            background: linear-gradient(135deg, #fef5e7 0%, #fbd38d 100%);
+        }
+
+        .alert-low {
+            border-left-color: #38a169;
+            background: linear-gradient(135deg, #f0fff4 0%, #9ae6b4 100%);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #718096;
+        }
+
+        .error {
+            text-align: center;
+            padding: 20px;
+            color: #e53e3e;
+            background: #fed7d7;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+
+        .refresh-button {
+            background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            margin: 10px 0;
+        }
+
+        .refresh-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(66, 153, 225, 0.4);
+        }
+
+        .ml-prediction {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+
+        .prediction-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .trend-increasing {
+            color: #ff6b6b;
+            font-weight: bold;
+        }
+
+        .trend-decreasing {
+            color: #51cf66;
+            font-weight: bold;
+        }
+
+        .trend-stable {
+            color: #fcc419;
+            font-weight: bold;
+        }
+
+        .anomaly-item {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+
+        .pattern-item {
+            background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+
+        .optimization-item {
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            color: #333;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+
+        .confidence-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #38a169 0%, #48bb78 100%);
+            transition: width 0.3s ease;
+        }
+
+        .tab-container {
+            display: flex;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 8px 8px 0 0;
+            margin-right: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            background: rgba(255,255,255,0.9);
+            color: #333;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function Dashboard() {
+            const [networkStatus, setNetworkStatus] = useState(null);
+            const [controllers, setControllers] = useState([]);
+            const [flights, setFlights] = useState([]);
+            const [trafficAnalysis, setTrafficAnalysis] = useState(null);
+            const [heatMapData, setHeatMapData] = useState([]);
+            const [positionRecommendations, setPositionRecommendations] = useState([]);
+            const [trafficAlerts, setTrafficAlerts] = useState(null);
+            const [mlPredictions, setMlPredictions] = useState([]);
+            const [mlAnomalies, setMlAnomalies] = useState([]);
+            const [mlPatterns, setMlPatterns] = useState([]);
+            const [mlOptimizations, setMlOptimizations] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [activeTab, setActiveTab] = useState('overview');
+
+            const API_BASE = 'http://localhost:8001';
+
+            const fetchData = async () => {
+                try {
+                    setLoading(true);
+                    setError(null);
+
+                    // Fetch all data in parallel
+                    const [
+                        networkResponse,
+                        controllersResponse,
+                        flightsResponse,
+                        trafficResponse,
+                        heatMapResponse,
+                        recommendationsResponse,
+                        alertsResponse,
+                        mlPredictionsResponse,
+                        mlAnomaliesResponse,
+                        mlPatternsResponse,
+                        mlOptimizationsResponse
+                    ] = await Promise.all([
+                        fetch(`${API_BASE}/api/network/status`),
+                        fetch(`${API_BASE}/api/controllers`),
+                        fetch(`${API_BASE}/api/flights`),
+                        fetch(`${API_BASE}/api/traffic/analysis`),
+                        fetch(`${API_BASE}/api/traffic/heatmap`),
+                        fetch(`${API_BASE}/api/positions/recommendations`),
+                        fetch(`${API_BASE}/api/traffic/alerts`),
+                        fetch(`${API_BASE}/api/ml/predict/KJFK_APP`),
+                        fetch(`${API_BASE}/api/ml/anomalies`),
+                        fetch(`${API_BASE}/api/ml/patterns`),
+                        fetch(`${API_BASE}/api/ml/optimize`)
+                    ]);
+
+                    if (networkResponse.ok) {
+                        const networkData = await networkResponse.json();
+                        setNetworkStatus(networkData);
+                    }
+
+                    if (controllersResponse.ok) {
+                        const controllersData = await controllersResponse.json();
+                        setControllers(controllersData);
+                    }
+
+                    if (flightsResponse.ok) {
+                        const flightsData = await flightsResponse.json();
+                        setFlights(flightsData);
+                    }
+
+                    if (trafficResponse.ok) {
+                        const trafficData = await trafficResponse.json();
+                        setTrafficAnalysis(trafficData);
+                    }
+
+                    if (heatMapResponse.ok) {
+                        const heatMapData = await heatMapResponse.json();
+                        setHeatMapData(heatMapData.heat_map_points || []);
+                    }
+
+                    if (recommendationsResponse.ok) {
+                        const recommendationsData = await recommendationsResponse.json();
+                        setPositionRecommendations(recommendationsData.recommendations || []);
+                    }
+
+                    if (alertsResponse.ok) {
+                        const alertsData = await alertsResponse.json();
+                        setTrafficAlerts(alertsData);
+                    }
+
+                    if (mlPredictionsResponse.ok) {
+                        const mlPredictionsData = await mlPredictionsResponse.json();
+                        setMlPredictions([mlPredictionsData]);
+                    }
+
+                    if (mlAnomaliesResponse.ok) {
+                        const mlAnomaliesData = await mlAnomaliesResponse.json();
+                        setMlAnomalies(mlAnomaliesData.anomalies || []);
+                    }
+
+                    if (mlPatternsResponse.ok) {
+                        const mlPatternsData = await mlPatternsResponse.json();
+                        setMlPatterns(mlPatternsData.patterns || []);
+                    }
+
+                    if (mlOptimizationsResponse.ok) {
+                        const mlOptimizationsData = await mlOptimizationsResponse.json();
+                        setMlOptimizations(mlOptimizationsData.optimizations || []);
+                    }
+
+                } catch (err) {
+                    console.error('Error fetching data:', err);
+                    setError('Failed to fetch data. Please check if the server is running.');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            useEffect(() => {
+                fetchData();
+                const interval = setInterval(fetchData, 30000); // Refresh every 30 seconds
+                return () => clearInterval(interval);
+            }, []);
+
+            const getPriorityClass = (score) => {
+                if (score >= 80) return 'priority-high';
+                if (score >= 60) return 'priority-medium';
+                return 'priority-low';
+            };
+
+            const getAlertClass = (score) => {
+                if (score >= 80) return 'alert-high';
+                if (score >= 60) return 'alert-medium';
+                return 'alert-low';
+            };
+
+            const getTrendClass = (trend) => {
+                switch (trend) {
+                    case 'increasing': return 'trend-increasing';
+                    case 'decreasing': return 'trend-decreasing';
+                    default: return 'trend-stable';
+                }
+            };
+
+            const renderOverview = () => (
+                <div className="dashboard-grid">
+                    {/* Network Status */}
+                    <div className="card">
+                        <h2>Network Status</h2>
+                        {networkStatus && (
+                            <div className="status-grid">
+                                <div className="status-item">
+                                    <div className="status-number">{networkStatus.active_controllers}</div>
+                                    <div className="status-label">Active Controllers</div>
+                                </div>
+                                <div className="status-item">
+                                    <div className="status-number">{networkStatus.active_flights}</div>
+                                    <div className="status-label">Active Flights</div>
+                                </div>
+                                <div className="status-item">
+                                    <div className="status-number">{networkStatus.manned_sectors}</div>
+                                    <div className="status-label">Manned Sectors</div>
+                                </div>
+                                <div className="status-item">
+                                    <div className="status-number">{networkStatus.unmanned_sectors}</div>
+                                    <div className="status-label">Unmanned Sectors</div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ML Predictions */}
+                    <div className="card">
+                        <h2>
+                            AI Traffic Predictions
+                            <span className="ai-badge">ML</span>
+                        </h2>
+                        {mlPredictions.map((prediction, index) => (
+                            <div key={index} className="ml-prediction">
+                                <strong>{prediction.sector_name}</strong>
+                                <div className="prediction-item">
+                                    <span>Current: {prediction.current_demand}</span>
+                                    <span className={getTrendClass(prediction.trend_direction)}>
+                                        {prediction.trend_direction}
+                                    </span>
+                                </div>
+                                <div className="prediction-item">
+                                    <span>1h: {prediction.predicted_demand_1h}</span>
+                                    <span>2h: {prediction.predicted_demand_2h}</span>
+                                    <span>4h: {prediction.predicted_demand_4h}</span>
+                                </div>
+                                <div className="prediction-item">
+                                    <span>Confidence: {(prediction.confidence_score * 100).toFixed(1)}%</span>
+                                    <span>Anomaly: {(prediction.anomaly_score * 100).toFixed(1)}%</span>
+                                </div>
+                                <div className="confidence-bar">
+                                    <div 
+                                        className="confidence-fill" 
+                                        style={{width: `${prediction.confidence_score * 100}%`}}
+                                    ></div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* ML Anomalies */}
+                    <div className="card">
+                        <h2>
+                            AI Anomaly Detection
+                            <span className="ai-badge">ML</span>
+                        </h2>
+                        {mlAnomalies.slice(0, 3).map((anomaly, index) => (
+                            <div key={index} className="anomaly-item">
+                                <strong>🚨 {anomaly.sector_name}</strong>
+                                <div>{anomaly.anomaly_type}</div>
+                                <div style={{fontSize: '0.9rem'}}>{anomaly.description}</div>
+                                <div>Confidence: {(anomaly.confidence * 100).toFixed(1)}%</div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* ML Patterns */}
+                    <div className="card">
+                        <h2>
+                            AI Pattern Recognition
+                            <span className="ai-badge">ML</span>
+                        </h2>
+                        {mlPatterns.slice(0, 3).map((pattern, index) => (
+                            <div key={index} className="pattern-item">
+                                <strong>🔍 {pattern.pattern_type}</strong>
+                                <div>{pattern.sector_name}</div>
+                                <div style={{fontSize: '0.9rem'}}>{pattern.description}</div>
+                                <div>Confidence: {(pattern.confidence * 100).toFixed(1)}%</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+
+            const renderTrafficAnalysis = () => (
+                <div className="dashboard-grid">
+                    {/* Traffic Analysis */}
+                    <div className="card">
+                        <h2>Traffic Analysis</h2>
+                        {trafficAnalysis && trafficAnalysis.traffic_densities && (
+                            <div>
+                                {trafficAnalysis.traffic_densities.slice(0, 5).map((density, index) => (
+                                    <div key={index} className={`list-item ${getPriorityClass(density.density_score)}`}>
+                                        <strong>{density.sector_name}</strong>
+                                        <div>Flights: {density.flight_count} | Density: {density.density_score.toFixed(1)}</div>
+                                        <div>Priority Level: {density.priority_level}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Position Recommendations */}
+                    <div className="card">
+                        <h2>Position Recommendations</h2>
+                        {positionRecommendations.slice(0, 5).map((rec, index) => (
+                            <div key={index} className={`list-item ${getPriorityClass(rec.priority_score)}`}>
+                                <strong>{rec.position_name}</strong>
+                                <div>Priority: {rec.priority_score.toFixed(1)} | Demand: {rec.traffic_demand}</div>
+                                <div>Workload: {rec.estimated_workload.toFixed(1)}%</div>
+                                <div style={{fontSize: '0.9rem', color: '#666', marginTop: '5px'}}>
+                                    {rec.reasoning}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Heat Map */}
+                    <div className="card">
+                        <h2>Traffic Heat Map</h2>
+                        <div className="heat-map-container" id="heatmap"></div>
+                        <div style={{marginTop: '10px', fontSize: '0.9rem', color: '#666'}}>
+                            {heatMapData.length} active flight positions
+                        </div>
+                    </div>
+
+                    {/* Traffic Alerts */}
+                    <div className="card">
+                        <h2>Traffic Alerts</h2>
+                        {trafficAlerts && (
+                            <div>
+                                {trafficAlerts.high_priority_positions && trafficAlerts.high_priority_positions.slice(0, 3).map((alert, index) => (
+                                    <div key={index} className={`alert-item ${getAlertClass(alert.priority_score)}`}>
+                                        <strong>🚨 {alert.position_name}</strong>
+                                        <div>Priority: {alert.priority_score.toFixed(1)} | Demand: {alert.traffic_demand}</div>
+                                        <div style={{fontSize: '0.9rem'}}>{alert.reasoning}</div>
+                                    </div>
+                                ))}
+                                
+                                {trafficAlerts.high_density_sectors && trafficAlerts.high_density_sectors.slice(0, 3).map((sector, index) => (
+                                    <div key={index} className="alert-item alert-medium">
+                                        <strong>📊 {sector.sector_name}</strong>
+                                        <div>Density: {sector.density_score.toFixed(1)} | Flights: {sector.flight_count}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+
+            const renderMLOptimization = () => (
+                <div className="dashboard-grid">
+                    {/* ML Optimizations */}
+                    <div className="card">
+                        <h2>
+                            AI Position Optimization
+                            <span className="ai-badge">ML</span>
+                        </h2>
+                        {mlOptimizations.slice(0, 5).map((opt, index) => (
+                            <div key={index} className="optimization-item">
+                                <strong>🎯 {opt.position_name}</strong>
+                                <div>Optimal Controller: {opt.optimal_controller}</div>
+                                <div>Efficiency Score: {(opt.efficiency_score * 100).toFixed(1)}%</div>
+                                <div style={{fontSize: '0.9rem', marginTop: '5px'}}>
+                                    {opt.recommendations.map((rec, i) => (
+                                        <div key={i}>• {rec}</div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Recent Controllers */}
+                    <div className="card">
+                        <h2>Active Controllers</h2>
+                        {controllers.slice(0, 5).map((controller, index) => (
+                            <div key={index} className="list-item">
+                                <strong>{controller.callsign}</strong>
+                                <div>{controller.facility} - {controller.position}</div>
+                                <div style={{color: controller.status === 'online' ? '#38a169' : '#e53e3e'}}>
+                                    {controller.status}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Recent Flights */}
+                    <div className="card">
+                        <h2>Recent Flights</h2>
+                        {flights.slice(0, 5).map((flight, index) => (
+                            <div key={index} className="list-item">
+                                <strong>{flight.callsign}</strong>
+                                <div>{flight.aircraft_type} | {flight.departure} → {flight.arrival}</div>
+                                <div>FL{flight.altitude} | {flight.speed}kts</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+
+            if (loading) {
+                return (
+                    <div className="container">
+                        <div className="loading">
+                            <h2>Loading ATC Position Recommendation Engine...</h2>
+                            <p>Initializing AI/ML models and fetching real-time data</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (error) {
+                return (
+                    <div className="container">
+                        <div className="error">
+                            <h2>Error</h2>
+                            <p>{error}</p>
+                            <button className="refresh-button" onClick={fetchData}>
+                                Retry
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="container">
+                    <div className="header">
+                        <h1>
+                            ATC Position Recommendation Engine
+                            <span className="sprint3-badge">Sprint 3</span>
+                        </h1>
+                        <p>AI-powered traffic analysis and position optimization</p>
+                        <button className="refresh-button" onClick={fetchData}>
+                            Refresh Data
+                        </button>
+                    </div>
+
+                    <div className="tab-container">
+                        <button 
+                            className={`tab ${activeTab === 'overview' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('overview')}
+                        >
+                            Overview
+                        </button>
+                        <button 
+                            className={`tab ${activeTab === 'traffic' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('traffic')}
+                        >
+                            Traffic Analysis
+                        </button>
+                        <button 
+                            className={`tab ${activeTab === 'optimization' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('optimization')}
+                        >
+                            AI Optimization
+                        </button>
+                    </div>
+
+                    <div className={`tab-content ${activeTab === 'overview' ? 'active' : ''}`}>
+                        {renderOverview()}
+                    </div>
+
+                    <div className={`tab-content ${activeTab === 'traffic' ? 'active' : ''}`}>
+                        {renderTrafficAnalysis()}
+                    </div>
+
+                    <div className={`tab-content ${activeTab === 'optimization' ? 'active' : ''}`}>
+                        {renderMLOptimization()}
+                    </div>
+                </div>
+            );
+        }
+
+        // Initialize heat map when component mounts
+        ReactDOM.render(<Dashboard />, document.getElementById('root'));
+
+        // Initialize Leaflet heat map
+        setTimeout(() => {
+            const map = L.map('heatmap').setView([40.7128, -74.0060], 5);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            // Add heat map data points
+            fetch('http://localhost:8001/api/traffic/heatmap')
+                .then(response => response.json())
+                .then(data => {
+                    data.heat_map_points.forEach(point => {
+                        const color = point.intensity > 0.7 ? '#e53e3e' : 
+                                    point.intensity > 0.4 ? '#d69e2e' : '#38a169';
+                        
+                        L.circleMarker([point.latitude, point.longitude], {
+                            radius: 8,
+                            fillColor: color,
+                            color: '#fff',
+                            weight: 2,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        }).addTo(map).bindPopup(`
+                            <strong>${point.sector_name}</strong><br>
+                            Intensity: ${(point.intensity * 100).toFixed(1)}%<br>
+                            Flights: ${point.flight_count}
+                        `);
+                    });
+                })
+                .catch(error => console.error('Error loading heat map:', error));
+        }, 1000);
+    </script>
+</body>
+</html> 

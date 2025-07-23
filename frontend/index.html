@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VATSIM Data Collector</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+        }
+
+        .card h2 {
+            color: #4a5568;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .status-item {
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+        }
+
+        .status-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .status-label {
+            font-size: 0.9rem;
+            color: #718096;
+            margin-top: 5px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .data-table th {
+            background: #f7fafc;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .data-table tr:hover {
+            background: #f7fafc;
+        }
+
+        .status-online {
+            color: #38a169;
+            font-weight: 600;
+        }
+
+        .status-offline {
+            color: #e53e3e;
+            font-weight: 600;
+        }
+
+        .refresh-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-bottom: 20px;
+            transition: transform 0.2s ease;
+        }
+
+        .refresh-button:hover {
+            transform: translateY(-2px);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #718096;
+        }
+
+        .error {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .timestamp {
+            text-align: center;
+            color: #718096;
+            font-size: 0.9rem;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function VATSIMDataCollector() {
+            const [networkStatus, setNetworkStatus] = useState(null);
+            const [controllers, setControllers] = useState([]);
+            const [flights, setFlights] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [lastUpdate, setLastUpdate] = useState(null);
+
+            const fetchData = async () => {
+                try {
+                    setLoading(true);
+                    setError(null);
+
+                    // Fetch network status
+                    const statusResponse = await fetch('/api/network/status');
+                    const statusData = await statusResponse.json();
+
+                    // Fetch controllers
+                    const controllersResponse = await fetch('/api/controllers');
+                    const controllersData = await controllersResponse.json();
+
+                    // Fetch flights
+                    const flightsResponse = await fetch('/api/flights');
+                    const flightsData = await flightsResponse.json();
+
+                    setNetworkStatus(statusData);
+                    setControllers(controllersData.controllers || []);
+                    setFlights(flightsData.flights || []);
+                    setLastUpdate(new Date().toLocaleTimeString());
+
+                } catch (err) {
+                    setError('Failed to fetch data. Please try again.');
+                    console.error('Error fetching data:', err);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            useEffect(() => {
+                fetchData();
+                const interval = setInterval(fetchData, 30000); // Refresh every 30 seconds
+                return () => clearInterval(interval);
+            }, []);
+
+            if (loading && !networkStatus) {
+                return (
+                    <div className="container">
+                        <div className="header">
+                            <h1>VATSIM Data Collector</h1>
+                            <p>Real-time VATSIM network data collection</p>
+                        </div>
+                        <div className="loading">Loading data...</div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="container">
+                    <div className="header">
+                        <h1>VATSIM Data Collector</h1>
+                        <p>Real-time VATSIM network data collection</p>
+                    </div>
+
+                    {error && <div className="error">{error}</div>}
+
+                    <button className="refresh-button" onClick={fetchData}>
+                        Refresh Data
+                    </button>
+
+                    <div className="dashboard-grid">
+                        {/* Network Status Card */}
+                        <div className="card">
+                            <h2>Network Status</h2>
+                            {networkStatus ? (
+                                <div className="status-grid">
+                                    <div className="status-item">
+                                        <div className="status-number">{networkStatus.online_controllers}</div>
+                                        <div className="status-label">Online Controllers</div>
+                                    </div>
+                                    <div className="status-item">
+                                        <div className="status-number">{networkStatus.active_flights}</div>
+                                        <div className="status-label">Active Flights</div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="loading">Loading status...</div>
+                            )}
+                        </div>
+
+                        {/* Controllers Card */}
+                        <div className="card">
+                            <h2>Controllers ({controllers.length})</h2>
+                            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                                <table className="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Callsign</th>
+                                            <th>Facility</th>
+                                            <th>Position</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {controllers.map(controller => (
+                                            <tr key={controller.id}>
+                                                <td>{controller.callsign}</td>
+                                                <td>{controller.facility}</td>
+                                                <td>{controller.position || 'N/A'}</td>
+                                                <td>
+                                                    <span className={`status-${controller.status}`}>
+                                                        {controller.status}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* Flights Card */}
+                        <div className="card">
+                            <h2>Flights ({flights.length})</h2>
+                            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                                <table className="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Callsign</th>
+                                            <th>Pilot</th>
+                                            <th>Route</th>
+                                            <th>Altitude</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {flights.map(flight => (
+                                            <tr key={flight.id}>
+                                                <td>{flight.callsign}</td>
+                                                <td>{flight.pilot_name || 'N/A'}</td>
+                                                <td>{flight.departure} → {flight.arrival}</td>
+                                                <td>{flight.altitude ? `${flight.altitude}ft` : 'N/A'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    {lastUpdate && (
+                        <div className="timestamp">
+                            Last updated: {lastUpdate}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        ReactDOM.render(<VATSIMDataCollector />, document.getElementById('root'));
+    </script>
+</body>
+</html> 
