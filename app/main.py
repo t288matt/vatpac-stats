@@ -32,7 +32,7 @@ async def background_data_ingestion():
     while True:
         try:
             data_service = get_data_service()
-            await data_service.ingest_current_data()
+            await data_service.start_data_ingestion()
             await asyncio.sleep(30)  # Update every 30 seconds
         except Exception as e:
             logger.error(f"Background data ingestion error: {e}")
@@ -263,7 +263,7 @@ async def get_network_status(db: Session = Depends(get_db)):
         
         # Get network data
         vatsim_service = get_vatsim_service()
-        network_data = await vatsim_service.fetch_vatsim_data()
+        network_data = await vatsim_service.get_current_data()
         
         if network_data:
             status = {

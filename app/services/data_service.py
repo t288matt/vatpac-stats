@@ -45,7 +45,7 @@ class DataService:
         while True:
             try:
                 # Fetch VATSIM data
-                vatsim_data = await self.vatsim_service.fetch_vatsim_data()
+                vatsim_data = await self.vatsim_service.get_current_data()
                 
                 if vatsim_data:
                     # Process data in memory first

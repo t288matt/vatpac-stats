@@ -23,7 +23,7 @@ if is_postgresql:
         connect_args={
             "connect_timeout": 30,      # PostgreSQL connection timeout
             "application_name": "vatpac_stats",  # Application name for monitoring
-            "options": "-c timezone=utc -c synchronous_commit=off -c wal_buffers=16MB -c checkpoint_completion_target=0.9"  # SSD optimization
+            "options": "-c timezone=utc -c synchronous_commit=off"  # SSD optimization
         }
     )
 else:

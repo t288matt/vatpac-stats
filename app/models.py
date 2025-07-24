@@ -37,38 +37,41 @@ class Sector(Base):
     
     # Relationships
     controller = relationship("Controller", back_populates="sectors")
-    flights = relationship("Flight", back_populates="sector")
 
 class Flight(Base):
     """Flight model representing active flights - OPTIMIZED FOR STORAGE"""
     __tablename__ = "flights"
     
     id = Column(Integer, primary_key=True, index=True)
-    callsign = Column(String(20), nullable=False, index=True)
-    pilot_name = Column(String(100), nullable=True)  # Actual pilot name from VATSIM
-    aircraft_type = Column(String(10), nullable=True)
+    callsign = Column(String(50), nullable=False, index=True)
+    aircraft_type = Column(String(20), nullable=True)
+    position_lat = Column(Float, nullable=True)
+    position_lng = Column(Float, nullable=True)
+    altitude = Column(Integer, nullable=True)
+    speed = Column(Integer, nullable=True)
+    heading = Column(Integer, nullable=True)
+    ground_speed = Column(Integer, nullable=True)
+    vertical_speed = Column(Integer, nullable=True)
+    squawk = Column(String(10), nullable=True)
+    flight_plan = Column(Text, nullable=True)  # JSON string
+    controller_id = Column(Integer, ForeignKey("controllers.id"), nullable=True)
+    last_updated = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
     departure = Column(String(10), nullable=True)
     arrival = Column(String(10), nullable=True)
     route = Column(Text, nullable=True)
-    altitude = Column(SmallInteger, nullable=True)  # SMALLINT: 0-65,535 feet (saves 50% storage)
-    speed = Column(SmallInteger, nullable=True)     # SMALLINT: 0-65,535 knots (saves 50% storage)
-    position_lat = Column(Integer, nullable=True)   # Compressed lat: multiply by 1M for precision
-    position_lng = Column(Integer, nullable=True)   # Compressed lng: multiply by 1M for precision
-    controller_id = Column(Integer, ForeignKey("controllers.id"), nullable=True)
-    sector_id = Column(Integer, ForeignKey("sectors.id"), nullable=True)
-    last_updated = Column(DateTime, default=datetime.utcnow)
+    status = Column(String(20), default="active")  # active, completed, cancelled
     
     # Relationships
     controller = relationship("Controller", back_populates="flights")
-    sector = relationship("Sector", back_populates="flights")
     
     @property
     def position(self):
         """Get position as JSON string (for compatibility)"""
         if self.position_lat and self.position_lng:
             return json.dumps({
-                'lat': self.position_lat / 1000000.0,
-                'lng': self.position_lng / 1000000.0
+                'lat': self.position_lat,
+                'lng': self.position_lng
             })
         return None
     
@@ -78,14 +81,14 @@ class Flight(Base):
         if isinstance(value, str):
             try:
                 pos = json.loads(value)
-                self.position_lat = int(pos.get('lat', 0) * 1000000)
-                self.position_lng = int(pos.get('lng', 0) * 1000000)
+                self.position_lat = float(pos.get('lat', 0))
+                self.position_lng = float(pos.get('lng', 0))
             except:
                 self.position_lat = None
                 self.position_lng = None
         elif isinstance(value, dict):
-            self.position_lat = int(value.get('lat', 0) * 1000000)
-            self.position_lng = int(value.get('lng', 0) * 1000000)
+            self.position_lat = float(value.get('lat', 0))
+            self.position_lng = float(value.get('lng', 0))
         else:
             self.position_lat = None
             self.position_lng = None
@@ -95,18 +98,18 @@ class TrafficMovement(Base):
     __tablename__ = "traffic_movements"
     
     id = Column(Integer, primary_key=True, index=True)
-    callsign = Column(String(20), nullable=False, index=True)
-    airport_icao = Column(String(10), nullable=False, index=True)
-    movement_type = Column(String(10), nullable=False)  # 'arrival' or 'departure'
-    aircraft_type = Column(String(10), nullable=True)
-    pilot_name = Column(String(100), nullable=True)
+    airport_code = Column(String(10), nullable=False, index=True)
+    movement_type = Column(String(20), nullable=False)  # 'arrival' or 'departure'
+    aircraft_callsign = Column(String(50), nullable=True)
+    aircraft_type = Column(String(20), nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
-    confidence_score = Column(Float, default=1.0)  # 0.0-1.0 confidence in detection
-    detection_method = Column(String(50), nullable=True)  # 'flight_plan', 'position', 'manual'
-    flight_id = Column(Integer, ForeignKey("flights.id"), nullable=True)
+    runway = Column(String(10), nullable=True)
+    altitude = Column(Integer, nullable=True)
+    speed = Column(Integer, nullable=True)
+    heading = Column(Integer, nullable=True)
+    metadata_json = Column(Text, nullable=True)  # JSON string
     
-    # Relationships
-    flight = relationship("Flight")
+    # No relationships for now
 
 class FlightSummary(Base):
     """Flight summary for analytics - COMPRESSED HISTORICAL DATA"""
