@@ -10,6 +10,7 @@ services:
       POSTGRES_USER: vatsim_user
       POSTGRES_PASSWORD: vatsim_password
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+      PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./tools/postgresql.conf:/etc/postgresql/postgresql.conf
@@ -21,15 +22,25 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
     restart: unless-stopped
     networks:
       - vatsim_network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
 
   # Redis for caching
   redis:
     image: redis:7-alpine
     container_name: vatsim_redis
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru --save 900 1 --save 300 10 --save 60 10000
     volumes:
       - redis_data:/data
     ports:
@@ -39,27 +50,52 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
     restart: unless-stopped
     networks:
       - vatsim_network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+        reservations:
+          memory: 256M
+          cpus: '0.1'
 
   # Main Application
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: latest
     container_name: vatsim_app
     environment:
+      # Database Configuration
       - DATABASE_URL=postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data
       - REDIS_URL=redis://redis:6379
+      
+      # API Configuration
       - API_HOST=0.0.0.0
       - API_PORT=8001
+      
+      # Performance Settings
       - MEMORY_LIMIT_MB=2048
       - BATCH_SIZE_THRESHOLD=10000
+      - CACHE_TTL=3600
+      
+      # Logging
       - LOG_LEVEL=INFO
+      - LOG_FORMAT=json
+      
+      # Security
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
-      - ./backups:/app/backups
-      - app_data:/app/atc_optimization.db
+      - ./data:/app/data:rw
+      - ./logs:/app/logs:rw
+      - ./backups:/app/backups:rw
+      - app_cache:/app/cache:rw
     ports:
       - "8001:8001"
     depends_on:
@@ -72,19 +108,48 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
     restart: unless-stopped
     networks:
       - vatsim_network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+      - /var/tmp:noexec,nosuid,size=100m
 
 volumes:
   postgres_data:
     driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/postgres
   redis_data:
     driver: local
-  app_data:
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/redis
+  app_cache:
     driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/cache
 
 networks:
   vatsim_network:
-    driver: bridge 
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16 
