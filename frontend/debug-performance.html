@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Performance Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #17a2b8; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Debug Performance Dashboard</h1>
+        <p>Testing API endpoints and identifying NetworkError issues</p>
+        
+        <div class="test-section">
+            <h3>Test Controls</h3>
+            <button onclick="testAllEndpoints()">Test All Endpoints</button>
+            <button onclick="testPerformanceMetrics()">Test Performance Metrics Only</button>
+            <button onclick="testWithDifferentMethods()">Test Different Methods</button>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>Debug Log</h3>
+            <div id="log" class="log"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Results</h3>
+            <div id="results"></div>
+        </div>
+    </div>
+
+    <script>
+        let logElement = document.getElementById('log');
+        let resultsElement = document.getElementById('results');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            logElement.textContent += logEntry;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        function clearLog() {
+            logElement.textContent = '';
+            resultsElement.innerHTML = '';
+        }
+        
+        function showResult(title, data, success = true) {
+            const resultDiv = document.createElement('div');
+            resultDiv.style.margin = '10px 0';
+            resultDiv.style.padding = '10px';
+            resultDiv.style.borderRadius = '4px';
+            resultDiv.style.backgroundColor = success ? '#d4edda' : '#f8d7da';
+            resultDiv.style.border = `1px solid ${success ? '#c3e6cb' : '#f5c6cb'}`;
+            
+            resultDiv.innerHTML = `
+                <h4>${title}</h4>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+            
+            resultsElement.appendChild(resultDiv);
+        }
+        
+        async function testAllEndpoints() {
+            log('Starting comprehensive endpoint tests...', 'info');
+            
+            const baseUrl = window.location.origin;
+            log(`Using base URL: ${baseUrl}`, 'info');
+            
+            // Test 1: API Status
+            try {
+                log('Testing API status endpoint...', 'info');
+                const statusResponse = await fetch(`${baseUrl}/api/status`);
+                if (statusResponse.ok) {
+                    const statusData = await statusResponse.json();
+                    log('API Status: SUCCESS', 'success');
+                    showResult('API Status Response', statusData, true);
+                } else {
+                    log(`API Status: FAILED - ${statusResponse.status}`, 'error');
+                }
+            } catch (error) {
+                log(`API Status Error: ${error.message}`, 'error');
+            }
+            
+            // Test 2: Database Status
+            try {
+                log('Testing database status endpoint...', 'info');
+                const dbResponse = await fetch(`${baseUrl}/api/database/status`);
+                if (dbResponse.ok) {
+                    const dbData = await dbResponse.json();
+                    log('Database Status: SUCCESS', 'success');
+                    showResult('Database Status Response', dbData, true);
+                } else {
+                    log(`Database Status: FAILED - ${dbResponse.status}`, 'error');
+                }
+            } catch (error) {
+                log(`Database Status Error: ${error.message}`, 'error');
+            }
+            
+            // Test 3: Performance Metrics
+            try {
+                log('Testing performance metrics endpoint...', 'info');
+                const performanceResponse = await fetch(`${baseUrl}/api/performance/metrics`);
+                if (performanceResponse.ok) {
+                    const performanceData = await performanceResponse.json();
+                    log('Performance Metrics: SUCCESS', 'success');
+                    showResult('Performance Metrics Response', performanceData, true);
+                } else {
+                    log(`Performance Metrics: FAILED - ${performanceResponse.status}`, 'error');
+                }
+            } catch (error) {
+                log(`Performance Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testPerformanceMetrics() {
+            log('Testing performance metrics endpoint specifically...', 'info');
+            
+            const baseUrl = window.location.origin;
+            log(`Making request to: ${baseUrl}/api/performance/metrics`, 'info');
+            
+            try {
+                const response = await fetch(`${baseUrl}/api/performance/metrics`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    mode: 'cors'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('Performance metrics request successful!', 'success');
+                    showResult('Performance Metrics', data, true);
+                } else {
+                    log(`Performance metrics failed with status: ${response.status}`, 'error');
+                    showResult('Performance Metrics Error', { status: response.status, statusText: response.statusText }, false);
+                }
+            } catch (error) {
+                log(`Performance metrics network error: ${error.message}`, 'error');
+                showResult('Performance Metrics Network Error', { error: error.message }, false);
+            }
+        }
+        
+        async function testWithDifferentMethods() {
+            log('Testing with different request methods...', 'info');
+            
+            const baseUrl = window.location.origin;
+            const url = `${baseUrl}/api/performance/metrics`;
+            
+            // Test 1: Simple fetch
+            try {
+                log('Test 1: Simple fetch request', 'info');
+                const response1 = await fetch(url);
+                log(`Simple fetch result: ${response1.status}`, response1.ok ? 'success' : 'error');
+            } catch (error) {
+                log(`Simple fetch error: ${error.message}`, 'error');
+            }
+            
+            // Test 2: XMLHttpRequest
+            try {
+                log('Test 2: XMLHttpRequest', 'info');
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', url);
+                xhr.onload = function() {
+                    log(`XHR result: ${xhr.status}`, xhr.status === 200 ? 'success' : 'error');
+                };
+                xhr.onerror = function() {
+                    log('XHR network error', 'error');
+                };
+                xhr.send();
+            } catch (error) {
+                log(`XHR error: ${error.message}`, 'error');
+            }
+            
+            // Test 3: Fetch with no-cors mode
+            try {
+                log('Test 3: Fetch with no-cors mode', 'info');
+                const response3 = await fetch(url, { mode: 'no-cors' });
+                log(`No-cors fetch result: ${response3.type}`, 'info');
+            } catch (error) {
+                log(`No-cors fetch error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Auto-run tests when page loads
+        window.onload = function() {
+            log('Page loaded, running tests...', 'info');
+            testAllEndpoints();
+        };
+    </script>
+</body>
+</html> 

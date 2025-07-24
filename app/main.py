@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 import logging
@@ -33,10 +34,10 @@ async def background_data_ingestion():
         try:
             data_service = get_data_service()
             await data_service.start_data_ingestion()
-            await asyncio.sleep(30)  # Update every 30 seconds
+            # Sleep interval is now handled inside the data service
         except Exception as e:
             logger.error(f"Background data ingestion error: {e}")
-            await asyncio.sleep(30)
+            await asyncio.sleep(30)  # Fallback sleep on error
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -81,6 +82,53 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files for frontend
+app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
+
+@app.get("/dashboard")
+async def get_dashboard():
+    """Serve the main dashboard"""
+    try:
+        with open("frontend/index.html", "r") as f:
+            content = f.read()
+        return HTMLResponse(content=content, status_code=200)
+    except Exception as e:
+        logger.error(f"Error serving dashboard: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/frontend/index.html")
+async def get_frontend_index():
+    """Serve the main frontend index.html"""
+    try:
+        with open("frontend/index.html", "r") as f:
+            content = f.read()
+        return HTMLResponse(content=content, status_code=200)
+    except Exception as e:
+        logger.error(f"Error serving frontend index: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/frontend/performance-dashboard.html")
+async def get_performance_dashboard():
+    """Serve the performance dashboard"""
+    try:
+        with open("frontend/performance-dashboard.html", "r") as f:
+            content = f.read()
+        return HTMLResponse(content=content, status_code=200)
+    except Exception as e:
+        logger.error(f"Error serving performance dashboard: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/frontend/sprint3.html")
+async def get_sprint3_dashboard():
+    """Serve the Sprint 3 dashboard"""
+    try:
+        with open("frontend/sprint3.html", "r") as f:
+            content = f.read()
+        return HTMLResponse(content=content, status_code=200)
+    except Exception as e:
+        logger.error(f"Error serving Sprint 3 dashboard: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -600,15 +648,72 @@ async def get_traffic_dashboard():
         logger.error(f"Error generating traffic dashboard: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.get("/performance-dashboard")
-async def get_performance_dashboard():
-    """Get performance dashboard HTML"""
+# This route is now handled by the frontend route below
+# @app.get("/performance-dashboard")
+# async def get_performance_dashboard():
+#     """Get performance dashboard HTML"""
+#     try:
+#         with open("frontend/performance-dashboard.html", "r") as f:
+#             content = f.read()
+#         return HTMLResponse(content=content, status_code=200)
+#     except Exception as e:
+#         logger.error(f"Error serving performance dashboard: {e}")
+#         raise HTTPException(status_code=500, detail="Internal server error")
+
+# Frontend routes - added at the end to ensure they're registered
+@app.get("/frontend/index.html")
+async def serve_frontend_index():
+    """Serve the main frontend index.html"""
+    try:
+        with open("frontend/index.html", "r") as f:
+            content = f.read()
+        return HTMLResponse(content=content, status_code=200)
+    except Exception as e:
+        logger.error(f"Error serving frontend index: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/frontend/performance-dashboard.html")
+async def serve_performance_dashboard():
+    """Serve the performance dashboard"""
     try:
         with open("frontend/performance-dashboard.html", "r") as f:
             content = f.read()
         return HTMLResponse(content=content, status_code=200)
     except Exception as e:
         logger.error(f"Error serving performance dashboard: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/frontend/sprint3.html")
+async def serve_sprint3_dashboard():
+    """Serve the Sprint 3 dashboard"""
+    try:
+        with open("frontend/sprint3.html", "r") as f:
+            content = f.read()
+        return HTMLResponse(content=content, status_code=200)
+    except Exception as e:
+        logger.error(f"Error serving Sprint 3 dashboard: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/frontend/debug-performance.html")
+async def serve_debug_performance():
+    """Serve the debug performance dashboard"""
+    try:
+        with open("frontend/debug-performance.html", "r") as f:
+            content = f.read()
+        return HTMLResponse(content=content, status_code=200)
+    except Exception as e:
+        logger.error(f"Error serving debug performance dashboard: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/frontend/simple-test.html")
+async def serve_simple_test():
+    """Serve the simple test page"""
+    try:
+        with open("frontend/simple-test.html", "r") as f:
+            content = f.read()
+        return HTMLResponse(content=content, status_code=200)
+    except Exception as e:
+        logger.error(f"Error serving simple test page: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 if __name__ == "__main__":

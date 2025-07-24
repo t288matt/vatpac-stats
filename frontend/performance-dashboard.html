@@ -239,6 +239,8 @@
             <p>Real-time system performance monitoring and optimization status</p>
             <button class="refresh-button" onclick="refreshData()">🔄 Refresh Data</button>
         </div>
+        
+        <div id="status"></div>
 
         <div class="metrics-grid">
             <div class="metric-card">
@@ -379,15 +381,114 @@
 
         async function refreshData() {
             try {
-                // Get system performance metrics
-                const performanceResponse = await fetch('/api/performance/metrics');
-                const performanceMetrics = await performanceResponse.json();
+                console.log('Refreshing data...');
+                
+                // Get the current host and port
+                const baseUrl = window.location.origin;
+                console.log('Base URL:', baseUrl);
+                
+                // Get system performance metrics with comprehensive error handling
+                let performanceMetrics = null;
+                try {
+                    console.log('Making request to performance metrics endpoint...');
+                    const performanceResponse = await fetch(`${baseUrl}/api/performance/metrics`, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
+                        },
+                        mode: 'cors',
+                        cache: 'no-cache'
+                    });
+                    
+                    console.log(`Performance response status: ${performanceResponse.status}`);
+                    console.log(`Performance response headers:`, [...performanceResponse.headers.entries()]);
+                    
+                    if (!performanceResponse.ok) {
+                        throw new Error(`Performance API error: ${performanceResponse.status} ${performanceResponse.statusText}`);
+                    }
+                    
+                    performanceMetrics = await performanceResponse.json();
+                    console.log('Performance metrics loaded successfully:', performanceMetrics);
+                    
+                    // Clear any previous error messages
+                    const statusElement = document.getElementById('status');
+                    if (statusElement.innerHTML.includes('Warning: Performance metrics unavailable')) {
+                        statusElement.innerHTML = '';
+                    }
+                } catch (performanceError) {
+                    console.error('Performance metrics error:', performanceError);
+                    console.error('Error details:', {
+                        name: performanceError.name,
+                        message: performanceError.message,
+                        stack: performanceError.stack
+                    });
+                    
+                    // Use fallback data if performance metrics fail
+                    performanceMetrics = {
+                        system: {
+                            memory_usage_percent: 35.0,  // Reasonable fallback
+                            cpu_usage_percent: 15.0,     // Reasonable fallback
+                            disk_usage_percent: 21.5     // Reasonable fallback
+                        },
+                        process: {
+                            memory_mb: 120.0,
+                            cpu_percent: 0.0
+                        }
+                    };
+                    
+                    // Show warning but don't block the dashboard
+                    const statusElement = document.getElementById('status');
+                    statusElement.innerHTML = `<div style="color: orange; padding: 10px; background: #fff3cd; border-radius: 5px; margin: 10px 0;">
+                        <strong>⚠️ Performance Metrics Warning:</strong> ${performanceError.message}<br>
+                        <small>Using fallback data. The dashboard will continue to function.</small>
+                    </div>`;
+                }
 
-                // Get database status
-                const dbResponse = await fetch('/api/database/status');
-                const dbStatus = await dbResponse.json();
+                // Get database status with comprehensive error handling
+                let dbStatus = null;
+                try {
+                    console.log('Making request to database status endpoint...');
+                    const dbResponse = await fetch(`${baseUrl}/api/database/status`);
+                    console.log(`Database response status: ${dbResponse.status}`);
+                    
+                    if (!dbResponse.ok) {
+                        throw new Error(`Database API error: ${dbResponse.status} ${dbResponse.statusText}`);
+                    }
+                    
+                    dbStatus = await dbResponse.json();
+                    console.log('Database status loaded successfully:', dbStatus);
+                } catch (dbError) {
+                    console.error('Database status error:', dbError);
+                    // Use fallback data if database status fails
+                    dbStatus = {
+                        database: {
+                            connection_pool: {
+                                checked_out: 0
+                            }
+                        },
+                        cache: {
+                            hit_rate: 0,
+                            status: 'disabled'
+                        }
+                    };
+                    
+                    // Show warning but don't block the dashboard
+                    const statusElement = document.getElementById('status');
+                    if (!statusElement.innerHTML.includes('Performance Metrics Warning')) {
+                        statusElement.innerHTML = `<div style="color: orange; padding: 10px; background: #fff3cd; border-radius: 5px; margin: 10px 0;">
+                            <strong>⚠️ Database Status Warning:</strong> ${dbError.message}<br>
+                            <small>Using fallback data. The dashboard will continue to function.</small>
+                        </div>`;
+                    } else {
+                        // Append to existing warning
+                        statusElement.innerHTML += `<div style="color: orange; padding: 5px 0; font-size: 0.9em;">
+                            <strong>Database Status:</strong> ${dbError.message}
+                        </div>`;
+                    }
+                }
 
-                // Update metrics
+                // Update metrics with available data
                 updateMetrics(performanceMetrics, dbStatus);
                 updateOptimizationStatus(performanceMetrics, dbStatus);
 
@@ -406,9 +507,17 @@
 
                 // Update charts
                 updateCharts();
+                
+                console.log('Data refresh completed successfully');
 
             } catch (error) {
                 console.error('Error refreshing data:', error);
+                // Show error on page but don't break the dashboard
+                const statusElement = document.getElementById('status');
+                statusElement.innerHTML = `<div style="color: red; padding: 10px; background: #ffe6e6; border-radius: 5px; margin: 10px 0;">
+                    <strong>❌ Dashboard Error:</strong> ${error.message}<br>
+                    <small>The dashboard will retry automatically in 30 seconds.</small>
+                </div>`;
             }
         }
 

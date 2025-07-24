@@ -221,7 +221,7 @@ class ResourceManager:
         try:
             # System metrics
             memory = psutil.virtual_memory()
-            cpu = psutil.cpu_percent(interval=1)
+            cpu = psutil.cpu_percent(interval=None)  # Non-blocking CPU measurement
             disk = psutil.disk_usage('/')
             
             # Process metrics

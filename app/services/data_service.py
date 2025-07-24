@@ -8,6 +8,7 @@ following our architecture principles of maintainability and supportability.
 
 import asyncio
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session
@@ -28,11 +29,16 @@ logger = logging.getLogger(__name__)
 class DataService:
     def __init__(self):
         self.vatsim_service = VATSIMService()
+        # Get intervals from environment variables
+        self.vatsim_polling_interval = int(os.getenv('VATSIM_POLLING_INTERVAL', 30))
+        self.vatsim_write_interval = int(os.getenv('VATSIM_WRITE_INTERVAL', 300))
+        self.vatsim_cleanup_interval = int(os.getenv('VATSIM_CLEANUP_INTERVAL', 3600))
+        
         self.cache = {
             'flights': {},
             'controllers': {},
             'last_write': 0,
-            'write_interval': 300,  # Write to disk every 5 minutes instead of every 30 seconds
+            'write_interval': self.vatsim_write_interval,  # Write to disk every 5 minutes instead of every 30 seconds
             'memory_buffer': defaultdict(list)
         }
         self.write_count = 0
@@ -59,16 +65,16 @@ class DataService:
                         logger.info(f"Flushed memory cache to disk. Write count: {self.write_count}")
                     
                     # Cleanup old data periodically
-                    if current_time - self.last_cleanup >= 3600:  # Every hour
+                    if current_time - self.last_cleanup >= self.vatsim_cleanup_interval:  # Every hour
                         await self._cleanup_old_data()
                         self.last_cleanup = current_time
                 
                 # Wait before next cycle
-                await asyncio.sleep(30)
+                await asyncio.sleep(self.vatsim_polling_interval)
                 
             except Exception as e:
                 logger.error(f"Error in data ingestion: {e}")
-                await asyncio.sleep(30)
+                await asyncio.sleep(self.vatsim_polling_interval)
     
     async def _process_data_in_memory(self, vatsim_data: Dict[str, Any]):
         """Process data in memory to reduce disk writes"""
