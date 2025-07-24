@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: vatsim_postgres
+    environment:
+      POSTGRES_DB: vatsim_data
+      POSTGRES_USER: vatsim_user
+      POSTGRES_PASSWORD: vatsim_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./tools/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./tools/create_optimized_tables.sql:/docker-entrypoint-initdb.d/01-init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vatsim_user -d vatsim_data"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - vatsim_network
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: vatsim_redis
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - vatsim_network
+
+  # Main Application
+  app:
+    build: .
+    container_name: vatsim_app
+    environment:
+      - DATABASE_URL=postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data
+      - REDIS_URL=redis://redis:6379
+      - API_HOST=0.0.0.0
+      - API_PORT=8001
+      - MEMORY_LIMIT_MB=2048
+      - BATCH_SIZE_THRESHOLD=10000
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./backups:/app/backups
+      - app_data:/app/atc_optimization.db
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - vatsim_network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  app_data:
+    driver: local
+
+networks:
+  vatsim_network:
+    driver: bridge 

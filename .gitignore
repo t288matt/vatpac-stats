@@ -119,4 +119,9 @@ dmypy.json
 .pyre/
 
 # Database migrations (keep only final versions)
-migrations/ 
+migrations/
+
+# Docker
+ssl/
+monitoring/grafana/dashboards/*.json
+monitoring/grafana/datasources/*.json 
