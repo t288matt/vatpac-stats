@@ -28,7 +28,7 @@ ALTER TABLE atc_positions RENAME COLUMN controller_rating TO operator_rating;
 -- Update column comments
 COMMENT ON COLUMN atc_positions.operator_id IS 'VATSIM user ID that links multiple positions controlled by the same operator';
 COMMENT ON COLUMN atc_positions.operator_name IS 'Operator real name from VATSIM API';
-COMMENT ON COLUMN atc_positions.operator_rating IS 'Operator rating (0-5) from VATSIM API';
+COMMENT ON COLUMN atc_positions.operator_rating IS 'Operator rating (1-11) from VATSIM API';
 
 -- Update table comment
 COMMENT ON TABLE atc_positions IS 'ATC positions that can be controlled or uncontrolled';

@@ -12,7 +12,7 @@ CREATE INDEX idx_controllers_rating ON controllers(controller_rating);
 
 -- Add comments explaining the fields
 COMMENT ON COLUMN controllers.controller_name IS 'Controller real name from VATSIM API';
-COMMENT ON COLUMN controllers.controller_rating IS 'Controller rating (0-5) from VATSIM API';
+COMMENT ON COLUMN controllers.controller_rating IS 'Controller rating (1-11) from VATSIM API';
 
 -- Verify the migration
 SELECT 

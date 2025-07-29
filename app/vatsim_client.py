@@ -18,7 +18,7 @@ class VATSIMATCPosition:
     frequency: str
     operator_id: str  # VATSIM user ID (links multiple positions)
     operator_name: str  # Operator's real name
-    operator_rating: int  # Operator rating (0-5)
+    operator_rating: int  # Operator rating (1-15 from VATSIM)
     last_seen: datetime
 
 @dataclass

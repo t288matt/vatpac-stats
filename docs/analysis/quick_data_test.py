@@ -27,7 +27,7 @@ def quick_data_test():
         logger.info(f"✓ Database accessible - {table_count} tables found")
         
         # Test 2: Check record counts
-        tables = ['controllers', 'flights', 'traffic_movements', 'sectors']
+        tables = ['atc_positions', 'flights', 'traffic_movements', 'sectors']
         for table in tables:
             try:
                 cursor.execute(f"SELECT COUNT(*) FROM {table}")
@@ -37,16 +37,16 @@ def quick_data_test():
                 logger.warning(f"⚠ Table {table}: Error - {e}")
         
         # Test 3: Check data freshness
-        cursor.execute("SELECT MAX(last_seen) FROM controllers")
-        latest_controller = cursor.fetchone()[0]
+        cursor.execute("SELECT MAX(last_seen) FROM atc_positions")
+        latest_atc_position = cursor.fetchone()[0]
         
         cursor.execute("SELECT MAX(last_updated) FROM flights")
         latest_flight = cursor.fetchone()[0]
         
-        if latest_controller:
-            logger.info(f"✓ Latest controller data: {latest_controller}")
+        if latest_atc_position:
+            logger.info(f"✓ Latest ATC position data: {latest_atc_position}")
         else:
-            logger.warning("⚠ No controller data found")
+            logger.warning("⚠ No ATC position data found")
             
         if latest_flight:
             logger.info(f"✓ Latest flight data: {latest_flight}")
@@ -58,22 +58,22 @@ def quick_data_test():
             SELECT 
                 COUNT(*) as total,
                 COUNT(CASE WHEN callsign IS NOT NULL AND callsign != '' THEN 1 END) as valid_callsigns
-            FROM controllers
+            FROM atc_positions
         """)
-        controller_quality = cursor.fetchone()
+        atc_position_quality = cursor.fetchone()
         
-        if controller_quality and controller_quality[0] > 0:
-            quality_percent = (controller_quality[1] / controller_quality[0]) * 100
-            logger.info(f"✓ Controller data quality: {quality_percent:.1f}% valid callsigns")
+        if atc_position_quality and atc_position_quality[0] > 0:
+            quality_percent = (atc_position_quality[1] / atc_position_quality[0]) * 100
+            logger.info(f"✓ ATC position data quality: {quality_percent:.1f}% valid callsigns")
         else:
-            logger.warning("⚠ No controller data to check quality")
+            logger.warning("⚠ No ATC position data to check quality")
         
         # Test 5: Check for recent activity
         cursor.execute("""
-            SELECT COUNT(*) FROM controllers 
+            SELECT COUNT(*) FROM atc_positions 
             WHERE last_seen > datetime('now', '-1 hour')
         """)
-        recent_controllers = cursor.fetchone()[0]
+        recent_atc_positions = cursor.fetchone()[0]
         
         cursor.execute("""
             SELECT COUNT(*) FROM flights 
@@ -81,7 +81,7 @@ def quick_data_test():
         """)
         recent_flights = cursor.fetchone()[0]
         
-        logger.info(f"✓ Recent activity: {recent_controllers} controllers, {recent_flights} flights in last hour")
+        logger.info(f"✓ Recent activity: {recent_atc_positions} ATC positions, {recent_flights} flights in last hour")
         
         # Test 6: Database size
         cursor.execute("PRAGMA page_count")
@@ -105,20 +105,20 @@ def quick_data_test():
         score += 20
         
         # Data presence (30 points)
-        if recent_controllers > 0:
+        if recent_atc_positions > 0:
             score += 15
         if recent_flights > 0:
             score += 15
         
         # Data freshness (30 points)
-        if latest_controller and latest_flight:
+        if latest_atc_position and latest_flight:
             score += 30
-        elif latest_controller or latest_flight:
+        elif latest_atc_position or latest_flight:
             score += 15
         
         # Data quality (20 points)
-        if controller_quality and controller_quality[0] > 0:
-            quality_percent = (controller_quality[1] / controller_quality[0]) * 100
+        if atc_position_quality and atc_position_quality[0] > 0:
+            quality_percent = (atc_position_quality[1] / atc_position_quality[0]) * 100
             if quality_percent > 90:
                 score += 20
             elif quality_percent > 70:
@@ -139,8 +139,8 @@ def quick_data_test():
         
         # Recommendations
         logger.info("\n📋 RECOMMENDATIONS:")
-        if recent_controllers == 0:
-            logger.info("  • Start the application to collect controller data")
+        if recent_atc_positions == 0:
+            logger.info("  • Start the application to collect ATC position data")
         if recent_flights == 0:
             logger.info("  • Start the application to collect flight data")
         if db_size_mb > 100:

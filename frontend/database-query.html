@@ -249,7 +249,7 @@
                 
                 <!-- Custom SQL -->
                 <div id="custom" class="query-content">
-                    <textarea id="sql-editor" class="sql-editor" placeholder="Enter your SQL query here...&#10;&#10;Example:&#10;SELECT callsign, facility, position FROM controllers WHERE status = 'online' LIMIT 10;"></textarea>
+                    <textarea id="sql-editor" class="sql-editor" placeholder="Enter your SQL query here...&#10;&#10;Example:&#10;SELECT callsign, facility, position FROM atc_positions WHERE status = 'online' LIMIT 10;"></textarea>
                     <button class="button" onclick="executeCustomQuery()">Execute Query</button>
                     <button class="button secondary" onclick="clearEditor()">Clear</button>
                 </div>
@@ -338,10 +338,10 @@ ORDER BY controller_count DESC`
                 name: 'Recent Activity',
                 description: 'Activity in the last hour',
                 sql: `SELECT 
-    'controllers' as table_name,
+    'atc_positions' as table_name,
     COUNT(*) as count,
     MAX(last_seen) as latest_update
-FROM controllers 
+FROM atc_positions 
 WHERE last_seen > datetime('now', '-1 hour')
 UNION ALL
 SELECT 
@@ -363,10 +363,10 @@ LIMIT 20`
                 name: 'Database Statistics',
                 description: 'Overview of all tables and record counts',
                 sql: `SELECT 
-    'controllers' as table_name,
+    'atc_positions' as table_name,
     COUNT(*) as total_records,
     MAX(last_seen) as latest_data
-FROM controllers
+FROM atc_positions
 UNION ALL
 SELECT 
     'flights' as table_name,

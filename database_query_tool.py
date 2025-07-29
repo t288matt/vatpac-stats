@@ -82,9 +82,9 @@ class DatabaseQueryTool:
     def get_predefined_queries(self) -> Dict[str, str]:
         """Get predefined useful queries"""
         return {
-            "active_controllers": """
+            "active_atc_positions": """
                 SELECT callsign, facility, position, status, last_seen, workload_score
-                FROM controllers 
+                FROM atc_positions 
                 WHERE status = 'online' 
                 ORDER BY last_seen DESC 
                 LIMIT 20
@@ -105,14 +105,14 @@ class DatabaseQueryTool:
                 LIMIT 20
             """,
             
-            "controller_workload": """
+            "atc_position_workload": """
                 SELECT 
                     c.callsign,
                     c.facility,
                     c.workload_score,
                     COUNT(f.id) as flight_count
-                FROM controllers c
-                LEFT JOIN flights f ON c.id = f.controller_id
+                FROM atc_positions c
+                LEFT JOIN flights f ON c.id = f.atc_position_id
                 WHERE c.status = 'online'
                 GROUP BY c.id
                 ORDER BY c.workload_score DESC
@@ -133,20 +133,20 @@ class DatabaseQueryTool:
             "facility_stats": """
                 SELECT 
                     facility,
-                    COUNT(*) as controller_count,
+                    COUNT(*) as atc_position_count,
                     AVG(workload_score) as avg_workload
-                FROM controllers 
+                FROM atc_positions 
                 WHERE status = 'online'
                 GROUP BY facility 
-                ORDER BY controller_count DESC
+                ORDER BY atc_position_count DESC
             """,
             
             "recent_activity": """
                 SELECT 
-                    'controllers' as table_name,
+                    'atc_positions' as table_name,
                     COUNT(*) as count,
                     MAX(last_seen) as latest_update
-                FROM controllers 
+                FROM atc_positions 
                 WHERE last_seen > datetime('now', '-1 hour')
                 UNION ALL
                 SELECT 
@@ -159,10 +159,10 @@ class DatabaseQueryTool:
             
             "database_stats": """
                 SELECT 
-                    'controllers' as table_name,
+                    'atc_positions' as table_name,
                     COUNT(*) as total_records,
                     MAX(last_seen) as latest_data
-                FROM controllers
+                FROM atc_positions
                 UNION ALL
                 SELECT 
                     'flights' as table_name,

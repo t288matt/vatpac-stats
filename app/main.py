@@ -14,6 +14,7 @@ from .config import get_config, validate_config
 from .database import get_db, init_db, get_database_info
 from .models import ATCPosition, Sector, Flight, TrafficMovement, AirportConfig
 from .utils.logging import get_logger_for_module
+from .utils.rating_utils import get_rating_name, get_rating_level, get_all_ratings, validate_rating
 from .services.vatsim_service import get_vatsim_service
 from .services.data_service import get_data_service
 from .services.traffic_analysis_service import get_traffic_analysis_service
@@ -166,8 +167,8 @@ async def root():
             
             <div class="stats">
                 <div class="stat-card">
-                    <div class="stat-number" id="controllers-count">-</div>
-                    <div>Active Controllers</div>
+                    <div class="stat-number" id="atc-positions-count">-</div>
+                    <div>Active ATC Positions</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-number" id="flights-count">-</div>
@@ -189,7 +190,7 @@ async def root():
                     <span class="method">GET</span> <span class="url">/api/status</span> - System status and statistics
                 </div>
                 <div class="endpoint">
-                    <span class="method">GET</span> <span class="url">/api/controllers</span> - Active controllers data
+                    <span class="method">GET</span> <span class="url">/api/atc-positions</span> - Active ATC positions data
                 </div>
                 <div class="endpoint">
                     <span class="method">GET</span> <span class="url">/api/flights</span> - Active flights data
@@ -225,7 +226,7 @@ async def root():
                     const response = await fetch('/api/status');
                     const data = await response.json();
                     
-                    document.getElementById('controllers-count').textContent = data.controllers_count || 0;
+                    document.getElementById('atc-positions-count').textContent = data.atc_positions_count || 0;
                     document.getElementById('flights-count').textContent = data.flights_count || 0;
                     document.getElementById('airports-count').textContent = data.airports_count || 0;
                     document.getElementById('movements-count').textContent = data.movements_count || 0;
@@ -358,6 +359,9 @@ async def get_atc_positions(db: Session = Depends(get_db)):
         
         atc_positions_data = []
         for atc_position in atc_positions:
+            # Validate rating with error handling
+            rating_validation = validate_rating(atc_position.operator_rating) if atc_position.operator_rating else {"is_valid": False, "rating_name": None, "rating_level": None, "error": "No rating provided"}
+            
             atc_positions_data.append({
                 "id": atc_position.id,
                 "callsign": atc_position.callsign,
@@ -368,6 +372,12 @@ async def get_atc_positions(db: Session = Depends(get_db)):
                 "operator_id": atc_position.operator_id,
                 "operator_name": atc_position.operator_name,
                 "operator_rating": atc_position.operator_rating,
+                "operator_rating_name": rating_validation.get("rating_name"),
+                "operator_rating_level": rating_validation.get("rating_level"),
+                "rating_validation": {
+                    "is_valid": rating_validation.get("is_valid", False),
+                    "error": rating_validation.get("error")
+                },
                 "last_seen": atc_position.last_seen.isoformat() if atc_position.last_seen else None,
                 "workload_score": atc_position.workload_score
             })
@@ -393,10 +403,19 @@ async def get_atc_positions_by_operator_id(db: Session = Depends(get_db)):
         for atc_position in atc_positions:
             operator_id = atc_position.operator_id or "unknown"
             if operator_id not in atc_positions_by_operator_id:
+                # Validate rating with error handling
+                rating_validation = validate_rating(atc_position.operator_rating) if atc_position.operator_rating else {"is_valid": False, "rating_name": None, "rating_level": None, "error": "No rating provided"}
+                
                 atc_positions_by_operator_id[operator_id] = {
                     "operator_id": operator_id,
                     "operator_name": atc_position.operator_name,
                     "operator_rating": atc_position.operator_rating,
+                    "operator_rating_name": rating_validation.get("rating_name"),
+                    "operator_rating_level": rating_validation.get("rating_level"),
+                    "rating_validation": {
+                        "is_valid": rating_validation.get("is_valid", False),
+                        "error": rating_validation.get("error")
+                    },
                     "positions": [],
                     "total_positions": 0,
                     "facilities": set(),
@@ -429,6 +448,23 @@ async def get_atc_positions_by_operator_id(db: Session = Depends(get_db)):
         
     except Exception as e:
         logger.error(f"Error getting ATC positions by operator ID: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/vatsim/ratings")
+async def get_vatsim_ratings():
+    """Get all available VATSIM operator ratings"""
+    try:
+        ratings = get_all_ratings()
+        return {
+            "ratings": ratings,
+            "total_ratings": len(ratings),
+            "description": "VATSIM operator ratings from 1-15",
+            "valid_range": "1-15",
+            "known_ratings": [1, 2, 3, 4, 5, 8, 10, 11],
+            "unknown_ratings": [6, 7, 9, 12, 13, 14, 15]
+        }
+    except Exception as e:
+        logger.error(f"Error getting VATSIM ratings: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/api/flights")

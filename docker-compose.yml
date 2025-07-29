@@ -56,7 +56,7 @@ services:
       PYTHONUNBUFFERED: 1
       
       # VATSIM Data Collection Intervals (seconds)
-      VATSIM_POLLING_INTERVAL: 30    # How often to fetch VATSIM data
+      VATSIM_POLLING_INTERVAL: 60    # How often to fetch VATSIM data (1 minute)
       VATSIM_WRITE_INTERVAL: 300     # How often to write data to disk
       VATSIM_CLEANUP_INTERVAL: 3600  # How often to cleanup old data
     volumes:

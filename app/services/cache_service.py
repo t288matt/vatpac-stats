@@ -25,7 +25,7 @@ class CacheService:
         self.config = get_config()
         self.redis_client = None
         self.cache_ttl = {
-            'active_controllers': 30,      # 30 seconds
+            'active_atc_positions': 30,      # 30 seconds
             'active_flights': 30,          # 30 seconds
             'sector_status': 300,          # 5 minutes
             'network_stats': 60,           # 1 minute

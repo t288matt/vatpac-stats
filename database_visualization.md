@@ -14,14 +14,14 @@ The VATSIM Data Collection System uses a **PostgreSQL database** with the follow
 
 ### Core Tables
 
-#### 1. **controllers** (0 records)
-**Purpose**: Stores VATSIM ATC controller information
+#### 1. **atc_positions** (0 records)
+**Purpose**: Stores VATSIM ATC position information
 ```
 ┌─────────────────┬─────────────────────┬─────────────┐
 │ Column          │ Type                │ Description │
 ├─────────────────┼─────────────────────┼─────────────┤
 │ id              │ INTEGER (PK)        │ Unique ID   │
-│ callsign        │ VARCHAR(50) (UNIQUE)│ Controller  │
+│ callsign        │ VARCHAR(50) (UNIQUE)│ ATC Position│
 │ facility        │ VARCHAR(50)         │ Facility    │
 │ position        │ VARCHAR(50)         │ Position    │
 │ status          │ VARCHAR(20)         │ online/offline│
@@ -53,7 +53,7 @@ The VATSIM Data Collection System uses a **PostgreSQL database** with the follow
 │ squawk          │ VARCHAR(10)         │ Transponder │
 │ flight_plan     │ JSONB               │ Route data  │
 │ last_updated    │ TIMESTAMP           │ Last update │
-│ controller_id   │ INTEGER (FK)        │ Controller  │
+│ atc_position_id │ INTEGER (FK)        │ ATC Position│
 │ created_at      │ TIMESTAMP           │ Created     │
 │ departure       │ VARCHAR(10)         │ Origin      │
 │ arrival         │ VARCHAR(10)         │ Destination │
@@ -71,7 +71,7 @@ The VATSIM Data Collection System uses a **PostgreSQL database** with the follow
 │ id              │ INTEGER (PK)        │ Unique ID   │
 │ name            │ VARCHAR(100)        │ Sector name │
 │ facility        │ VARCHAR(50)         │ Facility    │
-│ controller_id   │ INTEGER (FK)        │ Controller  │
+│ atc_position_id │ INTEGER (FK)        │ ATC Position│
 │ traffic_density │ INTEGER             │ Traffic     │
 │ status          │ VARCHAR(20)         │ Active/etc  │
 │ priority_level  │ INTEGER             │ Priority    │
@@ -107,15 +107,15 @@ The VATSIM Data Collection System uses a **PostgreSQL database** with the follow
 ## 🔗 Relationships
 
 ```
-controllers (1) ──── (N) flights
-controllers (1) ──── (N) sectors
-controllers (1) ──── (N) flight_summaries
+atc_positions (1) ──── (N) flights
+atc_positions (1) ──── (N) sectors
+atc_positions (1) ──── (N) flight_summaries
 ```
 
 ## 📈 Database Features
 
 ### Indexes (Performance Optimization)
-- **controllers**: callsign, facility, last_seen, status
+- **atc_positions**: callsign, facility, last_seen, status
 - **flights**: callsign, aircraft_type, departure, arrival, position, last_updated
 - **Composite indexes** for efficient queries
 
@@ -140,7 +140,7 @@ controllers (1) ──── (N) flight_summaries
 ## 📊 Expected Data Volume
 
 Based on the previous SQLite database:
-- **Controllers**: ~400 active controllers
+- **ATC Positions**: ~400 active ATC positions
 - **Flights**: ~3,500 active flights
 - **Sectors**: ~5 airspace sectors
 - **Real-time updates**: Every 30 seconds

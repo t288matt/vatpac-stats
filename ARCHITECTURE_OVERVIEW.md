@@ -50,7 +50,7 @@ CREATE TABLE atc_positions (
     preferences JSONB,                         -- Position preferences/settings
     operator_id VARCHAR(50),                   -- VATSIM user ID (links multiple positions)
     operator_name VARCHAR(100),                -- Operator's real name from VATSIM API
-    operator_rating INTEGER,                   -- Operator rating (0-5) from VATSIM API
+    operator_rating INTEGER,                   -- Operator rating (1-11) from VATSIM API
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -144,7 +144,7 @@ CREATE TABLE flight_summaries (
     route TEXT,
     max_altitude SMALLINT,                     -- Maximum altitude reached
     duration_minutes SMALLINT,                 -- Flight duration
-    controller_id INTEGER REFERENCES controllers(id),
+    atc_position_id INTEGER REFERENCES atc_positions(id),
     sector_id INTEGER REFERENCES sectors(id),
     completed_at TIMESTAMPTZ NOT NULL          -- Flight completion time
 );
@@ -205,7 +205,7 @@ CREATE TABLE events (
     start_time TIMESTAMPTZ NOT NULL,           -- Event start time
     end_time TIMESTAMPTZ NOT NULL,             -- Event end time
     expected_traffic INTEGER DEFAULT 0,        -- Expected traffic volume
-    required_controllers INTEGER DEFAULT 0,     -- Required controllers
+    required_atc_positions INTEGER DEFAULT 0,     -- Required ATC positions
     status VARCHAR(20) DEFAULT 'scheduled',    -- scheduled/active/completed
     notes TEXT,                                -- Event notes
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -241,7 +241,7 @@ Web Browser   Route Handler  Redis Lookup  PostgreSQL   JSON Response
 ## 📊 **Data Types and Relationships**
 
 ### **Primary Data Types**
-1. **Controller Data**: ATC positions, workload, facilities
+1. **ATC Position Data**: ATC positions, workload, facilities
 2. **Flight Data**: Aircraft positions, routes, status
 3. **Traffic Data**: Airport movements, patterns
 4. **Sector Data**: Airspace boundaries, traffic density
@@ -305,13 +305,13 @@ CREATE INDEX idx_traffic_movements_airport_type ON traffic_movements(airport_cod
 ### **1. Data Ingestion Service**
 - **Purpose**: Collects real-time VATSIM data
 - **Frequency**: Every 30 seconds
-- **Data Types**: Controllers, flights, sectors
+- **Data Types**: ATC positions, flights, sectors
 - **Validation**: Data quality checks, error handling
 
 ### **2. Analytics Service**
 - **Purpose**: Processes data for insights
 - **Features**: Traffic analysis, workload optimization
-- **Output**: Movement patterns, controller recommendations
+- **Output**: Movement patterns, ATC position recommendations
 
 ### **3. Cache Service**
 - **Purpose**: Improves query performance

@@ -16,7 +16,7 @@ The VATSIM data collection system database has been thoroughly tested for data i
 - **Accessibility**: ✅ Fully accessible
 
 ### Record Counts
-- **Controllers**: 383 records
+- **ATC Positions**: 383 records
 - **Flights**: 2,942 records  
 - **Traffic Movements**: 9 records
 - **Sectors**: 5 records
@@ -38,15 +38,15 @@ The VATSIM data collection system database has been thoroughly tested for data i
 - **Timestamps**: All records have valid timestamps
 
 ### Data Freshness
-- **Latest Controller Data**: 2025-07-23 18:55:44.316022
+- **Latest ATC Position Data**: 2025-07-23 18:55:44.316022
 - **Latest Flight Data**: 2025-07-23 18:55:44.600703
-- **Recent Activity**: 383 controllers, 2,693 flights in last hour
+- **Recent Activity**: 383 ATC positions, 2,693 flights in last hour
 - **Status**: ✅ Data is fresh and actively being updated
 
 ### Data Patterns Analysis
 
-#### Top Controller Facilities
-- Multiple facilities with active controllers
+#### Top ATC Position Facilities
+- Multiple facilities with active ATC positions
 - Good distribution across different ATC positions
 
 #### Top Aircraft Types
@@ -67,7 +67,7 @@ The VATSIM data collection system database has been thoroughly tested for data i
 - **Index Usage**: Proper indexing in place
 
 ### Data Relationships
-- **Controller-Flight Relationships**: Properly maintained
+- **ATC Position-Flight Relationships**: Properly maintained
 - **Foreign Key Integrity**: All relationships intact
 - **Data Consistency**: No orphaned records
 
@@ -111,7 +111,7 @@ The database is **fully ready** for PostgreSQL migration with:
 
 ### Database Schema
 All required tables are present and properly structured:
-- `controllers` - ATC controller data
+- `atc_positions` - ATC position data
 - `flights` - Flight tracking data
 - `traffic_movements` - Movement detection data
 - `sectors` - Airspace sector data

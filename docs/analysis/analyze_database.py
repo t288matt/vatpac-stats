@@ -41,7 +41,7 @@ def analyze_database():
         logger.info("\n📈 RECORD COUNTS")
         logger.info("-" * 30)
         
-        for table in ['controllers', 'flights', 'traffic_movements', 'sectors']:
+        for table in ['atc_positions', 'flights', 'traffic_movements', 'sectors']:
             if table in tables:
                 cursor.execute(f"SELECT COUNT(*) FROM {table}")
                 count = cursor.fetchone()[0]
@@ -51,15 +51,15 @@ def analyze_database():
         logger.info("\n⏰ DATA FRESHNESS")
         logger.info("-" * 30)
         
-        # Controllers
-        cursor.execute("SELECT MAX(last_seen), MIN(last_seen) FROM controllers")
-        controller_times = cursor.fetchone()
-        if controller_times[0]:
-            latest_controller = datetime.fromisoformat(controller_times[0].replace('Z', '+00:00'))
-            earliest_controller = datetime.fromisoformat(controller_times[1].replace('Z', '+00:00'))
-            controller_span = latest_controller - earliest_controller
-            logger.info(f"Controllers: {earliest_controller.strftime('%Y-%m-%d %H:%M')} to {latest_controller.strftime('%Y-%m-%d %H:%M')}")
-            logger.info(f"Time span: {controller_span}")
+        # ATC Positions
+        cursor.execute("SELECT MAX(last_seen), MIN(last_seen) FROM atc_positions")
+        atc_position_times = cursor.fetchone()
+        if atc_position_times[0]:
+            latest_atc_position = datetime.fromisoformat(atc_position_times[0].replace('Z', '+00:00'))
+            earliest_atc_position = datetime.fromisoformat(atc_position_times[1].replace('Z', '+00:00'))
+            atc_position_span = latest_atc_position - earliest_atc_position
+            logger.info(f"ATC Positions: {earliest_atc_position.strftime('%Y-%m-%d %H:%M')} to {latest_atc_position.strftime('%Y-%m-%d %H:%M')}")
+            logger.info(f"Time span: {atc_position_span}")
         
         # Flights
         cursor.execute("SELECT MAX(last_updated), MIN(last_updated) FROM flights")
@@ -75,7 +75,7 @@ def analyze_database():
         logger.info("\n🔍 DATA QUALITY ANALYSIS")
         logger.info("-" * 30)
         
-        # Controllers quality
+        # ATC Positions quality
         cursor.execute("""
             SELECT 
                 COUNT(*) as total,
@@ -83,17 +83,17 @@ def analyze_database():
                 COUNT(CASE WHEN facility IS NOT NULL AND facility != '' THEN 1 END) as valid_facilities,
                 COUNT(CASE WHEN status IS NOT NULL THEN 1 END) as valid_status,
                 COUNT(CASE WHEN last_seen IS NOT NULL THEN 1 END) as valid_timestamps
-            FROM controllers
+            FROM atc_positions
         """)
-        controller_quality = cursor.fetchone()
+        atc_position_quality = cursor.fetchone()
         
-        if controller_quality[0] > 0:
-            total = controller_quality[0]
-            logger.info(f"Controller Quality Metrics:")
-            logger.info(f"  Callsigns: {controller_quality[1]}/{total} ({controller_quality[1]/total*100:.1f}%)")
-            logger.info(f"  Facilities: {controller_quality[2]}/{total} ({controller_quality[2]/total*100:.1f}%)")
-            logger.info(f"  Status: {controller_quality[3]}/{total} ({controller_quality[3]/total*100:.1f}%)")
-            logger.info(f"  Timestamps: {controller_quality[4]}/{total} ({controller_quality[4]/total*100:.1f}%)")
+        if atc_position_quality[0] > 0:
+            total = atc_position_quality[0]
+            logger.info(f"ATC Position Quality Metrics:")
+            logger.info(f"  Callsigns: {atc_position_quality[1]}/{total} ({atc_position_quality[1]/total*100:.1f}%)")
+            logger.info(f"  Facilities: {atc_position_quality[2]}/{total} ({atc_position_quality[2]/total*100:.1f}%)")
+            logger.info(f"  Status: {atc_position_quality[3]}/{total} ({atc_position_quality[3]/total*100:.1f}%)")
+            logger.info(f"  Timestamps: {atc_position_quality[4]}/{total} ({atc_position_quality[4]/total*100:.1f}%)")
         
         # Flights quality
         cursor.execute("""
@@ -126,16 +126,16 @@ def analyze_database():
         # Top facilities
         cursor.execute("""
             SELECT facility, COUNT(*) as count
-            FROM controllers
+            FROM atc_positions
             WHERE facility IS NOT NULL AND facility != ''
             GROUP BY facility
             ORDER BY count DESC
             LIMIT 10
         """)
         top_facilities = cursor.fetchall()
-        logger.info("Top Controller Facilities:")
+        logger.info("Top ATC Position Facilities:")
         for facility, count in top_facilities:
-            logger.info(f"  {facility}: {count} controllers")
+            logger.info(f"  {facility}: {count} positions")
         
         # Top aircraft types
         cursor.execute("""
@@ -185,7 +185,7 @@ def analyze_database():
         logger.info(f"Database size: {db_size_mb:.2f} MB")
         
         # Table sizes
-        for table in ['controllers', 'flights', 'traffic_movements']:
+        for table in ['atc_positions', 'flights', 'traffic_movements']:
             cursor.execute(f"SELECT COUNT(*) FROM {table}")
             count = cursor.fetchone()[0]
             estimated_size_kb = count * 0.5  # Rough estimate
@@ -195,19 +195,19 @@ def analyze_database():
         logger.info("\n🔗 DATA RELATIONSHIPS")
         logger.info("-" * 30)
         
-        # Controller-flight relationships
+        # ATC position-flight relationships
         cursor.execute("""
             SELECT 
                 COUNT(*) as total_flights,
-                COUNT(CASE WHEN controller_id IS NOT NULL THEN 1 END) as flights_with_controllers,
-                COUNT(DISTINCT controller_id) as unique_controllers
+                COUNT(CASE WHEN atc_position_id IS NOT NULL THEN 1 END) as flights_with_atc_positions,
+                COUNT(DISTINCT atc_position_id) as unique_atc_positions
             FROM flights
         """)
-        flight_controller_stats = cursor.fetchone()
-        if flight_controller_stats[0] > 0:
-            relationship_percent = (flight_controller_stats[1] / flight_controller_stats[0]) * 100
-            logger.info(f"Flights with controller assignments: {relationship_percent:.1f}%")
-            logger.info(f"Flights assigned to {flight_controller_stats[2]} unique controllers")
+        flight_atc_position_stats = cursor.fetchone()
+        if flight_atc_position_stats[0] > 0:
+            relationship_percent = (flight_atc_position_stats[1] / flight_atc_position_stats[0]) * 100
+            logger.info(f"Flights with ATC position assignments: {relationship_percent:.1f}%")
+            logger.info(f"Flights assigned to {flight_atc_position_stats[2]} unique ATC positions")
         
         # 8. Migration Readiness Assessment
         logger.info("\n🚀 MIGRATION READINESS")
@@ -217,7 +217,7 @@ def analyze_database():
         max_score = 100
         
         # Data presence (25 points)
-        if flight_controller_stats[0] > 0:
+        if flight_atc_position_stats[0] > 0:
             readiness_score += 25
         
         # Data quality (25 points)
@@ -269,7 +269,7 @@ def analyze_database():
             logger.info("✅ Data freshness is good")
             logger.info("✅ Database size is optimal")
         else:
-            if flight_controller_stats[0] == 0:
+            if flight_atc_position_stats[0] == 0:
                 logger.info("⚠️ Start the application to collect data")
             if flight_quality and flight_quality[1]/flight_quality[0] < 0.9:
                 logger.info("⚠️ Data quality needs improvement")

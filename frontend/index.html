@@ -397,8 +397,8 @@
                             {networkStatus && (
                                 <div className="status-grid">
                                     <div className="status-item">
-                                        <div className="status-number">{networkStatus.active_controllers}</div>
-                                        <div className="status-label">Active Controllers</div>
+                                        <div className="status-number">{networkStatus.active_atc_positions}</div>
+                                        <div className="status-label">Active ATC Positions</div>
                                     </div>
                                     <div className="status-item">
                                         <div className="status-number">{networkStatus.active_flights}</div>
@@ -479,9 +479,9 @@
                             </div>
                         </div>
 
-                        {/* Recent Controllers */}
+                        {/* Recent ATC Positions */}
                         <div className="card">
-                            <h2>Active Controllers</h2>
+                            <h2>Active ATC Positions</h2>
                             {controllers.slice(0, 5).map((controller, index) => (
                                 <div key={index} className="list-item">
                                     <strong>{controller.callsign}</strong>

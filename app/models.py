@@ -19,7 +19,7 @@ class ATCPosition(Base):
     preferences = Column(Text, nullable=True)  # JSON string for position preferences
     operator_id = Column(String(50), nullable=True, index=True)  # VATSIM user ID (links multiple positions)
     operator_name = Column(String(100), nullable=True)  # Operator's real name
-    operator_rating = Column(Integer, nullable=True)  # Operator rating (0-5)
+    operator_rating = Column(Integer, nullable=True)  # Operator rating (1-15 from VATSIM)
     
     # Relationships
     sectors = relationship("Sector", back_populates="atc_position")
