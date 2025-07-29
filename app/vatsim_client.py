@@ -9,13 +9,16 @@ from dataclasses import dataclass
 logger = logging.getLogger(__name__)
 
 @dataclass
-class VATSIMController:
-    """VATSIM controller data structure"""
+class VATSIMATCPosition:
+    """VATSIM ATC position data structure"""
     callsign: str
     facility: str
     position: str
     status: str
     frequency: str
+    operator_id: str  # VATSIM user ID (links multiple positions)
+    operator_name: str  # Operator's real name
+    operator_rating: int  # Operator rating (0-5)
     last_seen: datetime
 
 @dataclass
@@ -63,26 +66,42 @@ class VATSIMClient:
             logger.error(f"Failed to fetch VATSIM status: {e}")
             raise
     
-    def parse_controllers(self, data: Dict) -> List[VATSIMController]:
-        """Parse controller data from VATSIM response"""
-        controllers = []
+    def _map_facility_to_position(self, facility_id: int) -> str:
+        """Map VATSIM facility ID to position name"""
+        facility_map = {
+            0: "OBS",   # Observer
+            1: "FSS",   # Flight Service Station
+            2: "DEL",   # Clearance Delivery
+            3: "GND",   # Ground
+            4: "TWR",   # Tower
+            5: "APP",   # Approach/Departure
+            6: "CTR"    # Enroute (Center)
+        }
+        return facility_map.get(facility_id, "UNKNOWN")
+
+    def parse_atc_positions(self, data: Dict) -> List[VATSIMATCPosition]:
+        """Parse ATC position data from VATSIM response"""
+        atc_positions = []
         
         for controller_data in data.get("controllers", []):
             try:
-                controller = VATSIMController(
+                atc_position = VATSIMATCPosition(
                     callsign=controller_data.get("callsign", ""),
-                    facility=controller_data.get("facility", ""),
-                    position=controller_data.get("position", ""),
-                    status=controller_data.get("status", "offline"),
+                    facility="VATSIM",  # Generic facility since VATSIM doesn't provide it
+                    position=self._map_facility_to_position(controller_data.get("facility", 0)),
+                    status="online",  # Assume online if in API response
                     frequency=controller_data.get("frequency", ""),
+                    operator_id=str(controller_data.get("cid", "")),  # VATSIM user ID
+                    operator_name=controller_data.get("name", ""),
+                    operator_rating=controller_data.get("rating", 0),
                     last_seen=datetime.utcnow()
                 )
-                controllers.append(controller)
+                atc_positions.append(atc_position)
             except Exception as e:
-                logger.warning(f"Failed to parse controller {controller_data.get('callsign', 'unknown')}: {e}")
+                logger.warning(f"Failed to parse ATC position {controller_data.get('callsign', 'unknown')}: {e}")
                 continue
         
-        return controllers
+        return atc_positions
     
     def parse_flights(self, data: Dict) -> List[VATSIMFlight]:
         """Parse flight data from VATSIM response"""
@@ -149,7 +168,7 @@ class VATSIMClient:
             data = await self.fetch_network_data()
             
             return {
-                "controllers": self.parse_controllers(data),
+                "atc_positions": self.parse_atc_positions(data),
                 "flights": self.parse_flights(data),
                 "sectors": self.parse_sectors(data),
                 "raw_data": data,

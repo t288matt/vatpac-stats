@@ -72,7 +72,7 @@ def get_db() -> Generator[Session, None, None]:
 def init_db():
     """Initialize database tables"""
     # Import models to ensure they are registered with Base
-    from .models import Controller, Sector, Flight, SystemConfig, Event, TrafficMovement, FlightSummary, MovementSummary, AirportConfig, MovementDetectionConfig
+    from .models import ATCPosition, Sector, Flight, SystemConfig, Event, TrafficMovement, FlightSummary, MovementSummary, AirportConfig, MovementDetectionConfig
     Base.metadata.create_all(bind=engine)
 
 def close_db():

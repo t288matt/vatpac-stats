@@ -20,7 +20,7 @@ import time
 from ..config import get_config
 from ..utils.logging import get_logger_for_module
 from ..database import SessionLocal
-from ..models import Controller, Flight, Sector, TrafficMovement, FlightSummary
+from ..models import ATCPosition, Flight, Sector, TrafficMovement, FlightSummary
 from .vatsim_service import VATSIMService
 from .traffic_analysis_service import TrafficAnalysisService
 
@@ -36,7 +36,7 @@ class DataService:
         
         self.cache = {
             'flights': {},
-            'controllers': {},
+            'atc_positions': {},
             'last_write': 0,
             'write_interval': self.vatsim_write_interval,  # Write to disk every 5 minutes instead of every 30 seconds
             'memory_buffer': defaultdict(list)
@@ -76,27 +76,39 @@ class DataService:
                 logger.error(f"Error in data ingestion: {e}")
                 await asyncio.sleep(self.vatsim_polling_interval)
     
-    async def _process_data_in_memory(self, vatsim_data: Dict[str, Any]):
+    async def _process_data_in_memory(self, vatsim_data):
         """Process data in memory to reduce disk writes"""
         try:
-            controllers_data = vatsim_data.get('controllers', [])
-            flights_data = vatsim_data.get('pilots', [])
+            # Convert VATSIMData object to dictionary format
+            if hasattr(vatsim_data, 'atc_positions'):
+                atc_positions_data = [atc_position.__dict__ for atc_position in vatsim_data.atc_positions]
+            else:
+                atc_positions_data = []
+                
+            if hasattr(vatsim_data, 'flights'):
+                flights_data = [flight.__dict__ for flight in vatsim_data.flights]
+            else:
+                flights_data = []
+                
+            if hasattr(vatsim_data, 'sectors'):
+                sectors_data = vatsim_data.sectors
+            else:
+                sectors_data = []
             
-            # Process controllers in memory
-            controllers_count = await self._process_controllers_in_memory(controllers_data)
+            # Process ATC positions in memory
+            atc_positions_count = await self._process_atc_positions_in_memory(atc_positions_data)
             
             # Process flights in memory
             flights_count = await self._process_flights_in_memory(flights_data)
             
             # Process sectors (if any)
-            sectors_data = vatsim_data.get('sectors', [])
             sectors_count = await self._process_sectors_in_memory(sectors_data)
             
             # Detect traffic movements in memory
             movements_count = await self._detect_movements_in_memory()
             
             logger.info("Data ingestion completed successfully", extra={
-                'controllers': controllers_count,
+                'atc_positions': atc_positions_count,
                 'flights': flights_count,
                 'sectors': sectors_count,
                 'movements': movements_count
@@ -105,32 +117,32 @@ class DataService:
         except Exception as e:
             logger.error(f"Error processing data in memory: {e}")
     
-    async def _process_controllers_in_memory(self, controllers_data: List[Dict[str, Any]]) -> int:
-        """Process controllers in memory cache"""
+    async def _process_atc_positions_in_memory(self, atc_positions_data: List[Dict[str, Any]]) -> int:
+        """Process ATC positions in memory cache"""
         try:
             processed_count = 0
             
-            for controller_data in controllers_data:
-                callsign = controller_data.get('callsign', '')
+            for atc_position_data in atc_positions_data:
+                callsign = atc_position_data.get('callsign', '')
                 
                 # Update memory cache
-                self.cache['controllers'][callsign] = {
+                self.cache['atc_positions'][callsign] = {
                     'callsign': callsign,
-                    'facility': controller_data.get('facility', ''),
-                    'position': controller_data.get('position', ''),
+                    'facility': atc_position_data.get('facility', ''),
+                    'position': atc_position_data.get('position', ''),
                     'status': 'online',
-                    'frequency': controller_data.get('frequency', ''),
+                    'frequency': atc_position_data.get('frequency', ''),
                     'last_seen': datetime.utcnow(),
                     'workload_score': 0.0,
-                    'preferences': json.dumps(controller_data.get('preferences', {}))
+                    'preferences': json.dumps(atc_position_data.get('preferences', {}))
                 }
                 processed_count += 1
             
-            logger.info(f"Processed {processed_count} controllers in memory")
+            logger.info(f"Processed {processed_count} ATC positions in memory")
             return processed_count
             
         except Exception as e:
-            logger.error(f"Error processing controllers in memory: {e}")
+            logger.error(f"Error processing ATC positions in memory: {e}")
             return 0
     
     async def _process_flights_in_memory(self, flights_data: List[Dict[str, Any]]) -> int:
@@ -196,22 +208,22 @@ class DataService:
         try:
             db = SessionLocal()
             try:
-                # BATCH 1: Controllers (batch write for efficiency)
-                controller_batch = []
-                for callsign, controller_data in self.cache['controllers'].items():
-                    existing = db.query(Controller).filter(Controller.callsign == callsign).first()
+                # BATCH 1: ATC Positions (batch write for efficiency)
+                atc_position_batch = []
+                for callsign, atc_position_data in self.cache['atc_positions'].items():
+                    existing = db.query(ATCPosition).filter(ATCPosition.callsign == callsign).first()
                     if existing:
                         # Update existing
-                        for key, value in controller_data.items():
+                        for key, value in atc_position_data.items():
                             setattr(existing, key, value)
                     else:
                         # Create new
-                        controller = Controller(**controller_data)
-                        controller_batch.append(controller)
+                        atc_position = ATCPosition(**atc_position_data)
+                        atc_position_batch.append(atc_position)
                 
-                # Bulk insert controllers
-                if controller_batch:
-                    db.bulk_save_objects(controller_batch)
+                # Bulk insert ATC positions
+                if atc_position_batch:
+                    db.bulk_save_objects(atc_position_batch)
                 
                 # BATCH 2: Flights (batch write for efficiency)
                 flight_batch = []
@@ -235,7 +247,7 @@ class DataService:
                 self.write_count += 1
                 
                 # Clear memory cache after successful write
-                self.cache['controllers'].clear()
+                self.cache['atc_positions'].clear()
                 self.cache['flights'].clear()
                 
                 logger.info(f"Flushed memory cache to disk. Total writes: {self.write_count}")
@@ -265,17 +277,17 @@ class DataService:
                     await self._store_flight_summary(flight)
                     db.delete(flight)
                 
-                # Mark controllers as offline if not seen in 30 minutes
-                controller_cutoff = datetime.utcnow() - timedelta(minutes=30)
-                offline_controllers = db.query(Controller).filter(
+                # Mark ATC positions as offline if not seen in 30 minutes
+                atc_position_cutoff = datetime.utcnow() - timedelta(minutes=30)
+                offline_atc_positions = db.query(ATCPosition).filter(
                     and_(
-                        Controller.last_seen < controller_cutoff,
-                        Controller.status == 'online'
+                        ATCPosition.last_seen < atc_position_cutoff,
+                        ATCPosition.status == 'online'
                     )
                 ).all()
                 
-                for controller in offline_controllers:
-                    controller.status = 'offline'
+                for atc_position in offline_atc_positions:
+                    atc_position.status = 'offline'
                 
                 # Clean up old movements (older than 7 days)
                 movement_cutoff = datetime.utcnow() - timedelta(days=7)
@@ -287,7 +299,7 @@ class DataService:
                     db.delete(movement)
                 
                 db.commit()
-                logger.info(f"Cleaned up {len(old_flights)} old flights, {len(offline_controllers)} offline controllers, {len(old_movements)} old movements")
+                logger.info(f"Cleaned up {len(old_flights)} old flights, {len(offline_atc_positions)} offline ATC positions, {len(old_movements)} old movements")
                 
             except Exception as e:
                 db.rollback()
@@ -341,9 +353,9 @@ class DataService:
         """
         db = SessionLocal()
         try:
-            # Count active controllers
-            active_controllers = db.query(Controller).filter(
-                Controller.status == "online"
+            # Count active ATC positions
+            active_atc_positions = db.query(ATCPosition).filter(
+                ATCPosition.status == "online"
             ).count()
             
             # Count active flights
@@ -353,7 +365,7 @@ class DataService:
             total_sectors = db.query(Sector).count()
             
             return {
-                "active_controllers": active_controllers,
+                "active_atc_positions": active_atc_positions,
                 "active_flights": active_flights,
                 "total_sectors": total_sectors,
                 "last_updated": datetime.utcnow().isoformat()
@@ -364,7 +376,7 @@ class DataService:
                 "error": str(e)
             })
             return {
-                "active_controllers": 0,
+                "active_atc_positions": 0,
                 "active_flights": 0,
                 "total_sectors": 0,
                 "error": str(e),

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser Network Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #17a2b8; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Browser Network Test</h1>
+        <p>Testing browser network requests to identify the NetworkError issue</p>
+        
+        <div class="test-section">
+            <h3>Test Controls</h3>
+            <button onclick="testBasicFetch()">Test Basic Fetch</button>
+            <button onclick="testWithHeaders()">Test With Headers</button>
+            <button onclick="testXMLHttpRequest()">Test XMLHttpRequest</button>
+            <button onclick="testDifferentURLs()">Test Different URLs</button>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>Browser Info</h3>
+            <div id="browser-info"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Network Test Results</h3>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        let logElement = document.getElementById('log');
+        let browserInfoElement = document.getElementById('browser-info');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            logElement.textContent += logEntry;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        function clearLog() {
+            logElement.textContent = '';
+        }
+        
+        function showBrowserInfo() {
+            browserInfoElement.innerHTML = `
+                <strong>User Agent:</strong> ${navigator.userAgent}<br>
+                <strong>Protocol:</strong> ${window.location.protocol}<br>
+                <strong>Host:</strong> ${window.location.host}<br>
+                <strong>Origin:</strong> ${window.location.origin}<br>
+                <strong>URL:</strong> ${window.location.href}<br>
+                <strong>Online:</strong> ${navigator.onLine}<br>
+                <strong>Connection:</strong> ${navigator.connection ? navigator.connection.effectiveType : 'Unknown'}
+            `;
+        }
+        
+        async function testBasicFetch() {
+            log('=== Testing Basic Fetch ===', 'info');
+            
+            const baseUrl = window.location.origin;
+            const url = `${baseUrl}/api/performance/metrics`;
+            
+            log(`Target URL: ${url}`, 'info');
+            log(`Current origin: ${window.location.origin}`, 'info');
+            
+            try {
+                log('Making basic fetch request...', 'info');
+                const response = await fetch(url);
+                
+                log(`Response status: ${response.status}`, 'info');
+                log(`Response headers: ${JSON.stringify([...response.headers.entries()])}`, 'info');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('✅ SUCCESS: Basic fetch worked!', 'success');
+                    log(`Memory: ${data.system?.memory_usage_percent}%`, 'success');
+                    log(`CPU: ${data.system?.cpu_usage_percent}%`, 'success');
+                } else {
+                    log(`❌ FAILED: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ ERROR: ${error.message}`, 'error');
+                log(`Error type: ${error.constructor.name}`, 'error');
+                log(`Error stack: ${error.stack}`, 'error');
+            }
+        }
+        
+        async function testWithHeaders() {
+            log('=== Testing Fetch With Headers ===', 'info');
+            
+            const baseUrl = window.location.origin;
+            const url = `${baseUrl}/api/performance/metrics`;
+            
+            try {
+                log('Making fetch request with headers...', 'info');
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    mode: 'cors'
+                });
+                
+                log(`Response status: ${response.status}`, 'info');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('✅ SUCCESS: Fetch with headers worked!', 'success');
+                    log(`Memory: ${data.system?.memory_usage_percent}%`, 'success');
+                } else {
+                    log(`❌ FAILED: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ ERROR: ${error.message}`, 'error');
+                log(`Error type: ${error.constructor.name}`, 'error');
+            }
+        }
+        
+        function testXMLHttpRequest() {
+            log('=== Testing XMLHttpRequest ===', 'info');
+            
+            const baseUrl = window.location.origin;
+            const url = `${baseUrl}/api/performance/metrics`;
+            
+            try {
+                log('Making XMLHttpRequest...', 'info');
+                const xhr = new XMLHttpRequest();
+                
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState === 4) {
+                        log(`XHR Status: ${xhr.status}`, 'info');
+                        if (xhr.status === 200) {
+                            try {
+                                const data = JSON.parse(xhr.responseText);
+                                log('✅ SUCCESS: XMLHttpRequest worked!', 'success');
+                                log(`Memory: ${data.system?.memory_usage_percent}%`, 'success');
+                            } catch (e) {
+                                log(`❌ JSON Parse Error: ${e.message}`, 'error');
+                            }
+                        } else {
+                            log(`❌ XHR Failed: ${xhr.status} ${xhr.statusText}`, 'error');
+                        }
+                    }
+                };
+                
+                xhr.onerror = function() {
+                    log('❌ XHR Network Error', 'error');
+                };
+                
+                xhr.open('GET', url);
+                xhr.send();
+                
+            } catch (error) {
+                log(`❌ XHR Setup Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testDifferentURLs() {
+            log('=== Testing Different URLs ===', 'info');
+            
+            const baseUrl = window.location.origin;
+            const urls = [
+                `${baseUrl}/api/status`,
+                `${baseUrl}/api/database/status`,
+                `${baseUrl}/api/performance/metrics`
+            ];
+            
+            for (const url of urls) {
+                try {
+                    log(`Testing: ${url}`, 'info');
+                    const response = await fetch(url);
+                    log(`Status: ${response.status}`, response.ok ? 'success' : 'error');
+                } catch (error) {
+                    log(`Error: ${error.message}`, 'error');
+                }
+            }
+        }
+        
+        // Auto-run tests when page loads
+        window.onload = function() {
+            log('Page loaded, showing browser info...', 'info');
+            showBrowserInfo();
+            setTimeout(testBasicFetch, 1000);
+        };
+    </script>
+</body>
+</html> 

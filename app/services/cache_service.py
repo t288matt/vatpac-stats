@@ -94,13 +94,13 @@ class CacheService:
             logger.error(f"Error invalidating cache for {pattern}: {e}")
             return False
     
-    async def get_controllers_cache(self) -> Optional[List[Dict[str, Any]]]:
-        """Get cached controllers data"""
-        return await self.get_cached_data('controllers:active')
+    async def get_atc_positions_cache(self) -> Optional[List[Dict[str, Any]]]:
+        """Get cached ATC positions data"""
+        return await self.get_cached_data('atc_positions:active')
     
-    async def set_controllers_cache(self, controllers: List[Dict[str, Any]]) -> bool:
-        """Set cached controllers data"""
-        return await self.set_cached_data('controllers:active', {'data': controllers, 'timestamp': datetime.utcnow().isoformat()})
+    async def set_atc_positions_cache(self, atc_positions: List[Dict[str, Any]]) -> bool:
+        """Set cached ATC positions data"""
+        return await self.set_cached_data('atc_positions:active', {'data': atc_positions, 'timestamp': datetime.utcnow().isoformat()})
     
     async def get_flights_cache(self) -> Optional[List[Dict[str, Any]]]:
         """Get cached flights data"""

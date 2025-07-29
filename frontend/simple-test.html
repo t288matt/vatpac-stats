@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Performance Test</title>
+    <title>Live Data Test</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -44,22 +44,34 @@
         button:hover {
             background: #0056b3;
         }
+        .live-data {
+            background: #e8f5e8;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🔧 Simple Performance Test</h1>
-        <p>Testing the performance metrics endpoint to identify NetworkError issues</p>
+        <h1>🔧 Live Data Test</h1>
+        <p>Testing to get real-time performance data working</p>
         
-        <button onclick="testPerformanceMetrics()">Test Performance Metrics</button>
-        <button onclick="testWithCurl()">Test with curl command</button>
+        <button onclick="testLiveData()">Test Live Data</button>
+        <button onclick="testDifferentMethods()">Test Different Methods</button>
         <button onclick="clearLog()">Clear Log</button>
+        
+        <div class="live-data" id="live-data">
+            <h3>Live Performance Data:</h3>
+            <div id="performance-data">Click "Test Live Data" to get real data</div>
+        </div>
         
         <div class="log" id="log"></div>
     </div>
 
     <script>
         let logElement = document.getElementById('log');
+        let performanceDataElement = document.getElementById('performance-data');
         
         function log(message, type = 'info') {
             const timestamp = new Date().toLocaleTimeString();
@@ -71,79 +83,126 @@
         
         function clearLog() {
             logElement.textContent = '';
+            performanceDataElement.innerHTML = 'Click "Test Live Data" to get real data';
         }
         
-        async function testPerformanceMetrics() {
-            log('Testing performance metrics endpoint...', 'info');
+        function updateLiveData(data) {
+            performanceDataElement.innerHTML = `
+                <strong>Memory Usage:</strong> ${data.system?.memory_usage_percent?.toFixed(1)}%<br>
+                <strong>CPU Usage:</strong> ${data.system?.cpu_usage_percent?.toFixed(1)}%<br>
+                <strong>Disk Usage:</strong> ${data.system?.disk_usage_percent?.toFixed(1)}%<br>
+                <strong>Process Memory:</strong> ${data.process?.memory_mb?.toFixed(1)} MB<br>
+                <strong>Timestamp:</strong> ${new Date().toLocaleTimeString()}
+            `;
+        }
+        
+        async function testLiveData() {
+            log('Testing live data fetch...', 'info');
             
             const baseUrl = window.location.origin;
             log(`Target URL: ${baseUrl}/api/performance/metrics`);
             
             try {
-                const response = await fetch(`${baseUrl}/api/performance/metrics`);
+                log('Making fetch request...', 'info');
+                
+                const response = await fetch(`${baseUrl}/api/performance/metrics`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    mode: 'cors',
+                    cache: 'no-cache'
+                });
+                
                 log(`Response status: ${response.status}`, 'info');
                 log(`Response headers: ${JSON.stringify([...response.headers.entries()])}`, 'info');
                 
                 if (response.ok) {
                     const data = await response.json();
-                    log('Performance metrics request successful!', 'success');
-                    log(`Memory usage: ${data.system?.memory_usage_percent}%`, 'success');
-                    log(`CPU usage: ${data.system?.cpu_usage_percent}%`, 'success');
-                    log(`Disk usage: ${data.system?.disk_usage_percent}%`, 'success');
+                    log('✅ SUCCESS: Got live data!', 'success');
+                    log(`Memory: ${data.system?.memory_usage_percent}%`, 'success');
+                    log(`CPU: ${data.system?.cpu_usage_percent}%`, 'success');
+                    log(`Disk: ${data.system?.disk_usage_percent}%`, 'success');
+                    
+                    updateLiveData(data);
                 } else {
-                    log(`Performance metrics failed with status: ${response.status}`, 'error');
+                    log(`❌ FAILED: ${response.status} ${response.statusText}`, 'error');
                 }
             } catch (error) {
-                log(`Performance metrics network error: ${error.message}`, 'error');
+                log(`❌ NETWORK ERROR: ${error.message}`, 'error');
                 log(`Error type: ${error.constructor.name}`, 'error');
                 log(`Error stack: ${error.stack}`, 'error');
+                
+                // Try alternative methods
+                log('Trying alternative fetch methods...', 'info');
+                await testAlternativeMethods();
             }
         }
         
-        async function testWithCurl() {
-            log('Testing with different fetch options...', 'info');
-            
+        async function testAlternativeMethods() {
             const baseUrl = window.location.origin;
             const url = `${baseUrl}/api/performance/metrics`;
             
-            // Test 1: Simple fetch
+            // Method 1: Simple fetch
             try {
-                log('Test 1: Simple fetch request', 'info');
+                log('Method 1: Simple fetch', 'info');
                 const response1 = await fetch(url);
-                log(`Simple fetch result: ${response1.status}`, response1.ok ? 'success' : 'error');
+                if (response1.ok) {
+                    const data = await response1.json();
+                    log('✅ Method 1 SUCCESS!', 'success');
+                    updateLiveData(data);
+                    return;
+                }
             } catch (error) {
-                log(`Simple fetch error: ${error.message}`, 'error');
+                log(`Method 1 failed: ${error.message}`, 'error');
             }
             
-            // Test 2: Fetch with headers
+            // Method 2: XMLHttpRequest
             try {
-                log('Test 2: Fetch with headers', 'info');
-                const response2 = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
+                log('Method 2: XMLHttpRequest', 'info');
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', url);
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        try {
+                            const data = JSON.parse(xhr.responseText);
+                            log('✅ Method 2 SUCCESS!', 'success');
+                            updateLiveData(data);
+                        } catch (e) {
+                            log(`Method 2 JSON parse failed: ${e.message}`, 'error');
+                        }
+                    } else {
+                        log(`Method 2 failed: ${xhr.status}`, 'error');
                     }
-                });
-                log(`Fetch with headers result: ${response2.status}`, response2.ok ? 'success' : 'error');
+                };
+                xhr.onerror = function() {
+                    log('Method 2 network error', 'error');
+                };
+                xhr.send();
             } catch (error) {
-                log(`Fetch with headers error: ${error.message}`, 'error');
+                log(`Method 2 setup failed: ${error.message}`, 'error');
             }
             
-            // Test 3: Fetch with no-cors mode
+            // Method 3: Fetch with no-cors
             try {
-                log('Test 3: Fetch with no-cors mode', 'info');
+                log('Method 3: Fetch with no-cors', 'info');
                 const response3 = await fetch(url, { mode: 'no-cors' });
-                log(`No-cors fetch result: ${response3.type}`, 'info');
+                log(`Method 3 result: ${response3.type}`, 'info');
             } catch (error) {
-                log(`No-cors fetch error: ${error.message}`, 'error');
+                log(`Method 3 failed: ${error.message}`, 'error');
             }
+        }
+        
+        async function testDifferentMethods() {
+            log('Testing all available methods...', 'info');
+            await testAlternativeMethods();
         }
         
         // Auto-test on page load
         window.onload = function() {
-            log('Page loaded, starting tests...', 'info');
-            setTimeout(testPerformanceMetrics, 1000);
+            log('Page loaded, testing live data...', 'info');
+            setTimeout(testLiveData, 1000);
         };
     </script>
 </body>

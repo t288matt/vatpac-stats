@@ -30,7 +30,7 @@ import json
 from ..config import get_config, MLConfig
 from ..utils.logging import get_logger_for_module
 from ..database import get_db, SessionLocal
-from ..models import Controller, Flight, Sector
+from ..models import ATCPosition, Flight, Sector
 
 
 @dataclass

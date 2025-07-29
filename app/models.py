@@ -4,9 +4,9 @@ from datetime import datetime
 from .database import Base
 import json
 
-class Controller(Base):
-    """Controller model representing ATC controllers"""
-    __tablename__ = "controllers"
+class ATCPosition(Base):
+    """ATC Position model representing ATC positions that can be controlled or uncontrolled"""
+    __tablename__ = "atc_positions"
     
     id = Column(Integer, primary_key=True, index=True)
     callsign = Column(String(50), unique=True, index=True, nullable=False)
@@ -16,11 +16,14 @@ class Controller(Base):
     frequency = Column(String(20), nullable=True)
     last_seen = Column(DateTime, default=datetime.utcnow)
     workload_score = Column(Float, default=0.0)
-    preferences = Column(Text, nullable=True)  # JSON string for controller preferences
+    preferences = Column(Text, nullable=True)  # JSON string for position preferences
+    operator_id = Column(String(50), nullable=True, index=True)  # VATSIM user ID (links multiple positions)
+    operator_name = Column(String(100), nullable=True)  # Operator's real name
+    operator_rating = Column(Integer, nullable=True)  # Operator rating (0-5)
     
     # Relationships
-    sectors = relationship("Sector", back_populates="controller")
-    flights = relationship("Flight", back_populates="controller")
+    sectors = relationship("Sector", back_populates="atc_position")
+    flights = relationship("Flight", back_populates="atc_position")
 
 class Sector(Base):
     """Airspace sector model"""
@@ -29,14 +32,14 @@ class Sector(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
     facility = Column(String(50), nullable=False)
-    controller_id = Column(Integer, ForeignKey("controllers.id"), nullable=True)
+    atc_position_id = Column(Integer, ForeignKey("atc_positions.id"), nullable=True)
     traffic_density = Column(Integer, default=0)
     status = Column(String(20), default="unmanned")  # manned, unmanned, busy
     priority_level = Column(Integer, default=1)  # 1-5 priority scale
     boundaries = Column(Text, nullable=True)  # JSON string for sector boundaries
     
     # Relationships
-    controller = relationship("Controller", back_populates="sectors")
+    atc_position = relationship("ATCPosition", back_populates="sectors")
 
 class Flight(Base):
     """Flight model representing active flights - OPTIMIZED FOR STORAGE"""
@@ -54,7 +57,7 @@ class Flight(Base):
     vertical_speed = Column(Integer, nullable=True)
     squawk = Column(String(10), nullable=True)
     flight_plan = Column(Text, nullable=True)  # JSON string
-    controller_id = Column(Integer, ForeignKey("controllers.id"), nullable=True)
+    atc_position_id = Column(Integer, ForeignKey("atc_positions.id"), nullable=True)
     last_updated = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
     departure = Column(String(10), nullable=True)
@@ -63,7 +66,7 @@ class Flight(Base):
     status = Column(String(20), default="active")  # active, completed, cancelled
     
     # Relationships
-    controller = relationship("Controller", back_populates="flights")
+    atc_position = relationship("ATCPosition", back_populates="flights")
     
     @property
     def position(self):
@@ -123,12 +126,12 @@ class FlightSummary(Base):
     route = Column(Text, nullable=True)
     max_altitude = Column(SmallInteger, nullable=True)  # SMALLINT for storage efficiency
     duration_minutes = Column(SmallInteger, nullable=True)  # SMALLINT: max 65,535 minutes
-    controller_id = Column(Integer, ForeignKey("controllers.id"), nullable=True)
+    atc_position_id = Column(Integer, ForeignKey("atc_positions.id"), nullable=True)
     sector_id = Column(Integer, ForeignKey("sectors.id"), nullable=True)
     completed_at = Column(DateTime, nullable=False)
     
     # Relationships
-    controller = relationship("Controller")
+    atc_position = relationship("ATCPosition")
     sector = relationship("Sector")
 
 class MovementSummary(Base):

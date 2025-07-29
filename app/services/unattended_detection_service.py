@@ -17,7 +17,7 @@ import json
 from ..config import get_config
 from ..utils.logging import get_logger_for_module
 from ..database import SessionLocal
-from ..models import Flight, Controller
+from ..models import Flight, ATCPosition
 from .vatsim_service import VATSIMService
 
 

@@ -15,7 +15,7 @@ import asyncio
 
 from ..config import get_config
 from ..utils.logging import get_logger_for_module
-from ..models import Controller, Flight, Sector, TrafficMovement, AirportConfig
+from ..models import ATCPosition, Flight, Sector, TrafficMovement, AirportConfig
 
 logger = get_logger_for_module(__name__)
 
@@ -27,37 +27,37 @@ class QueryOptimizer:
         self.query_cache = {}
         self.slow_query_threshold = 1.0  # seconds
         
-    async def get_active_controllers_optimized(self, db: Session) -> List[Dict[str, Any]]:
-        """Get active controllers with optimized query"""
+    async def get_active_atc_positions_optimized(self, db: Session) -> List[Dict[str, Any]]:
+        """Get active ATC positions with optimized query"""
         try:
             # Use eager loading to reduce N+1 queries
-            controllers = db.query(Controller).options(
-                joinedload(Controller.flights)
+            atc_positions = db.query(ATCPosition).options(
+                joinedload(ATCPosition.flights)
             ).filter(
                 and_(
-                    Controller.status == "online",
-                    Controller.last_seen >= datetime.utcnow() - timedelta(minutes=5)
+                    ATCPosition.status == "online",
+                    ATCPosition.last_seen >= datetime.utcnow() - timedelta(minutes=5)
                 )
             ).all()
             
-            controllers_data = []
-            for controller in controllers:
-                controllers_data.append({
-                    "id": controller.id,
-                    "callsign": controller.callsign,
-                    "facility": controller.facility,
-                    "position": controller.position,
-                    "status": controller.status,
-                    "frequency": controller.frequency,
-                    "last_seen": controller.last_seen.isoformat() if controller.last_seen else None,
-                    "workload_score": controller.workload_score,
-                    "flight_count": len(controller.flights)
+            atc_positions_data = []
+            for atc_position in atc_positions:
+                atc_positions_data.append({
+                    "id": atc_position.id,
+                    "callsign": atc_position.callsign,
+                    "facility": atc_position.facility,
+                    "position": atc_position.position,
+                    "status": atc_position.status,
+                    "frequency": atc_position.frequency,
+                    "last_seen": atc_position.last_seen.isoformat() if atc_position.last_seen else None,
+                    "workload_score": atc_position.workload_score,
+                    "flight_count": len(atc_position.flights)
                 })
             
-            return controllers_data
+            return atc_positions_data
             
         except Exception as e:
-            logger.error(f"Error in optimized controllers query: {e}")
+            logger.error(f"Error in optimized ATC positions query: {e}")
             return []
     
     async def get_active_flights_optimized(self, db: Session) -> List[Dict[str, Any]]:
@@ -65,7 +65,7 @@ class QueryOptimizer:
         try:
             # Use eager loading and filtering
             flights = db.query(Flight).options(
-                joinedload(Flight.controller),
+                joinedload(Flight.atc_position),
                 joinedload(Flight.sector)
             ).filter(
                 and_(
@@ -87,7 +87,7 @@ class QueryOptimizer:
                     "speed": flight.speed,
                     "position": flight.position,
                     "last_updated": flight.last_updated.isoformat() if flight.last_updated else None,
-                    "controller_callsign": flight.controller.callsign if flight.controller else None,
+                    "atc_position_callsign": flight.atc_position.callsign if flight.atc_position else None,
                     "sector_name": flight.sector.name if flight.sector else None
                 })
             
@@ -139,7 +139,7 @@ class QueryOptimizer:
         try:
             # Use single query with aggregation
             stats = db.query(
-                func.count(Controller.id).label('total_controllers'),
+                func.count(ATCPosition.id).label('total_atc_positions'),
                 func.count(Flight.id).label('total_flights'),
                 func.count(Sector.id).label('total_sectors'),
                 func.count(TrafficMovement.id).label('total_movements')
@@ -151,14 +151,14 @@ class QueryOptimizer:
                 TrafficMovement, TrafficMovement.id.isnot(None)
             ).filter(
                 and_(
-                    Controller.status == "online",
+                    ATCPosition.status == "online",
                     Flight.status == "active",
                     TrafficMovement.timestamp >= datetime.utcnow() - timedelta(hours=24)
                 )
             ).first()
             
             return {
-                "controllers_count": stats.total_controllers or 0,
+                "atc_positions_count": stats.total_atc_positions or 0,
                 "flights_count": stats.total_flights or 0,
                 "sectors_count": stats.total_sectors or 0,
                 "movements_count": stats.total_movements or 0,
@@ -168,7 +168,7 @@ class QueryOptimizer:
         except Exception as e:
             logger.error(f"Error in optimized stats query: {e}")
             return {
-                "controllers_count": 0,
+                "atc_positions_count": 0,
                 "flights_count": 0,
                 "sectors_count": 0,
                 "movements_count": 0,
@@ -303,7 +303,7 @@ class QueryOptimizer:
             db.execute(text("ANALYZE"))
             
             # Update table statistics
-            tables = ["controllers", "flights", "sectors", "traffic_movements"]
+            tables = ["atc_positions", "flights", "sectors", "traffic_movements"]
             for table in tables:
                 db.execute(text(f"ANALYZE {table}"))
             

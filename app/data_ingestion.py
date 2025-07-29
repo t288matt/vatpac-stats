@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 
 from .database import get_db, SessionLocal
-from .models import Controller, Flight, Sector
+from .models import ATCPosition, Flight, Sector
 from .vatsim_client import VATSIMClient
 
 logger = logging.getLogger(__name__)
@@ -28,8 +28,8 @@ class DataIngestionService:
             # Fetch current VATSIM data
             data = await self.vatsim_client.get_current_data()
             
-            # Process controllers
-            await self._process_controllers(data.get("controllers", []))
+            # Process ATC positions
+            await self._process_atc_positions(data.get("atc_positions", []))
             
             # Process flights
             await self._process_flights(data.get("flights", []))
@@ -37,52 +37,61 @@ class DataIngestionService:
             # Process sectors (if available)
             await self._process_sectors(data.get("sectors", []))
             
-            logger.info(f"Data ingestion completed: {len(data.get('controllers', []))} controllers, {len(data.get('flights', []))} flights")
+            logger.info(f"Data ingestion completed: {len(data.get('atc_positions', []))} ATC positions, {len(data.get('flights', []))} flights")
             
         except Exception as e:
             logger.error(f"Error during data ingestion: {e}")
     
-    async def _process_controllers(self, controllers_data: List):
-        """Process and store controller data"""
+    async def _process_atc_positions(self, atc_positions_data: List):
+        """Process and store ATC position data"""
         db = SessionLocal()
         try:
-            for controller_data in controllers_data:
-                # Extract controller information from dataclass
-                callsign = controller_data.callsign
-                facility = controller_data.facility
-                position = controller_data.position
-                frequency = controller_data.frequency
+            for atc_position_data in atc_positions_data:
+                # Extract ATC position information from dataclass
+                callsign = atc_position_data.callsign
+                facility = atc_position_data.facility
+                position = atc_position_data.position
+                frequency = atc_position_data.frequency
+                operator_id = atc_position_data.operator_id
+                operator_name = atc_position_data.operator_name
+                operator_rating = atc_position_data.operator_rating
                 
-                # Check if controller already exists
-                existing_controller = db.query(Controller).filter(
-                    Controller.callsign == callsign
+                # Check if ATC position already exists
+                existing_atc_position = db.query(ATCPosition).filter(
+                    ATCPosition.callsign == callsign
                 ).first()
                 
-                if existing_controller:
-                    # Update existing controller
-                    existing_controller.facility = facility
-                    existing_controller.position = position
-                    existing_controller.frequency = frequency
-                    existing_controller.status = "online"
-                    existing_controller.last_seen = datetime.utcnow()
+                if existing_atc_position:
+                    # Update existing ATC position
+                    existing_atc_position.facility = facility
+                    existing_atc_position.position = position
+                    existing_atc_position.frequency = frequency
+                    existing_atc_position.operator_id = operator_id
+                    existing_atc_position.operator_name = operator_name
+                    existing_atc_position.operator_rating = operator_rating
+                    existing_atc_position.status = "online"
+                    existing_atc_position.last_seen = datetime.utcnow()
                 else:
-                    # Create new controller
-                    new_controller = Controller(
+                    # Create new ATC position
+                    new_atc_position = ATCPosition(
                         callsign=callsign,
                         facility=facility,
                         position=position,
                         frequency=frequency,
+                        operator_id=operator_id,
+                        operator_name=operator_name,
+                        operator_rating=operator_rating,
                         status="online",
                         last_seen=datetime.utcnow(),
                         workload_score=0.0
                     )
-                    db.add(new_controller)
+                    db.add(new_atc_position)
             
             db.commit()
-            logger.info(f"Processed {len(controllers_data)} controllers")
+            logger.info(f"Processed {len(atc_positions_data)} ATC positions")
             
         except Exception as e:
-            logger.error(f"Error processing controllers: {e}")
+            logger.error(f"Error processing ATC positions: {e}")
             db.rollback()
         finally:
             db.close()

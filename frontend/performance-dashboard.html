@@ -387,104 +387,163 @@
                 const baseUrl = window.location.origin;
                 console.log('Base URL:', baseUrl);
                 
-                // Get system performance metrics with comprehensive error handling
+                // Get system performance metrics - NO FALLBACK DATA
                 let performanceMetrics = null;
-                try {
-                    console.log('Making request to performance metrics endpoint...');
-                    const performanceResponse = await fetch(`${baseUrl}/api/performance/metrics`, {
-                        method: 'GET',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json'
-                        },
-                        mode: 'cors',
-                        cache: 'no-cache'
-                    });
-                    
-                    console.log(`Performance response status: ${performanceResponse.status}`);
-                    console.log(`Performance response headers:`, [...performanceResponse.headers.entries()]);
-                    
-                    if (!performanceResponse.ok) {
-                        throw new Error(`Performance API error: ${performanceResponse.status} ${performanceResponse.statusText}`);
-                    }
-                    
-                    performanceMetrics = await performanceResponse.json();
-                    console.log('Performance metrics loaded successfully:', performanceMetrics);
-                    
-                    // Clear any previous error messages
-                    const statusElement = document.getElementById('status');
-                    if (statusElement.innerHTML.includes('Warning: Performance metrics unavailable')) {
-                        statusElement.innerHTML = '';
-                    }
-                } catch (performanceError) {
-                    console.error('Performance metrics error:', performanceError);
-                    console.error('Error details:', {
-                        name: performanceError.name,
-                        message: performanceError.message,
-                        stack: performanceError.stack
-                    });
-                    
-                    // Use fallback data if performance metrics fail
-                    performanceMetrics = {
-                        system: {
-                            memory_usage_percent: 35.0,  // Reasonable fallback
-                            cpu_usage_percent: 15.0,     // Reasonable fallback
-                            disk_usage_percent: 21.5     // Reasonable fallback
-                        },
-                        process: {
-                            memory_mb: 120.0,
-                            cpu_percent: 0.0
+                let retryCount = 0;
+                const maxRetries = 3;
+                
+                while (retryCount < maxRetries) {
+                    try {
+                        console.log(`Attempt ${retryCount + 1} to fetch live performance data...`);
+                        console.log(`Base URL: ${baseUrl}`);
+                        console.log(`Target URL: ${baseUrl}/api/performance/metrics`);
+                        
+                        // Try multiple fetch methods
+                        let response = null;
+                        let fetchMethod = '';
+                        
+                        // Method 1: Simple fetch (most reliable)
+                        try {
+                            console.log('Method 1: Simple fetch...');
+                            fetchMethod = 'Simple fetch';
+                            response = await fetch(`${baseUrl}/api/performance/metrics`);
+                            console.log('✅ Simple fetch completed successfully');
+                        } catch (fetchError) {
+                            console.log(`❌ Simple fetch failed: ${fetchError.message}`);
+                            
+                            // Method 2: Fetch with headers
+                            try {
+                                console.log('Method 2: Fetch with headers...');
+                                fetchMethod = 'Fetch with headers';
+                                response = await fetch(`${baseUrl}/api/performance/metrics`, {
+                                    method: 'GET',
+                                    headers: {
+                                        'Accept': 'application/json'
+                                    },
+                                    mode: 'cors'
+                                });
+                                console.log('✅ Fetch with headers completed successfully');
+                            } catch (headerError) {
+                                console.log(`❌ Fetch with headers failed: ${headerError.message}`);
+                                
+                                // Method 3: XMLHttpRequest as last resort
+                                console.log('Method 3: XMLHttpRequest...');
+                                fetchMethod = 'XMLHttpRequest';
+                                response = await new Promise((resolve, reject) => {
+                                    const xhr = new XMLHttpRequest();
+                                    xhr.open('GET', `${baseUrl}/api/performance/metrics`);
+                                    xhr.onload = function() {
+                                        if (xhr.status === 200) {
+                                            resolve({
+                                                ok: true,
+                                                status: xhr.status,
+                                                statusText: xhr.statusText,
+                                                json: () => JSON.parse(xhr.responseText)
+                                            });
+                                        } else {
+                                            reject(new Error(`XHR failed: ${xhr.status} ${xhr.statusText}`));
+                                        }
+                                    };
+                                    xhr.onerror = function() {
+                                        reject(new Error('XHR network error'));
+                                    };
+                                    xhr.send();
+                                });
+                                console.log('✅ XMLHttpRequest completed successfully');
+                            }
                         }
-                    };
-                    
-                    // Show warning but don't block the dashboard
-                    const statusElement = document.getElementById('status');
-                    statusElement.innerHTML = `<div style="color: orange; padding: 10px; background: #fff3cd; border-radius: 5px; margin: 10px 0;">
-                        <strong>⚠️ Performance Metrics Warning:</strong> ${performanceError.message}<br>
-                        <small>Using fallback data. The dashboard will continue to function.</small>
-                    </div>`;
+                        
+                        console.log(`Response status: ${response.status}`);
+                        console.log(`Response ok: ${response.ok}`);
+                        console.log(`Response statusText: ${response.statusText}`);
+                        console.log(`Fetch method used: ${fetchMethod}`);
+                        
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            console.log(`Error response body: ${errorText}`);
+                            throw new Error(`API error: ${response.status} ${response.statusText}`);
+                        }
+                        
+                        performanceMetrics = await response.json();
+                        console.log('✅ LIVE DATA SUCCESS:', performanceMetrics);
+                        console.log(`Memory: ${performanceMetrics.system?.memory_usage_percent}%`);
+                        console.log(`CPU: ${performanceMetrics.system?.cpu_usage_percent}%`);
+                        console.log(`Disk: ${performanceMetrics.system?.disk_usage_percent}%`);
+                        
+                        // Clear any previous error messages
+                        const statusElement = document.getElementById('status');
+                        if (statusElement.innerHTML.includes('Warning') || statusElement.innerHTML.includes('Error')) {
+                            statusElement.innerHTML = '';
+                        }
+                        
+                        break; // Success, exit retry loop
+                        
+                    } catch (error) {
+                        retryCount++;
+                        console.error(`Attempt ${retryCount} failed:`, error);
+                        console.error('Error details:', {
+                            name: error.name,
+                            message: error.message,
+                            stack: error.stack
+                        });
+                        
+                        if (retryCount >= maxRetries) {
+                            console.error('All retry attempts failed');
+                            const errorMessage = `Failed to get live data after ${maxRetries} attempts: ${error.message}`;
+                            
+                            // Show detailed error on dashboard
+                            const statusElement = document.getElementById('status');
+                            statusElement.innerHTML = `<div style="color: red; padding: 10px; background: #f8d7da; border-radius: 5px; margin: 10px 0;">
+                                <strong>❌ Dashboard Error:</strong> ${errorMessage}<br>
+                                <small>Error type: ${error.name} | The dashboard will retry automatically in 30 seconds.</small>
+                            </div>`;
+                            
+                            throw new Error(errorMessage);
+                        }
+                        
+                        // Wait before retry
+                        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+                    }
                 }
 
-                // Get database status with comprehensive error handling
+                // Get database status - NO FALLBACK DATA
                 let dbStatus = null;
-                try {
-                    console.log('Making request to database status endpoint...');
-                    const dbResponse = await fetch(`${baseUrl}/api/database/status`);
-                    console.log(`Database response status: ${dbResponse.status}`);
-                    
-                    if (!dbResponse.ok) {
-                        throw new Error(`Database API error: ${dbResponse.status} ${dbResponse.statusText}`);
-                    }
-                    
-                    dbStatus = await dbResponse.json();
-                    console.log('Database status loaded successfully:', dbStatus);
-                } catch (dbError) {
-                    console.error('Database status error:', dbError);
-                    // Use fallback data if database status fails
-                    dbStatus = {
-                        database: {
-                            connection_pool: {
-                                checked_out: 0
-                            }
-                        },
-                        cache: {
-                            hit_rate: 0,
-                            status: 'disabled'
+                let dbRetryCount = 0;
+                const dbMaxRetries = 3;
+                
+                while (dbRetryCount < dbMaxRetries) {
+                    try {
+                        console.log(`Attempt ${dbRetryCount + 1} to fetch live database status...`);
+                        
+                        const dbResponse = await fetch(`${baseUrl}/api/database/status`);
+                        console.log(`Database response status: ${dbResponse.status}`);
+                        
+                        if (!dbResponse.ok) {
+                            throw new Error(`Database API error: ${dbResponse.status} ${dbResponse.statusText}`);
                         }
-                    };
-                    
-                    // Show warning but don't block the dashboard
-                    const statusElement = document.getElementById('status');
-                    if (!statusElement.innerHTML.includes('Performance Metrics Warning')) {
-                        statusElement.innerHTML = `<div style="color: orange; padding: 10px; background: #fff3cd; border-radius: 5px; margin: 10px 0;">
-                            <strong>⚠️ Database Status Warning:</strong> ${dbError.message}<br>
-                            <small>Using fallback data. The dashboard will continue to function.</small>
-                        </div>`;
-                    } else {
-                        // Append to existing warning
-                        statusElement.innerHTML += `<div style="color: orange; padding: 5px 0; font-size: 0.9em;">
-                            <strong>Database Status:</strong> ${dbError.message}
-                        </div>`;
+                        
+                        dbStatus = await dbResponse.json();
+                        console.log('✅ LIVE DATABASE STATUS SUCCESS:', dbStatus);
+                        
+                        // Clear any previous error messages
+                        const statusElement = document.getElementById('status');
+                        if (statusElement.innerHTML.includes('Warning') || statusElement.innerHTML.includes('Error')) {
+                            statusElement.innerHTML = '';
+                        }
+                        
+                        break; // Success, exit retry loop
+                        
+                    } catch (error) {
+                        dbRetryCount++;
+                        console.error(`Database attempt ${dbRetryCount} failed:`, error);
+                        
+                        if (dbRetryCount >= dbMaxRetries) {
+                            console.error('All database retry attempts failed');
+                            throw new Error(`Failed to get live database status after ${dbMaxRetries} attempts: ${error.message}`);
+                        }
+                        
+                        // Wait before retry
+                        await new Promise(resolve => setTimeout(resolve, 1000 * dbRetryCount));
                     }
                 }
 

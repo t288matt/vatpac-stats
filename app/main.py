@@ -8,11 +8,11 @@ import logging
 import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from sqlalchemy import and_, desc
+from sqlalchemy import and_, desc, text
 
 from .config import get_config, validate_config
 from .database import get_db, init_db, get_database_info
-from .models import Controller, Sector, Flight, TrafficMovement, AirportConfig
+from .models import ATCPosition, Sector, Flight, TrafficMovement, AirportConfig
 from .utils.logging import get_logger_for_module
 from .services.vatsim_service import get_vatsim_service
 from .services.data_service import get_data_service
@@ -74,13 +74,15 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add CORS middleware
+# Add CORS middleware with explicit configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,
 )
 
 # Mount static files for frontend
@@ -271,7 +273,7 @@ async def get_status(db: Session = Depends(get_db)):
             return cached_stats
         
         # If not cached, get from database
-        controllers_count = db.query(Controller).filter(Controller.status == "online").count()
+        atc_positions_count = db.query(ATCPosition).filter(ATCPosition.status == "online").count()
         flights_count = db.query(Flight).filter(Flight.status == "active").count()
         airports_count = db.query(AirportConfig).count()
         movements_count = db.query(TrafficMovement).filter(
@@ -281,7 +283,7 @@ async def get_status(db: Session = Depends(get_db)):
         stats = {
             "status": "operational",
             "timestamp": datetime.utcnow().isoformat(),
-            "controllers_count": controllers_count,
+            "atc_positions_count": atc_positions_count,
             "flights_count": flights_count,
             "airports_count": airports_count,
             "movements_count": movements_count,
@@ -316,7 +318,7 @@ async def get_network_status(db: Session = Depends(get_db)):
         if network_data:
             status = {
                 "network_status": "connected",
-                "controllers_count": len(network_data.get("controllers", [])),
+                "atc_positions_count": len(network_data.get("atc_positions", [])),
                 "flights_count": len(network_data.get("pilots", [])),
                 "sectors_count": len(network_data.get("sectors", [])),
                 "last_update": datetime.utcnow().isoformat()
@@ -324,7 +326,7 @@ async def get_network_status(db: Session = Depends(get_db)):
         else:
             status = {
                 "network_status": "disconnected",
-                "controllers_count": 0,
+                "atc_positions_count": 0,
                 "flights_count": 0,
                 "sectors_count": 0,
                 "last_update": datetime.utcnow().isoformat()
@@ -339,41 +341,94 @@ async def get_network_status(db: Session = Depends(get_db)):
         logger.error(f"Error getting network status: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.get("/api/controllers")
-async def get_controllers(db: Session = Depends(get_db)):
-    """Get active controllers with caching"""
+@app.get("/api/atc-positions")
+async def get_atc_positions(db: Session = Depends(get_db)):
+    """Get active ATC positions with caching"""
     try:
         # Try to get from cache first
         cache_service = await get_cache_service()
-        cached_controllers = await cache_service.get_controllers_cache()
+        cached_atc_positions = await cache_service.get_atc_positions_cache()
         
-        if cached_controllers:
-            logger.info("Returning cached controllers data")
-            return {"controllers": cached_controllers['data'], "cached": True}
+        if cached_atc_positions:
+            logger.info("Returning cached ATC positions data")
+            return {"atc_positions": cached_atc_positions['data'], "cached": True}
         
         # If not cached, get from database
-        controllers = db.query(Controller).filter(Controller.status == "online").all()
+        atc_positions = db.query(ATCPosition).filter(ATCPosition.status == "online").all()
         
-        controllers_data = []
-        for controller in controllers:
-            controllers_data.append({
-                "id": controller.id,
-                "callsign": controller.callsign,
-                "facility": controller.facility,
-                "position": controller.position,
-                "status": controller.status,
-                "frequency": controller.frequency,
-                "last_seen": controller.last_seen.isoformat() if controller.last_seen else None,
-                "workload_score": controller.workload_score
+        atc_positions_data = []
+        for atc_position in atc_positions:
+            atc_positions_data.append({
+                "id": atc_position.id,
+                "callsign": atc_position.callsign,
+                "facility": atc_position.facility,
+                "position": atc_position.position,
+                "status": atc_position.status,
+                "frequency": atc_position.frequency,
+                "operator_id": atc_position.operator_id,
+                "operator_name": atc_position.operator_name,
+                "operator_rating": atc_position.operator_rating,
+                "last_seen": atc_position.last_seen.isoformat() if atc_position.last_seen else None,
+                "workload_score": atc_position.workload_score
             })
         
         # Cache the result
-        await cache_service.set_controllers_cache(controllers_data)
+        await cache_service.set_atc_positions_cache(atc_positions_data)
         
-        return {"controllers": controllers_data, "cached": False}
+        return {"atc_positions": atc_positions_data, "cached": False}
         
     except Exception as e:
-        logger.error(f"Error getting controllers: {e}")
+        logger.error(f"Error getting ATC positions: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/atc-positions/by-operator-id")
+async def get_atc_positions_by_operator_id(db: Session = Depends(get_db)):
+    """Get ATC positions grouped by operator ID (showing multiple positions per operator)"""
+    try:
+        # Get all online ATC positions
+        atc_positions = db.query(ATCPosition).filter(ATCPosition.status == "online").all()
+        
+        # Group by operator ID
+        atc_positions_by_operator_id = {}
+        for atc_position in atc_positions:
+            operator_id = atc_position.operator_id or "unknown"
+            if operator_id not in atc_positions_by_operator_id:
+                atc_positions_by_operator_id[operator_id] = {
+                    "operator_id": operator_id,
+                    "operator_name": atc_position.operator_name,
+                    "operator_rating": atc_position.operator_rating,
+                    "positions": [],
+                    "total_positions": 0,
+                    "facilities": set(),
+                    "frequencies": []
+                }
+            
+            atc_positions_by_operator_id[operator_id]["positions"].append({
+                "callsign": atc_position.callsign,
+                "facility": atc_position.facility,
+                "position": atc_position.position,
+                "frequency": atc_position.frequency,
+                "status": atc_position.status,
+                "last_seen": atc_position.last_seen.isoformat() if atc_position.last_seen else None,
+                "workload_score": atc_position.workload_score
+            })
+            atc_positions_by_operator_id[operator_id]["total_positions"] += 1
+            atc_positions_by_operator_id[operator_id]["facilities"].add(atc_position.facility)
+            if atc_position.frequency:
+                atc_positions_by_operator_id[operator_id]["frequencies"].append(atc_position.frequency)
+        
+        # Convert sets to lists for JSON serialization
+        for operator_id, data in atc_positions_by_operator_id.items():
+            data["facilities"] = list(data["facilities"])
+        
+        return {
+            "atc_positions_by_operator_id": list(atc_positions_by_operator_id.values()),
+            "total_unique_operators": len(atc_positions_by_operator_id),
+            "total_positions": sum(data["total_positions"] for data in atc_positions_by_operator_id.values())
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting ATC positions by operator ID: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/api/flights")
@@ -613,6 +668,38 @@ async def get_performance_metrics():
         logger.error(f"Error getting performance metrics: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+@app.get("/api/flights/memory")
+async def get_flights_from_memory():
+    """Get flights directly from memory cache (for debugging)"""
+    try:
+        data_service = get_data_service()
+        flights_data = []
+        
+        for callsign, flight_data in data_service.cache['flights'].items():
+            flights_data.append({
+                "callsign": flight_data.get('callsign', ''),
+                "aircraft_type": flight_data.get('aircraft_type', ''),
+                "departure": flight_data.get('departure', ''),
+                "arrival": flight_data.get('arrival', ''),
+                "altitude": flight_data.get('altitude', 0),
+                "speed": flight_data.get('speed', 0),
+                "latitude": flight_data.get('latitude', 0.0),
+                "longitude": flight_data.get('longitude', 0.0),
+                "heading": flight_data.get('heading', 0),
+                "last_updated": flight_data.get('last_updated', '').isoformat() if hasattr(flight_data.get('last_updated', ''), 'isoformat') else str(flight_data.get('last_updated', ''))
+            })
+        
+        return {"flights": flights_data, "total": len(flights_data), "cached": True}
+        
+    except Exception as e:
+        logger.error(f"Error getting flights from memory: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.options("/api/performance/metrics")
+async def options_performance_metrics():
+    """Handle OPTIONS request for performance metrics"""
+    return {"message": "OK"}
+
 @app.get("/api/performance/optimize")
 async def optimize_performance():
     """Trigger performance optimization"""
@@ -714,6 +801,111 @@ async def serve_simple_test():
         return HTMLResponse(content=content, status_code=200)
     except Exception as e:
         logger.error(f"Error serving simple test page: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/frontend/database-query.html")
+async def serve_database_query():
+    """Serve the database query tool"""
+    try:
+        with open("frontend/database-query.html", "r") as f:
+            content = f.read()
+        return HTMLResponse(content=content, status_code=200)
+    except Exception as e:
+        logger.error(f"Error serving database query tool: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+from pydantic import BaseModel
+
+class QueryRequest(BaseModel):
+    query: str
+
+@app.post("/api/database/query")
+async def execute_database_query(
+    request: QueryRequest,
+    db: Session = Depends(get_db)
+):
+    """Execute custom SQL query and return results"""
+    try:
+        query = request.query
+        
+        # Security: Only allow SELECT queries
+        if not query.strip().upper().startswith('SELECT'):
+            raise HTTPException(status_code=400, detail="Only SELECT queries are allowed")
+        
+        # Execute query
+        result = db.execute(text(query))
+        rows = result.fetchall()
+        
+        # Convert to JSON-serializable format
+        columns = result.keys()
+        data = []
+        for row in rows:
+            row_dict = {}
+            for i, column in enumerate(columns):
+                value = row[i]
+                # Handle datetime objects
+                if hasattr(value, 'isoformat'):
+                    value = value.isoformat()
+                row_dict[column] = value
+            data.append(row_dict)
+        
+        return {
+            "success": True,
+            "data": data,
+            "row_count": len(data),
+            "columns": list(columns),
+            "query": query,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error executing query: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "query": query,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+@app.get("/api/database/tables")
+async def get_database_tables(db: Session = Depends(get_db)):
+    """Get list of database tables and their record counts"""
+    try:
+        # Get table information
+        result = db.execute(text("""
+            SELECT 
+                table_name,
+                (SELECT COUNT(*) FROM information_schema.tables t2 
+                 WHERE t2.table_name = t1.table_name) as record_count
+            FROM information_schema.tables t1
+            WHERE table_schema = 'public'
+            ORDER BY table_name;
+        """))
+        
+        tables = []
+        for row in result:
+            # Get actual record count for each table
+            try:
+                count_result = db.execute(text(f"SELECT COUNT(*) FROM {row[0]}"))
+                count = count_result.scalar()
+                tables.append({
+                    "name": row[0],
+                    "record_count": count
+                })
+            except:
+                tables.append({
+                    "name": row[0],
+                    "record_count": 0
+                })
+        
+        return {
+            "tables": tables,
+            "total_tables": len(tables),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting table info: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 if __name__ == "__main__":
