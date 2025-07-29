@@ -52,9 +52,9 @@ class DataIngestionService:
                 facility = atc_position_data.facility
                 position = atc_position_data.position
                 frequency = atc_position_data.frequency
-                operator_id = atc_position_data.operator_id
-                operator_name = atc_position_data.operator_name
-                operator_rating = atc_position_data.operator_rating
+                        controller_id = atc_position_data.controller_id
+        controller_name = atc_position_data.controller_name
+        controller_rating = atc_position_data.controller_rating
                 
                 # Check if ATC position already exists
                 existing_atc_position = db.query(ATCPosition).filter(
@@ -66,9 +66,9 @@ class DataIngestionService:
                     existing_atc_position.facility = facility
                     existing_atc_position.position = position
                     existing_atc_position.frequency = frequency
-                    existing_atc_position.operator_id = operator_id
-                    existing_atc_position.operator_name = operator_name
-                    existing_atc_position.operator_rating = operator_rating
+                                existing_atc_position.controller_id = controller_id
+            existing_atc_position.controller_name = controller_name
+            existing_atc_position.controller_rating = controller_rating
                     existing_atc_position.status = "online"
                     existing_atc_position.last_seen = datetime.utcnow()
                 else:
@@ -78,9 +78,9 @@ class DataIngestionService:
                         facility=facility,
                         position=position,
                         frequency=frequency,
-                        operator_id=operator_id,
-                        operator_name=operator_name,
-                        operator_rating=operator_rating,
+                                    controller_id=controller_id,
+            controller_name=controller_name,
+            controller_rating=controller_rating,
                         status="online",
                         last_seen=datetime.utcnow(),
                         workload_score=0.0

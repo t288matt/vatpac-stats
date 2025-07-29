@@ -16,9 +16,9 @@ class VATSIMATCPosition:
     position: str
     status: str
     frequency: str
-    operator_id: str  # VATSIM user ID (links multiple positions)
-    operator_name: str  # Operator's real name
-    operator_rating: int  # Operator rating (1-15 from VATSIM)
+    controller_id: str  # VATSIM user ID (links multiple positions)
+    controller_name: str  # Controller's real name
+    controller_rating: int  # Controller rating (1-15 from VATSIM)
     last_seen: datetime
 
 @dataclass
@@ -91,9 +91,9 @@ class VATSIMClient:
                     position=self._map_facility_to_position(controller_data.get("facility", 0)),
                     status="online",  # Assume online if in API response
                     frequency=controller_data.get("frequency", ""),
-                    operator_id=str(controller_data.get("cid", "")),  # VATSIM user ID
-                    operator_name=controller_data.get("name", ""),
-                    operator_rating=controller_data.get("rating", 0),
+                                controller_id=str(controller_data.get("cid", "")),  # VATSIM user ID
+            controller_name=controller_data.get("name", ""),
+            controller_rating=controller_data.get("rating", 0),
                     last_seen=datetime.utcnow()
                 )
                 atc_positions.append(atc_position)

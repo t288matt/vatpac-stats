@@ -1,13 +1,13 @@
 """
-VATSIM Operator Rating Utilities
+VATSIM Controller Rating Utilities
 
-This module provides utilities for handling VATSIM operator ratings,
+This module provides utilities for handling VATSIM controller ratings,
 including mapping numeric ratings to human-readable names and validation.
 """
 
 from typing import Dict, Optional, Any
 
-# VATSIM Operator Rating Definitions
+# VATSIM Controller Rating Definitions
 VATSIM_RATINGS = {
     1: "Observer",
     2: "Student 1", 
@@ -31,7 +31,7 @@ RATING_NAMES = {name: rating for rating, name in VATSIM_RATINGS.items()}
 
 def get_rating_name(rating: int) -> Optional[str]:
     """
-    Get the human-readable name for a VATSIM operator rating.
+    Get the human-readable name for a VATSIM controller rating.
     
     Args:
         rating: Numeric rating (1-15)
@@ -82,7 +82,7 @@ def is_valid_rating(rating: int) -> bool:
 
 def get_all_ratings() -> Dict[int, str]:
     """
-    Get all available VATSIM ratings.
+    Get all available VATSIM controller ratings.
     
     Returns:
         Dictionary mapping rating numbers to names

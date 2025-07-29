@@ -17,9 +17,9 @@ class ATCPosition(Base):
     last_seen = Column(DateTime, default=datetime.utcnow)
     workload_score = Column(Float, default=0.0)
     preferences = Column(Text, nullable=True)  # JSON string for position preferences
-    operator_id = Column(String(50), nullable=True, index=True)  # VATSIM user ID (links multiple positions)
-    operator_name = Column(String(100), nullable=True)  # Operator's real name
-    operator_rating = Column(Integer, nullable=True)  # Operator rating (1-15 from VATSIM)
+    controller_id = Column(String(50), nullable=True, index=True)  # VATSIM user ID (links multiple positions)
+    controller_name = Column(String(100), nullable=True)  # Controller's real name
+    controller_rating = Column(Integer, nullable=True)  # Controller rating (1-15 from VATSIM)
     
     # Relationships
     sectors = relationship("Sector", back_populates="atc_position")

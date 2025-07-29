@@ -360,7 +360,7 @@ async def get_atc_positions(db: Session = Depends(get_db)):
         atc_positions_data = []
         for atc_position in atc_positions:
             # Validate rating with error handling
-            rating_validation = validate_rating(atc_position.operator_rating) if atc_position.operator_rating else {"is_valid": False, "rating_name": None, "rating_level": None, "error": "No rating provided"}
+            rating_validation = validate_rating(atc_position.controller_rating) if atc_position.controller_rating else {"is_valid": False, "rating_name": None, "rating_level": None, "error": "No rating provided"}
             
             atc_positions_data.append({
                 "id": atc_position.id,
@@ -369,11 +369,11 @@ async def get_atc_positions(db: Session = Depends(get_db)):
                 "position": atc_position.position,
                 "status": atc_position.status,
                 "frequency": atc_position.frequency,
-                "operator_id": atc_position.operator_id,
-                "operator_name": atc_position.operator_name,
-                "operator_rating": atc_position.operator_rating,
-                "operator_rating_name": rating_validation.get("rating_name"),
-                "operator_rating_level": rating_validation.get("rating_level"),
+                "controller_id": atc_position.controller_id,
+                "controller_name": atc_position.controller_name,
+                "controller_rating": atc_position.controller_rating,
+                "controller_rating_name": rating_validation.get("rating_name"),
+                "controller_rating_level": rating_validation.get("rating_level"),
                 "rating_validation": {
                     "is_valid": rating_validation.get("is_valid", False),
                     "error": rating_validation.get("error")
@@ -391,27 +391,27 @@ async def get_atc_positions(db: Session = Depends(get_db)):
         logger.error(f"Error getting ATC positions: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.get("/api/atc-positions/by-operator-id")
-async def get_atc_positions_by_operator_id(db: Session = Depends(get_db)):
-    """Get ATC positions grouped by operator ID (showing multiple positions per operator)"""
+@app.get("/api/atc-positions/by-controller-id")
+async def get_atc_positions_by_controller_id(db: Session = Depends(get_db)):
+    """Get ATC positions grouped by controller ID (showing multiple positions per controller)"""
     try:
         # Get all online ATC positions
         atc_positions = db.query(ATCPosition).filter(ATCPosition.status == "online").all()
         
-        # Group by operator ID
-        atc_positions_by_operator_id = {}
+        # Group by controller ID
+        atc_positions_by_controller_id = {}
         for atc_position in atc_positions:
-            operator_id = atc_position.operator_id or "unknown"
-            if operator_id not in atc_positions_by_operator_id:
+            controller_id = atc_position.controller_id or "unknown"
+            if controller_id not in atc_positions_by_controller_id:
                 # Validate rating with error handling
-                rating_validation = validate_rating(atc_position.operator_rating) if atc_position.operator_rating else {"is_valid": False, "rating_name": None, "rating_level": None, "error": "No rating provided"}
+                rating_validation = validate_rating(atc_position.controller_rating) if atc_position.controller_rating else {"is_valid": False, "rating_name": None, "rating_level": None, "error": "No rating provided"}
                 
-                atc_positions_by_operator_id[operator_id] = {
-                    "operator_id": operator_id,
-                    "operator_name": atc_position.operator_name,
-                    "operator_rating": atc_position.operator_rating,
-                    "operator_rating_name": rating_validation.get("rating_name"),
-                    "operator_rating_level": rating_validation.get("rating_level"),
+                atc_positions_by_controller_id[controller_id] = {
+                    "controller_id": controller_id,
+                    "controller_name": atc_position.controller_name,
+                    "controller_rating": atc_position.controller_rating,
+                    "controller_rating_name": rating_validation.get("rating_name"),
+                    "controller_rating_level": rating_validation.get("rating_level"),
                     "rating_validation": {
                         "is_valid": rating_validation.get("is_valid", False),
                         "error": rating_validation.get("error")
@@ -422,7 +422,7 @@ async def get_atc_positions_by_operator_id(db: Session = Depends(get_db)):
                     "frequencies": []
                 }
             
-            atc_positions_by_operator_id[operator_id]["positions"].append({
+            atc_positions_by_controller_id[controller_id]["positions"].append({
                 "callsign": atc_position.callsign,
                 "facility": atc_position.facility,
                 "position": atc_position.position,
@@ -431,34 +431,34 @@ async def get_atc_positions_by_operator_id(db: Session = Depends(get_db)):
                 "last_seen": atc_position.last_seen.isoformat() if atc_position.last_seen else None,
                 "workload_score": atc_position.workload_score
             })
-            atc_positions_by_operator_id[operator_id]["total_positions"] += 1
-            atc_positions_by_operator_id[operator_id]["facilities"].add(atc_position.facility)
+            atc_positions_by_controller_id[controller_id]["total_positions"] += 1
+            atc_positions_by_controller_id[controller_id]["facilities"].add(atc_position.facility)
             if atc_position.frequency:
-                atc_positions_by_operator_id[operator_id]["frequencies"].append(atc_position.frequency)
+                atc_positions_by_controller_id[controller_id]["frequencies"].append(atc_position.frequency)
         
         # Convert sets to lists for JSON serialization
-        for operator_id, data in atc_positions_by_operator_id.items():
+        for controller_id, data in atc_positions_by_controller_id.items():
             data["facilities"] = list(data["facilities"])
         
         return {
-            "atc_positions_by_operator_id": list(atc_positions_by_operator_id.values()),
-            "total_unique_operators": len(atc_positions_by_operator_id),
-            "total_positions": sum(data["total_positions"] for data in atc_positions_by_operator_id.values())
+            "atc_positions_by_controller_id": list(atc_positions_by_controller_id.values()),
+            "total_unique_controllers": len(atc_positions_by_controller_id),
+            "total_positions": sum(data["total_positions"] for data in atc_positions_by_controller_id.values())
         }
         
     except Exception as e:
-        logger.error(f"Error getting ATC positions by operator ID: {e}")
+        logger.error(f"Error getting ATC positions by controller ID: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/api/vatsim/ratings")
 async def get_vatsim_ratings():
-    """Get all available VATSIM operator ratings"""
+    """Get all available VATSIM controller ratings"""
     try:
         ratings = get_all_ratings()
         return {
             "ratings": ratings,
             "total_ratings": len(ratings),
-            "description": "VATSIM operator ratings from 1-15",
+            "description": "VATSIM controller ratings from 1-15",
             "valid_range": "1-15",
             "known_ratings": [1, 2, 3, 4, 5, 8, 10, 11],
             "unknown_ratings": [6, 7, 9, 12, 13, 14, 15]

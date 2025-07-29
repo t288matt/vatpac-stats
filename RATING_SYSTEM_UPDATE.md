@@ -52,14 +52,14 @@ The VATSIM rating system has been updated to handle ratings from 1-15 with compr
 
 #### Enhanced ATC Position Endpoints
 - `GET /api/atc-positions` - Now includes rating validation
-- `GET /api/atc-positions/by-operator-id` - Enhanced with rating info
+- `GET /api/atc-positions/by-controller-id` - Enhanced with rating info
 
 #### Response Format
 ```json
 {
-  "operator_rating": 9,
-  "operator_rating_name": "Unknown Rating 9",
-  "operator_rating_level": "Unknown",
+  "controller_rating": 9,
+  "controller_rating_name": "Unknown Rating 9",
+  "controller_rating_level": "Unknown",
   "rating_validation": {
     "is_valid": true,
     "error": null
