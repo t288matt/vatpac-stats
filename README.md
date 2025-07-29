@@ -4,7 +4,7 @@ A real-time VATSIM data collection and analysis system for Australian airspace, 
 
 ## 🚀 Features
 
-- **Real-time VATSIM Data Collection**: Collects controller, flight, and sector data every 30 seconds
+- **Real-time VATSIM Data Collection**: Collects ATC position, flight, and sector data every 30 seconds
 - **Advanced Analytics**: Traffic analysis, movement detection, and workload optimization
 - **Performance Optimized**: SSD wear reduction, memory caching, and bulk operations
 - **Scalable Architecture**: Support for both SQLite and PostgreSQL databases
@@ -86,7 +86,7 @@ BATCH_SIZE_THRESHOLD=10000
 |--------|-------|
 | **Data Collection** | Every 30 seconds |
 | **Active Flights** | 1,500+ concurrent |
-| **Active Controllers** | 150+ concurrent |
+| **Active ATC Positions** | 150+ concurrent |
 | **Write Throughput** | 10,000+ records/sec |
 | **Memory Usage** | 2GB with compression |
 | **Disk I/O** | Minimal, batched |
@@ -140,7 +140,7 @@ BATCH_SIZE_THRESHOLD=10000
 ### API Endpoints
 - `GET /api/status` - System status
 - `GET /api/network/status` - Network statistics
-- `GET /api/controllers` - Active controllers
+- `GET /api/atc-positions` - Active ATC positions
 - `GET /api/flights` - Active flights
 - `GET /api/traffic/summary/{region}` - Traffic summary
 - `GET /api/traffic/movements/{airport}` - Airport movements

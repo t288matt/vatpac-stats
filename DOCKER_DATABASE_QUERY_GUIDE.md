@@ -112,7 +112,7 @@ docker-compose down -v
 Your PostgreSQL database contains these tables:
 
 ### **Core Tables**
-- **controllers** - ATC controller information
+- **atc_positions** - ATC position information
 - **flights** - Active flight data
 - **traffic_movements** - Airport traffic movements
 - **sectors** - Airspace sector data
@@ -123,12 +123,12 @@ Your PostgreSQL database contains these tables:
 
 ## 🔍 **Useful Queries**
 
-### **Active Controllers**
+### **Active ATC Positions**
 ```sql
 SELECT callsign, facility, position, status, last_seen, workload_score
-FROM controllers 
-WHERE status = 'online' 
-ORDER BY last_seen DESC 
+FROM atc_positions
+WHERE status = 'online'
+ORDER BY last_seen DESC
 LIMIT 20;
 ```
 
@@ -141,15 +141,15 @@ ORDER BY last_updated DESC
 LIMIT 20;
 ```
 
-### **Controller Workload Analysis**
+### **ATC Position Workload Analysis**
 ```sql
 SELECT 
     c.callsign,
     c.facility,
     c.workload_score,
     COUNT(f.id) as flight_count
-FROM controllers c
-LEFT JOIN flights f ON c.id = f.controller_id
+FROM atc_positions c
+LEFT JOIN flights f ON c.id = f.atc_position_id
 WHERE c.status = 'online'
 GROUP BY c.id
 ORDER BY c.workload_score DESC
@@ -169,7 +169,7 @@ LIMIT 15;
 - **Real-time Data**: Live VATSIM data
 - **Performance Metrics**: System monitoring
 - **Traffic Analysis**: Movement patterns
-- **Controller Status**: ATC positions
+- **ATC Position Status**: Active positions
 
 ## 🔧 **Troubleshooting**
 

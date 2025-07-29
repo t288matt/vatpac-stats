@@ -36,32 +36,32 @@
 
 ### **Core Tables**
 
-#### **1. controllers** - ATC Controller Information
+#### **1. atc_positions** - ATC Position Information
 ```sql
-CREATE TABLE controllers (
+CREATE TABLE atc_positions (
     id SERIAL PRIMARY KEY,
-    callsign VARCHAR(50) UNIQUE NOT NULL,      -- Controller callsign (e.g., "VATSYD_CTR")
+    callsign VARCHAR(50) UNIQUE NOT NULL,      -- ATC position callsign (e.g., "VATSYD_CTR")
     facility VARCHAR(50) NOT NULL,             -- Facility (e.g., "VATSYD", "VATPAC")
     position VARCHAR(50),                      -- Position (e.g., "Center", "Approach", "Tower")
     status VARCHAR(20) DEFAULT 'offline',      -- online/offline/busy
-    frequency VARCHAR(20),                     -- Radio frequency for this sector
+    frequency VARCHAR(20),                     -- Radio frequency for this position
     last_seen TIMESTAMPTZ DEFAULT NOW(),       -- Last activity timestamp
     workload_score FLOAT DEFAULT 0.0,         -- Workload rating (0.0-1.0)
-    preferences JSONB,                         -- Controller preferences/settings
-    vatsim_id VARCHAR(50),                     -- VATSIM user ID (links multiple sectors)
-    controller_name VARCHAR(100),               -- Controller's real name from VATSIM API
-    controller_rating INTEGER,                  -- Controller rating (0-5) from VATSIM API
+    preferences JSONB,                         -- Position preferences/settings
+    operator_id VARCHAR(50),                   -- VATSIM user ID (links multiple positions)
+    operator_name VARCHAR(100),                -- Operator's real name from VATSIM API
+    operator_rating INTEGER,                   -- Operator rating (0-5) from VATSIM API
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
 **Sample Data**:
-- `VATSYD_CTR` - Sydney Center Controller (VATSIM ID: 12345)
-- `VATSYD_APP` - Sydney Approach Controller (VATSIM ID: 12345) - Same controller, different sector
-- `VATSYD_TWR` - Sydney Tower Controller (VATSIM ID: 67890) - Different controller
+- `VATSYD_CTR` - Sydney Center Position (Operator ID: 12345)
+- `VATSYD_APP` - Sydney Approach Position (Operator ID: 12345) - Same operator, different position
+- `VATSYD_TWR` - Sydney Tower Position (Operator ID: 67890) - Different operator
 
-**Important**: A single VATSIM controller (VATSIM ID) can control multiple sectors simultaneously, each with its own frequency. The VATSIM API treats each sector as a separate controller entry.
+**Important**: A single VATSIM operator (Operator ID) can control multiple positions simultaneously, each with its own frequency. The VATSIM API treats each position as a separate entry.
 
 #### **2. flights** - Active Flight Information
 ```sql
@@ -78,7 +78,7 @@ CREATE TABLE flights (
     vertical_speed INTEGER,                    -- Climb/descent rate
     squawk VARCHAR(10),                        -- Transponder code
     flight_plan JSONB,                         -- Flight plan data
-    controller_id INTEGER REFERENCES controllers(id),
+    atc_position_id INTEGER REFERENCES atc_positions(id),
     last_updated TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     departure VARCHAR(10),                     -- Origin airport (ICAO)
@@ -121,7 +121,7 @@ CREATE TABLE sectors (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,                -- Sector name
     facility VARCHAR(50) NOT NULL,             -- Facility
-    controller_id INTEGER REFERENCES controllers(id),
+    atc_position_id INTEGER REFERENCES atc_positions(id),
     traffic_density INTEGER DEFAULT 0,         -- Traffic density score
     status VARCHAR(20) DEFAULT 'unmanned',     -- manned/unmanned/busy
     priority_level INTEGER DEFAULT 1,          -- Priority (1-5)
@@ -249,36 +249,36 @@ Web Browser   Route Handler  Redis Lookup  PostgreSQL   JSON Response
 
 ### **Key Relationships**
 ```
-controllers (1) ──── (N) flights
-controllers (1) ──── (N) sectors
-flights (N) ──── (1) controllers
-sectors (N) ──── (1) controllers
+atc_positions (1) ──── (N) flights
+atc_positions (1) ──── (N) sectors
+flights (N) ──── (1) atc_positions
+sectors (N) ──── (1) atc_positions
 airport_config (1) ──── (N) traffic_movements
-vatsim_id (1) ──── (N) controllers  -- One VATSIM user can control multiple sectors
+operator_id (1) ──── (N) atc_positions  -- One VATSIM operator can control multiple positions
 ```
 
 ### **Data Volume Characteristics**
-- **Controllers**: ~400 active controller positions globally
-- **VATSIM Users**: ~200-300 unique controllers (some control multiple sectors)
+- **ATC Positions**: ~400 active ATC positions globally
+- **VATSIM Operators**: ~200-300 unique operators (some control multiple positions)
 - **Flights**: ~3,500 active flights globally
 - **Traffic Movements**: ~10,000+ movements per day
 - **Sectors**: ~50 active sectors
 - **Update Frequency**: Every 30 seconds
 
-### **VATSIM Controller Reality**
+### **VATSIM ATC Position Reality**
 - **One VATSIM User** can control **multiple sectors** simultaneously
 - **Each sector** has its own **frequency** and **position**
-- **VATSIM API** treats each sector as a separate controller entry
-- **Database** links sectors by `vatsim_id` to identify the same controller
+- **VATSIM API** treats each position as a separate entry
+- **Database** links positions by `operator_id` to identify the same operator
 
 ## 🚀 **Performance Optimizations**
 
 ### **Database Indexes**
 ```sql
--- Controllers
-CREATE INDEX idx_controllers_status_last_seen ON controllers(status, last_seen DESC);
-CREATE INDEX idx_controllers_callsign ON controllers(callsign);
-CREATE INDEX idx_controllers_facility_workload ON controllers(facility, workload_score DESC);
+-- ATC Positions
+CREATE INDEX idx_atc_positions_status_last_seen ON atc_positions(status, last_seen DESC);
+CREATE INDEX idx_atc_positions_callsign ON atc_positions(callsign);
+CREATE INDEX idx_atc_positions_facility_workload ON atc_positions(facility, workload_score DESC);
 
 -- Flights
 CREATE INDEX idx_flights_status_last_updated ON flights(status, last_updated DESC);
@@ -332,7 +332,7 @@ CREATE INDEX idx_traffic_movements_airport_type ON traffic_movements(airport_cod
 
 ### **Data Endpoints**
 - `GET /api/status` - System status and statistics
-- `GET /api/controllers` - Active controllers
+- `GET /api/atc-positions` - Active ATC positions
 - `GET /api/flights` - Active flights
 - `GET /api/traffic/movements/{airport}` - Airport movements
 - `GET /api/database/status` - Database status

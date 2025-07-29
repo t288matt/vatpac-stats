@@ -58,11 +58,11 @@
 
 Your database contains these main tables:
 
-### **controllers**
+### **atc_positions**
 - `id` - Primary key
-- `callsign` - Controller callsign
+- `callsign` - ATC position callsign
 - `facility` - ATC facility
-- `position` - Controller position
+- `position` - ATC position type
 - `status` - online/offline
 - `last_seen` - Last activity timestamp
 - `workload_score` - Workload rating
@@ -86,10 +86,10 @@ Your database contains these main tables:
 
 ## 🔍 **Useful Queries to Try**
 
-### **Active Controllers**
+### **Active ATC Positions**
 ```sql
 SELECT callsign, facility, position, status, last_seen, workload_score
-FROM controllers 
+FROM atc_positions 
 WHERE status = 'online' 
 ORDER BY last_seen DESC 
 LIMIT 20;
@@ -104,15 +104,15 @@ ORDER BY last_updated DESC
 LIMIT 20;
 ```
 
-### **Controller Workload Analysis**
+### **ATC Position Workload Analysis**
 ```sql
 SELECT 
     c.callsign,
     c.facility,
     c.workload_score,
     COUNT(f.id) as flight_count
-FROM controllers c
-LEFT JOIN flights f ON c.id = f.controller_id
+FROM atc_positions c
+LEFT JOIN flights f ON c.id = f.atc_position_id
 WHERE c.status = 'online'
 GROUP BY c.id
 ORDER BY c.workload_score DESC
@@ -135,21 +135,21 @@ LIMIT 10;
 ```sql
 SELECT 
     facility,
-    COUNT(*) as controller_count,
+    COUNT(*) as atc_position_count,
     AVG(workload_score) as avg_workload
-FROM controllers 
+FROM atc_positions 
 WHERE status = 'online'
 GROUP BY facility 
-ORDER BY controller_count DESC;
+ORDER BY atc_position_count DESC;
 ```
 
 ### **Recent Activity (Last Hour)**
 ```sql
 SELECT 
-    'controllers' as table_name,
+    'atc_positions' as table_name,
     COUNT(*) as count,
     MAX(last_seen) as latest_update
-FROM controllers 
+FROM atc_positions 
 WHERE last_seen > datetime('now', '-1 hour')
 UNION ALL
 SELECT 
