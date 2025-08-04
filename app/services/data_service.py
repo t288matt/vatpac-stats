@@ -79,14 +79,17 @@ class DataService:
     async def _process_data_in_memory(self, vatsim_data):
         """Process data in memory to reduce disk writes"""
         try:
+            # Import dataclasses for proper conversion
+            from dataclasses import asdict
+            
             # Convert VATSIMData object to dictionary format
             if hasattr(vatsim_data, 'controllers'):
-                atc_positions_data = [atc_position.__dict__ for atc_position in vatsim_data.controllers]
+                atc_positions_data = [asdict(atc_position) for atc_position in vatsim_data.controllers]
             else:
                 atc_positions_data = []
                 
             if hasattr(vatsim_data, 'flights'):
-                flights_data = [flight.__dict__ for flight in vatsim_data.flights]
+                flights_data = [asdict(flight) for flight in vatsim_data.flights]
             else:
                 flights_data = []
                 
