@@ -27,13 +27,11 @@ if is_postgresql:
         }
     )
 else:
-    # SQLite configuration with SSD-optimized settings
+    # SQLite configuration (SQLite doesn't support pool_size/max_overflow)
     engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,  # Verify connections before use
         pool_recycle=300,    # Recycle connections every 5 minutes
-        pool_size=10,        # Maintain 10 connections
-        max_overflow=20,     # Allow up to 20 additional connections
         connect_args={
             "check_same_thread": False,  # SQLite threading
             "timeout": 30,              # Connection timeout

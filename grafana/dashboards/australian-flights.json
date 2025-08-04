@@ -105,7 +105,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  DATE(created_at) as time,\n  COUNT(*) as flights\nFROM flights\nWHERE (departure IN ('YBBN', 'YSSY', 'YMML', 'YPPH', 'YSCL', 'YBCS', 'YPDN', 'YBRM', 'YBAF', 'YMAV', 'YBRK', 'YBCG', 'YBTL', 'YBRN', 'YBAS', 'YPDL', 'YPPN') \n    OR arrival IN ('YBBN', 'YSSY', 'YMML', 'YPPH', 'YSCL', 'YBCS', 'YPDN', 'YBRM', 'YBAF', 'YMAV', 'YBRK', 'YBCG', 'YBTL', 'YBRN', 'YBAS', 'YPDL', 'YPPN'))\n  AND created_at >= NOW() - INTERVAL '7 days'\nGROUP BY DATE(created_at)\nORDER BY time",
+          "rawSql": "SELECT\n  DATE(created_at) as time,\n  COUNT(*) as flights\nFROM australian_flights\nWHERE created_at >= NOW() - INTERVAL '7 days'\nGROUP BY DATE(created_at)\nORDER BY time",
           "refId": "A"
         }
       ],
@@ -195,7 +195,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  COALESCE(departure, 'Unknown') as airport,\n  COUNT(*) as flights\nFROM flights\nWHERE departure IN ('YBBN', 'YSSY', 'YMML', 'YPPH', 'YSCL', 'YBCS', 'YPDN', 'YBRM', 'YBAF', 'YMAV', 'YBRK', 'YBCG', 'YBTL', 'YBRN', 'YBAS', 'YPDL', 'YPPN')\n  AND created_at >= NOW() - INTERVAL '24 hours'\nGROUP BY departure\nORDER BY flights DESC\nLIMIT 10",
+          "rawSql": "SELECT\n  COALESCE(departure, 'Unknown') as airport,\n  COUNT(*) as flights\nFROM australian_flights\nWHERE departure IS NOT NULL\n  AND created_at >= NOW() - INTERVAL '24 hours'\nGROUP BY departure\nORDER BY flights DESC\nLIMIT 10",
           "refId": "A"
         }
       ],
@@ -285,7 +285,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  COALESCE(arrival, 'Unknown') as airport,\n  COUNT(*) as flights\nFROM flights\nWHERE arrival IN ('YBBN', 'YSSY', 'YMML', 'YPPH', 'YSCL', 'YBCS', 'YPDN', 'YBRM', 'YBAF', 'YMAV', 'YBRK', 'YBCG', 'YBTL', 'YBRN', 'YBAS', 'YPDL', 'YPPN')\n  AND created_at >= NOW() - INTERVAL '24 hours'\nGROUP BY arrival\nORDER BY flights DESC\nLIMIT 10",
+          "rawSql": "SELECT\n  COALESCE(arrival, 'Unknown') as airport,\n  COUNT(*) as flights\nFROM australian_flights\nWHERE arrival IS NOT NULL\n  AND created_at >= NOW() - INTERVAL '24 hours'\nGROUP BY arrival\nORDER BY flights DESC\nLIMIT 10",
           "refId": "A"
         }
       ],
@@ -375,7 +375,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  DATE(created_at) as time,\n  COUNT(*) as flights\nFROM flights\nWHERE (departure IN ('YBBN', 'YSSY', 'YMML', 'YPPH', 'YSCL', 'YBCS', 'YPDN', 'YBRM', 'YBAF', 'YMAV', 'YBRK', 'YBCG', 'YBTL', 'YBRN', 'YBAS', 'YPDL', 'YPPN') \n    OR arrival IN ('YBBN', 'YSSY', 'YMML', 'YPPH', 'YSCL', 'YBCS', 'YPDN', 'YBRM', 'YBAF', 'YMAV', 'YBRK', 'YBCG', 'YBTL', 'YBRN', 'YBAS', 'YPDL', 'YPPN'))\n  AND created_at >= NOW() - INTERVAL '30 days'\nGROUP BY DATE(created_at)\nORDER BY time",
+          "rawSql": "SELECT\n  DATE(created_at) as time,\n  COUNT(*) as flights\nFROM australian_flights\nWHERE created_at >= NOW() - INTERVAL '30 days'\nGROUP BY DATE(created_at)\nORDER BY time",
           "refId": "A"
         }
       ],
@@ -454,7 +454,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  CONCAT(departure, ' → ', arrival) as route,\n  COUNT(*) as flights\nFROM flights\nWHERE (departure IN ('YBBN', 'YSSY', 'YMML', 'YPPH', 'YSCL', 'YBCS', 'YPDN', 'YBRM', 'YBAF', 'YMAV', 'YBRK', 'YBCG', 'YBTL', 'YBRN', 'YBAS', 'YPDL', 'YPPN') \n    OR arrival IN ('YBBN', 'YSSY', 'YMML', 'YPPH', 'YSCL', 'YBCS', 'YPDN', 'YBRM', 'YBAF', 'YMAV', 'YBRK', 'YBCG', 'YBTL', 'YBRN', 'YBAS', 'YPDL', 'YPPN'))\n  AND departure IS NOT NULL\n  AND arrival IS NOT NULL\n  AND departure != arrival\n  AND departure != ''\n  AND arrival != ''\n  AND created_at >= NOW() - INTERVAL '7 days'\nGROUP BY departure, arrival\nHAVING COUNT(*) >= 1\nORDER BY flights DESC, route ASC\nLIMIT 15",
+          "rawSql": "SELECT\n  CONCAT(departure, ' → ', arrival) as route,\n  COUNT(*) as flights\nFROM australian_flights\nWHERE departure IS NOT NULL\n  AND arrival IS NOT NULL\n  AND departure != arrival\n  AND departure != ''\n  AND arrival != ''\n  AND created_at >= NOW() - INTERVAL '7 days'\nGROUP BY departure, arrival\nHAVING COUNT(*) >= 1\nORDER BY flights DESC, route ASC\nLIMIT 15",
           "refId": "A"
         }
       ],
@@ -575,7 +575,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  aircraft_type,\n  COUNT(*) as flights\nFROM flights\nWHERE (departure IN ('YBBN', 'YSSY', 'YMML', 'YPPH', 'YSCL', 'YBCS', 'YPDN', 'YBRM', 'YBAF', 'YMAV', 'YBRK', 'YBCG', 'YBTL', 'YBRN', 'YBAS', 'YPDL', 'YPPN') \n    OR arrival IN ('YBBN', 'YSSY', 'YMML', 'YPPH', 'YSCL', 'YBCS', 'YPDN', 'YBRM', 'YBAF', 'YMAV', 'YBRK', 'YBCG', 'YBTL', 'YBRN', 'YBAS', 'YPDL', 'YPPN'))\n  AND aircraft_type IS NOT NULL\n  AND aircraft_type != ''\n  AND created_at >= NOW() - INTERVAL '7 days'\nGROUP BY aircraft_type\nORDER BY flights DESC\nLIMIT 10",
+          "rawSql": "SELECT\n  aircraft_type,\n  COUNT(*) as flights\nFROM australian_flights\nWHERE aircraft_type IS NOT NULL\n  AND aircraft_type != ''\n  AND created_at >= NOW() - INTERVAL '7 days'\nGROUP BY aircraft_type\nORDER BY flights DESC\nLIMIT 10",
           "refId": "A"
         }
       ],
