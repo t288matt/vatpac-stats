@@ -445,26 +445,6 @@
         "y": 16
       },
       "id": 5,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        },
-        "xAxis": {
-          "label": "Routes",
-          "labelRotation": 45,
-          "labelMaxLength": 20,
-          "labelTruncate": true
-        },
-        "yAxis": {
-          "label": "Number of Flights"
-        }
-      },
       "targets": [
         {
           "datasource": {
@@ -479,7 +459,28 @@
         }
       ],
       "title": "Top Australian Routes (Last 7 Days)",
-      "type": "barchart"
+      "type": "barchart",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "orientation": "horizontal",
+        "xAxis": {
+          "label": "Number of Flights"
+        },
+        "yAxis": {
+          "label": "Routes",
+          "labelRotation": 0,
+          "labelMaxLength": 15,
+          "labelTruncate": true
+        }
+      }
     },
     {
       "datasource": {
@@ -554,14 +555,15 @@
           "mode": "single",
           "sort": "none"
         },
+        "orientation": "horizontal",
         "xAxis": {
-          "label": "Routes",
-          "labelRotation": 45,
-          "labelMaxLength": 20,
-          "labelTruncate": true
+          "label": "Number of Flights"
         },
         "yAxis": {
-          "label": "Number of Flights"
+          "label": "Routes",
+          "labelRotation": 0,
+          "labelMaxLength": 15,
+          "labelTruncate": true
         }
       },
       "targets": [
