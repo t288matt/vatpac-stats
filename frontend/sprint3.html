@@ -383,7 +383,7 @@
                         mlOptimizationsResponse
                     ] = await Promise.all([
                         fetch(`${API_BASE}/api/network/status`),
-                        fetch(`${API_BASE}/api/controllers`),
+                        fetch(`${API_BASE}/api/atc-positions`),
                         fetch(`${API_BASE}/api/flights`),
                         fetch(`${API_BASE}/api/traffic/analysis`),
                         fetch(`${API_BASE}/api/traffic/heatmap`),
@@ -402,7 +402,7 @@
 
                     if (controllersResponse.ok) {
                         const controllersData = await controllersResponse.json();
-                        setControllers(controllersData);
+                        setControllers(controllersData.positions || controllersData);
                     }
 
                     if (flightsResponse.ok) {
@@ -688,8 +688,8 @@
                         {flights.slice(0, 5).map((flight, index) => (
                             <div key={index} className="list-item">
                                 <strong>{flight.callsign}</strong>
-                                <div>{flight.aircraft_type} | {flight.departure} → {flight.arrival}</div>
-                                <div>FL{flight.altitude} | {flight.speed}kts</div>
+                                                            <div>{flight.aircraft_type || 'N/A'} | {flight.departure_airport || 'N/A'} → {flight.arrival_airport || 'N/A'}</div>
+                            <div>FL{flight.altitude || 'N/A'} | {flight.ground_speed || 'N/A'}kts</div>
                             </div>
                         ))}
                     </div>

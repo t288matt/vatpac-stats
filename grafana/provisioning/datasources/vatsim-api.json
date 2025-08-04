@@ -1,0 +1,17 @@
+{
+  "apiVersion": 1,
+  "datasources": [
+    {
+      "name": "VATSIM API",
+      "type": "simplejson",
+      "url": "http://app:8001",
+      "access": "proxy",
+      "jsonData": {
+        "httpMethod": "GET",
+        "keepCookies": []
+      },
+      "secureJsonData": {},
+      "editable": true
+    }
+  ]
+} 

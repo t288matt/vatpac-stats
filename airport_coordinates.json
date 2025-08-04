@@ -696,8 +696,8 @@
     "longitude": 16.0722475
   },
   "YPAD": {
-    "latitude": -34.9472404,
-    "longitude": 138.5330688
+    "latitude": -34.945,
+    "longitude": 138.53055556
   },
   "KMSP": {
     "latitude": 44.8780191,
@@ -1068,8 +1068,8 @@
     "longitude": -74.7794984
   },
   "YBBN": {
-    "latitude": -27.3876213,
-    "longitude": 153.121582
+    "latitude": -27.38416667,
+    "longitude": 153.1175
   },
   "SKRG": {
     "latitude": 6.1664077,
@@ -1124,8 +1124,8 @@
     "longitude": -128.156949
   },
   "YSSY": {
-    "latitude": -33.9498935,
-    "longitude": 151.1819682
+    "latitude": -33.946,
+    "longitude": 151.17711111
   },
   "WSSS": {
     "latitude": 1.352975,
@@ -1248,8 +1248,8 @@
     "longitude": -4.0505795
   },
   "YPPH": {
-    "latitude": -31.9415213,
-    "longitude": 115.9655769
+    "latitude": -31.94027778,
+    "longitude": 115.96694444
   },
   "WITT": {
     "latitude": 5.5294657,
@@ -1644,8 +1644,8 @@
     "longitude": 136.1066715
   },
   "YBTI": {
-    "latitude": -11.7615723,
-    "longitude": 130.6137936
+    "latitude": -11.76916667,
+    "longitude": 130.61972222
   },
   "DTTJ": {
     "latitude": 33.8752252,
@@ -1674,5 +1674,2033 @@
   "ESNU": {
     "latitude": 63.7903095,
     "longitude": 20.2886551
+  },
+  "YABA": {
+    "latitude": -34.94333333,
+    "longitude": 117.80888889
+  },
+  "YABR": {
+    "latitude": -24.62416667,
+    "longitude": 118.62027778
+  },
+  "YALA": {
+    "latitude": -27.33416667,
+    "longitude": 133.62638889
+  },
+  "YAMB": {
+    "latitude": -27.64055556,
+    "longitude": 152.71194444
+  },
+  "YAMK": {
+    "latitude": -30.43771111,
+    "longitude": 137.13718889
+  },
+  "YANG": {
+    "latitude": -23.135,
+    "longitude": 118.70666667
+  },
+  "YAPH": {
+    "latitude": -23.64611111,
+    "longitude": 146.58361111
+  },
+  "YARA": {
+    "latitude": -37.30944444,
+    "longitude": 142.98861111
+  },
+  "YARG": {
+    "latitude": -16.63694444,
+    "longitude": 128.45138889
+  },
+  "YARM": {
+    "latitude": -30.52805556,
+    "longitude": 151.61722222
+  },
+  "YATN": {
+    "latitude": -17.26203333,
+    "longitude": 145.51441111
+  },
+  "YAUR": {
+    "latitude": -13.35388889,
+    "longitude": 141.72083333
+  },
+  "YAYE": {
+    "latitude": -25.18611111,
+    "longitude": 130.97555556
+  },
+  "YBAD": {
+    "latitude": -30.955,
+    "longitude": 149.09166667
+  },
+  "YBAF": {
+    "latitude": -27.57027778,
+    "longitude": 153.00805556
+  },
+  "YBAR": {
+    "latitude": -23.56527778,
+    "longitude": 145.30666667
+  },
+  "YBAS": {
+    "latitude": -23.80833333,
+    "longitude": 133.90083333
+  },
+  "YBAU": {
+    "latitude": -10.15,
+    "longitude": 142.17416667
+  },
+  "YBBF": {
+    "latitude": -28.73972222,
+    "longitude": 153.48722222
+  },
+  "YBCG": {
+    "latitude": -28.16444444,
+    "longitude": 153.50472222
+  },
+  "YBCK": {
+    "latitude": -24.42777778,
+    "longitude": 145.42861111
+  },
+  "YBCM": {
+    "latitude": -27.39166667,
+    "longitude": 152.46166667
+  },
+  "YBCS": {
+    "latitude": -16.88583333,
+    "longitude": 145.75527778
+  },
+  "YBCV": {
+    "latitude": -26.41333333,
+    "longitude": 146.2625
+  },
+  "YBDG": {
+    "latitude": -36.73916667,
+    "longitude": 144.32972222
+  },
+  "YBDV": {
+    "latitude": -25.8975,
+    "longitude": 139.3475
+  },
+  "YBEG": {
+    "latitude": -19.65333333,
+    "longitude": 146.29366667
+  },
+  "YBEV": {
+    "latitude": -32.12472222,
+    "longitude": 116.95
+  },
+  "YBGD": {
+    "latitude": -22.54111111,
+    "longitude": 117.26944444
+  },
+  "YBGO": {
+    "latitude": -20.14833333,
+    "longitude": 127.97388889
+  },
+  "YBHI": {
+    "latitude": -32.00138889,
+    "longitude": 141.47166667
+  },
+  "YBHL": {
+    "latitude": -31.34027778,
+    "longitude": 116.18833333
+  },
+  "YBHM": {
+    "latitude": -20.35805556,
+    "longitude": 148.95166667
+  },
+  "YBIE": {
+    "latitude": -24.34611111,
+    "longitude": 139.46027778
+  },
+  "YBIR": {
+    "latitude": -35.99972222,
+    "longitude": 142.9175
+  },
+  "YBKE": {
+    "latitude": -30.03861111,
+    "longitude": 145.95194444
+  },
+  "YBKT": {
+    "latitude": -17.74861111,
+    "longitude": 139.53444444
+  },
+  "YBLA": {
+    "latitude": -36.55416667,
+    "longitude": 146.00916667
+  },
+  "YBLN": {
+    "latitude": -33.68722222,
+    "longitude": 115.40027778
+  },
+  "YBLP": {
+    "latitude": -19.19166667,
+    "longitude": 146.49333333
+  },
+  "YBLT": {
+    "latitude": -37.51166667,
+    "longitude": 143.79111111
+  },
+  "YBLU": {
+    "latitude": -27.61277778,
+    "longitude": 120.59388889
+  },
+  "YBMA": {
+    "latitude": -20.66388889,
+    "longitude": 139.48861111
+  },
+  "YBMK": {
+    "latitude": -21.17138889,
+    "longitude": 149.17972222
+  },
+  "YBMY": {
+    "latitude": -14.51972222,
+    "longitude": 132.88333333
+  },
+  "YBNA": {
+    "latitude": -28.83388889,
+    "longitude": 153.5625
+  },
+  "YBNR": {
+    "latitude": -18.89555556,
+    "longitude": 128.94194444
+  },
+  "YBNS": {
+    "latitude": -37.8875,
+    "longitude": 147.56777778
+  },
+  "YBOI": {
+    "latitude": -9.23333333,
+    "longitude": 142.21666667
+  },
+  "YBOK": {
+    "latitude": -27.41138889,
+    "longitude": 151.73527778
+  },
+  "YBOU": {
+    "latitude": -22.91333333,
+    "longitude": 139.89972222
+  },
+  "YBPN": {
+    "latitude": -20.495,
+    "longitude": 148.55222222
+  },
+  "YBRK": {
+    "latitude": -23.38194444,
+    "longitude": 150.47527778
+  },
+  "YBRL": {
+    "latitude": -16.07527778,
+    "longitude": 136.30222222
+  },
+  "YBRM": {
+    "latitude": -17.94944444,
+    "longitude": 122.22777778
+  },
+  "YBRN": {
+    "latitude": -34.62361111,
+    "longitude": 143.57833333
+  },
+  "YBRS": {
+    "latitude": -38.25805556,
+    "longitude": 144.4275
+  },
+  "YBRW": {
+    "latitude": -29.97388889,
+    "longitude": 146.81666667
+  },
+  "YBRY": {
+    "latitude": -22.67388889,
+    "longitude": 119.16611111
+  },
+  "YBSG": {
+    "latitude": -12.62388889,
+    "longitude": 142.08722222
+  },
+  "YBSU": {
+    "latitude": -26.60333333,
+    "longitude": 153.09111111
+  },
+  "YBTH": {
+    "latitude": -33.40944444,
+    "longitude": 149.65194444
+  },
+  "YBTL": {
+    "latitude": -19.2525,
+    "longitude": 146.76527778
+  },
+  "YBTR": {
+    "latitude": -23.60305556,
+    "longitude": 148.80694444
+  },
+  "YBUD": {
+    "latitude": -24.90388889,
+    "longitude": 152.31861111
+  },
+  "YBUN": {
+    "latitude": -33.37805556,
+    "longitude": 115.67694444
+  },
+  "YBWN": {
+    "latitude": -20.01777778,
+    "longitude": 148.21527778
+  },
+  "YBWP": {
+    "latitude": -12.67861111,
+    "longitude": 141.92527778
+  },
+  "YBWW": {
+    "latitude": -27.55861111,
+    "longitude": 151.79416667
+  },
+  "YBWX": {
+    "latitude": -20.86444444,
+    "longitude": 115.40611111
+  },
+  "YBYI": {
+    "latitude": -43.235,
+    "longitude": 147.37972222
+  },
+  "YBYL": {
+    "latitude": -29.21638889,
+    "longitude": 152.615
+  },
+  "YCAB": {
+    "latitude": -27.07694444,
+    "longitude": 152.98694444
+  },
+  "YCAH": {
+    "latitude": -31.77333333,
+    "longitude": 149.60944444
+  },
+  "YCAR": {
+    "latitude": -24.88055556,
+    "longitude": 113.67222222
+  },
+  "YCAS": {
+    "latitude": -28.88277778,
+    "longitude": 153.06694444
+  },
+  "YCBA": {
+    "latitude": -31.53833333,
+    "longitude": 145.79388889
+  },
+  "YCBB": {
+    "latitude": -31.3325,
+    "longitude": 149.26722222
+  },
+  "YCBG": {
+    "latitude": -42.82666667,
+    "longitude": 147.47472222
+  },
+  "YCBP": {
+    "latitude": -29.04,
+    "longitude": 134.72083333
+  },
+  "YCBR": {
+    "latitude": -29.52194444,
+    "longitude": 148.58222222
+  },
+  "YCCA": {
+    "latitude": -26.76944444,
+    "longitude": 150.61666667
+  },
+  "YCCY": {
+    "latitude": -20.66861111,
+    "longitude": 140.50444444
+  },
+  "YCDE": {
+    "latitude": -38.32666667,
+    "longitude": 143.05666667
+  },
+  "YCDO": {
+    "latitude": -33.06444444,
+    "longitude": 147.20916667
+  },
+  "YCDR": {
+    "latitude": -26.80194444,
+    "longitude": 153.10527778
+  },
+  "YCDU": {
+    "latitude": -32.13055556,
+    "longitude": 133.70972222
+  },
+  "YCDW": {
+    "latitude": -18.17833333,
+    "longitude": 145.95
+  },
+  "YCEE": {
+    "latitude": -33.70972222,
+    "longitude": 136.50472222
+  },
+  "YCEL": {
+    "latitude": -23.09527778,
+    "longitude": 148.00722222
+  },
+  "YCFN": {
+    "latitude": -27.92777778,
+    "longitude": 151.8475
+  },
+  "YCFS": {
+    "latitude": -30.32055556,
+    "longitude": 153.11638889
+  },
+  "YCGO": {
+    "latitude": -17.14083333,
+    "longitude": 144.52833333
+  },
+  "YCHK": {
+    "latitude": -22.35583333,
+    "longitude": 119.6425
+  },
+  "YCHT": {
+    "latitude": -20.04361111,
+    "longitude": 146.27222222
+  },
+  "YCIN": {
+    "latitude": -17.58138889,
+    "longitude": 123.82833333
+  },
+  "YCKI": {
+    "latitude": -11.16527778,
+    "longitude": 132.48388889
+  },
+  "YCKN": {
+    "latitude": -15.44472222,
+    "longitude": 145.18444444
+  },
+  "YCLQ": {
+    "latitude": -16.40055556,
+    "longitude": 122.93138889
+  },
+  "YCMT": {
+    "latitude": -22.77305556,
+    "longitude": 147.62055556
+  },
+  "YCMU": {
+    "latitude": -28.03,
+    "longitude": 145.62222222
+  },
+  "YCMW": {
+    "latitude": -19.91166667,
+    "longitude": 138.125
+  },
+  "YCNF": {
+    "latitude": -21.67361111,
+    "longitude": 121.59472222
+  },
+  "YCNK": {
+    "latitude": -32.78611111,
+    "longitude": 151.33944444
+  },
+  "YCNM": {
+    "latitude": -30.98333333,
+    "longitude": 148.37555556
+  },
+  "YCNY": {
+    "latitude": -18.75333333,
+    "longitude": 138.70666667
+  },
+  "YCOE": {
+    "latitude": -13.76194444,
+    "longitude": 143.11666667
+  },
+  "YCOH": {
+    "latitude": -35.82694444,
+    "longitude": 144.21388889
+  },
+  "YCOM": {
+    "latitude": -36.30055556,
+    "longitude": 148.97388889
+  },
+  "YCOO": {
+    "latitude": -12.90277778,
+    "longitude": 132.53222222
+  },
+  "YCOR": {
+    "latitude": -35.99027778,
+    "longitude": 146.35138889
+  },
+  "YCPR": {
+    "latitude": -20.97722222,
+    "longitude": 116.275
+  },
+  "YCPT": {
+    "latitude": -31.30833333,
+    "longitude": 137.44333333
+  },
+  "YCRE": {
+    "latitude": -38.04,
+    "longitude": 143.65305556
+  },
+  "YCRF": {
+    "latitude": -41.46777778,
+    "longitude": 146.83833333
+  },
+  "YCRG": {
+    "latitude": -36.18277778,
+    "longitude": 147.88777778
+  },
+  "YCRN": {
+    "latitude": -41.16138889,
+    "longitude": 147.01472222
+  },
+  "YCTM": {
+    "latitude": -34.62444444,
+    "longitude": 148.03583333
+  },
+  "YCTN": {
+    "latitude": -37.61333333,
+    "longitude": 141.36166667
+  },
+  "YCUE": {
+    "latitude": -27.44666667,
+    "longitude": 117.91861111
+  },
+  "YCUN": {
+    "latitude": -31.62222222,
+    "longitude": 117.21666667
+  },
+  "YCVA": {
+    "latitude": -33.70833333,
+    "longitude": 138.58333333
+  },
+  "YCWA": {
+    "latitude": -22.96666667,
+    "longitude": 118.81333333
+  },
+  "YCWL": {
+    "latitude": -33.66722222,
+    "longitude": 136.89166667
+  },
+  "YCWR": {
+    "latitude": -33.84472222,
+    "longitude": 148.64888889
+  },
+  "YDAY": {
+    "latitude": -27.15527778,
+    "longitude": 151.26722222
+  },
+  "YDBI": {
+    "latitude": -28.59166667,
+    "longitude": 148.21666667
+  },
+  "YDBY": {
+    "latitude": -17.37,
+    "longitude": 123.66055556
+  },
+  "YDEK": {
+    "latitude": -34.94583333,
+    "longitude": 117.39722222
+  },
+  "YDGA": {
+    "latitude": -27.82972222,
+    "longitude": 117.31638889
+  },
+  "YDGU": {
+    "latitude": -25.5575,
+    "longitude": 119.2875
+  },
+  "YDKG": {
+    "latitude": -27.60194444,
+    "longitude": 122.33388889
+  },
+  "YDKI": {
+    "latitude": -17.9375,
+    "longitude": 146.14055556
+  },
+  "YDLO": {
+    "latitude": -27.87361111,
+    "longitude": 121.27166667
+  },
+  "YDLQ": {
+    "latitude": -35.55944444,
+    "longitude": 144.94638889
+  },
+  "YDMG": {
+    "latitude": -17.93693611,
+    "longitude": 138.81636944
+  },
+  "YDNI": {
+    "latitude": -9.57888889,
+    "longitude": 143.78027778
+  },
+  "YDOC": {
+    "latitude": -32.65055556,
+    "longitude": 151.20805556
+  },
+  "YDOD": {
+    "latitude": -36.36027778,
+    "longitude": 143.0075
+  },
+  "YDOR": {
+    "latitude": -16.55416667,
+    "longitude": 141.82416667
+  },
+  "YDPO": {
+    "latitude": -41.16972222,
+    "longitude": 146.43027778
+  },
+  "YDUM": {
+    "latitude": -33.3225,
+    "longitude": 117.74388889
+  },
+  "YDUN": {
+    "latitude": -27.51666667,
+    "longitude": 153.42833333
+  },
+  "YDWF": {
+    "latitude": -15.74694444,
+    "longitude": 131.91944444
+  },
+  "YDYS": {
+    "latitude": -22.62222222,
+    "longitude": 148.36388889
+  },
+  "YECH": {
+    "latitude": -36.15722222,
+    "longitude": 144.76194444
+  },
+  "YEJI": {
+    "latitude": -30.76944444,
+    "longitude": 120.31194444
+  },
+  "YELD": {
+    "latitude": -12.01944444,
+    "longitude": 135.57055556
+  },
+  "YELN": {
+    "latitude": -33.63833333,
+    "longitude": 134.9
+  },
+  "YEML": {
+    "latitude": -23.56777778,
+    "longitude": 148.17916667
+  },
+  "YESD": {
+    "latitude": -25.365,
+    "longitude": 151.10833333
+  },
+  "YESE": {
+    "latitude": -20.97722222,
+    "longitude": 141.00722222
+  },
+  "YESP": {
+    "latitude": -33.68444444,
+    "longitude": 121.82277778
+  },
+  "YEWA": {
+    "latitude": -22.42888889,
+    "longitude": 116.88722222
+  },
+  "YEXM": {
+    "latitude": -22.04138889,
+    "longitude": 114.10222222
+  },
+  "YFBS": {
+    "latitude": -33.36361111,
+    "longitude": 147.935
+  },
+  "YFDF": {
+    "latitude": -22.29194444,
+    "longitude": 119.43722222
+  },
+  "YFLI": {
+    "latitude": -40.09138889,
+    "longitude": 147.99277778
+  },
+  "YFRT": {
+    "latitude": -30.83805556,
+    "longitude": 128.115
+  },
+  "YFTA": {
+    "latitude": -32.57833333,
+    "longitude": 119.70666667
+  },
+  "YFTZ": {
+    "latitude": -18.18194444,
+    "longitude": 125.55861111
+  },
+  "YGAD": {
+    "latitude": -32.24166667,
+    "longitude": 115.68388889
+  },
+  "YGAS": {
+    "latitude": -27.59,
+    "longitude": 152.25666667
+  },
+  "YGAY": {
+    "latitude": -25.61527778,
+    "longitude": 151.62083333
+  },
+  "YGBF": {
+    "latitude": -38.14694444,
+    "longitude": 144.1725
+  },
+  "YGBI": {
+    "latitude": -11.65055556,
+    "longitude": 133.38194444
+  },
+  "YGDA": {
+    "latitude": -29.07333333,
+    "longitude": 147.37611111
+  },
+  "YGDH": {
+    "latitude": -30.96111111,
+    "longitude": 150.25055556
+  },
+  "YGDI": {
+    "latitude": -28.52138889,
+    "longitude": 150.32027778
+  },
+  "YGEL": {
+    "latitude": -28.79611111,
+    "longitude": 114.7075
+  },
+  "YGFN": {
+    "latitude": -29.75944444,
+    "longitude": 153.03
+  },
+  "YGGE": {
+    "latitude": -28.765,
+    "longitude": 116.97166667
+  },
+  "YGGI": {
+    "latitude": -33.99194444,
+    "longitude": 145.71916667
+  },
+  "YGIA": {
+    "latitude": -22.58111111,
+    "longitude": 120.03555556
+  },
+  "YGIB": {
+    "latitude": -16.41861111,
+    "longitude": 126.44611111
+  },
+  "YGIG": {
+    "latitude": -31.46527778,
+    "longitude": 115.86333333
+  },
+  "YGKL": {
+    "latitude": -23.18333333,
+    "longitude": 150.94166667
+  },
+  "YGLA": {
+    "latitude": -23.86972222,
+    "longitude": 151.22277778
+  },
+  "YGLB": {
+    "latitude": -34.81027778,
+    "longitude": 149.72638889
+  },
+  "YGLI": {
+    "latitude": -29.675,
+    "longitude": 151.68944444
+  },
+  "YGNE": {
+    "latitude": -38.165,
+    "longitude": 144.1075
+  },
+  "YGNW": {
+    "latitude": -33.97686944,
+    "longitude": 118.01112778
+  },
+  "YGON": {
+    "latitude": -19.77188056,
+    "longitude": 139.40108889
+  },
+  "YGPT": {
+    "latitude": -11.39916667,
+    "longitude": 130.42527778
+  },
+  "YGRL": {
+    "latitude": -37.8425,
+    "longitude": 148.00027778
+  },
+  "YGRM": {
+    "latitude": -28.03416667,
+    "longitude": 123.81416667
+  },
+  "YGTE": {
+    "latitude": -13.97333333,
+    "longitude": 136.46083333
+  },
+  "YGTH": {
+    "latitude": -34.25083333,
+    "longitude": 146.06722222
+  },
+  "YGTN": {
+    "latitude": -18.30333333,
+    "longitude": 143.53083333
+  },
+  "YGWA": {
+    "latitude": -35.48194444,
+    "longitude": 138.75138889
+  },
+  "YHAE": {
+    "latitude": -34.5625,
+    "longitude": 148.39166667
+  },
+  "YHAW": {
+    "latitude": -31.85472222,
+    "longitude": 138.46833333
+  },
+  "YHAY": {
+    "latitude": -34.53138889,
+    "longitude": 144.82972222
+  },
+  "YHBA": {
+    "latitude": -25.31888889,
+    "longitude": 152.88027778
+  },
+  "YHEC": {
+    "latitude": -27.76833333,
+    "longitude": 153.34
+  },
+  "YHGN": {
+    "latitude": -35.695,
+    "longitude": 142.25944444
+  },
+  "YHID": {
+    "latitude": -10.58638889,
+    "longitude": 142.29
+  },
+  "YHLC": {
+    "latitude": -18.23388889,
+    "longitude": 127.66972222
+  },
+  "YHLS": {
+    "latitude": -33.49361111,
+    "longitude": 145.52361111
+  },
+  "YHML": {
+    "latitude": -37.64888889,
+    "longitude": 142.06527778
+  },
+  "YHOT": {
+    "latitude": -37.04833333,
+    "longitude": 147.33416667
+  },
+  "YHPN": {
+    "latitude": -35.71527778,
+    "longitude": 142.35972222
+  },
+  "YHSM": {
+    "latitude": -36.66972222,
+    "longitude": 142.17277778
+  },
+  "YHUG": {
+    "latitude": -20.815,
+    "longitude": 144.22527778
+  },
+  "YIBO": {
+    "latitude": -21.28666667,
+    "longitude": 118.88305556
+  },
+  "YIFL": {
+    "latitude": -17.55861111,
+    "longitude": 146.01166667
+  },
+  "YIGM": {
+    "latitude": -18.66060833,
+    "longitude": 146.151775
+  },
+  "YIMB": {
+    "latitude": -33.09055556,
+    "longitude": 136.46444444
+  },
+  "YIMT": {
+    "latitude": -27.74166667,
+    "longitude": 140.745
+  },
+  "YITT": {
+    "latitude": -36.51222222,
+    "longitude": 147.35611111
+  },
+  "YIVL": {
+    "latitude": -29.88833333,
+    "longitude": 151.14416667
+  },
+  "YIVO": {
+    "latitude": -32.88472222,
+    "longitude": 144.31166667
+  },
+  "YJAB": {
+    "latitude": -12.65833333,
+    "longitude": 132.89305556
+  },
+  "YJAC": {
+    "latitude": -30.90111111,
+    "longitude": 132.18361111
+  },
+  "YJBY": {
+    "latitude": -35.1475,
+    "longitude": 150.69861111
+  },
+  "YJDA": {
+    "latitude": -24.83138889,
+    "longitude": 143.06555556
+  },
+  "YJIN": {
+    "latitude": -36.42666667,
+    "longitude": 148.60166667
+  },
+  "YJLC": {
+    "latitude": -20.66833333,
+    "longitude": 141.7225
+  },
+  "YJUN": {
+    "latitude": -26.42111111,
+    "longitude": 120.5775
+  },
+  "YKAL": {
+    "latitude": -14.28805556,
+    "longitude": 126.63111111
+  },
+  "YKAR": {
+    "latitude": -29.21611111,
+    "longitude": 116.68666667
+  },
+  "YKBA": {
+    "latitude": -22.15694444,
+    "longitude": 116.15722222
+  },
+  "YKBL": {
+    "latitude": -31.19055556,
+    "longitude": 121.59833333
+  },
+  "YKBR": {
+    "latitude": -27.69194444,
+    "longitude": 114.25944444
+  },
+  "YKBY": {
+    "latitude": -32.83583333,
+    "longitude": 134.29277778
+  },
+  "YKCY": {
+    "latitude": -26.97111111,
+    "longitude": 152.56527778
+  },
+  "YKDD": {
+    "latitude": -22.50527778,
+    "longitude": 119.07611111
+  },
+  "YKDI": {
+    "latitude": -33.97,
+    "longitude": 137.66
+  },
+  "YKDN": {
+    "latitude": -32.4675,
+    "longitude": 118.26972222
+  },
+  "YKER": {
+    "latitude": -35.75138889,
+    "longitude": 143.93944444
+  },
+  "YKID": {
+    "latitude": -18.87,
+    "longitude": 144.17333333
+  },
+  "YKIG": {
+    "latitude": -36.82,
+    "longitude": 139.87
+  },
+  "YKII": {
+    "latitude": -39.8775,
+    "longitude": 143.87833333
+  },
+  "YKKG": {
+    "latitude": -17.43194444,
+    "longitude": 130.80805556
+  },
+  "YKLC": {
+    "latitude": -16.12583333,
+    "longitude": 123.73472222
+  },
+  "YKMB": {
+    "latitude": -17.45555556,
+    "longitude": 140.83166667
+  },
+  "YKML": {
+    "latitude": -19.37472222,
+    "longitude": 140.05611111
+  },
+  "YKMP": {
+    "latitude": -31.07444444,
+    "longitude": 152.76972222
+  },
+  "YKNG": {
+    "latitude": -33.70027778,
+    "longitude": 117.65333333
+  },
+  "YKOW": {
+    "latitude": -15.48555556,
+    "longitude": 141.75138889
+  },
+  "YKRY": {
+    "latitude": -26.58083333,
+    "longitude": 151.84111111
+  },
+  "YKSC": {
+    "latitude": -35.71388889,
+    "longitude": 137.52138889
+  },
+  "YKTN": {
+    "latitude": -37.22555556,
+    "longitude": 144.44694444
+  },
+  "YKUB": {
+    "latitude": -10.22666667,
+    "longitude": 142.22361111
+  },
+  "YKWA": {
+    "latitude": -23.78111111,
+    "longitude": 120.135
+  },
+  "YLBD": {
+    "latitude": -16.51527778,
+    "longitude": 122.92361111
+  },
+  "YLCG": {
+    "latitude": -33.27833333,
+    "longitude": 146.36916667
+  },
+  "YLEC": {
+    "latitude": -30.59833333,
+    "longitude": 138.42583333
+  },
+  "YLED": {
+    "latitude": -37.91888889,
+    "longitude": 144.10111111
+  },
+  "YLEG": {
+    "latitude": -38.49555556,
+    "longitude": 145.85972222
+  },
+  "YLEO": {
+    "latitude": -28.87805556,
+    "longitude": 121.31472222
+  },
+  "YLEV": {
+    "latitude": -12.49888889,
+    "longitude": 135.80583333
+  },
+  "YLGD": {
+    "latitude": -41.69111111,
+    "longitude": 147.14333333
+  },
+  "YLHI": {
+    "latitude": -31.53833333,
+    "longitude": 159.07722222
+  },
+  "YLHR": {
+    "latitude": -12.78694444,
+    "longitude": 143.30472222
+  },
+  "YLIS": {
+    "latitude": -28.82666667,
+    "longitude": 153.2575
+  },
+  "YLLE": {
+    "latitude": -27.40833333,
+    "longitude": 141.80833333
+  },
+  "YLMQ": {
+    "latitude": -33.06622778,
+    "longitude": 151.64804722
+  },
+  "YLMU": {
+    "latitude": -33.745,
+    "longitude": 143.00166667
+  },
+  "YLOV": {
+    "latitude": -17.04833333,
+    "longitude": 141.37638889
+  },
+  "YLOX": {
+    "latitude": -34.47583333,
+    "longitude": 140.66388889
+  },
+  "YLRD": {
+    "latitude": -29.45666667,
+    "longitude": 147.98444444
+  },
+  "YLRE": {
+    "latitude": -23.43416667,
+    "longitude": 144.28027778
+  },
+  "YLST": {
+    "latitude": -27.84333333,
+    "longitude": 120.70333333
+  },
+  "YLTN": {
+    "latitude": -28.61361111,
+    "longitude": 122.42388889
+  },
+  "YLTV": {
+    "latitude": -38.20722222,
+    "longitude": 146.47027778
+  },
+  "YLVK": {
+    "latitude": -19.32083333,
+    "longitude": 146.80194444
+  },
+  "YLYK": {
+    "latitude": -34.62166667,
+    "longitude": 138.91416667
+  },
+  "YMAA": {
+    "latitude": -9.95166667,
+    "longitude": 142.19638889
+  },
+  "YMAE": {
+    "latitude": -9.91555556,
+    "longitude": 144.05527778
+  },
+  "YMAV": {
+    "latitude": -38.03944444,
+    "longitude": 144.46944444
+  },
+  "YMAY": {
+    "latitude": -36.06777778,
+    "longitude": 146.95805556
+  },
+  "YMBA": {
+    "latitude": -17.07055556,
+    "longitude": 145.42388889
+  },
+  "YMBD": {
+    "latitude": -35.06444444,
+    "longitude": 139.22666667
+  },
+  "YMBL": {
+    "latitude": -21.1625,
+    "longitude": 119.83972222
+  },
+  "YMBT": {
+    "latitude": -36.72861111,
+    "longitude": 147.16694444
+  },
+  "YMBU": {
+    "latitude": -37.03305556,
+    "longitude": 143.70888889
+  },
+  "YMCO": {
+    "latitude": -37.59888889,
+    "longitude": 149.72083333
+  },
+  "YMCT": {
+    "latitude": -37.58361111,
+    "longitude": 140.36611111
+  },
+  "YMDA": {
+    "latitude": -25.59888889,
+    "longitude": 151.31888889
+  },
+  "YMDG": {
+    "latitude": -32.5625,
+    "longitude": 149.61111111
+  },
+  "YMDR": {
+    "latitude": -21.99333333,
+    "longitude": 115.045
+  },
+  "YMEK": {
+    "latitude": -26.61166667,
+    "longitude": 118.54777778
+  },
+  "YMEL": {
+    "latitude": -37.62166667,
+    "longitude": 144.56555556
+  },
+  "YMEN": {
+    "latitude": -37.72805556,
+    "longitude": 144.90194444
+  },
+  "YMER": {
+    "latitude": -36.90861111,
+    "longitude": 149.90138889
+  },
+  "YMES": {
+    "latitude": -38.09888889,
+    "longitude": 147.14944444
+  },
+  "YMET": {
+    "latitude": -31.9775,
+    "longitude": 115.84138889
+  },
+  "YMGB": {
+    "latitude": -12.09444444,
+    "longitude": 134.89361111
+  },
+  "YMGD": {
+    "latitude": -12.05611111,
+    "longitude": 134.23416667
+  },
+  "YMGT": {
+    "latitude": -33.93055556,
+    "longitude": 115.1
+  },
+  "YMHB": {
+    "latitude": -42.83611111,
+    "longitude": 147.51027778
+  },
+  "YMHL": {
+    "latitude": -32.10833333,
+    "longitude": 119.76
+  },
+  "YMHU": {
+    "latitude": -16.44333333,
+    "longitude": 136.07666667
+  },
+  "YMIA": {
+    "latitude": -34.22916667,
+    "longitude": 142.08555556
+  },
+  "YMJM": {
+    "latitude": -34.26527778,
+    "longitude": 116.14027778
+  },
+  "YMLS": {
+    "latitude": -26.80611111,
+    "longitude": 150.16972222
+  },
+  "YMLT": {
+    "latitude": -41.54527778,
+    "longitude": 147.21416667
+  },
+  "YMMB": {
+    "latitude": -37.97583333,
+    "longitude": 145.10222222
+  },
+  "YMMI": {
+    "latitude": -28.70527778,
+    "longitude": 121.89055556
+  },
+  "YMML": {
+    "latitude": -37.67333333,
+    "longitude": 144.84333333
+  },
+  "YMMN": {
+    "latitude": -27.86333333,
+    "longitude": 151.275
+  },
+  "YMMO": {
+    "latitude": -36.07444444,
+    "longitude": 144.76444444
+  },
+  "YMMU": {
+    "latitude": -22.8025,
+    "longitude": 148.70472222
+  },
+  "YMND": {
+    "latitude": -32.70416667,
+    "longitude": 151.48888889
+  },
+  "YMNE": {
+    "latitude": -27.28638889,
+    "longitude": 120.55472222
+  },
+  "YMNG": {
+    "latitude": -36.88833333,
+    "longitude": 145.18416667
+  },
+  "YMOD": {
+    "latitude": -38.26055556,
+    "longitude": 144.09194444
+  },
+  "YMOG": {
+    "latitude": -28.11611111,
+    "longitude": 117.84166667
+  },
+  "YMOR": {
+    "latitude": -29.49888889,
+    "longitude": 149.84472222
+  },
+  "YMPA": {
+    "latitude": -32.84333333,
+    "longitude": 135.145
+  },
+  "YMPC": {
+    "latitude": -37.93222222,
+    "longitude": 144.75333333
+  },
+  "YMRB": {
+    "latitude": -22.05777778,
+    "longitude": 148.0775
+  },
+  "YMRW": {
+    "latitude": -29.20138889,
+    "longitude": 116.02194444
+  },
+  "YMRY": {
+    "latitude": -35.8975,
+    "longitude": 150.14555556
+  },
+  "YMTG": {
+    "latitude": -37.74555556,
+    "longitude": 140.78527778
+  },
+  "YMTI": {
+    "latitude": -16.6625,
+    "longitude": 139.17805556
+  },
+  "YMTO": {
+    "latitude": -24.89222222,
+    "longitude": 151.10194444
+  },
+  "YMUL": {
+    "latitude": -32.51027778,
+    "longitude": 115.83333333
+  },
+  "YMUR": {
+    "latitude": -28.33111111,
+    "longitude": 153.41361111
+  },
+  "YMYB": {
+    "latitude": -25.51333333,
+    "longitude": 152.715
+  },
+  "YMYU": {
+    "latitude": -33.78944444,
+    "longitude": 121.95694444
+  },
+  "YNAR": {
+    "latitude": -34.70222222,
+    "longitude": 146.51222222
+  },
+  "YNBR": {
+    "latitude": -30.31916667,
+    "longitude": 149.82722222
+  },
+  "YNGU": {
+    "latitude": -14.72277778,
+    "longitude": 134.7475
+  },
+  "YNGW": {
+    "latitude": -36.78388889,
+    "longitude": 145.03694444
+  },
+  "YNHL": {
+    "latitude": -36.31111111,
+    "longitude": 141.64444444
+  },
+  "YNKR": {
+    "latitude": -15.57666667,
+    "longitude": 130.475
+  },
+  "YNOV": {
+    "latitude": -31.84527778,
+    "longitude": 123.19194444
+  },
+  "YNPE": {
+    "latitude": -10.95083333,
+    "longitude": 142.45944444
+  },
+  "YNRC": {
+    "latitude": -36.98527778,
+    "longitude": 140.725
+  },
+  "YNRG": {
+    "latitude": -32.93,
+    "longitude": 117.08
+  },
+  "YNRM": {
+    "latitude": -32.21444444,
+    "longitude": 148.22472222
+  },
+  "YNRV": {
+    "latitude": -33.79722222,
+    "longitude": 120.20805556
+  },
+  "YNSM": {
+    "latitude": -32.20944444,
+    "longitude": 121.75444444
+  },
+  "YNTM": {
+    "latitude": -31.62583333,
+    "longitude": 116.68444444
+  },
+  "YNTN": {
+    "latitude": -17.685,
+    "longitude": 141.07027778
+  },
+  "YNUL": {
+    "latitude": -21.91277778,
+    "longitude": 120.19861111
+  },
+  "YNUM": {
+    "latitude": -14.27166667,
+    "longitude": 135.71666667
+  },
+  "YNWN": {
+    "latitude": -23.41777778,
+    "longitude": 119.80277778
+  },
+  "YNYN": {
+    "latitude": -31.55111111,
+    "longitude": 147.20277778
+  },
+  "YOAY": {
+    "latitude": -23.05972222,
+    "longitude": 148.49472222
+  },
+  "YOCA": {
+    "latitude": -33.75583333,
+    "longitude": 148.01277778
+  },
+  "YOEN": {
+    "latitude": -12.32527778,
+    "longitude": 133.00555556
+  },
+  "YOLA": {
+    "latitude": -38.28638889,
+    "longitude": 143.67972222
+  },
+  "YOLD": {
+    "latitude": -30.485,
+    "longitude": 136.87666667
+  },
+  "YOLW": {
+    "latitude": -21.66833333,
+    "longitude": 115.11305556
+  },
+  "YOOD": {
+    "latitude": -27.56,
+    "longitude": 135.445
+  },
+  "YOOM": {
+    "latitude": -28.09944444,
+    "longitude": 140.19694444
+  },
+  "YORB": {
+    "latitude": -37.79027778,
+    "longitude": 148.60972222
+  },
+  "YORG": {
+    "latitude": -33.37805556,
+    "longitude": 149.12555556
+  },
+  "YOSB": {
+    "latitude": -22.08166667,
+    "longitude": 140.55666667
+  },
+  "YPAG": {
+    "latitude": -32.50694444,
+    "longitude": 137.71666667
+  },
+  "YPAM": {
+    "latitude": -18.75527778,
+    "longitude": 146.58138889
+  },
+  "YPBH": {
+    "latitude": -38.60666667,
+    "longitude": 142.90611111
+  },
+  "YPBO": {
+    "latitude": -23.17111111,
+    "longitude": 117.74527778
+  },
+  "YPCC": {
+    "latitude": -12.18861111,
+    "longitude": 96.83055556
+  },
+  "YPCE": {
+    "latitude": -33.37305556,
+    "longitude": 142.58472222
+  },
+  "YPDN": {
+    "latitude": -12.41472222,
+    "longitude": 130.87666667
+  },
+  "YPEA": {
+    "latitude": -31.66777778,
+    "longitude": 116.015
+  },
+  "YPED": {
+    "latitude": -34.7025,
+    "longitude": 138.62083333
+  },
+  "YPEF": {
+    "latitude": -37.51333333,
+    "longitude": 144.69833333
+  },
+  "YPEN": {
+    "latitude": -28.82833333,
+    "longitude": 118.83
+  },
+  "YPET": {
+    "latitude": -33.83333333,
+    "longitude": 142.65166667
+  },
+  "YPFT": {
+    "latitude": -36.22916667,
+    "longitude": 149.14944444
+  },
+  "YPGV": {
+    "latitude": -12.26916667,
+    "longitude": 136.81833333
+  },
+  "YPIR": {
+    "latitude": -33.23888889,
+    "longitude": 137.995
+  },
+  "YPJT": {
+    "latitude": -32.0975,
+    "longitude": 115.88111111
+  },
+  "YPKA": {
+    "latitude": -20.71222222,
+    "longitude": 116.77333333
+  },
+  "YPKG": {
+    "latitude": -30.78944444,
+    "longitude": 121.46166667
+  },
+  "YPKL": {
+    "latitude": -36.99944444,
+    "longitude": 145.06277778
+  },
+  "YPKS": {
+    "latitude": -33.13138889,
+    "longitude": 148.23916667
+  },
+  "YPKT": {
+    "latitude": -14.25,
+    "longitude": 129.52916667
+  },
+  "YPKU": {
+    "latitude": -15.77805556,
+    "longitude": 128.7075
+  },
+  "YPLC": {
+    "latitude": -34.60527778,
+    "longitude": 135.88027778
+  },
+  "YPLM": {
+    "latitude": -22.23555556,
+    "longitude": 114.08861111
+  },
+  "YPLU": {
+    "latitude": -25.31666667,
+    "longitude": 119.42333333
+  },
+  "YPMH": {
+    "latitude": -29.71777778,
+    "longitude": 135.52444444
+  },
+  "YPMP": {
+    "latitude": -14.8975,
+    "longitude": 141.61083333
+  },
+  "YPMQ": {
+    "latitude": -31.43583333,
+    "longitude": 152.86333333
+  },
+  "YPNA": {
+    "latitude": -18.03833333,
+    "longitude": 144.88333333
+  },
+  "YPOD": {
+    "latitude": -38.31805556,
+    "longitude": 141.47111111
+  },
+  "YPOK": {
+    "latitude": -36.71777778,
+    "longitude": 146.89
+  },
+  "YPPD": {
+    "latitude": -20.37777778,
+    "longitude": 118.62638889
+  },
+  "YPPF": {
+    "latitude": -34.79333333,
+    "longitude": 138.63305556
+  },
+  "YPTN": {
+    "latitude": -14.52111111,
+    "longitude": 132.37777778
+  },
+  "YPWH": {
+    "latitude": -27.73333333,
+    "longitude": 151.63333333
+  },
+  "YPWR": {
+    "latitude": -31.14416667,
+    "longitude": 136.81694444
+  },
+  "YPXM": {
+    "latitude": -10.45055556,
+    "longitude": 105.69027778
+  },
+  "YQDI": {
+    "latitude": -31.49861111,
+    "longitude": 150.51805556
+  },
+  "YQLP": {
+    "latitude": -26.60861111,
+    "longitude": 144.25722222
+  },
+  "YQNS": {
+    "latitude": -42.07555556,
+    "longitude": 145.53083333
+  },
+  "YRED": {
+    "latitude": -27.20666667,
+    "longitude": 153.06777778
+  },
+  "YREN": {
+    "latitude": -34.19638889,
+    "longitude": 140.67388889
+  },
+  "YRLL": {
+    "latitude": -24.46166667,
+    "longitude": 148.62722222
+  },
+  "YRMD": {
+    "latitude": -20.70194444,
+    "longitude": 143.11472222
+  },
+  "YRNG": {
+    "latitude": -12.35638889,
+    "longitude": 134.8975
+  },
+  "YROI": {
+    "latitude": -34.65055556,
+    "longitude": 142.78277778
+  },
+  "YROM": {
+    "latitude": -26.54527778,
+    "longitude": 148.775
+  },
+  "YRST": {
+    "latitude": -41.33138889,
+    "longitude": 147.05027778
+  },
+  "YRTI": {
+    "latitude": -32.00666667,
+    "longitude": 115.53972222
+  },
+  "YSBK": {
+    "latitude": -33.92444444,
+    "longitude": 150.98833333
+  },
+  "YSCB": {
+    "latitude": -35.30694444,
+    "longitude": 149.195
+  },
+  "YSCD": {
+    "latitude": -30.17361111,
+    "longitude": 122.32222222
+  },
+  "YSCN": {
+    "latitude": -34.04027778,
+    "longitude": 150.68666667
+  },
+  "YSCO": {
+    "latitude": -32.03722222,
+    "longitude": 150.83222222
+  },
+  "YSCR": {
+    "latitude": -31.24027778,
+    "longitude": 119.35972222
+  },
+  "YSDU": {
+    "latitude": -32.21666667,
+    "longitude": 148.57472222
+  },
+  "YSEN": {
+    "latitude": -32.395,
+    "longitude": 115.87333333
+  },
+  "YSFG": {
+    "latitude": -34.34166667,
+    "longitude": 139.30833333
+  },
+  "YSGE": {
+    "latitude": -28.04972222,
+    "longitude": 148.59527778
+  },
+  "YSGR": {
+    "latitude": -29.70833333,
+    "longitude": 152.92833333
+  },
+  "YSHK": {
+    "latitude": -25.89388889,
+    "longitude": 113.57722222
+  },
+  "YSHL": {
+    "latitude": -34.56111111,
+    "longitude": 150.78861111
+  },
+  "YSHT": {
+    "latitude": -36.42888889,
+    "longitude": 145.3925
+  },
+  "YSHW": {
+    "latitude": -33.995,
+    "longitude": 150.9525
+  },
+  "YSII": {
+    "latitude": -9.37833333,
+    "longitude": 142.625
+  },
+  "YSLK": {
+    "latitude": -35.53166667,
+    "longitude": 142.89055556
+  },
+  "YSMH": {
+    "latitude": -22.741,
+    "longitude": 150.65466667
+  },
+  "YSMI": {
+    "latitude": -40.835,
+    "longitude": 145.08361111
+  },
+  "YSNC": {
+    "latitude": -28.33833333,
+    "longitude": 120.85333333
+  },
+  "YSNF": {
+    "latitude": -29.0425,
+    "longitude": 167.93805556
+  },
+  "YSNK": {
+    "latitude": -11.42277778,
+    "longitude": 130.65361111
+  },
+  "YSNW": {
+    "latitude": -34.94888889,
+    "longitude": 150.53694444
+  },
+  "YSOL": {
+    "latitude": -22.25472222,
+    "longitude": 117.84944444
+  },
+  "YSPE": {
+    "latitude": -28.62027778,
+    "longitude": 151.99055556
+  },
+  "YSPI": {
+    "latitude": -24.13027778,
+    "longitude": 148.08666667
+  },
+  "YSPT": {
+    "latitude": -27.92166667,
+    "longitude": 153.37138889
+  },
+  "YSRD": {
+    "latitude": -29.09833333,
+    "longitude": 122.45527778
+  },
+  "YSRI": {
+    "latitude": -33.60055556,
+    "longitude": 150.78083333
+  },
+  "YSRN": {
+    "latitude": -42.15555556,
+    "longitude": 145.29138889
+  },
+  "YSTA": {
+    "latitude": -36.63666667,
+    "longitude": 143.18583333
+  },
+  "YSTH": {
+    "latitude": -41.33666667,
+    "longitude": 148.28194444
+  },
+  "YSTL": {
+    "latitude": -17.18638889,
+    "longitude": 141.71166667
+  },
+  "YSTO": {
+    "latitude": -24.35638889,
+    "longitude": 143.29138889
+  },
+  "YSTW": {
+    "latitude": -31.08388889,
+    "longitude": 150.84666667
+  },
+  "YSWG": {
+    "latitude": -35.16527778,
+    "longitude": 147.46638889
+  },
+  "YSWH": {
+    "latitude": -35.37583333,
+    "longitude": 143.53277778
+  },
+  "YSWL": {
+    "latitude": -37.07166667,
+    "longitude": 142.74027778
+  },
+  "YTAM": {
+    "latitude": -25.80194444,
+    "longitude": 149.89944444
+  },
+  "YTBB": {
+    "latitude": -34.36111111,
+    "longitude": 136.095
+  },
+  "YTDN": {
+    "latitude": -38.21555556,
+    "longitude": 145.42361111
+  },
+  "YTDR": {
+    "latitude": -24.98638889,
+    "longitude": 150.09305556
+  },
+  "YTEE": {
+    "latitude": -21.835,
+    "longitude": 140.88805556
+  },
+  "YTEF": {
+    "latitude": -21.715,
+    "longitude": 122.22833333
+  },
+  "YTEM": {
+    "latitude": -34.42138889,
+    "longitude": 147.51166667
+  },
+  "YTGM": {
+    "latitude": -27.98638889,
+    "longitude": 143.81083333
+  },
+  "YTGT": {
+    "latitude": -20.54833333,
+    "longitude": 130.35
+  },
+  "YTHN": {
+    "latitude": -28.15388889,
+    "longitude": 120.93916667
+  },
+  "YTIB": {
+    "latitude": -29.45111111,
+    "longitude": 142.05777778
+  },
+  "YTMO": {
+    "latitude": -21.81194444,
+    "longitude": 139.92333333
+  },
+  "YTMU": {
+    "latitude": -35.26277778,
+    "longitude": 148.24083333
+  },
+  "YTNG": {
+    "latitude": -24.49388889,
+    "longitude": 150.57611111
+  },
+  "YTNK": {
+    "latitude": -19.63444444,
+    "longitude": 134.18333333
+  },
+  "YTOC": {
+    "latitude": -35.81083333,
+    "longitude": 145.60416667
+  },
+  "YTOT": {
+    "latitude": -32.25611111,
+    "longitude": 147.36888889
+  },
+  "YTPK": {
+    "latitude": -21.20833333,
+    "longitude": 148.97833333
+  },
+  "YTRA": {
+    "latitude": -29.18666667,
+    "longitude": 124.55027778
+  },
+  "YTRE": {
+    "latitude": -31.88861111,
+    "longitude": 152.51388889
+  },
+  "YTST": {
+    "latitude": -14.08972222,
+    "longitude": 126.38083333
+  },
+  "YTTI": {
+    "latitude": -13.75166667,
+    "longitude": 126.14833333
+  },
+  "YTUY": {
+    "latitude": -17.93611111,
+    "longitude": 145.93777778
+  },
+  "YTWB": {
+    "latitude": -27.54138889,
+    "longitude": 151.9125
+  },
+  "YTYH": {
+    "latitude": -28.59472222,
+    "longitude": 153.55111111
+  },
+  "YVAL": {
+    "latitude": -41.43,
+    "longitude": 146.26333333
+  },
+  "YVRD": {
+    "latitude": -16.40361111,
+    "longitude": 131.0025
+  },
+  "YWAV": {
+    "latitude": -17.395,
+    "longitude": 131.11833333
+  },
+  "YWBL": {
+    "latitude": -38.29527778,
+    "longitude": 142.44666667
+  },
+  "YWBN": {
+    "latitude": -34.18,
+    "longitude": 150.80888889
+  },
+  "YWBR": {
+    "latitude": -26.12833333,
+    "longitude": 126.58333333
+  },
+  "YWCA": {
+    "latitude": -31.51944444,
+    "longitude": 143.38111111
+  },
+  "YWCH": {
+    "latitude": -31.00722222,
+    "longitude": 151.55527778
+  },
+  "YWCK": {
+    "latitude": -28.14944444,
+    "longitude": 151.94305556
+  },
+  "YWDG": {
+    "latitude": -30.03194444,
+    "longitude": 119.38722222
+  },
+  "YWDH": {
+    "latitude": -25.41305556,
+    "longitude": 142.66722222
+  },
+  "YWGA": {
+    "latitude": -21.03583333,
+    "longitude": 118.64361111
+  },
+  "YWGM": {
+    "latitude": -31.86722222,
+    "longitude": 116.93916667
+  },
+  "YWGT": {
+    "latitude": -36.41583333,
+    "longitude": 146.30694444
+  },
+  "YWHA": {
+    "latitude": -33.05888889,
+    "longitude": 137.51444444
+  },
+  "YWHC": {
+    "latitude": -30.85138889,
+    "longitude": 143.07333333
+  },
+  "YWIS": {
+    "latitude": -22.47333333,
+    "longitude": 150.17833333
+  },
+  "YWKB": {
+    "latitude": -36.32111111,
+    "longitude": 142.41944444
+  },
+  "YWKI": {
+    "latitude": -34.18416667,
+    "longitude": 140.03055556
+  },
+  "YWKS": {
+    "latitude": -66.69138889,
+    "longitude": 111.52722222
+  },
+  "YWLG": {
+    "latitude": -30.03277778,
+    "longitude": 148.12583333
+  },
+  "YWLM": {
+    "latitude": -32.795,
+    "longitude": 151.83444444
+  },
+  "YWLU": {
+    "latitude": -26.62916667,
+    "longitude": 120.22055556
+  },
+  "YWMC": {
+    "latitude": -28.90666667,
+    "longitude": 136.34166667
+  },
+  "YWRN": {
+    "latitude": -31.73333333,
+    "longitude": 147.8025
+  },
+  "YWSG": {
+    "latitude": -27.09555556,
+    "longitude": 152.45972222
+  },
+  "YWSL": {
+    "latitude": -38.09166667,
+    "longitude": 146.96527778
+  },
+  "YWTN": {
+    "latitude": -22.36361111,
+    "longitude": 143.08555556
+  },
+  "YWTO": {
+    "latitude": -34.08777778,
+    "longitude": 141.89194444
+  },
+  "YWUD": {
+    "latitude": -33.04333333,
+    "longitude": 135.44722222
+  },
+  "YWVA": {
+    "latitude": -33.24027778,
+    "longitude": 151.43027778
+  },
+  "YWWI": {
+    "latitude": -21.64527778,
+    "longitude": 121.19166667
+  },
+  "YWWL": {
+    "latitude": -33.93722222,
+    "longitude": 147.19138889
+  },
+  "YWYF": {
+    "latitude": -36.05888889,
+    "longitude": 143.24333333
+  },
+  "YWYM": {
+    "latitude": -15.51138889,
+    "longitude": 128.15305556
+  },
+  "YWYR": {
+    "latitude": -27.6675,
+    "longitude": 151.85444444
+  },
+  "YWYY": {
+    "latitude": -40.99888889,
+    "longitude": 145.73111111
+  },
+  "YYKI": {
+    "latitude": -9.75333333,
+    "longitude": 143.405
+  },
+  "YYMI": {
+    "latitude": -9.89833333,
+    "longitude": 142.77166667
+  },
+  "YYNG": {
+    "latitude": -34.25555556,
+    "longitude": 148.24805556
+  },
+  "YYRM": {
+    "latitude": -38.5675,
+    "longitude": 146.75444444
+  },
+  "YYRN": {
+    "latitude": -28.155,
+    "longitude": 123.675
+  },
+  "YYWG": {
+    "latitude": -36.03055556,
+    "longitude": 146.02777778
   }
 }

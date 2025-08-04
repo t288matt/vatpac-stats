@@ -313,26 +313,17 @@ async def get_network_status(db: Session = Depends(get_db)):
         if cached_data:
             return cached_data
         
-        # Get network data
-        vatsim_service = get_vatsim_service()
-        network_data = await vatsim_service.get_current_data()
+        # Get network data from database
+        atc_count = db.query(ATCPosition).filter(ATCPosition.status == "online").count()
+        flight_count = db.query(Flight).filter(Flight.status == "active").count()
+        sector_count = db.query(Sector).count()
         
-        if network_data:
-            status = {
-                "network_status": "connected",
-                "atc_positions_count": len(network_data.get("atc_positions", [])),
-                "flights_count": len(network_data.get("pilots", [])),
-                "sectors_count": len(network_data.get("sectors", [])),
-                "last_update": datetime.utcnow().isoformat()
-            }
-        else:
-            status = {
-                "network_status": "disconnected",
-                "atc_positions_count": 0,
-                "flights_count": 0,
-                "sectors_count": 0,
-                "last_update": datetime.utcnow().isoformat()
-            }
+        status = {
+            "total_controllers": atc_count,
+            "total_flights": flight_count,
+            "total_sectors": sector_count,
+            "last_update": datetime.utcnow().isoformat()
+        }
         
         # Cache the result
         await cache_service.set_cached_data('network:detailed_status', status, 60)
@@ -347,16 +338,8 @@ async def get_network_status(db: Session = Depends(get_db)):
 async def get_atc_positions(db: Session = Depends(get_db)):
     """Get active ATC positions with caching"""
     try:
-        # Try to get from cache first
-        cache_service = await get_cache_service()
-        cached_atc_positions = await cache_service.get_atc_positions_cache()
-        
-        if cached_atc_positions:
-            logger.info("Returning cached ATC positions data")
-            return {"atc_positions": cached_atc_positions['data'], "cached": True}
-        
-        # If not cached, get from database
-        atc_positions = db.query(ATCPosition).filter(ATCPosition.status == "online").all()
+        # Get from database directly (no cache for now)
+        atc_positions = db.query(ATCPosition).all()
         
         atc_positions_data = []
         for atc_position in atc_positions:
@@ -383,10 +366,15 @@ async def get_atc_positions(db: Session = Depends(get_db)):
                 "workload_score": atc_position.workload_score
             })
         
-        # Cache the result
-        await cache_service.set_atc_positions_cache(atc_positions_data)
+        # Count online positions
+        online_count = len([pos for pos in atc_positions_data if pos["status"] == "online"])
         
-        return {"atc_positions": atc_positions_data, "cached": False}
+        return {
+            "positions": atc_positions_data,
+            "total": len(atc_positions_data),
+            "online": online_count,
+            "cached": False
+        }
         
     except Exception as e:
         logger.error(f"Error getting ATC positions: {e}")
@@ -396,8 +384,8 @@ async def get_atc_positions(db: Session = Depends(get_db)):
 async def get_atc_positions_by_controller_id(db: Session = Depends(get_db)):
     """Get ATC positions grouped by controller ID (showing multiple positions per controller)"""
     try:
-        # Get all online ATC positions
-        atc_positions = db.query(ATCPosition).filter(ATCPosition.status == "online").all()
+        # Get all ATC positions
+        atc_positions = db.query(ATCPosition).all()
         
         # Group by controller ID
         atc_positions_by_controller_id = {}
@@ -478,7 +466,14 @@ async def get_flights(db: Session = Depends(get_db)):
         
         if cached_flights:
             logger.info("Returning cached flights data")
-            return {"flights": cached_flights['data'], "cached": False}
+            # Count active flights from cached data
+            active_count = len([flight for flight in cached_flights['data'] if flight.get("status") == "active"])
+            return {
+                "flights": cached_flights['data'],
+                "total": len(cached_flights['data']),
+                "active": active_count,
+                "cached": True
+            }
         
                 # If not cached, get from database using direct SQL to avoid session isolation issues
         result = db.execute(text("SELECT * FROM flights WHERE status = 'active'"))
@@ -517,7 +512,15 @@ async def get_flights(db: Session = Depends(get_db)):
         # Cache the result
         await cache_service.set_flights_cache(flights_data)
         
-        return {"flights": flights_data, "cached": False}
+        # Count active flights
+        active_count = len([flight for flight in flights_data if flight.get("status") == "active"])
+        
+        return {
+            "flights": flights_data,
+            "total": len(flights_data),
+            "active": active_count,
+            "cached": False
+        }
         
     except Exception as e:
         logger.error(f"Error getting flights: {e}")
@@ -862,16 +865,7 @@ async def serve_debug_performance():
         logger.error(f"Error serving debug performance dashboard: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.get("/frontend/simple-test.html")
-async def serve_simple_test():
-    """Serve the simple test page"""
-    try:
-        with open("frontend/simple-test.html", "r") as f:
-            content = f.read()
-        return HTMLResponse(content=content, status_code=200)
-    except Exception as e:
-        logger.error(f"Error serving simple test page: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+
 
 @app.get("/frontend/database-query.html")
 async def serve_database_query():

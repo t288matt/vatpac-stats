@@ -1,0 +1,18 @@
+{
+  "apiVersion": 1,
+  "datasources": [
+    {
+      "name": "VATSIM PostgreSQL",
+      "type": "postgres",
+      "url": "postgres:5432",
+      "database": "vatsim_data",
+      "user": "vatsim_user",
+      "secureJsonData": {
+        "password": "vatsim_password"
+      },
+      "jsonData": {
+        "sslmode": "disable"
+      }
+    }
+  ]
+} 

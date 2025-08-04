@@ -269,18 +269,12 @@
                         networkResponse,
                         controllersResponse,
                         flightsResponse,
-                        trafficResponse,
-                        heatMapResponse,
-                        recommendationsResponse,
-                        alertsResponse
+                        trafficResponse
                     ] = await Promise.all([
                         fetch(`${API_BASE}/api/network/status`),
-                        fetch(`${API_BASE}/api/controllers`),
+                        fetch(`${API_BASE}/api/atc-positions`),
                         fetch(`${API_BASE}/api/flights`),
-                        fetch(`${API_BASE}/api/traffic/analysis`),
-                        fetch(`${API_BASE}/api/traffic/heatmap`),
-                        fetch(`${API_BASE}/api/positions/recommendations`),
-                        fetch(`${API_BASE}/api/traffic/alerts`)
+                        fetch(`${API_BASE}/api/traffic/summary/Australia`)
                     ]);
 
                     if (networkResponse.ok) {
@@ -290,12 +284,12 @@
 
                     if (controllersResponse.ok) {
                         const controllersData = await controllersResponse.json();
-                        setControllers(controllersData);
+                        setControllers(controllersData.positions || controllersData);
                     }
 
                     if (flightsResponse.ok) {
                         const flightsData = await flightsResponse.json();
-                        setFlights(flightsData);
+                        setFlights(flightsData.flights || flightsData);
                     }
 
                     if (trafficResponse.ok) {
@@ -303,20 +297,12 @@
                         setTrafficAnalysis(trafficData);
                     }
 
-                    if (heatMapResponse.ok) {
-                        const heatMapData = await heatMapResponse.json();
-                        setHeatMapData(heatMapData.heat_map_points || []);
+                    if (trafficResponse.ok) {
+                        const trafficData = await trafficResponse.json();
+                        setTrafficAnalysis(trafficData);
                     }
 
-                    if (recommendationsResponse.ok) {
-                        const recommendationsData = await recommendationsResponse.json();
-                        setPositionRecommendations(recommendationsData.recommendations || []);
-                    }
 
-                    if (alertsResponse.ok) {
-                        const alertsData = await alertsResponse.json();
-                        setTrafficAlerts(alertsData);
-                    }
 
                 } catch (err) {
                     console.error('Error fetching data:', err);
@@ -397,112 +383,79 @@
                             {networkStatus && (
                                 <div className="status-grid">
                                     <div className="status-item">
-                                        <div className="status-number">{networkStatus.active_atc_positions}</div>
-                                        <div className="status-label">Active ATC Positions</div>
+                                        <div className="status-number">{networkStatus.total_controllers || 0}</div>
+                                        <div className="status-label">Active Controllers</div>
                                     </div>
                                     <div className="status-item">
-                                        <div className="status-number">{networkStatus.active_flights}</div>
-                                        <div className="status-label">Active Flights</div>
+                                        <div className="status-number">{networkStatus.total_flights || 0}</div>
+                                        <div className="status-label">Total Flights</div>
                                     </div>
                                     <div className="status-item">
-                                        <div className="status-number">{networkStatus.manned_sectors}</div>
-                                        <div className="status-label">Manned Sectors</div>
+                                        <div className="status-number">{networkStatus.total_sectors || 0}</div>
+                                        <div className="status-label">Total Sectors</div>
                                     </div>
                                     <div className="status-item">
-                                        <div className="status-number">{networkStatus.unmanned_sectors}</div>
-                                        <div className="status-label">Unmanned Sectors</div>
+                                        <div className="status-number">{networkStatus.last_update ? new Date(networkStatus.last_update).toLocaleTimeString() : 'N/A'}</div>
+                                        <div className="status-label">Last Update</div>
                                     </div>
                                 </div>
                             )}
                         </div>
 
-                        {/* Traffic Analysis */}
+                        {/* Traffic Summary */}
                         <div className="card">
-                            <h2>Traffic Analysis</h2>
-                            {trafficAnalysis && trafficAnalysis.traffic_densities && (
+                            <h2>Traffic Summary</h2>
+                            {trafficAnalysis ? (
                                 <div>
-                                    {trafficAnalysis.traffic_densities.slice(0, 5).map((density, index) => (
-                                        <div key={index} className={`list-item ${getPriorityClass(density.density_score)}`}>
-                                            <strong>{density.sector_name}</strong>
-                                            <div>Flights: {density.flight_count} | Density: {density.density_score.toFixed(1)}</div>
-                                            <div>Priority Level: {density.priority_level}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Position Recommendations */}
-                        <div className="card">
-                            <h2>Position Recommendations</h2>
-                            {positionRecommendations.slice(0, 5).map((rec, index) => (
-                                <div key={index} className={`list-item ${getPriorityClass(rec.priority_score)}`}>
-                                    <strong>{rec.position_name}</strong>
-                                    <div>Priority: {rec.priority_score.toFixed(1)} | Demand: {rec.traffic_demand}</div>
-                                    <div>Workload: {rec.estimated_workload.toFixed(1)}%</div>
-                                    <div style={{fontSize: '0.9rem', color: '#666', marginTop: '5px'}}>
-                                        {rec.reasoning}
+                                    <div className="list-item">
+                                        <strong>Region: {trafficAnalysis.region || 'Australia'}</strong>
+                                        <div>Total Movements: {trafficAnalysis.total_movements || 0}</div>
+                                        <div>Departures: {trafficAnalysis.departures || 0} | Arrivals: {trafficAnalysis.arrivals || 0}</div>
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-
-                        {/* Traffic Alerts */}
-                        <div className="card">
-                            <h2>Traffic Alerts</h2>
-                            {trafficAlerts && (
-                                <div>
-                                    {trafficAlerts.high_priority_positions && trafficAlerts.high_priority_positions.slice(0, 3).map((alert, index) => (
-                                        <div key={index} className={`alert-item ${getAlertClass(alert.priority_score)}`}>
-                                            <strong>🚨 {alert.position_name}</strong>
-                                            <div>Priority: {alert.priority_score.toFixed(1)} | Demand: {alert.traffic_demand}</div>
-                                            <div style={{fontSize: '0.9rem'}}>{alert.reasoning}</div>
-                                        </div>
-                                    ))}
-                                    
-                                    {trafficAlerts.high_density_sectors && trafficAlerts.high_density_sectors.slice(0, 3).map((sector, index) => (
-                                        <div key={index} className="alert-item alert-medium">
-                                            <strong>📊 {sector.sector_name}</strong>
-                                            <div>Density: {sector.density_score.toFixed(1)} | Flights: {sector.flight_count}</div>
-                                        </div>
-                                    ))}
-                                </div>
+                            ) : (
+                                <div className="list-item">No traffic data available</div>
                             )}
-                        </div>
-
-                        {/* Heat Map */}
-                        <div className="card">
-                            <h2>Traffic Heat Map</h2>
-                            <div className="heat-map-container" id="heatmap"></div>
-                            <div style={{marginTop: '10px', fontSize: '0.9rem', color: '#666'}}>
-                                {heatMapData.length} active flight positions
-                            </div>
                         </div>
 
                         {/* Recent ATC Positions */}
                         <div className="card">
                             <h2>Active ATC Positions</h2>
-                            {controllers.slice(0, 5).map((controller, index) => (
-                                <div key={index} className="list-item">
-                                    <strong>{controller.callsign}</strong>
-                                    <div>{controller.facility} - {controller.position}</div>
-                                    <div style={{color: controller.status === 'online' ? '#38a169' : '#e53e3e'}}>
-                                        {controller.status}
+                            {controllers && controllers.length > 0 ? (
+                                controllers.slice(0, 5).map((controller, index) => (
+                                    <div key={index} className="list-item">
+                                        <strong>{controller.callsign}</strong>
+                                        <div>{controller.facility} - {controller.position || 'N/A'}</div>
+                                        <div style={{color: controller.status === 'online' ? '#38a169' : '#e53e3e'}}>
+                                            {controller.status} - {controller.controller_rating_name}
+                                        </div>
+                                        <div style={{fontSize: '0.8rem', color: '#666'}}>
+                                            {controller.frequency} MHz
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                ))
+                            ) : (
+                                <div className="list-item">No ATC positions available</div>
+                            )}
                         </div>
 
                         {/* Recent Flights */}
                         <div className="card">
                             <h2>Recent Flights</h2>
-                            {flights.slice(0, 5).map((flight, index) => (
-                                <div key={index} className="list-item">
-                                    <strong>{flight.callsign}</strong>
-                                    <div>{flight.aircraft_type} | {flight.departure} → {flight.arrival}</div>
-                                    <div>FL{flight.altitude} | {flight.speed}kts</div>
-                                </div>
-                            ))}
+                            {flights && flights.length > 0 ? (
+                                flights.slice(0, 5).map((flight, index) => (
+                                    <div key={index} className="list-item">
+                                        <strong>{flight.callsign}</strong>
+                                        <div>{flight.aircraft_type || 'N/A'} | {flight.departure_airport || 'N/A'} → {flight.arrival_airport || 'N/A'}</div>
+                                        <div>FL{flight.altitude || 'N/A'} | {flight.ground_speed || 'N/A'}kts</div>
+                                        <div style={{fontSize: '0.8rem', color: '#666'}}>
+                                            {flight.last_updated ? new Date(flight.last_updated).toLocaleTimeString() : 'N/A'}
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="list-item">No flights available</div>
+                            )}
                         </div>
                     </div>
                 </div>

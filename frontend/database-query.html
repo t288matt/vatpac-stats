@@ -281,7 +281,7 @@
                 name: 'Active Controllers',
                 description: 'Show all currently online controllers',
                 sql: `SELECT callsign, facility, position, status, last_seen, workload_score
-FROM controllers 
+FROM atc_positions 
 WHERE status = 'online' 
 ORDER BY last_seen DESC 
 LIMIT 20`
@@ -289,7 +289,7 @@ LIMIT 20`
             'recent_flights': {
                 name: 'Recent Flights',
                 description: 'Show recently updated active flights',
-                sql: `SELECT callsign, aircraft_type, departure, arrival, altitude, speed, last_updated
+                sql: `SELECT callsign, aircraft_type, departure_airport, arrival_airport, altitude, ground_speed, last_updated
 FROM flights 
 WHERE status = 'active' 
 ORDER BY last_updated DESC 
@@ -303,8 +303,8 @@ LIMIT 20`
     c.facility,
     c.workload_score,
     COUNT(f.id) as flight_count
-FROM controllers c
-LEFT JOIN flights f ON c.id = f.controller_id
+FROM atc_positions c
+LEFT JOIN flights f ON c.id = f.atc_position_id
 WHERE c.status = 'online'
 GROUP BY c.id
 ORDER BY c.workload_score DESC
@@ -329,7 +329,7 @@ LIMIT 10`
     facility,
     COUNT(*) as controller_count,
     AVG(workload_score) as avg_workload
-FROM controllers 
+FROM atc_positions 
 WHERE status = 'online'
 GROUP BY facility 
 ORDER BY controller_count DESC`

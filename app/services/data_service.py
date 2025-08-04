@@ -161,14 +161,7 @@ class DataService:
                 
                 # Try to find controlling ATC position for this flight
                 atc_position_id = None
-                if self.cache['atc_positions']:
-                    # Simple round-robin assignment based on flight callsign hash
-                    import hashlib
-                    flight_hash = hashlib.md5(callsign.encode()).hexdigest()
-                    online_atc_positions = [pos for pos in self.cache['atc_positions'].values() if pos.get('status') == 'online']
-                    if online_atc_positions:
-                        position_index = int(flight_hash, 16) % len(online_atc_positions)
-                        atc_position_id = list(online_atc_positions[position_index].keys())[0]  # Get the ATC position ID
+                # For now, skip ATC position assignment to avoid database issues
                 
                 self.cache['flights'][callsign] = {
                     'callsign': callsign,

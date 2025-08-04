@@ -22,6 +22,9 @@ VATSIM data/
 │   ├── models.py                 # SQLAlchemy models
 │   └── config.py                 # Configuration management
 ├── frontend/                     # Web dashboard
+├── grafana/                      # Grafana dashboards & config
+│   ├── dashboards/              # Dashboard JSON files
+│   └── provisioning/            # Auto-provisioning config
 ├── docs/                         # Documentation
 │   ├── migration/                # Database migration docs
 │   ├── optimization/             # Performance optimization docs
@@ -36,27 +39,43 @@ VATSIM data/
 
 ## 🛠️ Quick Start
 
-### 1. Install Dependencies
+### Option 1: Docker Compose (Recommended)
 ```bash
+# Start all services
+docker-compose up -d
+
+# Access services
+# - VATSIM App: http://localhost:8001
+# - Grafana: http://localhost:3050 (no auth required)
+# - API Docs: http://localhost:8001/docs
+```
+
+### Option 2: Manual Setup
+```bash
+# 1. Install Dependencies
 pip install -r requirements.txt
-```
 
-### 2. Run the Application
-```bash
+# 2. Run the Application
 python run.py
-```
 
-### 3. Access the Dashboard
-- **Main Dashboard**: http://localhost:8001/frontend/index.html
-- **API Documentation**: http://localhost:8001/docs
-- **API Status**: http://localhost:8001/api/status
+# 3. Access the Dashboard
+# - Main Dashboard: http://localhost:8001/frontend/index.html
+# - API Documentation: http://localhost:8001/docs
+# - API Status: http://localhost:8001/api/status
+```
 
 ## 📊 System Architecture
 
 ### Data Flow
 1. **VATSIM API** → **Data Ingestion Service** → **Database**
-2. **Database** → **Analytics Services** → **Dashboard**
+2. **Database** → **Analytics Services** → **Dashboard & Grafana**
 3. **Real-time Updates** every 30 seconds
+
+### Services
+- **VATSIM App**: Main application (port 8001)
+- **PostgreSQL**: Database (port 5432)
+- **Redis**: Caching (port 6379)
+- **Grafana**: Visualization (port 3050)
 
 ### Performance Optimizations
 - **Memory Caching**: 2GB limit with compression
@@ -127,7 +146,7 @@ BATCH_SIZE_THRESHOLD=10000
 - `scripts/migrate_windows.py` - Windows-specific migration
 
 ### Utility Scripts
-- `scripts/test_migration_setup.py` - Migration testing
+
 - `scripts/ssd_optimization.py` - SSD wear optimization
 - `scripts/database_migration.py` - Database migration utilities
 
@@ -136,6 +155,11 @@ BATCH_SIZE_THRESHOLD=10000
 - `tools/postgresql.conf` - PostgreSQL configuration
 
 ## 🔍 Monitoring
+
+### Web Dashboards
+- **Main Dashboard**: http://localhost:8001/frontend/index.html
+- **Database Query Tool**: http://localhost:8001/frontend/database-query.html
+- **Grafana**: http://localhost:3050 (no authentication required)
 
 ### API Endpoints
 - `GET /api/status` - System status
@@ -150,11 +174,16 @@ BATCH_SIZE_THRESHOLD=10000
 - Memory usage and optimization
 - Database connection pool status
 - Write throughput and batch efficiency
+- Grafana dashboards with live updates
 
 ## 🚀 Deployment
 
 ### Development
 ```bash
+# Docker Compose (recommended)
+docker-compose up -d
+
+# Manual
 python run.py
 ```
 
@@ -162,7 +191,7 @@ python run.py
 ```bash
 # Use PostgreSQL for production
 DATABASE_URL=postgresql://user:pass@localhost/vatsim_data
-python run.py
+docker-compose up -d
 ```
 
 ## 📊 Data Integrity
@@ -172,6 +201,7 @@ The system includes comprehensive data integrity checks:
 - Automated backup creation
 - Data freshness monitoring
 - Consistency verification
+- Grafana monitoring dashboards
 
 ## 🔧 Troubleshooting
 
@@ -179,11 +209,13 @@ The system includes comprehensive data integrity checks:
 1. **Database Locked**: Stop the application and restart
 2. **Memory Issues**: Check memory limits in config
 3. **Performance**: Monitor write batch sizes
+4. **Grafana Access**: Check if port 3050 is available
 
 ### Logs
 - Application logs: `logs/`
 - Database logs: Check database configuration
 - Performance logs: Monitor API endpoints
+- Grafana logs: `docker-compose logs grafana`
 
 ## 📄 License
 
@@ -192,9 +224,15 @@ This project is designed for VATSIM data collection and analysis.
 ## 🤝 Contributing
 
 1. Follow the existing code structure
-2. Add comprehensive tests
-3. Update documentation
-4. Test performance impact
+2. Update documentation
+3. Monitor performance impact
+4. Test Grafana dashboards
+
+## 📚 Additional Resources
+
+- **Grafana Setup**: See `grafana/README.md` for detailed Grafana configuration
+- **API Documentation**: http://localhost:8001/docs
+- **Database Query Tool**: http://localhost:8001/frontend/database-query.html
 
 ---
 
