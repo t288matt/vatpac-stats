@@ -24,8 +24,8 @@
   "panels": [
     {
       "datasource": {
-        "type": "simplejson",
-        "uid": "vatsim_api"
+        "type": "postgres",
+        "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
       },
       "fieldConfig": {
         "defaults": {
@@ -99,11 +99,31 @@
       "targets": [
         {
           "datasource": {
-            "type": "simplejson",
-            "uid": "vatsim_api"
+            "type": "postgres",
+            "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
           },
-          "expr": "/api/network/status",
-          "refId": "A"
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  last_updated as time,\n  COUNT(*) as value\nFROM atc_positions\nGROUP BY last_updated\nORDER BY last_updated DESC\nLIMIT 100",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
         }
       ],
       "title": "Network Activity",
@@ -111,13 +131,20 @@
     },
     {
       "datasource": {
-        "type": "simplejson",
-        "uid": "vatsim_api"
+        "type": "postgres",
+        "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
       },
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false
+            }
           },
           "mappings": [],
           "thresholds": {
@@ -162,11 +189,31 @@
       "targets": [
         {
           "datasource": {
-            "type": "simplejson",
-            "uid": "vatsim_api"
+            "type": "postgres",
+            "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
           },
-          "expr": "/api/status",
-          "refId": "A"
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) as value FROM atc_positions",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
         }
       ],
       "title": "Total Controllers",
@@ -174,13 +221,20 @@
     },
     {
       "datasource": {
-        "type": "simplejson",
-        "uid": "vatsim_api"
+        "type": "postgres",
+        "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
       },
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false
+            }
           },
           "mappings": [],
           "thresholds": {
@@ -225,11 +279,31 @@
       "targets": [
         {
           "datasource": {
-            "type": "simplejson",
-            "uid": "vatsim_api"
+            "type": "postgres",
+            "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
           },
-          "expr": "/api/status",
-          "refId": "A"
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) as value FROM flights WHERE status = 'active'",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
         }
       ],
       "title": "Total Flights",
@@ -237,13 +311,20 @@
     },
     {
       "datasource": {
-        "type": "simplejson",
-        "uid": "vatsim_api"
+        "type": "postgres",
+        "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
       },
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false
+            }
           },
           "mappings": [],
           "thresholds": {
@@ -259,7 +340,7 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "s"
         },
         "overrides": []
       },
@@ -288,11 +369,31 @@
       "targets": [
         {
           "datasource": {
-            "type": "simplejson",
-            "uid": "vatsim_api"
+            "type": "postgres",
+            "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
           },
-          "expr": "/api/status",
-          "refId": "A"
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT EXTRACT(EPOCH FROM (NOW() - MAX(last_updated))) as value FROM atc_positions",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
         }
       ],
       "title": "Data Freshness",
@@ -300,8 +401,8 @@
     },
     {
       "datasource": {
-        "type": "simplejson",
-        "uid": "vatsim_api"
+        "type": "postgres",
+        "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
       },
       "fieldConfig": {
         "defaults": {
@@ -309,31 +410,10 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "vis": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
             }
           },
           "mappings": [],
@@ -349,8 +429,7 @@
                 "value": 80
               }
             ]
-          },
-          "unit": "short"
+          }
         },
         "overrides": []
       },
@@ -363,30 +442,59 @@
       "id": 5,
       "options": {
         "legend": {
-          "calcs": [],
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
         "tooltip": {
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "10.2.0",
       "targets": [
         {
           "datasource": {
-            "type": "simplejson",
-            "uid": "vatsim_api"
+            "type": "postgres",
+            "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
           },
-          "expr": "/api/atc-positions",
-          "refId": "A"
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  facility as name,\n  COUNT(*) as value\nFROM atc_positions\nGROUP BY facility\nORDER BY value DESC",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
         }
       ],
       "title": "ATC Positions by Facility",
-      "type": "timeseries"
+      "type": "piechart"
     }
   ],
-  "refresh": "5s",
+  "refresh": "30s",
   "schemaVersion": 38,
   "style": "dark",
   "tags": [
