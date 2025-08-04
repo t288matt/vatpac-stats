@@ -1,10 +1,11 @@
 -- ===========================================
--- AUSTRALIAN AIRPORTS VIEW
+-- AUSTRALIAN AIRPORTS VIEW (SQLite Version)
 -- ===========================================
 -- This view provides a centralized reference for Australian airports
 -- Used by Grafana dashboards to avoid hardcoded airport codes
 
-CREATE OR REPLACE VIEW australian_airports AS
+DROP VIEW IF EXISTS australian_airports;
+CREATE VIEW australian_airports AS
 SELECT 
     icao_code,
     name,
@@ -13,34 +14,16 @@ SELECT
     country,
     region
 FROM airports 
-WHERE icao_code LIKE 'Y%' AND is_active = true;
+WHERE icao_code LIKE 'Y%' AND is_active = 1;
 
 -- ===========================================
--- AUSTRALIAN AIRPORTS FUNCTION
--- ===========================================
--- Function to get Australian airport codes as a comma-separated string
--- for use in Grafana dashboard queries
-
-CREATE OR REPLACE FUNCTION get_australian_airport_codes()
-RETURNS TEXT AS $$
-DECLARE
-    airport_codes TEXT;
-BEGIN
-    SELECT string_agg(icao_code, ',') 
-    INTO airport_codes
-    FROM australian_airports;
-    
-    RETURN airport_codes;
-END;
-$$ LANGUAGE plpgsql;
-
--- ===========================================
--- AUSTRALIAN FLIGHTS VIEW
+-- AUSTRALIAN FLIGHTS VIEW (SQLite Version)
 -- ===========================================
 -- View that automatically filters for Australian flights
 -- based on departure/arrival from Australian airports
 
-CREATE OR REPLACE VIEW australian_flights AS
+DROP VIEW IF EXISTS australian_flights;
+CREATE VIEW australian_flights AS
 SELECT 
     f.*,
     CASE 

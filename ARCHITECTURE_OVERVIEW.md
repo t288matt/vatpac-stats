@@ -165,35 +165,43 @@ CREATE TABLE movement_summaries (
 
 ### **Configuration Tables**
 
-#### **7. airport_config** - Airport-Specific Settings
+#### **7. airports** - Global Airport Data
+```sql
+CREATE TABLE airports (
+    id SERIAL PRIMARY KEY,
+    icao_code VARCHAR(10) UNIQUE NOT NULL,
+    name VARCHAR(200),
+    latitude FLOAT NOT NULL,
+    longitude FLOAT NOT NULL,
+    elevation INTEGER,
+    country VARCHAR(100),
+    region VARCHAR(100),
+    timezone VARCHAR(50),
+    facility_type VARCHAR(50),
+    runways TEXT,
+    frequencies TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### **8. airport_config** - Airport Detection Settings
 ```sql
 CREATE TABLE airport_config (
     id SERIAL PRIMARY KEY,
-    icao_code VARCHAR(10) UNIQUE NOT NULL,    -- Airport ICAO code
-    name VARCHAR(200) NOT NULL,                -- Airport name
-    latitude FLOAT NOT NULL,                   -- Airport latitude
-    longitude FLOAT NOT NULL,                  -- Airport longitude
-    detection_radius_nm FLOAT DEFAULT 10.0,   -- Movement detection radius
+    icao_code VARCHAR(10) UNIQUE NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    latitude FLOAT NOT NULL,
+    longitude FLOAT NOT NULL,
+    detection_radius_nm FLOAT DEFAULT 10.0,
     departure_altitude_threshold INTEGER DEFAULT 1000,
     arrival_altitude_threshold INTEGER DEFAULT 3000,
     departure_speed_threshold INTEGER DEFAULT 50,
     arrival_speed_threshold INTEGER DEFAULT 150,
-    is_active BOOLEAN DEFAULT TRUE,
-    region VARCHAR(50),                        -- Geographic region
-    last_updated TIMESTAMPTZ DEFAULT NOW(),
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-#### **8. system_config** - System-Wide Settings
-```sql
-CREATE TABLE system_config (
-    id SERIAL PRIMARY KEY,
-    key VARCHAR(100) UNIQUE NOT NULL,          -- Configuration key
-    value TEXT NOT NULL,                       -- Configuration value
-    description TEXT,                          -- Description
-    last_updated TIMESTAMPTZ DEFAULT NOW(),
-    environment VARCHAR(20) DEFAULT 'development'
+    is_active BOOLEAN DEFAULT true,
+    region VARCHAR(50),
+    last_updated TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
@@ -253,7 +261,8 @@ atc_positions (1) ──── (N) flights
 atc_positions (1) ──── (N) sectors
 flights (N) ──── (1) atc_positions
 sectors (N) ──── (1) atc_positions
-airport_config (1) ──── (N) traffic_movements
+airports (1) ──── (N) traffic_movements  -- Global airport data
+airport_config (1) ──── (N) traffic_movements  -- Detection settings
 operator_id (1) ──── (N) atc_positions  -- One VATSIM operator can control multiple positions
 ```
 

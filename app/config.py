@@ -24,7 +24,7 @@ class DatabaseConfig:
     def from_env(cls):
         """Load database configuration from environment variables."""
         return cls(
-            url=os.getenv("DATABASE_URL", "sqlite:///atc_optimization.db"),
+            url=os.getenv("DATABASE_URL", "postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data"),
             pool_size=int(os.getenv("DATABASE_POOL_SIZE", "10")),
             max_overflow=int(os.getenv("DATABASE_MAX_OVERFLOW", "20")),
             echo=os.getenv("DATABASE_ECHO", "false").lower() == "true"
@@ -181,29 +181,32 @@ class AirportConfig:
 
 
 def get_australian_airports() -> list:
-    """Get list of all Australian airports from airport_coordinates.json"""
+    """Get list of all Australian airports from the database"""
     try:
-        import json
-        from pathlib import Path
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from app.models import Airports
         
-        # Get the path to airport_coordinates.json relative to the project root
-        project_root = Path(__file__).parent.parent
-        airport_file = project_root / "airport_coordinates.json"
+        config = get_config()
+        engine = create_engine(config.database.url)
+        Session = sessionmaker(bind=engine)
+        session = Session()
         
-        with open(airport_file, 'r') as f:
-            airport_data = json.load(f)
+        # Query all Australian airports from the database
+        australian_airports = session.query(Airports.icao_code)\
+            .filter(Airports.icao_code.like('Y%'))\
+            .filter(Airports.is_active == True)\
+            .all()
         
-        # Extract Australian airports (starting with 'Y')
-        australian_airports = []
-        for airport_code in airport_data.keys():
-            if airport_code.startswith('Y'):
-                australian_airports.append(airport_code)
+        # Extract the ICAO codes from the query results
+        airport_codes = [airport[0] for airport in australian_airports]
+        airport_codes.sort()  # Sort for consistent ordering
         
-        # Sort for consistent ordering
-        australian_airports.sort()
-        return australian_airports
+        session.close()
+        return airport_codes
+        
     except Exception as e:
-        print(f"Warning: Could not load Australian airports: {e}")
+        print(f"Warning: Could not load Australian airports from database: {e}")
         return []
 
 
@@ -215,30 +218,54 @@ def get_australian_airports_sql_list() -> str:
 
 
 def get_major_australian_airports() -> list:
-    """Get list of major Australian airports (commonly used in dashboards)"""
-    major_airports = [
-        'YBBN',  # Brisbane
-        'YSSY',  # Sydney
-        'YMML',  # Melbourne
-        'YPPH',  # Perth
-        'YSCL',  # Adelaide
-        'YBCS',  # Cairns
-        'YPDN',  # Darwin
-        'YBRM',  # Broome
-        'YBAF',  # Brisbane West Wellcamp
-        'YMAV',  # Avalon
-        'YBRK',  # Rockhampton
-        'YBCG',  # Gold Coast
-        'YBTL',  # Townsville
-        'YBRN',  # Burnie
-        'YBAS',  # Alice Springs
-        'YPDL',  # Devonport
-        'YPPN'   # Proserpine
-    ]
-    
-    # Only return airports that exist in our data
-    all_australian = get_australian_airports()
-    return [airport for airport in major_airports if airport in all_australian]
+    """Get list of major Australian airports from the database"""
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from app.models import Airports
+        
+        config = get_config()
+        engine = create_engine(config.database.url)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        
+        # Define major Australian airports (these are the most commonly used)
+        major_airport_codes = [
+            'YBBN',  # Brisbane
+            'YSSY',  # Sydney
+            'YMML',  # Melbourne
+            'YPPH',  # Perth
+            'YSCL',  # Adelaide
+            'YBCS',  # Cairns
+            'YPDN',  # Darwin
+            'YBRM',  # Broome
+            'YBAF',  # Brisbane West Wellcamp
+            'YMAV',  # Avalon
+            'YBRK',  # Rockhampton
+            'YBCG',  # Gold Coast
+            'YBTL',  # Townsville
+            'YBRN',  # Burnie
+            'YBAS',  # Alice Springs
+            'YPDL',  # Devonport
+            'YPPN'   # Proserpine
+        ]
+        
+        # Query only the major airports that exist in the database
+        major_airports = session.query(Airports.icao_code)\
+            .filter(Airports.icao_code.in_(major_airport_codes))\
+            .filter(Airports.is_active == True)\
+            .all()
+        
+        # Extract the ICAO codes from the query results
+        airport_codes = [airport[0] for airport in major_airports]
+        airport_codes.sort()  # Sort for consistent ordering
+        
+        session.close()
+        return airport_codes
+        
+    except Exception as e:
+        print(f"Warning: Could not load major Australian airports from database: {e}")
+        return []
 
 
 def get_major_australian_airports_sql_list() -> str:
@@ -249,8 +276,30 @@ def get_major_australian_airports_sql_list() -> str:
 
 
 def is_australian_airport(airport_code: str) -> bool:
-    """Check if an airport code is Australian"""
-    return airport_code in get_australian_airports()
+    """Check if an airport code is Australian by querying the database"""
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from app.models import Airports
+        
+        config = get_config()
+        engine = create_engine(config.database.url)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        
+        # Check if the airport exists and is Australian
+        airport = session.query(Airports)\
+            .filter(Airports.icao_code == airport_code)\
+            .filter(Airports.is_active == True)\
+            .first()
+        
+        session.close()
+        
+        return airport is not None and airport.icao_code.startswith('Y')
+        
+    except Exception as e:
+        print(f"Warning: Could not check if airport is Australian: {e}")
+        return False
 
 
 @dataclass

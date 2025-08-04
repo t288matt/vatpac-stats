@@ -8,7 +8,7 @@ A real-time VATSIM data collection and analysis system specifically focused on A
 - **Real-time VATSIM Data Collection**: Collects ATC position, flight, and sector data every 60 seconds
 - **Advanced Analytics**: Traffic analysis, movement detection, and workload optimization
 - **Performance Optimized**: SSD wear reduction, memory caching, and bulk operations
-- **Scalable Architecture**: Support for both SQLite and PostgreSQL databases
+- **Scalable Architecture**: PostgreSQL database with connection pooling and optimization
 - **Comprehensive Monitoring**: Real-time dashboards and performance metrics
 - **Australian-Specific Dashboards**: Dedicated Grafana dashboards for Australian flight analysis
 
@@ -44,12 +44,13 @@ VATSIM data/
 ### Option 1: Docker Compose (Recommended)
 ```bash
 # Start all services
-docker-compose up -d
+docker compose up -d
 
 # Access services
 # - VATSIM App: http://localhost:8001
 # - Grafana: http://localhost:3050 (no auth required)
 # - API Docs: http://localhost:8001/docs
+# - API Status: http://localhost:8001/api/status
 ```
 
 ### Option 2: Manual Setup
@@ -69,10 +70,11 @@ python run.py
 ## 📊 System Architecture
 
 ### Data Flow
-1. **VATSIM API** → **Data Ingestion Service** → **Australian Flight Filter** → **Database**
-2. **Database** → **Analytics Services** → **Dashboard & Grafana**
+1. **VATSIM API** → **Data Ingestion Service** → **Australian Flight Filter** → **PostgreSQL Database**
+2. **PostgreSQL Database** → **Analytics Services** → **Dashboard & Grafana**
 3. **Real-time Updates** every 60 seconds
 4. **Australian Focus**: Only flights with Australian airports (Y*) are stored and analyzed
+5. **Caching**: Redis provides high-performance caching layer
 
 ### Services
 - **VATSIM App**: Main application (port 8001)
@@ -91,7 +93,7 @@ python run.py
 ### Environment Variables
 ```bash
 # Database
-DATABASE_URL=sqlite:///./atc_optimization.db
+DATABASE_URL=postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data
 
 # API Settings
 API_HOST=0.0.0.0

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Text, Boolean, SmallInteger
+from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Text, Boolean, SmallInteger, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from .database import Base
@@ -168,6 +168,33 @@ class AirportConfig(Base):
     is_active = Column(Boolean, default=True)
     region = Column(String(50), nullable=True)  # 'Australia', 'Asia', etc.
     last_updated = Column(DateTime, default=datetime.utcnow)
+
+class Airports(Base):
+    """Global airports table - single source of truth for all airport data"""
+    __tablename__ = "airports"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    icao_code = Column(String(10), unique=True, nullable=False, index=True)
+    name = Column(String(200), nullable=True)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    elevation = Column(Integer, nullable=True)  # Feet above sea level
+    country = Column(String(100), nullable=True)
+    region = Column(String(100), nullable=True)  # State/province
+    timezone = Column(String(50), nullable=True)
+    facility_type = Column(String(50), nullable=True)  # airport, heliport, seaplane_base
+    runways = Column(Text, nullable=True)  # JSON string for runway data
+    frequencies = Column(Text, nullable=True)  # JSON string for frequency data
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Indexes for efficient queries
+    __table_args__ = (
+        Index('idx_airports_country', 'country'),
+        Index('idx_airports_region', 'region'),
+        Index('idx_airports_icao_prefix', 'icao_code'),
+    )
 
 class MovementDetectionConfig(Base):
     """Configuration for movement detection algorithms"""
