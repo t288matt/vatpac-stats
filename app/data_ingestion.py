@@ -6,6 +6,7 @@ Stores real-time VATSIM data in our database
 
 import asyncio
 import logging
+import hashlib
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
@@ -24,27 +25,33 @@ class DataIngestionService:
     
     async def ingest_current_data(self):
         """Ingest current VATSIM data into database"""
+        db = SessionLocal()
         try:
             # Fetch current VATSIM data
             data = await self.vatsim_client.get_current_data()
             
             # Process ATC positions
-            await self._process_atc_positions(data.get("atc_positions", []))
+            await self._process_atc_positions(data.get("atc_positions", []), db)
             
             # Process flights
-            await self._process_flights(data.get("flights", []))
+            await self._process_flights(data.get("flights", []), db)
             
             # Process sectors (if available)
-            await self._process_sectors(data.get("sectors", []))
+            await self._process_sectors(data.get("sectors", []), db)
+            
+            # Commit all changes at once
+            db.commit()
             
             logger.info(f"Data ingestion completed: {len(data.get('atc_positions', []))} ATC positions, {len(data.get('flights', []))} flights")
             
         except Exception as e:
             logger.error(f"Error during data ingestion: {e}")
+            db.rollback()
+        finally:
+            db.close()
     
-    async def _process_atc_positions(self, atc_positions_data: List):
+    async def _process_atc_positions(self, atc_positions_data: List, db: Session):
         """Process and store ATC position data"""
-        db = SessionLocal()
         try:
             for atc_position_data in atc_positions_data:
                 # Extract ATC position information from dataclass
@@ -52,9 +59,9 @@ class DataIngestionService:
                 facility = atc_position_data.facility
                 position = atc_position_data.position
                 frequency = atc_position_data.frequency
-                        controller_id = atc_position_data.controller_id
-        controller_name = atc_position_data.controller_name
-        controller_rating = atc_position_data.controller_rating
+                controller_id = atc_position_data.controller_id
+                controller_name = atc_position_data.controller_name
+                controller_rating = atc_position_data.controller_rating
                 
                 # Check if ATC position already exists
                 existing_atc_position = db.query(ATCPosition).filter(
@@ -66,9 +73,9 @@ class DataIngestionService:
                     existing_atc_position.facility = facility
                     existing_atc_position.position = position
                     existing_atc_position.frequency = frequency
-                                existing_atc_position.controller_id = controller_id
-            existing_atc_position.controller_name = controller_name
-            existing_atc_position.controller_rating = controller_rating
+                    existing_atc_position.controller_id = controller_id
+                    existing_atc_position.controller_name = controller_name
+                    existing_atc_position.controller_rating = controller_rating
                     existing_atc_position.status = "online"
                     existing_atc_position.last_seen = datetime.utcnow()
                 else:
@@ -78,27 +85,23 @@ class DataIngestionService:
                         facility=facility,
                         position=position,
                         frequency=frequency,
-                                    controller_id=controller_id,
-            controller_name=controller_name,
-            controller_rating=controller_rating,
+                        controller_id=controller_id,
+                        controller_name=controller_name,
+                        controller_rating=controller_rating,
                         status="online",
                         last_seen=datetime.utcnow(),
                         workload_score=0.0
                     )
                     db.add(new_atc_position)
             
-            db.commit()
             logger.info(f"Processed {len(atc_positions_data)} ATC positions")
             
         except Exception as e:
             logger.error(f"Error processing ATC positions: {e}")
-            db.rollback()
-        finally:
-            db.close()
+            raise
     
-    async def _process_flights(self, flights_data: List):
+    async def _process_flights(self, flights_data: List, db: Session):
         """Process and store flight data"""
-        db = SessionLocal()
         try:
             for flight_data in flights_data:
                 # Extract flight information from dataclass
@@ -109,13 +112,35 @@ class DataIngestionService:
                 route = flight_data.route
                 altitude = flight_data.altitude
                 speed = flight_data.speed
+                heading = flight_data.heading
+                ground_speed = flight_data.ground_speed
+                vertical_speed = flight_data.vertical_speed
+                squawk = flight_data.squawk
                 
-                # Position data
-                position_data = {
-                    "latitude": flight_data.position.get("lat", 0) if flight_data.position else 0,
-                    "longitude": flight_data.position.get("lng", 0) if flight_data.position else 0,
-                    "altitude": altitude
-                }
+                # Position data - store as separate lat/lng fields
+                position_lat = flight_data.position.get("lat", 0) if flight_data.position else 0
+                position_lng = flight_data.position.get("lng", 0) if flight_data.position else 0
+                
+                # Try to find controlling ATC position based on flight position
+                # This is a simplified approach - in reality you'd need more sophisticated logic
+                atc_position_id = None
+                
+                # Find online ATC positions for assignment
+                online_atc_positions = db.query(ATCPosition).filter(
+                    ATCPosition.status == "online"
+                ).all()
+                
+                logger.info(f"Flight {callsign}: Found {len(online_atc_positions)} online ATC positions")
+                
+                if online_atc_positions:
+                    # Simple round-robin assignment based on flight callsign hash
+                    # This works regardless of position data availability
+                    flight_hash = hashlib.md5(callsign.encode()).hexdigest()
+                    position_index = int(flight_hash, 16) % len(online_atc_positions)
+                    atc_position_id = online_atc_positions[position_index].id
+                    logger.info(f"Flight {callsign}: Assigned to ATC position {atc_position_id}")
+                else:
+                    logger.warning(f"Flight {callsign}: No online ATC positions available for assignment")
                 
                 # Check if flight already exists
                 existing_flight = db.query(Flight).filter(
@@ -130,7 +155,13 @@ class DataIngestionService:
                     existing_flight.route = route
                     existing_flight.altitude = altitude
                     existing_flight.speed = speed
-                    existing_flight.position = str(position_data)
+                    existing_flight.heading = heading
+                    existing_flight.ground_speed = ground_speed
+                    existing_flight.vertical_speed = vertical_speed
+                    existing_flight.squawk = squawk
+                    existing_flight.position_lat = position_lat
+                    existing_flight.position_lng = position_lng
+                    existing_flight.atc_position_id = atc_position_id
                     existing_flight.last_updated = datetime.utcnow()
                 else:
                     # Create new flight
@@ -142,23 +173,25 @@ class DataIngestionService:
                         route=route,
                         altitude=altitude,
                         speed=speed,
-                        position=str(position_data),
+                        heading=heading,
+                        ground_speed=ground_speed,
+                        vertical_speed=vertical_speed,
+                        squawk=squawk,
+                        position_lat=position_lat,
+                        position_lng=position_lng,
+                        atc_position_id=atc_position_id,
                         last_updated=datetime.utcnow()
                     )
                     db.add(new_flight)
             
-            db.commit()
             logger.info(f"Processed {len(flights_data)} flights")
             
         except Exception as e:
             logger.error(f"Error processing flights: {e}")
-            db.rollback()
-        finally:
-            db.close()
+            raise
     
-    async def _process_sectors(self, sectors_data: List[Dict[str, Any]]):
+    async def _process_sectors(self, sectors_data: List[Dict[str, Any]], db: Session):
         """Process and store sector data"""
-        db = SessionLocal()
         try:
             for sector_data in sectors_data:
                 # Extract sector information
@@ -183,14 +216,11 @@ class DataIngestionService:
                     )
                     db.add(new_sector)
             
-            db.commit()
             logger.info(f"Processed {len(sectors_data)} sectors")
             
         except Exception as e:
             logger.error(f"Error processing sectors: {e}")
-            db.rollback()
-        finally:
-            db.close()
+            raise
     
     async def cleanup_old_data(self):
         """Clean up old data (flights that are no longer active)"""

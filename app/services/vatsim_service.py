@@ -26,6 +26,9 @@ class VATSIMController:
     position: str
     frequency: str
     status: str
+    controller_id: Optional[str] = None
+    controller_name: Optional[str] = None
+    controller_rating: Optional[int] = None
     last_seen: Optional[datetime] = None
 
 
@@ -198,12 +201,26 @@ class VATSIMService:
         
         for controller_data in controllers_data:
             try:
+                # Convert facility number to string representation
+                facility_num = controller_data.get("facility", 0)
+                facility_map = {
+                    0: "OBS", 1: "FSS", 2: "DEL", 3: "GND", 4: "TWR", 5: "APP", 6: "CTR"
+                }
+                facility = facility_map.get(facility_num, "OBS")
+                
+                # Extract position from callsign (e.g., "VECC_TWR" -> "TWR")
+                callsign = controller_data.get("callsign", "")
+                position = callsign.split("_")[-1] if "_" in callsign else ""
+                
                 controller = VATSIMController(
-                    callsign=controller_data.get("callsign", ""),
-                    facility=controller_data.get("facility", ""),
-                    position=controller_data.get("position", ""),
+                    callsign=callsign,
+                    facility=facility,
+                    position=position,
                     frequency=controller_data.get("frequency", ""),
-                    status=controller_data.get("status", "offline")
+                    status="online",  # If they're in the API, they're online
+                    controller_id=str(controller_data.get("cid", "")),
+                    controller_name=controller_data.get("name", ""),
+                    controller_rating=controller_data.get("rating", 0)
                 )
                 controllers.append(controller)
                 

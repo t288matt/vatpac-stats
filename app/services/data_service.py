@@ -80,8 +80,8 @@ class DataService:
         """Process data in memory to reduce disk writes"""
         try:
             # Convert VATSIMData object to dictionary format
-            if hasattr(vatsim_data, 'atc_positions'):
-                atc_positions_data = [atc_position.__dict__ for atc_position in vatsim_data.atc_positions]
+            if hasattr(vatsim_data, 'controllers'):
+                atc_positions_data = [atc_position.__dict__ for atc_position in vatsim_data.controllers]
             else:
                 atc_positions_data = []
                 
@@ -132,6 +132,9 @@ class DataService:
                     'position': atc_position_data.get('position', ''),
                     'status': 'online',
                     'frequency': atc_position_data.get('frequency', ''),
+                    'controller_id': atc_position_data.get('controller_id', ''),
+                    'controller_name': atc_position_data.get('controller_name', ''),
+                    'controller_rating': atc_position_data.get('controller_rating', 0),
                     'last_seen': datetime.utcnow(),
                     'workload_score': 0.0,
                     'preferences': json.dumps(atc_position_data.get('preferences', {}))
@@ -153,17 +156,35 @@ class DataService:
             for flight_data in flights_data:
                 callsign = flight_data.get('callsign', '')
                 
-                # Update memory cache
+                # Update memory cache with correct field mapping
+                position_data = flight_data.get('position', {})
+                
+                # Try to find controlling ATC position for this flight
+                atc_position_id = None
+                if self.cache['atc_positions']:
+                    # Simple round-robin assignment based on flight callsign hash
+                    import hashlib
+                    flight_hash = hashlib.md5(callsign.encode()).hexdigest()
+                    online_atc_positions = [pos for pos in self.cache['atc_positions'].values() if pos.get('status') == 'online']
+                    if online_atc_positions:
+                        position_index = int(flight_hash, 16) % len(online_atc_positions)
+                        atc_position_id = list(online_atc_positions[position_index].keys())[0]  # Get the ATC position ID
+                
                 self.cache['flights'][callsign] = {
                     'callsign': callsign,
-                    'aircraft_type': flight_data.get('aircraft', ''),
+                    'aircraft_type': flight_data.get('aircraft_type', ''),
                     'departure': flight_data.get('departure', ''),
                     'arrival': flight_data.get('arrival', ''),
+                    'route': flight_data.get('route', ''),
                     'altitude': flight_data.get('altitude', 0),
-                    'speed': flight_data.get('groundspeed', 0),
-                    'latitude': flight_data.get('latitude', 0.0),
-                    'longitude': flight_data.get('longitude', 0.0),
+                    'speed': flight_data.get('speed', 0),
+                    'position_lat': position_data.get('lat', 0.0) if position_data else 0.0,
+                    'position_lng': position_data.get('lng', 0.0) if position_data else 0.0,
                     'heading': flight_data.get('heading', 0),
+                    'ground_speed': flight_data.get('ground_speed', 0),
+                    'vertical_speed': flight_data.get('vertical_speed', 0),
+                    'squawk': flight_data.get('squawk', ''),
+                    'atc_position_id': atc_position_id,
                     'last_updated': datetime.utcnow(),
                     'status': 'active'
                 }
@@ -326,10 +347,10 @@ class DataService:
                     aircraft_type=flight.aircraft_type,
                     departure=flight.departure,
                     arrival=flight.arrival,
-                    duration_minutes=duration_minutes,
+                    route=flight.route,
                     max_altitude=flight.altitude,
-                    max_speed=flight.speed,
-                    created_at=datetime.utcnow()
+                    duration_minutes=duration_minutes,
+                    completed_at=datetime.utcnow()
                 )
                 
                 db.add(summary)

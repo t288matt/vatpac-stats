@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import and_, desc, text
 
 from .config import get_config, validate_config
-from .database import get_db, init_db, get_database_info
+from .database import get_db, init_db, get_database_info, SessionLocal
 from .models import ATCPosition, Sector, Flight, TrafficMovement, AirportConfig
 from .utils.logging import get_logger_for_module
 from .utils.rating_utils import get_rating_name, get_rating_level, get_all_ratings, validate_rating
@@ -479,23 +479,39 @@ async def get_flights(db: Session = Depends(get_db)):
             logger.info("Returning cached flights data")
             return {"flights": cached_flights['data'], "cached": False}
         
-        # If not cached, get from database
-        flights = db.query(Flight).filter(Flight.status == "active").all()
-        
+                # If not cached, get from database using direct SQL to avoid session isolation issues
+        result = db.execute(text("SELECT * FROM flights WHERE status = 'active'"))
         flights_data = []
-        for flight in flights:
-            flights_data.append({
-                "id": flight.id,
-                "callsign": flight.callsign,
-                "aircraft_type": flight.aircraft_type,
-                "departure": flight.departure,
-                "arrival": flight.arrival,
-                "route": flight.route,
-                "altitude": flight.altitude,
-                "speed": flight.speed,
-                "position": flight.position,
-                "last_updated": flight.last_updated.isoformat() if flight.last_updated else None
-            })
+        
+        for row in result:
+            flight_data = {
+                "id": row.id,
+                "callsign": row.callsign,
+                "aircraft_type": row.aircraft_type,
+                "departure": row.departure,
+                "arrival": row.arrival,
+                "route": row.route,
+                "altitude": row.altitude,
+                "speed": row.speed,
+                "heading": row.heading,
+                "ground_speed": row.ground_speed,
+                "vertical_speed": row.vertical_speed,
+                "squawk": row.squawk,
+                "position_lat": row.position_lat,
+                "position_lng": row.position_lng,
+                "atc_position_id": row.atc_position_id,
+                "last_updated": row.last_updated.isoformat() if row.last_updated else None
+            }
+            
+            # Debug: Log flights with atc_position_id
+            if row.atc_position_id is not None:
+                logger.info(f"Flight {row.callsign} has atc_position_id: {row.atc_position_id}")
+            
+            flights_data.append(flight_data)
+        
+        # Debug: Check if any flights have atc_position_id
+        flights_with_atc = [f for f in flights_data if f['atc_position_id'] is not None]
+        logger.info(f"Found {len(flights_with_atc)} flights with atc_position_id out of {len(flights_data)} total flights")
         
         # Cache the result
         await cache_service.set_flights_cache(flights_data)
@@ -709,6 +725,7 @@ async def get_flights_from_memory():
     """Get flights directly from memory cache (for debugging)"""
     try:
         data_service = get_data_service()
+        logger.info(f"Memory cache has {len(data_service.cache['flights'])} flights")
         flights_data = []
         
         for callsign, flight_data in data_service.cache['flights'].items():
@@ -719,9 +736,13 @@ async def get_flights_from_memory():
                 "arrival": flight_data.get('arrival', ''),
                 "altitude": flight_data.get('altitude', 0),
                 "speed": flight_data.get('speed', 0),
-                "latitude": flight_data.get('latitude', 0.0),
-                "longitude": flight_data.get('longitude', 0.0),
+                "position_lat": flight_data.get('position_lat', 0.0),
+                "position_lng": flight_data.get('position_lng', 0.0),
                 "heading": flight_data.get('heading', 0),
+                "ground_speed": flight_data.get('ground_speed', 0),
+                "vertical_speed": flight_data.get('vertical_speed', 0),
+                "squawk": flight_data.get('squawk', ''),
+                "atc_position_id": flight_data.get('atc_position_id'),
                 "last_updated": flight_data.get('last_updated', '').isoformat() if hasattr(flight_data.get('last_updated', ''), 'isoformat') else str(flight_data.get('last_updated', ''))
             })
         
