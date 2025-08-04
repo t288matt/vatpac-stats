@@ -1,14 +1,16 @@
-# ATC Position Recommendation Engine
+# VATSIM Australian Flight Data Collection & Analysis
 
-A real-time VATSIM data collection and analysis system for Australian airspace, optimized for high-performance data ingestion and analysis.
+A real-time VATSIM data collection and analysis system specifically focused on Australian airspace, optimized for high-performance data ingestion and analysis with comprehensive Australian flight filtering and visualization.
 
 ## 🚀 Features
 
-- **Real-time VATSIM Data Collection**: Collects ATC position, flight, and sector data every 30 seconds
+- **Australian Flight Filtering**: Automatically filters and stores only flights with Australian airports (starting with 'Y') as origin or destination
+- **Real-time VATSIM Data Collection**: Collects ATC position, flight, and sector data every 60 seconds
 - **Advanced Analytics**: Traffic analysis, movement detection, and workload optimization
 - **Performance Optimized**: SSD wear reduction, memory caching, and bulk operations
 - **Scalable Architecture**: Support for both SQLite and PostgreSQL databases
 - **Comprehensive Monitoring**: Real-time dashboards and performance metrics
+- **Australian-Specific Dashboards**: Dedicated Grafana dashboards for Australian flight analysis
 
 ## 📁 Project Structure
 
@@ -67,9 +69,10 @@ python run.py
 ## 📊 System Architecture
 
 ### Data Flow
-1. **VATSIM API** → **Data Ingestion Service** → **Database**
+1. **VATSIM API** → **Data Ingestion Service** → **Australian Flight Filter** → **Database**
 2. **Database** → **Analytics Services** → **Dashboard & Grafana**
-3. **Real-time Updates** every 30 seconds
+3. **Real-time Updates** every 60 seconds
+4. **Australian Focus**: Only flights with Australian airports (Y*) are stored and analyzed
 
 ### Services
 - **VATSIM App**: Main application (port 8001)
@@ -103,12 +106,13 @@ BATCH_SIZE_THRESHOLD=10000
 
 | Metric | Value |
 |--------|-------|
-| **Data Collection** | Every 30 seconds |
-| **Active Flights** | 1,500+ concurrent |
+| **Data Collection** | Every 60 seconds |
+| **Australian Flights** | 20-50 concurrent (filtered from 1,500+ total) |
 | **Active ATC Positions** | 150+ concurrent |
 | **Write Throughput** | 10,000+ records/sec |
 | **Memory Usage** | 2GB with compression |
 | **Disk I/O** | Minimal, batched |
+| **Australian Filtering** | Real-time filtering of flights with Y* airports |
 
 ## 🗄️ Database Support
 
@@ -160,6 +164,9 @@ BATCH_SIZE_THRESHOLD=10000
 - **Main Dashboard**: http://localhost:8001/frontend/index.html
 - **Database Query Tool**: http://localhost:8001/frontend/database-query.html
 - **Grafana**: http://localhost:3050 (no authentication required)
+  - **VATSIM Overview**: General VATSIM network statistics
+  - **Australian Flights Dashboard**: Australian flight analysis by airport and date
+  - **Australian Routes Analysis**: Detailed route analysis and connectivity
 
 ### API Endpoints
 - `GET /api/status` - System status

@@ -16,6 +16,8 @@ This directory contains the Grafana configuration for visualizing VATSIM data in
 
 3. **Available Dashboards:**
    - **VATSIM Overview**: Real-time network activity, controller counts, flight data
+   - **Australian Flights Dashboard**: Australian flight analysis by airport and date
+   - **Australian Routes Analysis**: Detailed route analysis and connectivity
    - **Custom Dashboards**: Create your own using the VATSIM API datasource
 
 ## 📊 Data Sources
@@ -39,6 +41,18 @@ This directory contains the Grafana configuration for visualizing VATSIM data in
 - **System Statistics**: Total controllers, flights, data freshness
 - **ATC Position Analysis**: Breakdown by facility type
 - **Performance Metrics**: System health and response times
+
+### Australian Flights Dashboard
+- **Australian Flights by Date**: Time series of Australian flights (last 7 & 30 days)
+- **Top Australian Airports**: Busiest departure and arrival airports
+- **Aircraft Types**: Distribution of aircraft on Australian routes
+- **Route Analysis**: Most popular Australian routes with flight counts
+
+### Australian Routes Analysis Dashboard
+- **Unique Australian Routes**: Time series of unique routes over time
+- **Route Connectivity**: Airports by number of destinations and origins
+- **Major Airport Trends**: Individual airport flight trends (Brisbane, Sydney, Melbourne)
+- **Route Types**: Domestic vs International flight breakdown
 
 ### Custom Queries
 You can create custom panels using the SimpleJSON datasource:
@@ -76,6 +90,8 @@ You can create custom panels using the SimpleJSON datasource:
 ### Available Metrics
 - **Controllers**: Total online, by facility, by rating
 - **Flights**: Active flights, aircraft types, routes
+- **Australian Flights**: Filtered Australian flight data only
+- **Australian Routes**: Route analysis and connectivity
 - **Traffic**: Movements, density, trends
 - **Performance**: Response times, cache status, memory usage
 

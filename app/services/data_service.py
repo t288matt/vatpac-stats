@@ -152,12 +152,26 @@ class DataService:
             return 0
     
     async def _process_flights_in_memory(self, flights_data: List[Dict[str, Any]]) -> int:
-        """Process flights in memory cache"""
+        """Process flights in memory cache - FILTERED FOR AUSTRALIAN AIRPORTS ONLY"""
         try:
             processed_count = 0
+            australian_count = 0
             
             for flight_data in flights_data:
                 callsign = flight_data.get('callsign', '')
+                departure = flight_data.get('departure', '')
+                arrival = flight_data.get('arrival', '')
+                
+                # Filter for Australian airports (starting with 'Y')
+                is_australian_flight = (
+                    (departure and departure.startswith('Y')) or 
+                    (arrival and arrival.startswith('Y'))
+                )
+                
+                if not is_australian_flight:
+                    continue
+                
+                australian_count += 1
                 
                 # Update memory cache with correct field mapping
                 position_data = flight_data.get('position', {})
@@ -169,8 +183,8 @@ class DataService:
                 self.cache['flights'][callsign] = {
                     'callsign': callsign,
                     'aircraft_type': flight_data.get('aircraft_type', ''),
-                    'departure': flight_data.get('departure', ''),
-                    'arrival': flight_data.get('arrival', ''),
+                    'departure': departure,
+                    'arrival': arrival,
                     'route': flight_data.get('route', ''),
                     'altitude': flight_data.get('altitude', 0),
                     'speed': flight_data.get('speed', 0),
@@ -186,7 +200,7 @@ class DataService:
                 }
                 processed_count += 1
             
-            logger.info(f"Processed {processed_count} flights in memory")
+            logger.info(f"Processed {processed_count} Australian flights out of {len(flights_data)} total flights")
             return processed_count
             
         except Exception as e:
@@ -283,16 +297,20 @@ class DataService:
         try:
             db = SessionLocal()
             try:
-                # Clean up old flights (older than 1 hour) - they're no longer active
+                # Mark old flights as completed (older than 1 hour) - preserve historical data
                 cutoff_time = datetime.utcnow() - timedelta(hours=1)
                 old_flights = db.query(Flight).filter(
-                    Flight.last_updated < cutoff_time
+                    and_(
+                        Flight.last_updated < cutoff_time,
+                        Flight.status == 'active'
+                    )
                 ).all()
                 
                 for flight in old_flights:
-                    # Store flight summary before deletion
+                    # Mark as completed instead of deleting
+                    flight.status = 'completed'
+                    # Store flight summary for analytics
                     await self._store_flight_summary(flight)
-                    db.delete(flight)
                 
                 # Mark ATC positions as offline if not seen in 30 minutes
                 atc_position_cutoff = datetime.utcnow() - timedelta(minutes=30)
@@ -316,7 +334,7 @@ class DataService:
                     db.delete(movement)
                 
                 db.commit()
-                logger.info(f"Cleaned up {len(old_flights)} old flights, {len(offline_atc_positions)} offline ATC positions, {len(old_movements)} old movements")
+                logger.info(f"Marked {len(old_flights)} flights as completed, {len(offline_atc_positions)} offline ATC positions, {len(old_movements)} old movements")
                 
             except Exception as e:
                 db.rollback()
@@ -376,7 +394,10 @@ class DataService:
             ).count()
             
             # Count active flights
-            active_flights = db.query(Flight).count()
+            active_flights = db.query(Flight).filter(Flight.status == "active").count()
+            
+            # Count total flights (active + completed)
+            total_flights = db.query(Flight).count()
             
             # Count total sectors
             total_sectors = db.query(Sector).count()
