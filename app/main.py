@@ -21,6 +21,7 @@ from .services.traffic_analysis_service import get_traffic_analysis_service
 from .services.cache_service import get_cache_service
 from .services.query_optimizer import get_query_optimizer
 from .services.resource_manager import get_resource_manager
+from .utils.airport_utils import get_airports_by_region, get_region_statistics, get_airport_coordinates
 
 # Configure logging
 logger = get_logger_for_module(__name__)
@@ -589,12 +590,24 @@ async def get_traffic_summary(
         # If not cached, calculate from database
         cutoff_time = datetime.utcnow() - timedelta(hours=hours)
         
-        # Get movements for Australian airports
-        australian_airports = ["YSSY", "YMML", "YBBN", "YPPH", "YBCG", "YBCS", "YPDN", "YSCB", "YBAF"]
+        # Get airports for the specified region dynamically
+        region_airports = get_airports_by_region(region)
+        
+        if not region_airports:
+            logger.warning(f"No airports found for region '{region}', returning empty summary")
+            return {
+                "region": region,
+                "period_hours": hours,
+                "total_movements": 0,
+                "arrivals": 0,
+                "departures": 0,
+                "airport_breakdown": {},
+                "timestamp": datetime.utcnow().isoformat()
+            }
         
         movements = db.query(TrafficMovement).filter(
             and_(
-                TrafficMovement.airport_icao.in_(australian_airports),
+                TrafficMovement.airport_code.in_(region_airports),
                 TrafficMovement.timestamp >= cutoff_time
             )
         ).all()
@@ -923,6 +936,41 @@ async def execute_database_query(
             "query": query,
             "timestamp": datetime.utcnow().isoformat()
         }
+
+@app.get("/api/airports/region/{region}")
+async def get_airports_by_region_api(region: str = "Australia"):
+    """Get airports for a specific region"""
+    try:
+        stats = get_region_statistics(region)
+        return {
+            "region": region,
+            "total_airports": stats["total_airports"],
+            "airports": stats["airports"],
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting airports for region {region}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/airports/{airport_code}/coordinates")
+async def get_airport_coordinates_api(airport_code: str):
+    """Get coordinates for a specific airport"""
+    try:
+        coords = get_airport_coordinates(airport_code.upper())
+        if coords is None:
+            raise HTTPException(status_code=404, detail=f"Airport {airport_code} not found")
+        
+        return {
+            "airport_code": airport_code.upper(),
+            "latitude": coords[0],
+            "longitude": coords[1],
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting coordinates for airport {airport_code}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/api/database/tables")
 async def get_database_tables(db: Session = Depends(get_db)):
