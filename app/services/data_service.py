@@ -162,10 +162,13 @@ class DataService:
                 departure = flight_data.get('departure', '')
                 arrival = flight_data.get('arrival', '')
                 
-                # Filter for Australian airports (starting with 'Y')
+                # Import airport configuration
+                from ..config import is_australian_airport
+                
+                # Filter for Australian airports using configuration
                 is_australian_flight = (
-                    (departure and departure.startswith('Y')) or 
-                    (arrival and arrival.startswith('Y'))
+                    (departure and is_australian_airport(departure)) or 
+                    (arrival and is_australian_airport(arrival))
                 )
                 
                 if not is_australian_flight:

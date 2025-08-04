@@ -180,6 +180,79 @@ class AirportConfig:
         )
 
 
+def get_australian_airports() -> list:
+    """Get list of all Australian airports from airport_coordinates.json"""
+    try:
+        import json
+        from pathlib import Path
+        
+        # Get the path to airport_coordinates.json relative to the project root
+        project_root = Path(__file__).parent.parent
+        airport_file = project_root / "airport_coordinates.json"
+        
+        with open(airport_file, 'r') as f:
+            airport_data = json.load(f)
+        
+        # Extract Australian airports (starting with 'Y')
+        australian_airports = []
+        for airport_code in airport_data.keys():
+            if airport_code.startswith('Y'):
+                australian_airports.append(airport_code)
+        
+        # Sort for consistent ordering
+        australian_airports.sort()
+        return australian_airports
+    except Exception as e:
+        print(f"Warning: Could not load Australian airports: {e}")
+        return []
+
+
+def get_australian_airports_sql_list() -> str:
+    """Get Australian airports as a SQL IN clause string"""
+    airports = get_australian_airports()
+    quoted_airports = [f"'{airport}'" for airport in airports]
+    return ", ".join(quoted_airports)
+
+
+def get_major_australian_airports() -> list:
+    """Get list of major Australian airports (commonly used in dashboards)"""
+    major_airports = [
+        'YBBN',  # Brisbane
+        'YSSY',  # Sydney
+        'YMML',  # Melbourne
+        'YPPH',  # Perth
+        'YSCL',  # Adelaide
+        'YBCS',  # Cairns
+        'YPDN',  # Darwin
+        'YBRM',  # Broome
+        'YBAF',  # Brisbane West Wellcamp
+        'YMAV',  # Avalon
+        'YBRK',  # Rockhampton
+        'YBCG',  # Gold Coast
+        'YBTL',  # Townsville
+        'YBRN',  # Burnie
+        'YBAS',  # Alice Springs
+        'YPDL',  # Devonport
+        'YPPN'   # Proserpine
+    ]
+    
+    # Only return airports that exist in our data
+    all_australian = get_australian_airports()
+    return [airport for airport in major_airports if airport in all_australian]
+
+
+def get_major_australian_airports_sql_list() -> str:
+    """Get major Australian airports as a SQL IN clause string"""
+    airports = get_major_australian_airports()
+    quoted_airports = [f"'{airport}'" for airport in airports]
+    return ", ".join(quoted_airports)
+
+
+def is_australian_airport(airport_code: str) -> bool:
+    """Check if an airport code is Australian"""
+    return airport_code in get_australian_airports()
+
+
 @dataclass
 class PilotConfig:
     """Pilot configuration with no hardcoding."""
