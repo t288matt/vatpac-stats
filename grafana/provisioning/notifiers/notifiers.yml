@@ -1,0 +1,4 @@
+apiVersion: 1
+
+notifiers:
+  # No notifiers to provision via files 

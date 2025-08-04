@@ -95,9 +95,12 @@ services:
       GF_AUTH_OAUTH_AUTO_LOGIN: true
       GF_AUTH_BASIC_ENABLED: false
       GF_AUTH_ANONYMOUS_ORG_NAME: Main Org.
+      GF_DEFAULT_LOCALE: en-GB
+      GF_USERS_DEFAULT_THEME: light
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
     ports:
       - "3050:3000"
     depends_on:

@@ -25,7 +25,7 @@
     {
       "datasource": {
         "type": "postgres",
-        "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
+        "uid": "vatsim-postgresql"
       },
       "fieldConfig": {
         "defaults": {
@@ -100,7 +100,7 @@
         {
           "datasource": {
             "type": "postgres",
-            "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
+            "uid": "vatsim-postgresql"
           },
           "editorMode": "code",
           "format": "time_series",
@@ -115,7 +115,7 @@
     {
       "datasource": {
         "type": "postgres",
-        "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
+        "uid": "vatsim-postgresql"
       },
       "fieldConfig": {
         "defaults": {
@@ -190,7 +190,7 @@
         {
           "datasource": {
             "type": "postgres",
-            "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
+            "uid": "vatsim-postgresql"
           },
           "editorMode": "code",
           "format": "table",
@@ -205,7 +205,7 @@
     {
       "datasource": {
         "type": "postgres",
-        "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
+        "uid": "vatsim-postgresql"
       },
       "fieldConfig": {
         "defaults": {
@@ -280,7 +280,7 @@
         {
           "datasource": {
             "type": "postgres",
-            "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
+            "uid": "vatsim-postgresql"
           },
           "editorMode": "code",
           "format": "table",
@@ -295,7 +295,7 @@
     {
       "datasource": {
         "type": "postgres",
-        "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
+        "uid": "vatsim-postgresql"
       },
       "fieldConfig": {
         "defaults": {
@@ -370,7 +370,7 @@
         {
           "datasource": {
             "type": "postgres",
-            "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
+            "uid": "vatsim-postgresql"
           },
           "editorMode": "code",
           "format": "time_series",
@@ -385,7 +385,7 @@
     {
       "datasource": {
         "type": "postgres",
-        "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
+        "uid": "vatsim-postgresql"
       },
       "fieldConfig": {
         "defaults": {
@@ -454,13 +454,22 @@
         "tooltip": {
           "mode": "single",
           "sort": "none"
+        },
+        "xAxis": {
+          "label": "Routes",
+          "labelRotation": 45,
+          "labelMaxLength": 20,
+          "labelTruncate": true
+        },
+        "yAxis": {
+          "label": "Number of Flights"
         }
       },
       "targets": [
         {
           "datasource": {
             "type": "postgres",
-            "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
+            "uid": "vatsim-postgresql"
           },
           "editorMode": "code",
           "format": "table",
@@ -475,7 +484,7 @@
     {
       "datasource": {
         "type": "postgres",
-        "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
+        "uid": "vatsim-postgresql"
       },
       "fieldConfig": {
         "defaults": {
@@ -544,13 +553,22 @@
         "tooltip": {
           "mode": "single",
           "sort": "none"
+        },
+        "xAxis": {
+          "label": "Routes",
+          "labelRotation": 45,
+          "labelMaxLength": 20,
+          "labelTruncate": true
+        },
+        "yAxis": {
+          "label": "Number of Flights"
         }
       },
       "targets": [
         {
           "datasource": {
             "type": "postgres",
-            "uid": "ca7e5e06-8cd3-4015-a55a-fb81b7944c9d"
+            "uid": "vatsim-postgresql"
           },
           "editorMode": "code",
           "format": "table",

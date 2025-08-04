@@ -4,6 +4,7 @@
     {
       "name": "VATSIM PostgreSQL",
       "type": "postgres",
+      "uid": "vatsim-postgresql",
       "url": "postgres:5432",
       "database": "vatsim_data",
       "user": "vatsim_user",
@@ -11,7 +12,10 @@
         "password": "vatsim_password"
       },
       "jsonData": {
-        "sslmode": "disable"
+        "sslmode": "disable",
+        "maxOpenConns": 100,
+        "maxIdleConns": 100,
+        "connMaxLifetime": 14400
       }
     }
   ]

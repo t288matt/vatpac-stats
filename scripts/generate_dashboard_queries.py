@@ -14,7 +14,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "app"))
 
-from app.config.airport_config import get_australian_airports_sql_list, get_major_australian_airports_sql_list
+from app.config import get_australian_airports_sql_list, get_major_australian_airports_sql_list
 
 def generate_dashboard_queries():
     """Generate SQL queries for dashboard templates"""
