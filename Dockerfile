@@ -50,8 +50,8 @@ COPY --from=builder /root/.local /home/app/.local
 COPY . .
 
 # Create necessary directories with proper permissions
-RUN mkdir -p /app/logs /app/data /app/backups /app/cache && \
-    chmod 755 /app/logs /app/data /app/backups /app/cache
+RUN mkdir -p /app/logs /app/data /app/cache && \
+    chmod 755 /app/logs /app/data /app/cache
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash --uid 1000 app && \
@@ -63,9 +63,9 @@ USER app
 # Expose port
 EXPOSE 8001
 
-# Health check with proper timeout
+# Health check with proper timeout and error handling
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8001/api/status || exit 1
 
-# Default command
+# Default command with centralized error handling
 CMD ["python", "run.py"] 

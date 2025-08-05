@@ -84,9 +84,6 @@ class DataService(DatabaseService):
         """Initialize data service with dependencies."""
         await super()._initialize_service()
         
-        # Initialize traffic analysis service
-        self.traffic_analysis_service = TrafficAnalysisService(self.db_session)
-        
         self.logger.info("Data service initialized successfully")
     
     async def _perform_health_check(self) -> Dict[str, Any]:
@@ -127,8 +124,6 @@ class DataService(DatabaseService):
         
         self.logger.info("Data service cleanup completed")
         
-    @handle_service_errors
-    @log_operation("data_ingestion")
     async def start_data_ingestion(self):
         """Start the data ingestion process with SSD wear optimization"""
         self.logger.info("Starting data ingestion process with SSD wear optimization")
@@ -201,9 +196,10 @@ class DataService(DatabaseService):
             transceivers_count = await self._process_transceivers_in_memory(transceivers_data)
             
             # Detect traffic movements in memory
-            movements_count = await self._detect_movements_in_memory()
+            # movements_count = await self._detect_movements_in_memory()
+            movements_count = 0  # Temporarily disabled
             
-            logger.info("Data ingestion completed successfully", extra={
+            self.logger.info("Data ingestion completed successfully", extra={
                 'atc_positions': atc_positions_count,
                 'flights': flights_count,
                 'sectors': sectors_count,
@@ -238,7 +234,7 @@ class DataService(DatabaseService):
                 }
                 processed_count += 1
             
-            logger.info(f"Processed {processed_count} ATC positions in memory")
+            self.logger.info(f"Processed {processed_count} ATC positions in memory")
             return processed_count
             
         except Exception as e:
@@ -297,7 +293,7 @@ class DataService(DatabaseService):
                 }
                 processed_count += 1
             
-            logger.info(f"Processed {processed_count} Australian flights out of {len(flights_data)} total flights")
+            self.logger.info(f"Processed {processed_count} Australian flights out of {len(flights_data)} total flights")
             return processed_count
             
         except Exception as e:
@@ -340,7 +336,7 @@ class DataService(DatabaseService):
                 })
                 processed_count += 1
             
-            logger.info(f"Processed {processed_count} transceivers in memory")
+            self.logger.info(f"Processed {processed_count} transceivers in memory")
             return processed_count
             
         except Exception as e:
@@ -383,7 +379,7 @@ class DataService(DatabaseService):
                     # Commit movements to database
                     if movements_count > 0:
                         db.commit()
-                        logger.info(f"Detected and stored {movements_count} new traffic movements")
+                        self.logger.info(f"Detected and stored {movements_count} new traffic movements")
                 
             except Exception as e:
                 db.rollback()
@@ -471,7 +467,7 @@ class DataService(DatabaseService):
                 self.cache['flights'].clear()
                 self.cache['memory_buffer']['transceivers'].clear()
                 
-                logger.info(f"Flushed memory cache to disk. Total writes: {self.write_count}")
+                self.logger.info(f"Flushed memory cache to disk. Total writes: {self.write_count}")
                 
             except Exception as e:
                 db.rollback()
@@ -524,7 +520,7 @@ class DataService(DatabaseService):
                     db.delete(movement)
                 
                 db.commit()
-                logger.info(f"Marked {len(old_flights)} flights as completed, {len(offline_atc_positions)} offline ATC positions, {len(old_movements)} old movements")
+                self.logger.info(f"Marked {len(old_flights)} flights as completed, {len(offline_atc_positions)} offline ATC positions, {len(old_movements)} old movements")
                 
             except Exception as e:
                 db.rollback()
@@ -628,6 +624,4 @@ def get_data_service() -> DataService:
     global _data_service
     if _data_service is None:
         _data_service = DataService()
-        # Initialize the service
-        asyncio.create_task(_data_service.initialize())
     return _data_service 

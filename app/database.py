@@ -35,7 +35,17 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
 import os
-from typing import Generator
+from typing import Generator, AsyncGenerator
+import logging
+
+from .utils.error_handling import handle_service_errors, log_operation, create_error_handler
+from .utils.logging import get_logger_for_module
+
+# Configure logging
+logger = get_logger_for_module(__name__)
+
+# Initialize centralized error handler
+error_handler = create_error_handler("database")
 
 # Database configuration - PostgreSQL only
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data")
@@ -62,7 +72,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # Base class for models
 Base = declarative_base()
 
-def get_db() -> Generator[Session, None, None]:
+async def get_db() -> AsyncGenerator[Session, None]:
     """Dependency to get database session"""
     db = SessionLocal()
     try:
@@ -70,17 +80,23 @@ def get_db() -> Generator[Session, None, None]:
     finally:
         db.close()
 
+@handle_service_errors
+@log_operation("init_db")
 def init_db():
     """Initialize database tables"""
     # Import models to ensure they are registered with Base
     from .models import ATCPosition, Sector, Flight, SystemConfig, Event, TrafficMovement, FlightSummary, MovementSummary, AirportConfig, MovementDetectionConfig, Transceiver
     Base.metadata.create_all(bind=engine)
 
+@handle_service_errors
+@log_operation("close_db")
 def close_db():
     """Close database connections"""
     engine.dispose()
 
-def get_database_info():
+@handle_service_errors
+@log_operation("get_database_info")
+async def get_database_info():
     """Get database information for monitoring"""
     return {
         "database_type": "PostgreSQL",

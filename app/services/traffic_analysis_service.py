@@ -143,8 +143,6 @@ class TrafficAnalysisService:
             self.error_handler.logger.error(f"Error getting airport config for {icao_code}: {e}")
             return None
     
-    @handle_service_errors
-    @log_operation("detect_movements")
     def detect_movements(self, flights: List[Flight]) -> List[TrafficMovement]:
         """Detect traffic movements from current flight data"""
         movements = []

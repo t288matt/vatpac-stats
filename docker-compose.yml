@@ -38,7 +38,7 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Main Application
+  # Main Application (API-First Architecture)
   app:
     build:
       context: .
@@ -52,18 +52,25 @@ services:
       # API Configuration
       API_HOST: 0.0.0.0
       API_PORT: 8001
-      LOG_LEVEL: INFO
       PYTHONUNBUFFERED: 1
       
+      # Centralized Error Handling
+      ERROR_MONITORING_ENABLED: "true"
+      LOG_LEVEL: "INFO"
+      
+      # Production Settings
+      PRODUCTION_MODE: "true"
+      
+      # Performance Settings
+      MEMORY_LIMIT_MB: 2048
+      BATCH_SIZE_THRESHOLD: 10000
+      
       # VATSIM Data Collection Intervals (seconds)
-      VATSIM_POLLING_INTERVAL: 60    # How often to fetch VATSIM data (1 minute)
-      VATSIM_WRITE_INTERVAL: 300     # How often to write data to disk
-      VATSIM_CLEANUP_INTERVAL: 3600  # How often to cleanup old data
+      VATSIM_POLLING_INTERVAL: 30    # How often to fetch VATSIM data (30 seconds)
+      VATSIM_WRITE_INTERVAL: 300     # How often to write data to disk (5 minutes)
+      VATSIM_CLEANUP_INTERVAL: 3600  # How often to cleanup old data (1 hour)
     volumes:
-      - ./data:/app/data:rw
       - ./logs:/app/logs:rw
-      - ./backups:/app/backups:rw
-      - ./data/cache:/app/cache:rw
     ports:
       - "8001:8001"
     depends_on:
@@ -78,8 +85,12 @@ services:
       retries: 3
       start_period: 60s
     restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vatsim-api.rule=Host(`api.vatsim.local`)"
+      - "traefik.http.services.vatsim-api.loadbalancer.server.port=8001"
 
-  # Grafana for data visualization
+  # Grafana for data visualization and monitoring
   grafana:
     image: grafana/grafana:10.2.0
     container_name: vatsim_grafana
@@ -98,6 +109,9 @@ services:
       GF_DEFAULT_LOCALE: en-GB
       GF_USERS_DEFAULT_THEME: dark
       GF_USERS_DEFAULT_TIMEZONE: Europe/London
+      # Error monitoring and observability
+      GF_FEATURE_TOGGLES_ENABLE: "publicDashboards"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
@@ -107,4 +121,27 @@ services:
     depends_on:
       app:
         condition: service_healthy
-    restart: unless-stopped 
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vatsim-grafana.rule=Host(`grafana.vatsim.local`)"
+      - "traefik.http.services.vatsim-grafana.loadbalancer.server.port=3000"
+
+# Optional: Traefik reverse proxy for production
+# Uncomment to enable reverse proxy with SSL termination
+# traefik:
+#   image: traefik:v2.10
+#   container_name: vatsim_traefik
+#   command:
+#     - "--api.insecure=true"
+#     - "--providers.docker=true"
+#     - "--providers.docker.exposedbydefault=false"
+#     - "--entrypoints.web.address=:80"
+#     - "--entrypoints.websecure.address=:443"
+#   ports:
+#     - "80:80"
+#     - "443:443"
+#     - "8080:8080"
+#   volumes:
+#     - /var/run/docker.sock:/var/run/docker.sock:ro
+#   restart: unless-stopped 

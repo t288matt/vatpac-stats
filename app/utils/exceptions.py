@@ -102,6 +102,15 @@ class ResourceError(VATSIMSystemError):
         self.threshold = threshold
 
 
+class SystemError(VATSIMSystemError):
+    """Exception for system-level errors."""
+    
+    def __init__(self, message: str, system_component: str = None, operation: str = None, details: Optional[Dict] = None):
+        super().__init__(message, "SYSTEM_ERROR", details)
+        self.system_component = system_component
+        self.operation = operation
+
+
 class TimeoutError(VATSIMSystemError):
     """Exception for timeout-related errors."""
     

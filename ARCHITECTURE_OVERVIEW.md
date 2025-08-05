@@ -1,388 +1,392 @@
 # VATSIM Data Collection System - Architecture Overview
 
-## 🏗️ **System Architecture**
+## 🏗️ System Architecture
 
-### **High-Level Architecture**
+The VATSIM Data Collection System is a high-performance, API-driven platform designed for real-time air traffic control data collection, analysis, and monitoring. The system has evolved from a traditional web application to a modern, microservices-oriented architecture optimized for Grafana integration and operational excellence.
+
+### 🎯 Core Principles
+
+- **API-First Design**: All functionality exposed through REST APIs
+- **Centralized Error Handling**: Consistent error management across all services
+- **Observability**: Comprehensive logging, monitoring, and error tracking
+- **Scalability**: Microservices architecture with independent scaling
+- **Reliability**: Fault tolerance with circuit breakers and retry mechanisms
+- **Performance**: Memory-optimized data processing with SSD wear optimization
+
+## 📊 System Overview
+
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   VATSIM API    │    │   FastAPI App   │    │  PostgreSQL DB  │
-│                 │    │                 │    │                 │
-│ • Real-time     │───▶│ • Data Ingestion│───▶│ • Controllers   │
-│   Flight Data   │    │ • API Endpoints │    │ • Flights       │
-│ • Controller    │    │ • Web Interface │    │ • Traffic       │
-│   Positions     │    │ • Caching       │    │   Movements     │
-│ • Sector Info   │    │ • Analytics     │    │ • Sectors       │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                              │
-                              ▼
-                       ┌─────────────────┐
-                       │   Redis Cache   │
-                       │                 │
-                       │ • Query Results │
-                       │ • Session Data  │
-                       │ • Performance   │
-                       └─────────────────┘
-```
-
-### **Technology Stack**
-- **Backend**: FastAPI (Python)
-- **Database**: PostgreSQL 15
-- **Cache**: Redis 7
-- **Containerization**: Docker & Docker Compose
-- **Frontend**: HTML/CSS/JavaScript
-- **Data Source**: VATSIM Network API
-
-## 🗄️ **Database Schema**
-
-### **Core Tables**
-
-#### **1. atc_positions** - ATC Position Information
-```sql
-CREATE TABLE atc_positions (
-    id SERIAL PRIMARY KEY,
-    callsign VARCHAR(50) UNIQUE NOT NULL,      -- ATC position callsign (e.g., "VATSYD_CTR")
-    facility VARCHAR(50) NOT NULL,             -- Facility (e.g., "VATSYD", "VATPAC")
-    position VARCHAR(50),                      -- Position (e.g., "Center", "Approach", "Tower")
-    status VARCHAR(20) DEFAULT 'offline',      -- online/offline/busy
-    frequency VARCHAR(20),                     -- Radio frequency for this position
-    last_seen TIMESTAMPTZ DEFAULT NOW(),       -- Last activity timestamp
-    workload_score FLOAT DEFAULT 0.0,         -- Workload rating (0.0-1.0)
-    preferences JSONB,                         -- Position preferences/settings
-    operator_id VARCHAR(50),                   -- VATSIM user ID (links multiple positions)
-    operator_name VARCHAR(100),                -- Operator's real name from VATSIM API
-    operator_rating INTEGER,                   -- Operator rating (1-11) from VATSIM API
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-**Sample Data**:
-- `VATSYD_CTR` - Sydney Center Position (Operator ID: 12345)
-- `VATSYD_APP` - Sydney Approach Position (Operator ID: 12345) - Same operator, different position
-- `VATSYD_TWR` - Sydney Tower Position (Operator ID: 67890) - Different operator
-
-**Important**: A single VATSIM operator (Operator ID) can control multiple positions simultaneously, each with its own frequency. The VATSIM API treats each position as a separate entry.
-
-#### **2. flights** - Active Flight Information
-```sql
-CREATE TABLE flights (
-    id SERIAL PRIMARY KEY,
-    callsign VARCHAR(50) NOT NULL,             -- Flight number (e.g., "QFA123")
-    aircraft_type VARCHAR(20),                 -- Aircraft type (e.g., "B738", "A320")
-    position_lat FLOAT,                        -- Latitude position
-    position_lng FLOAT,                        -- Longitude position
-    altitude INTEGER,                          -- Flight altitude (feet)
-    speed INTEGER,                             -- Air speed (knots)
-    heading INTEGER,                           -- Heading (degrees)
-    ground_speed INTEGER,                      -- Ground speed
-    vertical_speed INTEGER,                    -- Climb/descent rate
-    squawk VARCHAR(10),                        -- Transponder code
-    flight_plan JSONB,                         -- Flight plan data
-    atc_position_id INTEGER REFERENCES atc_positions(id),
-    last_updated TIMESTAMPTZ DEFAULT NOW(),
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    departure VARCHAR(10),                     -- Origin airport (ICAO)
-    arrival VARCHAR(10),                       -- Destination airport (ICAO)
-    route TEXT,                                -- Flight route
-    status VARCHAR(20) DEFAULT 'active'        -- active/completed/cancelled
-);
+┌─────────────────────────────────────────────────────────────────┐
+│                    VATSIM Data Collection System               │
+├─────────────────────────────────────────────────────────────────┤
+│  External Data Sources                                        │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
+│  │ VATSIM API  │  │ PostgreSQL  │  │   Redis     │          │
+│  │   (Real-    │  │  Database   │  │   Cache     │          │
+│  │   time)     │  │             │  │             │          │
+│  └─────────────┘  └─────────────┘  └─────────────┘          │
+├─────────────────────────────────────────────────────────────────┤
+│  Core Services Layer                                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
+│  │   Data      │  │  Traffic    │  │    ML       │          │
+│  │  Service    │  │  Analysis   │  │  Service    │          │
+│  └─────────────┘  └─────────────┘  └─────────────┘          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
+│  │   Cache     │  │   Query     │  │  Resource   │          │
+│  │  Service    │  │ Optimizer   │  │  Manager    │          │
+│  └─────────────┘  └─────────────┘  └─────────────┘          │
+├─────────────────────────────────────────────────────────────────┤
+│  API Layer (FastAPI)                                          │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │  REST API Endpoints                                    │   │
+│  │  • /api/status                                         │   │
+│  │  • /api/atc-positions                                  │   │
+│  │  • /api/flights                                        │   │
+│  │  • /api/traffic/*                                      │   │
+│  │  • /api/database/*                                     │   │
+│  │  • /api/performance/*                                  │   │
+│  └─────────────────────────────────────────────────────────┘   │
+├─────────────────────────────────────────────────────────────────┤
+│  Monitoring & Visualization                                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
+│  │   Grafana   │  │   Error     │  │  Centralized│          │
+│  │ Dashboards  │  │ Monitoring  │  │   Logging   │          │
+│  └─────────────┘  └─────────────┘  └─────────────┘          │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**Sample Data**:
-- `QFA123` - Qantas flight from YSSY to YMML
-- `JST456` - Jetstar flight from YBBN to YSSY
-- `VOZ789` - Virgin Australia flight from YPPH to YSSY
+## 🔧 Core Components
 
-#### **3. traffic_movements** - Airport Traffic Analysis
-```sql
-CREATE TABLE traffic_movements (
-    id SERIAL PRIMARY KEY,
-    airport_code VARCHAR(10) NOT NULL,         -- Airport ICAO code
-    movement_type VARCHAR(20) NOT NULL,        -- arrival/departure
-    aircraft_callsign VARCHAR(50),             -- Flight callsign
-    aircraft_type VARCHAR(20),                 -- Aircraft type
-    timestamp TIMESTAMPTZ DEFAULT NOW(),       -- Movement time
-    runway VARCHAR(10),                        -- Runway used
-    altitude INTEGER,                          -- Altitude at movement
-    speed INTEGER,                             -- Speed at movement
-    heading INTEGER,                           -- Heading at movement
-    metadata JSONB                             -- Additional movement data
-);
-```
+### 1. Data Service (`app/services/data_service.py`)
+**Purpose**: Central data ingestion and processing engine
+- **Memory-optimized data processing** to reduce SSD wear
+- **Batch database operations** for efficiency
+- **Real-time VATSIM API integration**
+- **Automatic data cleanup and maintenance**
 
-**Sample Data**:
-- `YSSY` - Sydney Airport movements
-- `YMML` - Melbourne Airport movements
-- `YBBN` - Brisbane Airport movements
+**Key Features**:
+- Asynchronous data ingestion from VATSIM API
+- Memory caching for batch processing
+- SSD wear optimization with periodic writes
+- Connection pooling and transaction management
+- Real-time status tracking and health monitoring
 
-#### **4. sectors** - Airspace Sector Information
-```sql
-CREATE TABLE sectors (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,                -- Sector name
-    facility VARCHAR(50) NOT NULL,             -- Facility
-    atc_position_id INTEGER REFERENCES atc_positions(id),
-    traffic_density INTEGER DEFAULT 0,         -- Traffic density score
-    status VARCHAR(20) DEFAULT 'unmanned',     -- manned/unmanned/busy
-    priority_level INTEGER DEFAULT 1,          -- Priority (1-5)
-    boundaries JSONB,                          -- Sector boundary coordinates
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
+### 2. Traffic Analysis Service (`app/services/traffic_analysis_service.py`)
+**Purpose**: Advanced traffic pattern analysis and movement detection
+- **Real-time traffic movement detection**
+- **Pattern recognition algorithms**
+- **Predictive analytics for traffic flow**
+- **Airport-specific traffic analysis**
 
-### **Analytics Tables**
+**Key Features**:
+- Movement detection algorithms
+- Traffic pattern analysis
+- Predictive modeling
+- Airport traffic density calculations
+- Real-time traffic alerts
 
-#### **5. flight_summaries** - Aggregated Flight Statistics
-```sql
-CREATE TABLE flight_summaries (
-    id SERIAL PRIMARY KEY,
-    callsign VARCHAR(20) NOT NULL,
-    aircraft_type VARCHAR(10),
-    departure VARCHAR(10),
-    arrival VARCHAR(10),
-    route TEXT,
-    max_altitude SMALLINT,                     -- Maximum altitude reached
-    duration_minutes SMALLINT,                 -- Flight duration
-    atc_position_id INTEGER REFERENCES atc_positions(id),
-    sector_id INTEGER REFERENCES sectors(id),
-    completed_at TIMESTAMPTZ NOT NULL          -- Flight completion time
-);
-```
+### 3. Machine Learning Service (`app/services/ml_service.py`)
+**Purpose**: AI-powered analysis and predictions
+- **Controller workload prediction**
+- **Traffic flow optimization**
+- **Anomaly detection**
+- **Predictive analytics**
 
-#### **6. movement_summaries** - Airport Movement Patterns
-```sql
-CREATE TABLE movement_summaries (
-    id SERIAL PRIMARY KEY,
-    airport_icao VARCHAR(10) NOT NULL,         -- Airport code
-    movement_type VARCHAR(10) NOT NULL,        -- arrival/departure
-    aircraft_type VARCHAR(10),
-    date DATE NOT NULL,                        -- Date of movements
-    hour SMALLINT NOT NULL,                    -- Hour (0-23)
-    count SMALLINT DEFAULT 1                   -- Number of movements
-);
-```
+**Key Features**:
+- ML model training and inference
+- Workload prediction algorithms
+- Anomaly detection systems
+- Model performance monitoring
+- Automated model updates
 
-### **Configuration Tables**
+### 4. Cache Service (`app/services/cache_service.py`)
+**Purpose**: High-performance caching layer
+- **Redis-based caching**
+- **Memory optimization**
+- **Cache invalidation strategies**
+- **Performance monitoring**
 
-#### **7. airports** - Global Airport Data
-```sql
-CREATE TABLE airports (
-    id SERIAL PRIMARY KEY,
-    icao_code VARCHAR(10) UNIQUE NOT NULL,
-    name VARCHAR(200),
-    latitude FLOAT NOT NULL,
-    longitude FLOAT NOT NULL,
-    elevation INTEGER,
-    country VARCHAR(100),
-    region VARCHAR(100),
-    timezone VARCHAR(50),
-    facility_type VARCHAR(50),
-    runways TEXT,
-    frequencies TEXT,
-    is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
+**Key Features**:
+- Multi-level caching (memory + Redis)
+- Intelligent cache invalidation
+- Cache hit/miss monitoring
+- Memory usage optimization
+- Cache warming strategies
 
-#### **8. airport_config** - Airport Detection Settings
-```sql
-CREATE TABLE airport_config (
-    id SERIAL PRIMARY KEY,
-    icao_code VARCHAR(10) UNIQUE NOT NULL,
-    name VARCHAR(200) NOT NULL,
-    latitude FLOAT NOT NULL,
-    longitude FLOAT NOT NULL,
-    detection_radius_nm FLOAT DEFAULT 10.0,
-    departure_altitude_threshold INTEGER DEFAULT 1000,
-    arrival_altitude_threshold INTEGER DEFAULT 3000,
-    departure_speed_threshold INTEGER DEFAULT 50,
-    arrival_speed_threshold INTEGER DEFAULT 150,
-    is_active BOOLEAN DEFAULT true,
-    region VARCHAR(50),
-    last_updated TIMESTAMPTZ DEFAULT NOW()
-);
-```
+### 5. Query Optimizer (`app/services/query_optimizer.py`)
+**Purpose**: Database query optimization and performance tuning
+- **Query performance analysis**
+- **Index optimization**
+- **Query plan optimization**
+- **Database performance monitoring**
 
-#### **9. events** - Scheduled Events
-```sql
-CREATE TABLE events (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(200) NOT NULL,                -- Event name
-    start_time TIMESTAMPTZ NOT NULL,           -- Event start time
-    end_time TIMESTAMPTZ NOT NULL,             -- Event end time
-    expected_traffic INTEGER DEFAULT 0,        -- Expected traffic volume
-    required_atc_positions INTEGER DEFAULT 0,     -- Required ATC positions
-    status VARCHAR(20) DEFAULT 'scheduled',    -- scheduled/active/completed
-    notes TEXT,                                -- Event notes
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
+**Key Features**:
+- Query performance profiling
+- Index recommendation engine
+- Query plan analysis
+- Database optimization strategies
+- Performance metrics collection
 
-## 🔄 **Data Flow Architecture**
+### 6. Resource Manager (`app/services/resource_manager.py`)
+**Purpose**: System resource monitoring and optimization
+- **Memory usage monitoring**
+- **CPU utilization tracking**
+- **Performance optimization**
+- **Resource allocation management**
 
-### **1. Data Ingestion Process**
-```
-VATSIM API → Data Service → Validation → Database → Cache
-     │              │            │           │         │
-     ▼              ▼            ▼           ▼         ▼
-Real-time      Business      Data       PostgreSQL  Redis
-Flight Data    Logic        Quality     Storage     Cache
-```
+**Key Features**:
+- Real-time resource monitoring
+- Memory optimization algorithms
+- Performance bottleneck detection
+- Resource allocation strategies
+- System health monitoring
 
-### **2. API Request Flow**
-```
-Client Request → FastAPI → Cache Check → Database Query → Response
-      │            │           │              │            │
-      ▼            ▼           ▼              ▼            ▼
-Web Browser   Route Handler  Redis Lookup  PostgreSQL   JSON Response
-```
+## 🛠️ API Layer
 
-### **3. Real-time Updates**
-- **Polling Interval**: Every 30 seconds
-- **Data Freshness**: Real-time VATSIM network data
-- **Caching Strategy**: 30-second TTL for live data
-- **Performance**: Optimized for high-frequency reads
+### REST API Endpoints
 
-## 📊 **Data Types and Relationships**
+#### System Status & Health
+- `GET /api/status` - System health and statistics
+- `GET /api/network/status` - Network status and metrics
+- `GET /api/database/status` - Database status and migration info
 
-### **Primary Data Types**
-1. **ATC Position Data**: ATC positions, workload, facilities
-2. **Flight Data**: Aircraft positions, routes, status
-3. **Traffic Data**: Airport movements, patterns
-4. **Sector Data**: Airspace boundaries, traffic density
-5. **Analytics Data**: Aggregated statistics, summaries
-
-### **Key Relationships**
-```
-atc_positions (1) ──── (N) flights
-atc_positions (1) ──── (N) sectors
-flights (N) ──── (1) atc_positions
-sectors (N) ──── (1) atc_positions
-airports (1) ──── (N) traffic_movements  -- Global airport data
-airport_config (1) ──── (N) traffic_movements  -- Detection settings
-operator_id (1) ──── (N) atc_positions  -- One VATSIM operator can control multiple positions
-```
-
-### **Data Volume Characteristics**
-- **ATC Positions**: ~400 active ATC positions globally
-- **VATSIM Operators**: ~200-300 unique operators (some control multiple positions)
-- **Flights**: ~3,500 active flights globally
-- **Traffic Movements**: ~10,000+ movements per day
-- **Sectors**: ~50 active sectors
-- **Update Frequency**: Every 30 seconds
-
-### **VATSIM ATC Position Reality**
-- **One VATSIM User** can control **multiple sectors** simultaneously
-- **Each sector** has its own **frequency** and **position**
-- **VATSIM API** treats each position as a separate entry
-- **Database** links positions by `operator_id` to identify the same operator
-
-## 🚀 **Performance Optimizations**
-
-### **Database Indexes**
-```sql
--- ATC Positions
-CREATE INDEX idx_atc_positions_status_last_seen ON atc_positions(status, last_seen DESC);
-CREATE INDEX idx_atc_positions_callsign ON atc_positions(callsign);
-CREATE INDEX idx_atc_positions_facility_workload ON atc_positions(facility, workload_score DESC);
-
--- Flights
-CREATE INDEX idx_flights_status_last_updated ON flights(status, last_updated DESC);
-CREATE INDEX idx_flights_callsign ON flights(callsign);
-CREATE INDEX idx_flights_aircraft_type ON flights(aircraft_type);
-
--- Traffic Movements
-CREATE INDEX idx_traffic_movements_timestamp ON traffic_movements(timestamp DESC);
-CREATE INDEX idx_traffic_movements_airport_type ON traffic_movements(airport_code, movement_type);
-```
-
-### **Caching Strategy**
-- **Redis Cache**: 512MB memory limit
-- **Cache TTL**: 30 seconds for live data, 5 minutes for analytics
-- **Cache Keys**: Query results, session data, performance metrics
-
-### **Database Optimization**
-- **Connection Pooling**: 20 connections for concurrent access
-- **Query Optimization**: Eager loading, batch operations
-- **Memory Management**: Automatic cleanup, garbage collection
-
-## 🔧 **System Components**
-
-### **1. Data Ingestion Service**
-- **Purpose**: Collects real-time VATSIM data
-- **Frequency**: Every 30 seconds
-- **Data Types**: ATC positions, flights, sectors
-- **Validation**: Data quality checks, error handling
-
-### **2. Analytics Service**
-- **Purpose**: Processes data for insights
-- **Features**: Traffic analysis, workload optimization
-- **Output**: Movement patterns, ATC position recommendations
-
-### **3. Cache Service**
-- **Purpose**: Improves query performance
-- **Strategy**: Intelligent TTL management
-- **Fallback**: Graceful degradation when Redis unavailable
-
-### **4. Query Optimizer**
-- **Purpose**: Optimizes database queries
-- **Features**: Eager loading, query analysis
-- **Performance**: 50% faster queries
-
-### **5. Resource Manager**
-- **Purpose**: Monitors system resources
-- **Features**: Memory management, performance metrics
-- **Alerts**: Resource usage thresholds
-
-## 🌐 **API Endpoints**
-
-### **Data Endpoints**
-- `GET /api/status` - System status and statistics
+#### ATC Data
 - `GET /api/atc-positions` - Active ATC positions
-- `GET /api/flights` - Active flights
-- `GET /api/traffic/movements/{airport}` - Airport movements
-- `GET /api/database/status` - Database status
+- `GET /api/atc-positions/by-controller-id` - ATC positions grouped by controller
+- `GET /api/vatsim/ratings` - VATSIM controller ratings
 
-### **Query Endpoints**
+#### Flight Data
+- `GET /api/flights` - Active flights data
+- `GET /api/flights/memory` - Flights from memory cache (debugging)
+
+#### Traffic Analysis
+- `GET /api/traffic/movements/{airport_icao}` - Airport traffic movements
+- `GET /api/traffic/summary/{region}` - Regional traffic summary
+- `GET /api/traffic/trends/{airport_icao}` - Airport traffic trends
+
+#### Performance & Monitoring
+- `GET /api/performance/metrics` - System performance metrics
+- `GET /api/performance/optimize` - Trigger performance optimization
+
+#### Database Operations
+- `GET /api/database/tables` - Database tables and record counts
 - `POST /api/database/query` - Execute custom SQL queries
-- `GET /api/database/tables` - List database tables
 
-### **Web Interfaces**
-- `GET /frontend/database-query.html` - Database query tool
-- `GET /frontend/index.html` - Main dashboard
-- `GET /frontend/performance-dashboard.html` - Performance monitoring
+#### Airport Data
+- `GET /api/airports/region/{region}` - Airports by region
+- `GET /api/airports/{airport_code}/coordinates` - Airport coordinates
 
-## 📈 **Monitoring and Analytics**
+## 🔒 Error Handling Architecture
 
-### **Performance Metrics**
-- **Query Response Time**: < 100ms for cached data
-- **Database Throughput**: 10,000+ records per second
-- **Memory Usage**: Optimized with 2GB limit
-- **Cache Hit Rate**: 90%+ for frequently accessed data
+### Centralized Error Management
+The system implements a comprehensive centralized error handling strategy:
 
-### **Data Quality Metrics**
-- **Data Freshness**: Real-time updates every 30 seconds
-- **Data Completeness**: 99%+ for active flights and controllers
-- **Data Accuracy**: Validated against VATSIM network
-- **Error Rate**: < 1% for data ingestion
+#### Error Handling Decorators
+```python
+@handle_service_errors
+@log_operation("operation_name")
+async def service_method():
+    # Service logic with automatic error handling
+    pass
+```
 
-## 🔒 **Security and Access**
+#### Error Handler Components
+- **Service Error Handler**: `app/utils/error_handling.py`
+- **Exception Classes**: `app/utils/exceptions.py`
+- **Error Monitoring**: `app/utils/error_monitoring.py`
+- **Operation Logging**: Integrated logging with rich context
 
-### **Database Security**
-- **Connection**: SSL/TLS encrypted
-- **Authentication**: Username/password
-- **Authorization**: Role-based access control
-- **Query Restrictions**: SELECT-only for web interface
+#### Error Handling Features
+- **Automatic Error Logging**: All errors logged with context
+- **Error Recovery**: Automatic retry mechanisms
+- **Circuit Breakers**: Fault tolerance patterns
+- **Error Analytics**: Error tracking and reporting
+- **Graceful Degradation**: Fallback mechanisms
 
-### **API Security**
-- **Rate Limiting**: Prevents abuse
-- **Input Validation**: SQL injection protection
-- **Error Handling**: Secure error messages
-- **CORS**: Cross-origin resource sharing
+## 📊 Data Flow Architecture
 
----
+### 1. Data Ingestion Flow
+```
+VATSIM API → Data Service → Memory Cache → Database → Cache Service
+```
 
-**This architecture provides a robust, scalable, and high-performance system for collecting, storing, and analyzing VATSIM air traffic control data in real-time.** 🚁✈️ 
+### 2. API Request Flow
+```
+Client Request → FastAPI Router → Service Layer → Database/Cache → Response
+```
+
+### 3. Error Handling Flow
+```
+Error Occurrence → Error Handler → Logging → Monitoring → Recovery
+```
+
+### 4. Monitoring Flow
+```
+System Metrics → Resource Manager → Performance API → Grafana → Dashboards
+```
+
+## 🗄️ Database Architecture
+
+### PostgreSQL Configuration
+- **Connection Pooling**: 20 connections + 30 overflow
+- **SSD Optimization**: Asynchronous commits
+- **Performance Tuning**: Query optimization and indexing
+- **Data Retention**: Automatic cleanup of old data
+
+### Data Models
+- **ATCPosition**: Controller positions and status
+- **Flight**: Aircraft tracking and position data
+- **TrafficMovement**: Airport arrival/departure tracking
+- **Sector**: Airspace definitions and traffic density
+- **AirportConfig**: Airport configuration and metadata
+
+## 🔄 Background Processing
+
+### Data Ingestion Service
+- **Continuous VATSIM API polling**
+- **Memory-optimized batch processing**
+- **Automatic data cleanup**
+- **Real-time status updates**
+
+### Background Tasks
+- **Data ingestion**: Continuous VATSIM data collection
+- **Cache management**: Automatic cache invalidation
+- **Performance optimization**: Regular system optimization
+- **Error monitoring**: Continuous error tracking
+
+## 📈 Monitoring & Observability
+
+### Grafana Integration
+- **Real-time dashboards** for system metrics
+- **Custom visualizations** for traffic analysis
+- **Performance monitoring** with alerts
+- **Error tracking** and analytics
+
+### Error Monitoring
+- **Centralized error tracking**
+- **Error analytics and reporting**
+- **Performance impact analysis**
+- **Automated alerting**
+
+### Logging Strategy
+- **Structured logging** with rich context
+- **Operation tracking** with correlation IDs
+- **Performance metrics** collection
+- **Error context** preservation
+
+## 🚀 Deployment Architecture
+
+### Docker Configuration
+- **Multi-container setup** with Docker Compose
+- **Service isolation** and independent scaling
+- **Volume management** for data persistence
+- **Network configuration** for service communication
+
+### Environment Configuration
+- **Environment variables** for all configuration
+- **No hardcoded values** principle
+- **Feature flags** for system components
+- **Dynamic configuration** updates
+
+## 🔧 Development Workflow
+
+### Code Organization
+```
+app/
+├── services/          # Core business logic services
+├── utils/            # Utility functions and helpers
+├── models/           # Database models
+├── api/              # API-specific modules
+├── config.py         # Configuration management
+├── database.py       # Database connection management
+└── main.py          # FastAPI application entry point
+```
+
+### Testing Strategy
+- **Unit tests** for service components
+- **Integration tests** for API endpoints
+- **Performance tests** for system optimization
+- **Error handling tests** for reliability
+
+## 🎯 Performance Optimizations
+
+### Memory Management
+- **Memory-optimized data processing**
+- **Efficient caching strategies**
+- **Garbage collection optimization**
+- **Memory leak prevention**
+
+### Database Optimization
+- **Query optimization** and indexing
+- **Connection pooling** management
+- **Batch operations** for efficiency
+- **SSD wear optimization**
+
+### API Performance
+- **Response caching** strategies
+- **Request optimization** patterns
+- **Load balancing** considerations
+- **Rate limiting** implementation
+
+## 🔮 Future Architecture Evolution
+
+### Planned Enhancements
+- **Microservices decomposition** for independent scaling
+- **Event-driven architecture** with message queues
+- **Advanced ML pipeline** integration
+- **Real-time streaming** capabilities
+
+### Scalability Considerations
+- **Horizontal scaling** strategies
+- **Load balancing** implementation
+- **Database sharding** approaches
+- **Caching distribution** patterns
+
+## 📋 System Requirements
+
+### Hardware Requirements
+- **CPU**: Multi-core processor for concurrent processing
+- **Memory**: 8GB+ RAM for memory-optimized operations
+- **Storage**: SSD for database and caching
+- **Network**: High-bandwidth connection for API communication
+
+### Software Requirements
+- **Python 3.11+** for application runtime
+- **PostgreSQL 13+** for data persistence
+- **Redis 6+** for caching layer
+- **Docker** for containerized deployment
+
+### Dependencies
+- **FastAPI** for API framework
+- **SQLAlchemy** for database ORM
+- **Redis** for caching
+- **Pydantic** for data validation
+- **Uvicorn** for ASGI server
+
+## 🎉 Architecture Benefits
+
+### Operational Excellence
+- **High availability** with fault tolerance
+- **Comprehensive monitoring** and alerting
+- **Automated error recovery** mechanisms
+- **Performance optimization** strategies
+
+### Developer Experience
+- **Clean API design** with comprehensive documentation
+- **Centralized error handling** for easier debugging
+- **Modular architecture** for maintainability
+- **Comprehensive logging** for observability
+
+### Scalability
+- **API-first design** enables independent scaling
+- **Microservices architecture** supports component scaling
+- **Caching strategies** improve performance
+- **Database optimization** supports growth
+
+### Reliability
+- **Centralized error handling** ensures consistent error management
+- **Circuit breaker patterns** provide fault tolerance
+- **Retry mechanisms** handle transient failures
+- **Graceful degradation** maintains service availability
+
+This architecture provides a robust, scalable, and maintainable foundation for the VATSIM data collection system, optimized for modern operational requirements and Grafana integration. 
