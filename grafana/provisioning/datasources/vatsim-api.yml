@@ -1,0 +1,12 @@
+apiVersion: 1
+
+datasources:
+  - name: VATSIM API Health
+    type: grafana
+    access: proxy
+    url: http://vatsim-api:8001
+    jsonData:
+      httpMethod: GET
+      timeout: 30
+    secureJsonData: {}
+    editable: true 

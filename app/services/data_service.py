@@ -47,7 +47,7 @@ import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, desc
+from sqlalchemy import and_, desc, insert
 import json
 from collections import defaultdict
 import time
@@ -58,6 +58,58 @@ from .vatsim_service import VATSIMService
 from .traffic_analysis_service import TrafficAnalysisService
 from .base_service import DatabaseService
 from ..utils.error_handling import handle_service_errors, retry_on_failure, log_operation
+
+
+class BoundedCache:
+    """Bounded cache with LRU eviction to prevent memory leaks."""
+    
+    def __init__(self, max_size: int = 10000):
+        self.max_size = max_size
+        self.cache = {}
+        self.access_times = {}
+        self.access_counter = 0
+    
+    def set(self, key: str, value: Any) -> None:
+        """Set a value in the cache with LRU eviction."""
+        if len(self.cache) >= self.max_size:
+            # Evict least recently used
+            oldest_key = min(self.access_times, key=self.access_times.get)
+            del self.cache[oldest_key]
+            del self.access_times[oldest_key]
+        
+        self.cache[key] = value
+        self.access_times[key] = self.access_counter
+        self.access_counter += 1
+    
+    def get(self, key: str) -> Optional[Any]:
+        """Get a value from the cache and update access time."""
+        if key in self.cache:
+            self.access_times[key] = self.access_counter
+            self.access_counter += 1
+            return self.cache[key]
+        return None
+    
+    def has_key(self, key: str) -> bool:
+        """Check if key exists in cache."""
+        return key in self.cache
+    
+    def clear(self) -> None:
+        """Clear all cache entries."""
+        self.cache.clear()
+        self.access_times.clear()
+    
+    def size(self) -> int:
+        """Get current cache size."""
+        return len(self.cache)
+    
+    def keys(self):
+        """Get all cache keys."""
+        return list(self.cache.keys())
+    
+    def items(self):
+        """Get all cache items."""
+        return list(self.cache.items())
+
 
 class DataService(DatabaseService):
     def __init__(self):
@@ -70,9 +122,11 @@ class DataService(DatabaseService):
         self.vatsim_write_interval = int(os.getenv('VATSIM_WRITE_INTERVAL', 300))
         self.vatsim_cleanup_interval = int(os.getenv('VATSIM_CLEANUP_INTERVAL', 3600))
         
+        # Use bounded caches to prevent memory leaks
+        max_cache_size = int(os.getenv('CACHE_MAX_SIZE', 10000))
         self.cache = {
-            'flights': {},
-            'atc_positions': {},
+            'flights': BoundedCache(max_cache_size),
+            'atc_positions': BoundedCache(max_cache_size),
             'last_write': 0,
             'write_interval': self.vatsim_write_interval,
             'memory_buffer': defaultdict(list)
@@ -97,9 +151,10 @@ class DataService(DatabaseService):
             
             # Check cache status
             cache_status = {
-                'flights_count': len(self.cache['flights']),
-                'atc_positions_count': len(self.cache['atc_positions']),
-                'memory_buffer_size': len(self.cache['memory_buffer'])
+                'flights_count': self.cache['flights'].size(),
+                'atc_positions_count': self.cache['atc_positions'].size(),
+                'memory_buffer_size': len(self.cache['memory_buffer']),
+                'cache_max_size': self.cache['flights'].max_size
             }
             
             return {
@@ -219,7 +274,7 @@ class DataService(DatabaseService):
                 callsign = atc_position_data.get('callsign', '')
                 
                 # Update memory cache
-                self.cache['atc_positions'][callsign] = {
+                self.cache['atc_positions'].set(callsign, {
                     'callsign': callsign,
                     'facility': atc_position_data.get('facility', ''),
                     'position': atc_position_data.get('position', ''),
@@ -231,14 +286,14 @@ class DataService(DatabaseService):
                     'last_seen': datetime.utcnow(),
                     'workload_score': 0.0,
                     'preferences': json.dumps(atc_position_data.get('preferences', {}))
-                }
+                })
                 processed_count += 1
             
             self.logger.info(f"Processed {processed_count} ATC positions in memory")
             return processed_count
             
         except Exception as e:
-            logger.error(f"Error processing ATC positions in memory: {e}")
+            self.logger.error(f"Error processing ATC positions in memory: {e}")
             return 0
     
     async def _process_flights_in_memory(self, flights_data: List[Dict[str, Any]]) -> int:
@@ -273,7 +328,7 @@ class DataService(DatabaseService):
                 atc_position_id = None
                 # For now, skip ATC position assignment to avoid database issues
                 
-                self.cache['flights'][callsign] = {
+                self.cache['flights'].set(callsign, {
                     'callsign': callsign,
                     'aircraft_type': flight_data.get('aircraft_type', ''),
                     'departure': departure,
@@ -290,14 +345,14 @@ class DataService(DatabaseService):
                     'atc_position_id': atc_position_id,
                     'last_updated': datetime.utcnow(),
                     'status': 'active'
-                }
+                })
                 processed_count += 1
             
             self.logger.info(f"Processed {processed_count} Australian flights out of {len(flights_data)} total flights")
             return processed_count
             
         except Exception as e:
-            logger.error(f"Error processing flights in memory: {e}")
+            self.logger.error(f"Error processing flights in memory: {e}")
             return 0
     
     async def _process_sectors_in_memory(self, sectors_data: List[Dict[str, Any]]) -> int:
@@ -306,7 +361,7 @@ class DataService(DatabaseService):
             # Sectors processing in memory (minimal for now)
             return len(sectors_data)
         except Exception as e:
-            logger.error(f"Error processing sectors in memory: {e}")
+            self.logger.error(f"Error processing sectors in memory: {e}")
             return 0
     
     async def _process_transceivers_in_memory(self, transceivers_data: List[Dict[str, Any]]) -> int:
@@ -340,7 +395,7 @@ class DataService(DatabaseService):
             return processed_count
             
         except Exception as e:
-            logger.error(f"Error processing transceivers in memory: {e}")
+            self.logger.error(f"Error processing transceivers in memory: {e}")
             return 0
     
     async def _detect_movements_in_memory(self) -> int:
@@ -383,80 +438,129 @@ class DataService(DatabaseService):
                 
             except Exception as e:
                 db.rollback()
-                logger.error(f"Error detecting movements: {e}")
+                self.logger.error(f"Error detecting movements: {e}")
             finally:
                 db.close()
             
             return movements_count
             
         except Exception as e:
-            logger.error(f"Error detecting movements in memory: {e}")
+            self.logger.error(f"Error detecting movements in memory: {e}")
             return 0
     
     async def _flush_memory_to_disk(self):
-        """Flush memory cache to disk with batching and compression (reduced frequency)"""
+        """Flush memory cache to disk with optimized bulk operations"""
         try:
             db = SessionLocal()
             try:
-                # BATCH 1: ATC Positions (batch write for efficiency)
-                atc_position_batch = []
-                for callsign, atc_position_data in self.cache['atc_positions'].items():
-                    existing = db.query(ATCPosition).filter(ATCPosition.callsign == callsign).first()
-                    if existing:
-                        # Update existing
-                        for key, value in atc_position_data.items():
-                            setattr(existing, key, value)
-                    else:
-                        # Create new
-                        atc_position = ATCPosition(**atc_position_data)
-                        atc_position_batch.append(atc_position)
-                
-                # Bulk insert ATC positions
-                if atc_position_batch:
-                    db.bulk_save_objects(atc_position_batch)
-                
-                # BATCH 2: Flights (batch write for efficiency)
-                flight_batch = []
-                for callsign, flight_data in self.cache['flights'].items():
-                    existing = db.query(Flight).filter(Flight.callsign == callsign).first()
-                    if existing:
-                        # Update existing
-                        for key, value in flight_data.items():
-                            setattr(existing, key, value)
-                    else:
-                        # Create new
-                        flight = Flight(**flight_data)
-                        flight_batch.append(flight)
-                
-                # Bulk insert flights
-                if flight_batch:
-                    db.bulk_save_objects(flight_batch)
-                
-                # BATCH 3: Transceivers (batch write for efficiency)
-                from ..models import Transceiver
-                transceiver_batch = []
-                for transceiver_data in self.cache['memory_buffer']['transceivers']:
-                    # Check if transceiver already exists
-                    existing = db.query(Transceiver).filter(
-                        and_(
-                            Transceiver.callsign == transceiver_data['callsign'],
-                            Transceiver.transceiver_id == transceiver_data['transceiver_id']
-                        )
-                    ).first()
+                # OPTIMIZED BATCH 1: ATC Positions with bulk upsert
+                atc_positions_data = list(self.cache['atc_positions'].items())
+                if atc_positions_data:
+                    # Prepare data for bulk upsert
+                    atc_positions_values = [data for _, data in atc_positions_data]
                     
-                    if existing:
-                        # Update existing transceiver
-                        for key, value in transceiver_data.items():
-                            if hasattr(existing, key):
-                                setattr(existing, key, value)
-                    else:
-                        # Create new transceiver
-                        transceiver = Transceiver(**transceiver_data)
-                        transceiver_batch.append(transceiver)
+                    # Use bulk upsert with conflict resolution
+                    try:
+                        # Try PostgreSQL-specific upsert first
+                        stmt = insert(ATCPosition).values(atc_positions_values)
+                        stmt = stmt.on_conflict_do_update(
+                            index_elements=['callsign'],
+                            set_=dict(
+                                facility=stmt.excluded.facility,
+                                position=stmt.excluded.position,
+                                status=stmt.excluded.status,
+                                frequency=stmt.excluded.frequency,
+                                last_seen=stmt.excluded.last_seen,
+                                workload_score=stmt.excluded.workload_score,
+                                preferences=stmt.excluded.preferences
+                            )
+                        )
+                        db.execute(stmt)
+                    except AttributeError:
+                        # Fallback to manual upsert for other databases
+                        for data in atc_positions_values:
+                            existing = db.query(ATCPosition).filter(ATCPosition.callsign == data['callsign']).first()
+                            if existing:
+                                for key, value in data.items():
+                                    setattr(existing, key, value)
+                            else:
+                                atc_position = ATCPosition(**data)
+                                db.add(atc_position)
+                    
+                    self.logger.info(f"Bulk upserted {len(atc_positions_values)} ATC positions")
                 
-                # Bulk insert transceivers
-                if transceiver_batch:
-                    db.bulk_save_objects(transceiver_batch)
+                # OPTIMIZED BATCH 2: Flights with bulk upsert
+                flights_data = list(self.cache['flights'].items())
+                if flights_data:
+                    # Prepare data for bulk upsert
+                    flights_values = [data for _, data in flights_data]
+                    
+                    # Use bulk upsert with conflict resolution
+                    try:
+                        # Try PostgreSQL-specific upsert first
+                        stmt = insert(Flight).values(flights_values)
+                        stmt = stmt.on_conflict_do_update(
+                            index_elements=['callsign'],
+                            set_=dict(
+                                aircraft_type=stmt.excluded.aircraft_type,
+                                position_lat=stmt.excluded.position_lat,
+                                position_lng=stmt.excluded.position_lng,
+                                altitude=stmt.excluded.altitude,
+                                speed=stmt.excluded.speed,
+                                heading=stmt.excluded.heading,
+                                departure=stmt.excluded.departure,
+                                arrival=stmt.excluded.arrival,
+                                last_updated=stmt.excluded.last_updated,
+                                status=stmt.excluded.status
+                            )
+                        )
+                        db.execute(stmt)
+                    except AttributeError:
+                        # Fallback to manual upsert for other databases
+                        for data in flights_values:
+                            existing = db.query(Flight).filter(Flight.callsign == data['callsign']).first()
+                            if existing:
+                                for key, value in data.items():
+                                    setattr(existing, key, value)
+                            else:
+                                flight = Flight(**data)
+                                db.add(flight)
+                    
+                    self.logger.info(f"Bulk upserted {len(flights_values)} flights")
+                
+                # OPTIMIZED BATCH 3: Transceivers with bulk upsert
+                from ..models import Transceiver
+                transceivers_data = self.cache['memory_buffer'].get('transceivers', [])
+                if transceivers_data:
+                    # Use bulk upsert with conflict resolution
+                    try:
+                        # Try PostgreSQL-specific upsert first
+                        stmt = insert(Transceiver).values(transceivers_data)
+                        stmt = stmt.on_conflict_do_update(
+                            index_elements=['callsign', 'transceiver_id'],
+                            set_=dict(
+                                frequency=stmt.excluded.frequency,
+                                position_lat=stmt.excluded.position_lat,
+                                position_lng=stmt.excluded.position_lng,
+                                last_updated=stmt.excluded.last_updated
+                            )
+                        )
+                        db.execute(stmt)
+                    except AttributeError:
+                        # Fallback to manual upsert for other databases
+                        for data in transceivers_data:
+                            existing = db.query(Transceiver).filter(
+                                Transceiver.callsign == data['callsign'],
+                                Transceiver.transceiver_id == data['transceiver_id']
+                            ).first()
+                            if existing:
+                                for key, value in data.items():
+                                    setattr(existing, key, value)
+                            else:
+                                transceiver = Transceiver(**data)
+                                db.add(transceiver)
+                    
+                    self.logger.info(f"Bulk upserted {len(transceivers_data)} transceivers")
                 
                 # Single commit for all changes (reduces disk writes)
                 db.commit()
@@ -471,12 +575,12 @@ class DataService(DatabaseService):
                 
             except Exception as e:
                 db.rollback()
-                logger.error(f"Error flushing memory to disk: {e}")
+                self.logger.error(f"Error flushing memory to disk: {e}")
             finally:
                 db.close()
                 
         except Exception as e:
-            logger.error(f"Error in memory flush: {e}")
+            self.logger.error(f"Error in memory flush: {e}")
     
     async def _cleanup_old_data(self):
         """Clean up old data to prevent database bloat"""

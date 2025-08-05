@@ -1,0 +1,101 @@
+{
+  "test_summary": {
+    "total_tests": 10,
+    "successful_tests": 0,
+    "failed_tests": 10,
+    "timestamp": "2025-08-05T21:36:48.291930",
+    "method": "python_requests_no_curl"
+  },
+  "results": [
+    {
+      "endpoint": "/api/status",
+      "url": "http://localhost:8001/api/status",
+      "status_code": null,
+      "response_time": 5.008,
+      "success": false,
+      "error": "Timeout",
+      "description": "System Status"
+    },
+    {
+      "endpoint": "/api/network/status",
+      "url": "http://localhost:8001/api/network/status",
+      "status_code": null,
+      "response_time": 5.005,
+      "success": false,
+      "error": "Timeout",
+      "description": "Network Status"
+    },
+    {
+      "endpoint": "/api/atc-positions",
+      "url": "http://localhost:8001/api/atc-positions",
+      "status_code": null,
+      "response_time": 5.005,
+      "success": false,
+      "error": "Timeout",
+      "description": "ATC Positions"
+    },
+    {
+      "endpoint": "/api/flights",
+      "url": "http://localhost:8001/api/flights",
+      "status_code": null,
+      "response_time": 5.003,
+      "success": false,
+      "error": "Timeout",
+      "description": "Active Flights"
+    },
+    {
+      "endpoint": "/api/health/comprehensive",
+      "url": "http://localhost:8001/api/health/comprehensive",
+      "status_code": null,
+      "response_time": 5.004,
+      "success": false,
+      "error": "Timeout",
+      "description": "Health Check"
+    },
+    {
+      "endpoint": "/api/database/status",
+      "url": "http://localhost:8001/api/database/status",
+      "status_code": null,
+      "response_time": 5.005,
+      "success": false,
+      "error": "Timeout",
+      "description": "Database Status"
+    },
+    {
+      "endpoint": "/api/performance/metrics",
+      "url": "http://localhost:8001/api/performance/metrics",
+      "status_code": null,
+      "response_time": 5.004,
+      "success": false,
+      "error": "Timeout",
+      "description": "Performance Metrics"
+    },
+    {
+      "endpoint": "/api/traffic/movements/KJFK",
+      "url": "http://localhost:8001/api/traffic/movements/KJFK",
+      "status_code": null,
+      "response_time": 5.007,
+      "success": false,
+      "error": "Timeout",
+      "description": "Traffic Movements (KJFK)"
+    },
+    {
+      "endpoint": "/api/airports/KJFK/coordinates",
+      "url": "http://localhost:8001/api/airports/KJFK/coordinates",
+      "status_code": null,
+      "response_time": 5.004,
+      "success": false,
+      "error": "Timeout",
+      "description": "Airport Coordinates (KJFK)"
+    },
+    {
+      "endpoint": "/api/vatsim/ratings",
+      "url": "http://localhost:8001/api/vatsim/ratings",
+      "status_code": null,
+      "response_time": 5.004,
+      "success": false,
+      "error": "Timeout",
+      "description": "VATSIM Ratings"
+    }
+  ]
+}

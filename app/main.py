@@ -56,6 +56,7 @@ from .utils.error_monitoring import start_error_monitoring
 from .api.error_monitoring import router as error_monitoring_router
 from .utils.error_handling import handle_service_errors, log_operation, create_error_handler
 from .utils.exceptions import APIError, DatabaseError, CacheError
+from .utils.health_monitor import health_monitor
 
 # Configure logging
 logger = get_logger_for_module(__name__)
@@ -662,7 +663,7 @@ async def options_performance_metrics():
 @app.get("/api/performance/optimize")
 @handle_service_errors
 @log_operation("optimize_performance")
-async def optimize_performance():
+async def optimize_performance(db: Session = Depends(get_db)):
     """Trigger performance optimization"""
     resource_manager = get_resource_manager()
     query_optimizer = get_query_optimizer()
@@ -671,7 +672,7 @@ async def optimize_performance():
     memory_optimization = await resource_manager.optimize_memory_usage()
     
     # Optimize database queries
-    db_optimization = await query_optimizer.optimize_database_queries(None)
+    db_optimization = await query_optimizer.optimize_database_queries(db)
     
     return {
         "memory_optimization": memory_optimization,
@@ -832,6 +833,41 @@ async def get_database_tables(db: Session = Depends(get_db)):
         "total_tables": len(tables),
         "timestamp": datetime.utcnow().isoformat()
     }
+
+@app.get("/api/health/comprehensive")
+@handle_service_errors
+@log_operation("get_comprehensive_health")
+async def get_comprehensive_health():
+    """Get comprehensive health report for all system components"""
+    return await health_monitor.get_comprehensive_health_report()
+
+@app.get("/api/health/endpoints")
+@handle_service_errors
+@log_operation("get_endpoint_health")
+async def get_endpoint_health():
+    """Get health status of all API endpoints"""
+    return await health_monitor.check_api_endpoints()
+
+@app.get("/api/health/database")
+@handle_service_errors
+@log_operation("get_database_health")
+async def get_database_health():
+    """Get database health status"""
+    return await health_monitor.check_database_health()
+
+@app.get("/api/health/system")
+@handle_service_errors
+@log_operation("get_system_health")
+async def get_system_health():
+    """Get system resource health status"""
+    return await health_monitor.check_system_resources()
+
+@app.get("/api/health/data-freshness")
+@handle_service_errors
+@log_operation("get_data_freshness")
+async def get_data_freshness():
+    """Get data freshness status"""
+    return await health_monitor.check_data_freshness()
 
 if __name__ == "__main__":
     import uvicorn
