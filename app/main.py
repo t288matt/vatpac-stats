@@ -57,6 +57,8 @@ from .services.cache_service import get_cache_service
 from .services.query_optimizer import get_query_optimizer
 from .services.resource_manager import get_resource_manager
 from .utils.airport_utils import get_airports_by_region, get_region_statistics, get_airport_coordinates
+from .utils.error_monitoring import start_error_monitoring
+from .api.error_monitoring import router as error_monitoring_router
 
 # Configure logging
 logger = get_logger_for_module(__name__)
@@ -89,6 +91,9 @@ async def lifespan(app: FastAPI):
     
     # Initialize resource manager
     resource_manager = get_resource_manager()
+    
+    # Start error monitoring
+    await start_error_monitoring()
     
     # Start background task
     background_task = asyncio.create_task(background_data_ingestion())
@@ -124,6 +129,9 @@ app.add_middleware(
 
 # Mount static files for frontend
 app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
+
+# Include error monitoring router
+app.include_router(error_monitoring_router)
 
 @app.get("/dashboard")
 async def get_dashboard():
