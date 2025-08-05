@@ -98,6 +98,11 @@ class DataService:
             else:
                 sectors_data = []
             
+            if hasattr(vatsim_data, 'transceivers'):
+                transceivers_data = [asdict(transceiver) for transceiver in vatsim_data.transceivers]
+            else:
+                transceivers_data = []
+            
             # Process ATC positions in memory
             atc_positions_count = await self._process_atc_positions_in_memory(atc_positions_data)
             
@@ -107,6 +112,9 @@ class DataService:
             # Process sectors (if any)
             sectors_count = await self._process_sectors_in_memory(sectors_data)
             
+            # Process transceivers in memory
+            transceivers_count = await self._process_transceivers_in_memory(transceivers_data)
+            
             # Detect traffic movements in memory
             movements_count = await self._detect_movements_in_memory()
             
@@ -114,6 +122,7 @@ class DataService:
                 'atc_positions': atc_positions_count,
                 'flights': flights_count,
                 'sectors': sectors_count,
+                'transceivers': transceivers_count,
                 'movements': movements_count
             })
             
@@ -219,17 +228,83 @@ class DataService:
             logger.error(f"Error processing sectors in memory: {e}")
             return 0
     
+    async def _process_transceivers_in_memory(self, transceivers_data: List[Dict[str, Any]]) -> int:
+        """Process transceivers in memory cache"""
+        try:
+            processed_count = 0
+            
+            for transceiver_data in transceivers_data:
+                callsign = transceiver_data.get('callsign', '')
+                transceiver_id = transceiver_data.get('transceiver_id', 0)
+                
+                # Create unique key for transceiver
+                transceiver_key = f"{callsign}_{transceiver_id}"
+                
+                # Update memory cache
+                self.cache['memory_buffer']['transceivers'].append({
+                    'callsign': callsign,
+                    'transceiver_id': transceiver_id,
+                    'frequency': transceiver_data.get('frequency', 0),
+                    'position_lat': transceiver_data.get('position_lat'),
+                    'position_lon': transceiver_data.get('position_lon'),
+                    'height_msl': transceiver_data.get('height_msl'),
+                    'height_agl': transceiver_data.get('height_agl'),
+                    'entity_type': transceiver_data.get('entity_type', 'flight'),
+                    'entity_id': transceiver_data.get('entity_id'),
+                    'timestamp': datetime.utcnow()
+                })
+                processed_count += 1
+            
+            logger.info(f"Processed {processed_count} transceivers in memory")
+            return processed_count
+            
+        except Exception as e:
+            logger.error(f"Error processing transceivers in memory: {e}")
+            return 0
+    
     async def _detect_movements_in_memory(self) -> int:
         """Detect traffic movements using memory data"""
         try:
             # Use memory cache for movement detection
             movements_count = 0
             
-            # Simple movement detection based on cached flight data
-            for callsign, flight_data in self.cache['flights'].items():
-                # Check if flight is near any configured airports
-                # This is a simplified version - full logic would be more complex
-                pass
+            # Convert cached flight data to Flight objects for movement detection
+            db = SessionLocal()
+            try:
+                # Get all active flights from database for movement detection
+                active_flights = db.query(Flight).filter(Flight.status == 'active').all()
+                
+                if active_flights:
+                    # Use TrafficAnalysisService to detect movements
+                    traffic_service = TrafficAnalysisService(db)
+                    detected_movements = traffic_service.detect_movements(active_flights)
+                    
+                    # Store detected movements
+                    for movement in detected_movements:
+                        # Check if this movement already exists (avoid duplicates)
+                        existing = db.query(TrafficMovement).filter(
+                            and_(
+                                TrafficMovement.aircraft_callsign == movement.aircraft_callsign,
+                                TrafficMovement.airport_code == movement.airport_code,
+                                TrafficMovement.movement_type == movement.movement_type,
+                                TrafficMovement.timestamp >= datetime.utcnow() - timedelta(minutes=5)
+                            )
+                        ).first()
+                        
+                        if not existing:
+                            db.add(movement)
+                            movements_count += 1
+                    
+                    # Commit movements to database
+                    if movements_count > 0:
+                        db.commit()
+                        logger.info(f"Detected and stored {movements_count} new traffic movements")
+                
+            except Exception as e:
+                db.rollback()
+                logger.error(f"Error detecting movements: {e}")
+            finally:
+                db.close()
             
             return movements_count
             
@@ -276,6 +351,32 @@ class DataService:
                 if flight_batch:
                     db.bulk_save_objects(flight_batch)
                 
+                # BATCH 3: Transceivers (batch write for efficiency)
+                from ..models import Transceiver
+                transceiver_batch = []
+                for transceiver_data in self.cache['memory_buffer']['transceivers']:
+                    # Check if transceiver already exists
+                    existing = db.query(Transceiver).filter(
+                        and_(
+                            Transceiver.callsign == transceiver_data['callsign'],
+                            Transceiver.transceiver_id == transceiver_data['transceiver_id']
+                        )
+                    ).first()
+                    
+                    if existing:
+                        # Update existing transceiver
+                        for key, value in transceiver_data.items():
+                            if hasattr(existing, key):
+                                setattr(existing, key, value)
+                    else:
+                        # Create new transceiver
+                        transceiver = Transceiver(**transceiver_data)
+                        transceiver_batch.append(transceiver)
+                
+                # Bulk insert transceivers
+                if transceiver_batch:
+                    db.bulk_save_objects(transceiver_batch)
+                
                 # Single commit for all changes (reduces disk writes)
                 db.commit()
                 self.write_count += 1
@@ -283,6 +384,7 @@ class DataService:
                 # Clear memory cache after successful write
                 self.cache['atc_positions'].clear()
                 self.cache['flights'].clear()
+                self.cache['memory_buffer']['transceivers'].clear()
                 
                 logger.info(f"Flushed memory cache to disk. Total writes: {self.write_count}")
                 

@@ -32,6 +32,11 @@ class CacheService:
             'traffic_movements': 300,      # 5 minutes
             'airport_data': 600,           # 10 minutes
             'analytics_data': 3600,        # 1 hour
+            'atc_positions:active': 30,     # 30 seconds
+            'atc_positions:by_controller_id': 30,  # 30 seconds
+            'vatsim:ratings': 3600,        # 1 hour (static data)
+            'airports:region': 600,        # 10 minutes (static data)
+            'airport:coords': 3600,        # 1 hour (static data)
         }
         
     async def initialize(self):

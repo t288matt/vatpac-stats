@@ -338,7 +338,17 @@ async def get_network_status(db: Session = Depends(get_db)):
 async def get_atc_positions(db: Session = Depends(get_db)):
     """Get active ATC positions with caching"""
     try:
-        # Get from database directly (no cache for now)
+        # Try to get from cache first
+        cache_service = await get_cache_service()
+        cached_data = await cache_service.get_cached_data('atc_positions:active')
+        
+        if cached_data:
+            return {
+                **cached_data,
+                "cached": True
+            }
+        
+        # Get from database if not cached
         atc_positions = db.query(ATCPosition).all()
         
         atc_positions_data = []
@@ -369,12 +379,17 @@ async def get_atc_positions(db: Session = Depends(get_db)):
         # Count online positions
         online_count = len([pos for pos in atc_positions_data if pos["status"] == "online"])
         
-        return {
+        result = {
             "positions": atc_positions_data,
             "total": len(atc_positions_data),
             "online": online_count,
             "cached": False
         }
+        
+        # Cache the result for 30 seconds
+        await cache_service.set_cached_data('atc_positions:active', result, 30)
+        
+        return result
         
     except Exception as e:
         logger.error(f"Error getting ATC positions: {e}")
@@ -384,6 +399,16 @@ async def get_atc_positions(db: Session = Depends(get_db)):
 async def get_atc_positions_by_controller_id(db: Session = Depends(get_db)):
     """Get ATC positions grouped by controller ID (showing multiple positions per controller)"""
     try:
+        # Try to get from cache first
+        cache_service = await get_cache_service()
+        cached_data = await cache_service.get_cached_data('atc_positions:by_controller_id')
+        
+        if cached_data:
+            return {
+                **cached_data,
+                "cached": True
+            }
+        
         # Get all ATC positions
         atc_positions = db.query(ATCPosition).all()
         
@@ -429,11 +454,16 @@ async def get_atc_positions_by_controller_id(db: Session = Depends(get_db)):
         for controller_id, data in atc_positions_by_controller_id.items():
             data["facilities"] = list(data["facilities"])
         
-        return {
+        result = {
             "atc_positions_by_controller_id": list(atc_positions_by_controller_id.values()),
             "total_unique_controllers": len(atc_positions_by_controller_id),
             "total_positions": sum(data["total_positions"] for data in atc_positions_by_controller_id.values())
         }
+        
+        # Cache the result for 30 seconds
+        await cache_service.set_cached_data('atc_positions:by_controller_id', result, 30)
+        
+        return result
         
     except Exception as e:
         logger.error(f"Error getting ATC positions by controller ID: {e}")
@@ -443,8 +473,18 @@ async def get_atc_positions_by_controller_id(db: Session = Depends(get_db)):
 async def get_vatsim_ratings():
     """Get all available VATSIM controller ratings"""
     try:
+        # Try to get from cache first (static data, long cache)
+        cache_service = await get_cache_service()
+        cached_data = await cache_service.get_cached_data('vatsim:ratings')
+        
+        if cached_data:
+            return {
+                **cached_data,
+                "cached": True
+            }
+        
         ratings = get_all_ratings()
-        return {
+        result = {
             "ratings": ratings,
             "total_ratings": len(ratings),
             "description": "VATSIM controller ratings from 1-15",
@@ -452,6 +492,11 @@ async def get_vatsim_ratings():
             "known_ratings": [1, 2, 3, 4, 5, 8, 10, 11],
             "unknown_ratings": [6, 7, 9, 12, 13, 14, 15]
         }
+        
+        # Cache the result for 1 hour (static data)
+        await cache_service.set_cached_data('vatsim:ratings', result, 3600)
+        
+        return result
     except Exception as e:
         logger.error(f"Error getting VATSIM ratings: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -935,13 +980,29 @@ async def execute_database_query(
 async def get_airports_by_region_api(region: str = "Australia"):
     """Get airports for a specific region"""
     try:
+        # Try to get from cache first (static data, long cache)
+        cache_service = await get_cache_service()
+        cache_key = f'airports:region:{region}'
+        cached_data = await cache_service.get_cached_data(cache_key)
+        
+        if cached_data:
+            return {
+                **cached_data,
+                "cached": True
+            }
+        
         stats = get_region_statistics(region)
-        return {
+        result = {
             "region": region,
             "total_airports": stats["total_airports"],
             "airports": stats["airports"],
             "timestamp": datetime.utcnow().isoformat()
         }
+        
+        # Cache the result for 10 minutes (static data)
+        await cache_service.set_cached_data(cache_key, result, 600)
+        
+        return result
     except Exception as e:
         logger.error(f"Error getting airports for region {region}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -950,16 +1011,32 @@ async def get_airports_by_region_api(region: str = "Australia"):
 async def get_airport_coordinates_api(airport_code: str):
     """Get coordinates for a specific airport"""
     try:
+        # Try to get from cache first (static data, long cache)
+        cache_service = await get_cache_service()
+        cache_key = f'airport:coords:{airport_code.upper()}'
+        cached_data = await cache_service.get_cached_data(cache_key)
+        
+        if cached_data:
+            return {
+                **cached_data,
+                "cached": True
+            }
+        
         coords = get_airport_coordinates(airport_code.upper())
         if coords is None:
             raise HTTPException(status_code=404, detail=f"Airport {airport_code} not found")
         
-        return {
+        result = {
             "airport_code": airport_code.upper(),
             "latitude": coords[0],
             "longitude": coords[1],
             "timestamp": datetime.utcnow().isoformat()
         }
+        
+        # Cache the result for 1 hour (static data)
+        await cache_service.set_cached_data(cache_key, result, 3600)
+        
+        return result
     except HTTPException:
         raise
     except Exception as e:

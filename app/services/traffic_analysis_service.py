@@ -152,8 +152,8 @@ class TrafficAnalysisService:
                 # Check if this movement was already recorded recently
                 recent_movement = self.db.query(TrafficMovement).filter(
                     and_(
-                        TrafficMovement.callsign == flight.callsign,
-                        TrafficMovement.airport_icao == flight.departure.upper(),
+                        TrafficMovement.aircraft_callsign == flight.callsign,
+                        TrafficMovement.airport_code == flight.departure.upper(),
                         TrafficMovement.movement_type == 'departure',
                         TrafficMovement.timestamp >= datetime.utcnow() - timedelta(minutes=5)
                     )
@@ -163,14 +163,14 @@ class TrafficAnalysisService:
                     confidence = self._calculate_departure_confidence(flight, distance, altitude_ok, speed_ok)
                     
                     movement = TrafficMovement(
-                        callsign=flight.callsign,
-                        airport_icao=flight.departure.upper(),
+                        aircraft_callsign=flight.callsign,
+                        airport_code=flight.departure.upper(),
                         movement_type='departure',
                         aircraft_type=flight.aircraft_type,
-                        pilot_name=flight.pilot_name,
-                        confidence_score=confidence,
-                        detection_method='position',
-                        flight_id=flight.id
+                        timestamp=datetime.utcnow(),
+                        altitude=flight.altitude,
+                        speed=flight.speed,
+                        heading=flight.heading
                     )
                     
                     return movement
@@ -202,8 +202,8 @@ class TrafficAnalysisService:
                 # Check if this movement was already recorded recently
                 recent_movement = self.db.query(TrafficMovement).filter(
                     and_(
-                        TrafficMovement.callsign == flight.callsign,
-                        TrafficMovement.airport_icao == flight.arrival.upper(),
+                        TrafficMovement.aircraft_callsign == flight.callsign,
+                        TrafficMovement.airport_code == flight.arrival.upper(),
                         TrafficMovement.movement_type == 'arrival',
                         TrafficMovement.timestamp >= datetime.utcnow() - timedelta(minutes=5)
                     )
@@ -213,14 +213,14 @@ class TrafficAnalysisService:
                     confidence = self._calculate_arrival_confidence(flight, distance, altitude_ok, speed_ok)
                     
                     movement = TrafficMovement(
-                        callsign=flight.callsign,
-                        airport_icao=flight.arrival.upper(),
+                        aircraft_callsign=flight.callsign,
+                        airport_code=flight.arrival.upper(),
                         movement_type='arrival',
                         aircraft_type=flight.aircraft_type,
-                        pilot_name=flight.pilot_name,
-                        confidence_score=confidence,
-                        detection_method='position',
-                        flight_id=flight.id
+                        timestamp=datetime.utcnow(),
+                        altitude=flight.altitude,
+                        speed=flight.speed,
+                        heading=flight.heading
                     )
                     
                     return movement
@@ -264,35 +264,37 @@ class TrafficAnalysisService:
         
         return min(confidence, 1.0)
     
-    def get_movements_by_airport(self, airport_icao: str, hours: int = 24) -> List[Dict[str, Any]]:
+    def get_movements_by_airport(self, airport_code: str, hours: int = 24) -> List[Dict[str, Any]]:
         """Get movements for a specific airport within time range"""
         try:
             cutoff_time = datetime.utcnow() - timedelta(hours=hours)
             
             movements = self.db.query(TrafficMovement).filter(
                 and_(
-                    TrafficMovement.airport_icao == airport_icao.upper(),
-                    TrafficMovement.timestamp >= cutoff_time,
-                    TrafficMovement.confidence_score >= self.config.get('confidence_threshold', 0.7)
+                    TrafficMovement.airport_code == airport_code.upper(),
+                    TrafficMovement.timestamp >= cutoff_time
                 )
             ).order_by(desc(TrafficMovement.timestamp)).all()
             
-            return [
-                {
-                    'id': m.id,
-                    'callsign': m.callsign,
-                    'movement_type': m.movement_type,
-                    'aircraft_type': m.aircraft_type,
-                    'pilot_name': m.pilot_name,
-                    'timestamp': m.timestamp.isoformat(),
-                    'confidence_score': m.confidence_score,
-                    'detection_method': m.detection_method
-                }
-                for m in movements
-            ]
-        
+            movements_data = []
+            for movement in movements:
+                movements_data.append({
+                    "id": movement.id,
+                    "aircraft_callsign": movement.aircraft_callsign,
+                    "airport_code": movement.airport_code,
+                    "movement_type": movement.movement_type,
+                    "aircraft_type": movement.aircraft_type,
+                    "timestamp": movement.timestamp.isoformat() if movement.timestamp else None,
+                    "runway": movement.runway,
+                    "altitude": movement.altitude,
+                    "speed": movement.speed,
+                    "heading": movement.heading
+                })
+            
+            return movements_data
+            
         except Exception as e:
-            logger.error(f"Error getting movements for {airport_icao}: {e}")
+            logger.error(f"Error getting movements for {airport_code}: {e}")
             return []
     
     def get_movements_summary(self, region: str = 'Australia', hours: int = 24) -> Dict[str, Any]:
@@ -313,7 +315,7 @@ class TrafficAnalysisService:
             for airport in airports:
                 movements = self.db.query(TrafficMovement).filter(
                     and_(
-                        TrafficMovement.airport_icao == airport.icao_code,
+                        TrafficMovement.airport_code == airport.icao_code,
                         TrafficMovement.timestamp >= cutoff_time,
                         TrafficMovement.confidence_score >= self.config.get('confidence_threshold', 0.7)
                     )
@@ -348,7 +350,7 @@ class TrafficAnalysisService:
                 func.count(TrafficMovement.id).label('count')
             ).filter(
                 and_(
-                    TrafficMovement.airport_icao == airport_icao.upper(),
+                    TrafficMovement.airport_code == airport_icao.upper(),
                     TrafficMovement.timestamp >= cutoff_time,
                     TrafficMovement.confidence_score >= self.config.get('confidence_threshold', 0.7)
                 )

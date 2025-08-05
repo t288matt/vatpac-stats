@@ -12,8 +12,8 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 
 from .database import get_db, SessionLocal
-from .models import ATCPosition, Flight, Sector
-from .vatsim_client import VATSIMClient
+from .models import ATCPosition, Flight, Sector, Transceiver
+from .services.vatsim_service import get_vatsim_service
 
 logger = logging.getLogger(__name__)
 
@@ -21,28 +21,31 @@ class DataIngestionService:
     """Service to ingest VATSIM data into our database"""
     
     def __init__(self):
-        self.vatsim_client = VATSIMClient()
+        self.vatsim_service = get_vatsim_service()
     
     async def ingest_current_data(self):
         """Ingest current VATSIM data into database"""
         db = SessionLocal()
         try:
             # Fetch current VATSIM data
-            data = await self.vatsim_client.get_current_data()
+            data = await self.vatsim_service.get_current_data()
             
             # Process ATC positions
-            await self._process_atc_positions(data.get("atc_positions", []), db)
+            await self._process_atc_positions(data.controllers, db)
             
             # Process flights
-            await self._process_flights(data.get("flights", []), db)
+            await self._process_flights(data.flights, db)
             
             # Process sectors (if available)
-            await self._process_sectors(data.get("sectors", []), db)
+            await self._process_sectors(data.sectors, db)
+            
+            # Process transceivers (if available)
+            await self._process_transceivers(data.transceivers, db)
             
             # Commit all changes at once
             db.commit()
             
-            logger.info(f"Data ingestion completed: {len(data.get('atc_positions', []))} ATC positions, {len(data.get('flights', []))} flights")
+            logger.info(f"Data ingestion completed: {len(data.controllers)} ATC positions, {len(data.flights)} flights, {len(data.transceivers)} transceivers")
             
         except Exception as e:
             logger.error(f"Error during data ingestion: {e}")
@@ -112,10 +115,6 @@ class DataIngestionService:
                 route = flight_data.route
                 altitude = flight_data.altitude
                 speed = flight_data.speed
-                heading = flight_data.heading
-                ground_speed = flight_data.ground_speed
-                vertical_speed = flight_data.vertical_speed
-                squawk = flight_data.squawk
                 
                 # Position data - store as separate lat/lng fields
                 position_lat = flight_data.position.get("lat", 0) if flight_data.position else 0
@@ -155,10 +154,6 @@ class DataIngestionService:
                     existing_flight.route = route
                     existing_flight.altitude = altitude
                     existing_flight.speed = speed
-                    existing_flight.heading = heading
-                    existing_flight.ground_speed = ground_speed
-                    existing_flight.vertical_speed = vertical_speed
-                    existing_flight.squawk = squawk
                     existing_flight.position_lat = position_lat
                     existing_flight.position_lng = position_lng
                     existing_flight.atc_position_id = atc_position_id
@@ -173,10 +168,6 @@ class DataIngestionService:
                         route=route,
                         altitude=altitude,
                         speed=speed,
-                        heading=heading,
-                        ground_speed=ground_speed,
-                        vertical_speed=vertical_speed,
-                        squawk=squawk,
                         position_lat=position_lat,
                         position_lng=position_lng,
                         atc_position_id=atc_position_id,
@@ -222,6 +213,59 @@ class DataIngestionService:
             logger.error(f"Error processing sectors: {e}")
             raise
     
+    async def _process_transceivers(self, transceivers_data: List, db: Session):
+        """Process and store transceiver data"""
+        try:
+            for transceiver_data in transceivers_data:
+                # Extract transceiver information from dataclass
+                callsign = transceiver_data.callsign
+                transceiver_id = transceiver_data.transceiver_id
+                frequency = transceiver_data.frequency
+                position_lat = transceiver_data.position_lat
+                position_lon = transceiver_data.position_lon
+                height_msl = transceiver_data.height_msl
+                height_agl = transceiver_data.height_agl
+                entity_type = transceiver_data.entity_type
+                entity_id = transceiver_data.entity_id
+                
+                # Check if transceiver already exists for this callsign and transceiver_id
+                existing_transceiver = db.query(Transceiver).filter(
+                    Transceiver.callsign == callsign,
+                    Transceiver.transceiver_id == transceiver_id
+                ).first()
+                
+                if existing_transceiver:
+                    # Update existing transceiver
+                    existing_transceiver.frequency = frequency
+                    existing_transceiver.position_lat = position_lat
+                    existing_transceiver.position_lon = position_lon
+                    existing_transceiver.height_msl = height_msl
+                    existing_transceiver.height_agl = height_agl
+                    existing_transceiver.entity_type = entity_type
+                    existing_transceiver.entity_id = entity_id
+                    existing_transceiver.timestamp = datetime.utcnow()
+                else:
+                    # Create new transceiver
+                    new_transceiver = Transceiver(
+                        callsign=callsign,
+                        transceiver_id=transceiver_id,
+                        frequency=frequency,
+                        position_lat=position_lat,
+                        position_lon=position_lon,
+                        height_msl=height_msl,
+                        height_agl=height_agl,
+                        entity_type=entity_type,
+                        entity_id=entity_id,
+                        timestamp=datetime.utcnow()
+                    )
+                    db.add(new_transceiver)
+            
+            logger.info(f"Processed {len(transceivers_data)} transceivers")
+            
+        except Exception as e:
+            logger.error(f"Error processing transceivers: {e}")
+            raise
+    
     async def cleanup_old_data(self):
         """Clean up old data (flights that are no longer active)"""
         db = SessionLocal()
@@ -255,7 +299,7 @@ class DataIngestionService:
     
     async def close(self):
         """Close the VATSIM client"""
-        await self.vatsim_client.close()
+        await self.vatsim_service.close()
 
 # Background task for continuous data ingestion
 async def background_data_ingestion():

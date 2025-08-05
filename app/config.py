@@ -35,6 +35,7 @@ class DatabaseConfig:
 class VATSIMConfig:
     """VATSIM API configuration with no hardcoding."""
     api_url: str
+    transceivers_api_url: str
     timeout: int = 30
     retry_attempts: int = 3
     refresh_interval: int = 30
@@ -45,6 +46,7 @@ class VATSIMConfig:
         """Load VATSIM configuration from environment variables."""
         return cls(
             api_url=os.getenv("VATSIM_API_URL", "https://data.vatsim.net/v3/vatsim-data.json"),
+            transceivers_api_url=os.getenv("VATSIM_TRANSCEIVERS_API_URL", "https://data.vatsim.net/v3/transceivers-data.json"),
             timeout=int(os.getenv("VATSIM_API_TIMEOUT", "30")),
             retry_attempts=int(os.getenv("VATSIM_API_RETRY_ATTEMPTS", "3")),
             refresh_interval=int(os.getenv("VATSIM_DATA_REFRESH_INTERVAL", "30")),
@@ -320,37 +322,6 @@ class PilotConfig:
 
 
 @dataclass
-class UnattendedDetectionConfig:
-    """Unattended session detection configuration with no hardcoding."""
-    ground_level_low_speed_enabled: bool = True
-    ground_level_max_altitude_ft: int = 1000
-    ground_level_max_speed_kts: int = 25
-    ground_level_min_duration_minutes: int = 20
-    ground_level_airport_distance_nm: int = 5
-    
-    long_flight_local_time_enabled: bool = True
-    long_flight_min_duration_hours: int = 4
-    long_flight_local_time_start_hour: int = 1
-    long_flight_local_time_end_hour: int = 5
-    
-    @classmethod
-    def from_env(cls):
-        """Load unattended detection configuration from environment variables."""
-        return cls(
-            ground_level_low_speed_enabled=os.getenv("UNATTENDED_GROUND_LEVEL_ENABLED", "true").lower() == "true",
-            ground_level_max_altitude_ft=int(os.getenv("UNATTENDED_GROUND_LEVEL_MAX_ALTITUDE_FT", "1000")),
-            ground_level_max_speed_kts=int(os.getenv("UNATTENDED_GROUND_LEVEL_MAX_SPEED_KTS", "25")),
-            ground_level_min_duration_minutes=int(os.getenv("UNATTENDED_GROUND_LEVEL_MIN_DURATION_MINUTES", "20")),
-            ground_level_airport_distance_nm=int(os.getenv("UNATTENDED_GROUND_LEVEL_AIRPORT_DISTANCE_NM", "5")),
-            
-            long_flight_local_time_enabled=os.getenv("UNATTENDED_LONG_FLIGHT_ENABLED", "true").lower() == "true",
-            long_flight_min_duration_hours=int(os.getenv("UNATTENDED_LONG_FLIGHT_MIN_DURATION_HOURS", "4")),
-            long_flight_local_time_start_hour=int(os.getenv("UNATTENDED_LONG_FLIGHT_START_HOUR", "1")),
-            long_flight_local_time_end_hour=int(os.getenv("UNATTENDED_LONG_FLIGHT_END_HOUR", "5"))
-        )
-
-
-@dataclass
 class FeatureFlags:
     """Feature flags with no hardcoding."""
     traffic_analysis: bool = True
@@ -360,7 +331,6 @@ class FeatureFlags:
     alerts: bool = True
     real_time_updates: bool = True
     background_processing: bool = True
-    unattended_detection: bool = True
     
     @classmethod
     def from_env(cls):
@@ -372,8 +342,7 @@ class FeatureFlags:
             traffic_prediction=os.getenv("FEATURE_TRAFFIC_PREDICTION", "true").lower() == "true",
             alerts=os.getenv("FEATURE_ALERTS", "true").lower() == "true",
             real_time_updates=os.getenv("FEATURE_REAL_TIME_UPDATES", "true").lower() == "true",
-            background_processing=os.getenv("FEATURE_BACKGROUND_PROCESSING", "true").lower() == "true",
-            unattended_detection=os.getenv("FEATURE_UNATTENDED_DETECTION", "true").lower() == "true"
+            background_processing=os.getenv("FEATURE_BACKGROUND_PROCESSING", "true").lower() == "true"
         )
 
 
@@ -387,7 +356,6 @@ class AppConfig:
     api: APIConfig
     logging: LoggingConfig
     features: FeatureFlags
-    unattended_detection: UnattendedDetectionConfig
     airports: AirportConfig
     pilots: PilotConfig
     environment: str = "development"
@@ -403,7 +371,6 @@ class AppConfig:
             api=APIConfig.from_env(),
             logging=LoggingConfig.from_env(),
             features=FeatureFlags.from_env(),
-            unattended_detection=UnattendedDetectionConfig.from_env(),
             airports=AirportConfig.from_env(),
             pilots=PilotConfig.from_env(),
             environment=os.getenv("ENVIRONMENT", "development")

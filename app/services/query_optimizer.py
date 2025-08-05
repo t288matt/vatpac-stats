@@ -54,10 +54,12 @@ class QueryOptimizer:
                     "flight_count": len(atc_position.flights)
                 })
             
+            logger.info(f"Retrieved {len(atc_positions_data)} active ATC positions")
             return atc_positions_data
             
         except Exception as e:
             logger.error(f"Error in optimized ATC positions query: {e}")
+            # Return empty list only on actual errors, not when no data is found
             return []
     
     async def get_active_flights_optimized(self, db: Session) -> List[Dict[str, Any]]:
@@ -91,10 +93,12 @@ class QueryOptimizer:
                     "sector_name": flight.sector.name if flight.sector else None
                 })
             
+            logger.info(f"Retrieved {len(flights_data)} active flights")
             return flights_data
             
         except Exception as e:
             logger.error(f"Error in optimized flights query: {e}")
+            # Return empty list only on actual errors, not when no data is found
             return []
     
     async def get_traffic_movements_optimized(
@@ -110,7 +114,7 @@ class QueryOptimizer:
             # Use optimized query with proper indexing
             movements = db.query(TrafficMovement).filter(
                 and_(
-                    TrafficMovement.airport_icao == airport_icao.upper(),
+                    TrafficMovement.airport_code == airport_icao.upper(),
                     TrafficMovement.timestamp >= cutoff_time
                 )
             ).order_by(desc(TrafficMovement.timestamp)).limit(500).all()
@@ -119,19 +123,21 @@ class QueryOptimizer:
             for movement in movements:
                 movements_data.append({
                     "id": movement.id,
-                    "airport_icao": movement.airport_icao,
-                    "flight_callsign": movement.flight_callsign,
+                    "airport_code": movement.airport_code,
+                    "aircraft_callsign": movement.aircraft_callsign,
                     "movement_type": movement.movement_type,
-                    "timestamp": movement.timestamp.isoformat(),
-                    "confidence": movement.confidence,
+                    "timestamp": movement.timestamp.isoformat() if movement.timestamp else None,
                     "altitude": movement.altitude,
-                    "speed": movement.speed
+                    "speed": movement.speed,
+                    "heading": movement.heading
                 })
             
+            logger.info(f"Retrieved {len(movements_data)} traffic movements for {airport_icao}")
             return movements_data
             
         except Exception as e:
-            logger.error(f"Error in optimized movements query: {e}")
+            logger.error(f"Error in optimized traffic movements query: {e}")
+            # Return empty list only on actual errors, not when no data is found
             return []
     
     async def get_network_stats_optimized(self, db: Session) -> Dict[str, Any]:
@@ -187,26 +193,26 @@ class QueryOptimizer:
             
             # Use aggregation query for better performance
             summary = db.query(
-                TrafficMovement.airport_icao,
+                TrafficMovement.airport_code,
                 TrafficMovement.movement_type,
                 func.count(TrafficMovement.id).label('count'),
-                func.avg(TrafficMovement.confidence).label('avg_confidence'),
                 func.avg(TrafficMovement.altitude).label('avg_altitude'),
                 func.avg(TrafficMovement.speed).label('avg_speed')
             ).filter(
                 and_(
-                    TrafficMovement.airport_icao == airport_icao.upper(),
+                    TrafficMovement.airport_code == airport_icao.upper(),
                     TrafficMovement.timestamp >= cutoff_time
                 )
             ).group_by(
-                TrafficMovement.airport_icao,
+                TrafficMovement.airport_code,
                 TrafficMovement.movement_type
             ).all()
             
             # Process results
             arrivals = 0
             departures = 0
-            total_confidence = 0
+            total_altitude = 0
+            total_speed = 0
             total_count = 0
             
             for row in summary:
@@ -215,30 +221,37 @@ class QueryOptimizer:
                 else:
                     departures = row.count
                 total_count += row.count
-                total_confidence += row.avg_confidence * row.count
+                total_altitude += (row.avg_altitude or 0) * row.count
+                total_speed += (row.avg_speed or 0) * row.count
             
-            avg_confidence = total_confidence / total_count if total_count > 0 else 0
+            avg_altitude = total_altitude / total_count if total_count > 0 else 0
+            avg_speed = total_speed / total_count if total_count > 0 else 0
+            
+            logger.info(f"Retrieved traffic summary for {airport_icao}: {arrivals} arrivals, {departures} departures")
             
             return {
                 "airport_icao": airport_icao,
-                "period_days": days,
                 "arrivals": arrivals,
                 "departures": departures,
                 "total_movements": total_count,
-                "avg_confidence": round(avg_confidence, 2),
+                "avg_altitude": round(avg_altitude, 2),
+                "avg_speed": round(avg_speed, 2),
+                "period_days": days,
                 "timestamp": datetime.utcnow().isoformat()
             }
             
         except Exception as e:
-            logger.error(f"Error in optimized airport summary query: {e}")
+            logger.error(f"Error in optimized airport traffic summary query: {e}")
             return {
                 "airport_icao": airport_icao,
-                "period_days": days,
                 "arrivals": 0,
                 "departures": 0,
                 "total_movements": 0,
-                "avg_confidence": 0,
-                "timestamp": datetime.utcnow().isoformat()
+                "avg_altitude": 0,
+                "avg_speed": 0,
+                "period_days": days,
+                "timestamp": datetime.utcnow().isoformat(),
+                "error": str(e)
             }
     
     async def get_sector_workload_optimized(self, db: Session) -> List[Dict[str, Any]]:
@@ -326,13 +339,84 @@ class QueryOptimizer:
             }
     
     async def _identify_slow_queries(self, db: Session) -> List[Dict[str, Any]]:
-        """Identify potentially slow queries"""
+        """Identify potentially slow queries using PostgreSQL performance views"""
         try:
-            # This would typically query database performance views
-            # For now, return empty list as placeholder
-            return []
+            # Query PostgreSQL's pg_stat_statements to identify slow queries
+            # This requires the pg_stat_statements extension to be enabled
+            slow_queries = []
+            
+            # Check if pg_stat_statements extension is available
+            try:
+                result = db.execute(text("""
+                    SELECT 
+                        query,
+                        calls,
+                        total_time,
+                        mean_time,
+                        rows
+                    FROM pg_stat_statements 
+                    WHERE mean_time > 100  -- Queries taking more than 100ms on average
+                    ORDER BY mean_time DESC 
+                    LIMIT 10
+                """))
+                
+                for row in result:
+                    slow_queries.append({
+                        "query": row.query[:200] + "..." if len(row.query) > 200 else row.query,
+                        "calls": row.calls,
+                        "total_time_ms": round(row.total_time, 2),
+                        "mean_time_ms": round(row.mean_time, 2),
+                        "rows_affected": row.rows
+                    })
+                    
+            except Exception as e:
+                # If pg_stat_statements is not available, use alternative approach
+                logger.warning(f"pg_stat_statements not available: {e}")
+                
+                # Alternative: Check for queries that might be slow based on table statistics
+                slow_queries = await self._identify_potential_slow_queries(db)
+            
+            return slow_queries
+            
         except Exception as e:
             logger.error(f"Error identifying slow queries: {e}")
+            return []
+    
+    async def _identify_potential_slow_queries(self, db: Session) -> List[Dict[str, Any]]:
+        """Identify potentially slow queries using table statistics"""
+        try:
+            potential_slow_queries = []
+            
+            # Check for tables with high row counts that might cause slow queries
+            result = db.execute(text("""
+                SELECT 
+                    schemaname,
+                    tablename,
+                    n_tup_ins as inserts,
+                    n_tup_upd as updates,
+                    n_tup_del as deletes,
+                    n_live_tup as live_rows,
+                    n_dead_tup as dead_rows
+                FROM pg_stat_user_tables 
+                WHERE n_live_tup > 10000  -- Tables with more than 10k rows
+                ORDER BY n_live_tup DESC
+            """))
+            
+            for row in result:
+                potential_slow_queries.append({
+                    "table": f"{row.schemaname}.{row.tablename}",
+                    "live_rows": row.live_rows,
+                    "dead_rows": row.dead_rows,
+                    "inserts": row.inserts,
+                    "updates": row.updates,
+                    "deletes": row.deletes,
+                    "recommendation": "Consider adding indexes or cleaning up dead rows"
+                })
+            
+            return potential_slow_queries
+            
+        except Exception as e:
+            logger.error(f"Error identifying potential slow queries: {e}")
             return []
 
 # Global query optimizer instance

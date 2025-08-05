@@ -229,4 +229,29 @@ class Event(Base):
     expected_traffic = Column(Integer, default=0)
     required_controllers = Column(Integer, default=0)
     status = Column(String(20), default="scheduled")  # scheduled, active, completed
-    notes = Column(Text, nullable=True) 
+    notes = Column(Text, nullable=True)
+
+
+class Transceiver(Base):
+    """Transceiver model for storing radio frequency and position data from VATSIM transceivers API"""
+    __tablename__ = "transceivers"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    callsign = Column(String(50), nullable=False, index=True)
+    transceiver_id = Column(Integer, nullable=False)  # ID from VATSIM API
+    frequency = Column(Integer, nullable=False)  # Frequency in Hz
+    position_lat = Column(Float, nullable=True)
+    position_lon = Column(Float, nullable=True)
+    height_msl = Column(Float, nullable=True)  # Height above mean sea level in meters
+    height_agl = Column(Float, nullable=True)  # Height above ground level in meters
+    entity_type = Column(String(20), nullable=False)  # 'flight' or 'atc'
+    entity_id = Column(Integer, nullable=True)  # Foreign key to flights.id or atc_positions.id
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Indexes for efficient queries
+    __table_args__ = (
+        Index('idx_transceivers_callsign_timestamp', 'callsign', 'timestamp'),
+        Index('idx_transceivers_entity_type', 'entity_type'),
+        Index('idx_transceivers_frequency', 'frequency'),
+        Index('idx_transceivers_timestamp', 'timestamp'),
+    ) 
