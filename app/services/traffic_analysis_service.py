@@ -53,18 +53,18 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, desc
-import logging
 
 from ..models import Flight, TrafficMovement, AirportConfig, MovementDetectionConfig
 from ..utils.logging import get_logger_for_module
-
-logger = get_logger_for_module(__name__)
+from ..utils.error_handling import handle_service_errors, log_operation, create_error_handler
+from ..utils.exceptions import DataProcessingError, ValidationError
 
 class TrafficAnalysisService:
     """Service for analyzing traffic movements and patterns"""
     
     def __init__(self, db: Session):
         self.db = db
+        self.error_handler = create_error_handler("traffic_analysis_service")
         self.config = self._load_detection_config()
     
     def _load_detection_config(self) -> Dict[str, Any]:
@@ -99,9 +99,11 @@ class TrafficAnalysisService:
             return config_dict
             
         except Exception as e:
-            logger.error(f"Error loading detection config: {e}")
+            self.error_handler.logger.error(f"Error loading detection config: {e}")
             return {}
     
+    @handle_service_errors
+    @log_operation("calculate_distance")
     def calculate_distance(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         """Calculate distance between two points in nautical miles"""
         try:
@@ -123,9 +125,11 @@ class TrafficAnalysisService:
             
             return distance
         except Exception as e:
-            logger.error(f"Error calculating distance: {e}")
+            self.error_handler.logger.error(f"Error calculating distance: {e}")
             return float('inf')
     
+    @handle_service_errors
+    @log_operation("get_airport_config")
     def get_airport_config(self, icao_code: str) -> Optional[AirportConfig]:
         """Get airport configuration for movement detection"""
         try:
@@ -136,9 +140,11 @@ class TrafficAnalysisService:
                 )
             ).first()
         except Exception as e:
-            logger.error(f"Error getting airport config for {icao_code}: {e}")
+            self.error_handler.logger.error(f"Error getting airport config for {icao_code}: {e}")
             return None
     
+    @handle_service_errors
+    @log_operation("detect_movements")
     def detect_movements(self, flights: List[Flight]) -> List[TrafficMovement]:
         """Detect traffic movements from current flight data"""
         movements = []
@@ -170,7 +176,7 @@ class TrafficAnalysisService:
                     movements.append(arrival_movement)
         
         except Exception as e:
-            logger.error(f"Error detecting movements: {e}")
+            self.error_handler.logger.error(f"Error detecting movements: {e}")
         
         return movements
     
@@ -220,7 +226,7 @@ class TrafficAnalysisService:
                     return movement
         
         except Exception as e:
-            logger.error(f"Error detecting departure for {flight.callsign}: {e}")
+            self.error_handler.logger.error(f"Error detecting departure for {flight.callsign}: {e}")
         
         return None
     
@@ -270,7 +276,7 @@ class TrafficAnalysisService:
                     return movement
         
         except Exception as e:
-            logger.error(f"Error detecting arrival for {flight.callsign}: {e}")
+            self.error_handler.logger.error(f"Error detecting arrival for {flight.callsign}: {e}")
         
         return None
     
@@ -338,7 +344,7 @@ class TrafficAnalysisService:
             return movements_data
             
         except Exception as e:
-            logger.error(f"Error getting movements for {airport_code}: {e}")
+            self.error_handler.logger.error(f"Error getting movements for {airport_code}: {e}")
             return []
     
     def get_movements_summary(self, region: str = 'Australia', hours: int = 24) -> Dict[str, Any]:
@@ -379,7 +385,7 @@ class TrafficAnalysisService:
             return summary
         
         except Exception as e:
-            logger.error(f"Error getting movements summary for {region}: {e}")
+            self.error_handler.logger.error(f"Error getting movements summary for {region}: {e}")
             return {}
     
     def get_traffic_trends(self, airport_icao: str, days: int = 7) -> Dict[str, Any]:
@@ -415,7 +421,7 @@ class TrafficAnalysisService:
             return trends
         
         except Exception as e:
-            logger.error(f"Error getting traffic trends for {airport_icao}: {e}")
+            self.error_handler.logger.error(f"Error getting traffic trends for {airport_icao}: {e}")
             return {}
 
 def get_traffic_analysis_service(db: Session) -> TrafficAnalysisService:
