@@ -72,6 +72,8 @@ import json
 
 from ..config import get_config, MLConfig
 from ..utils.logging import get_logger_for_module
+from ..utils.error_handling import handle_service_errors, log_operation, create_error_handler
+from ..utils.exceptions import DataProcessingError, ServiceError
 from ..database import get_db, SessionLocal
 from ..models import ATCPosition, Flight, Sector
 
@@ -143,7 +145,7 @@ class MLService:
         """Initialize ML service with configuration."""
         self.config = get_config()
         self.ml_config = self.config.ml
-        self.logger = get_logger_for_module(__name__)
+        self.error_handler = create_error_handler("ml_service")
         
         # Initialize ML models
         self.traffic_predictor = None
@@ -155,10 +157,12 @@ class MLService:
         self.model_dir = os.getenv("ML_MODEL_DIR", "./models")
         os.makedirs(self.model_dir, exist_ok=True)
     
+    @handle_service_errors
+    @log_operation("initialize_models")
     async def initialize_models(self):
         """Initialize and load ML models."""
         try:
-            self.logger.info("Initializing ML models")
+            self.error_handler.logger.info("Initializing ML models")
             
             # Load or create traffic prediction model
             self.traffic_predictor = await self._load_or_create_model(
@@ -186,14 +190,16 @@ class MLService:
                 )
             )
             
-            self.logger.info("ML models initialized successfully")
+            self.error_handler.logger.info("ML models initialized successfully")
             
         except Exception as e:
-            self.logger.exception("Failed to initialize ML models", extra={
+            self.error_handler.logger.exception("Failed to initialize ML models", extra={
                 "error": str(e)
             })
             raise MLServiceError(f"ML model initialization failed: {e}", "initialize_models")
     
+    @handle_service_errors
+    @log_operation("predict_traffic_demand")
     async def predict_traffic_demand(self, sector_name: str, hours_ahead: int = 4) -> TrafficPrediction:
         """
         Predict traffic demand for a sector using ML models.
@@ -206,7 +212,7 @@ class MLService:
             TrafficPrediction: ML-based traffic prediction
         """
         try:
-            self.logger.info(f"Predicting traffic demand for {sector_name}")
+            self.error_handler.logger.info(f"Predicting traffic demand for {sector_name}")
             
             db = SessionLocal()
             try:
@@ -251,12 +257,14 @@ class MLService:
                 db.close()
                 
         except Exception as e:
-            self.logger.exception("Traffic demand prediction failed", extra={
+            self.error_handler.logger.exception("Traffic demand prediction failed", extra={
                 "error": str(e),
                 "sector": sector_name
             })
             raise MLServiceError(f"Traffic prediction failed: {e}", "predict_traffic_demand")
     
+    @handle_service_errors
+    @log_operation("detect_anomalies")
     async def detect_anomalies(self) -> List[AnomalyDetection]:
         """
         Detect anomalies in current traffic patterns.
@@ -265,7 +273,7 @@ class MLService:
             List[AnomalyDetection]: List of detected anomalies
         """
         try:
-            self.logger.info("Detecting traffic anomalies")
+            self.error_handler.logger.info("Detecting traffic anomalies")
             
             db = SessionLocal()
             try:
@@ -300,18 +308,20 @@ class MLService:
                             
                             anomalies.append(anomaly)
                 
-                self.logger.info(f"Detected {len(anomalies)} anomalies")
+                self.error_handler.logger.info(f"Detected {len(anomalies)} anomalies")
                 return anomalies
                 
             finally:
                 db.close()
                 
         except Exception as e:
-            self.logger.exception("Anomaly detection failed", extra={
+            self.error_handler.logger.exception("Anomaly detection failed", extra={
                 "error": str(e)
             })
             raise MLServiceError(f"Anomaly detection failed: {e}", "detect_anomalies")
     
+    @handle_service_errors
+    @log_operation("recognize_patterns")
     async def recognize_patterns(self) -> List[PatternRecognition]:
         """
         Recognize patterns in traffic and controller behavior.
@@ -320,7 +330,7 @@ class MLService:
             List[PatternRecognition]: List of recognized patterns
         """
         try:
-            self.logger.info("Recognizing traffic patterns")
+            self.error_handler.logger.info("Recognizing traffic patterns")
             
             db = SessionLocal()
             try:
@@ -338,18 +348,20 @@ class MLService:
                 correlation_patterns = await self._detect_sector_correlations(db)
                 patterns.extend(correlation_patterns)
                 
-                self.logger.info(f"Recognized {len(patterns)} patterns")
+                self.error_handler.logger.info(f"Recognized {len(patterns)} patterns")
                 return patterns
                 
             finally:
                 db.close()
                 
         except Exception as e:
-            self.logger.exception("Pattern recognition failed", extra={
+            self.error_handler.logger.exception("Pattern recognition failed", extra={
                 "error": str(e)
             })
             raise MLServiceError(f"Pattern recognition failed: {e}", "recognize_patterns")
     
+    @handle_service_errors
+    @log_operation("optimize_position_assignment")
     async def optimize_position_assignment(self) -> List[OptimizationResult]:
         """
         Optimize position assignments using ML algorithms.
@@ -358,7 +370,7 @@ class MLService:
             List[OptimizationResult]: Optimization results
         """
         try:
-            self.logger.info("Optimizing position assignments")
+            self.error_handler.logger.info("Optimizing position assignments")
             
             db = SessionLocal()
             try:
@@ -392,22 +404,24 @@ class MLService:
                     
                     optimization_results.append(result)
                 
-                self.logger.info(f"Optimized {len(optimization_results)} positions")
+                self.error_handler.logger.info(f"Optimized {len(optimization_results)} positions")
                 return optimization_results
                 
             finally:
                 db.close()
                 
         except Exception as e:
-            self.logger.exception("Position optimization failed", extra={
+            self.error_handler.logger.exception("Position optimization failed", extra={
                 "error": str(e)
             })
             raise MLServiceError(f"Position optimization failed: {e}", "optimize_position_assignment")
     
+    @handle_service_errors
+    @log_operation("train_models")
     async def train_models(self):
         """Train ML models with current data."""
         try:
-            self.logger.info("Training ML models")
+            self.error_handler.logger.info("Training ML models")
             
             db = SessionLocal()
             try:
@@ -415,7 +429,7 @@ class MLService:
                 training_data = await self._collect_training_data(db)
                 
                 if len(training_data) < int(os.getenv("ML_MIN_TRAINING_DATA", "100")):
-                    self.logger.warning("Insufficient training data, skipping model training")
+                    self.error_handler.logger.warning("Insufficient training data, skipping model training")
                     return
                 
                 # Train traffic prediction model
@@ -427,13 +441,13 @@ class MLService:
                 # Train pattern recognition model
                 await self._train_pattern_recognizer(training_data)
                 
-                self.logger.info("ML models trained successfully")
+                self.error_handler.logger.info("ML models trained successfully")
                 
             finally:
                 db.close()
                 
         except Exception as e:
-            self.logger.exception("Model training failed", extra={
+            self.error_handler.logger.exception("Model training failed", extra={
                 "error": str(e)
             })
             raise MLServiceError(f"Model training failed: {e}", "train_models")
@@ -448,7 +462,7 @@ class MLService:
             try:
                 return joblib.load(model_path)
             except Exception as e:
-                self.logger.warning(f"Failed to load {model_name}, creating new model: {e}")
+                self.error_handler.logger.warning(f"Failed to load {model_name}, creating new model: {e}")
         
         return model_instance
     
