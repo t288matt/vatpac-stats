@@ -55,7 +55,6 @@ OPTIMIZATIONS:
 - Query plan analysis
 """
 
-import logging
 from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_, desc, func, text
@@ -64,18 +63,21 @@ import asyncio
 
 from ..config import get_config
 from ..utils.logging import get_logger_for_module
+from ..utils.error_handling import handle_service_errors, log_operation, create_error_handler
+from ..utils.exceptions import DatabaseError, DataProcessingError
 from ..models import ATCPosition, Flight, Sector, TrafficMovement, AirportConfig
-
-logger = get_logger_for_module(__name__)
 
 class QueryOptimizer:
     """Database query optimization service"""
     
     def __init__(self):
         self.config = get_config()
+        self.error_handler = create_error_handler("query_optimizer")
         self.query_cache = {}
         self.slow_query_threshold = 1.0  # seconds
         
+    @handle_service_errors
+    @log_operation("get_active_atc_positions_optimized")
     async def get_active_atc_positions_optimized(self, db: Session) -> List[Dict[str, Any]]:
         """Get active ATC positions with optimized query"""
         try:
@@ -107,10 +109,12 @@ class QueryOptimizer:
             return atc_positions_data
             
         except Exception as e:
-            logger.error(f"Error in optimized ATC positions query: {e}")
+            self.error_handler.logger.error(f"Error in optimized ATC positions query: {e}")
             # Return empty list only on actual errors, not when no data is found
             return []
     
+    @handle_service_errors
+    @log_operation("get_active_flights_optimized")
     async def get_active_flights_optimized(self, db: Session) -> List[Dict[str, Any]]:
         """Get active flights with optimized query"""
         try:
@@ -146,10 +150,12 @@ class QueryOptimizer:
             return flights_data
             
         except Exception as e:
-            logger.error(f"Error in optimized flights query: {e}")
+            self.error_handler.logger.error(f"Error in optimized flights query: {e}")
             # Return empty list only on actual errors, not when no data is found
             return []
     
+    @handle_service_errors
+    @log_operation("get_traffic_movements_optimized")
     async def get_traffic_movements_optimized(
         self, 
         db: Session, 
@@ -185,10 +191,12 @@ class QueryOptimizer:
             return movements_data
             
         except Exception as e:
-            logger.error(f"Error in optimized traffic movements query: {e}")
+            self.error_handler.logger.error(f"Error in optimized traffic movements query: {e}")
             # Return empty list only on actual errors, not when no data is found
             return []
     
+    @handle_service_errors
+    @log_operation("get_network_stats_optimized")
     async def get_network_stats_optimized(self, db: Session) -> Dict[str, Any]:
         """Get network statistics with optimized queries"""
         try:
@@ -221,7 +229,7 @@ class QueryOptimizer:
             }
             
         except Exception as e:
-            logger.error(f"Error in optimized stats query: {e}")
+            self.error_handler.logger.error(f"Error in optimized stats query: {e}")
             return {
                 "atc_positions_count": 0,
                 "flights_count": 0,
@@ -230,6 +238,8 @@ class QueryOptimizer:
                 "timestamp": datetime.utcnow().isoformat()
             }
     
+    @handle_service_errors
+    @log_operation("get_airport_traffic_summary_optimized")
     async def get_airport_traffic_summary_optimized(
         self, 
         db: Session, 
@@ -290,7 +300,7 @@ class QueryOptimizer:
             }
             
         except Exception as e:
-            logger.error(f"Error in optimized airport traffic summary query: {e}")
+            self.error_handler.logger.error(f"Error in optimized airport traffic summary query: {e}")
             return {
                 "airport_icao": airport_icao,
                 "arrivals": 0,
@@ -303,6 +313,8 @@ class QueryOptimizer:
                 "error": str(e)
             }
     
+    @handle_service_errors
+    @log_operation("get_sector_workload_optimized")
     async def get_sector_workload_optimized(self, db: Session) -> List[Dict[str, Any]]:
         """Get sector workload with optimized query"""
         try:
@@ -344,7 +356,7 @@ class QueryOptimizer:
             return workload_data
             
         except Exception as e:
-            logger.error(f"Error in optimized sector workload query: {e}")
+            self.error_handler.logger.error(f"Error in optimized sector workload query: {e}")
             return []
     
     def _calculate_workload_level(self, flight_count: int) -> str:
@@ -358,6 +370,8 @@ class QueryOptimizer:
         else:
             return "very_high"
     
+    @handle_service_errors
+    @log_operation("optimize_database_queries")
     async def optimize_database_queries(self, db: Session) -> Dict[str, Any]:
         """Run database optimization tasks"""
         try:
@@ -380,13 +394,15 @@ class QueryOptimizer:
             }
             
         except Exception as e:
-            logger.error(f"Error optimizing database queries: {e}")
+            self.error_handler.logger.error(f"Error optimizing database queries: {e}")
             return {
                 "status": "error",
                 "error": str(e),
                 "optimization_timestamp": datetime.utcnow().isoformat()
             }
     
+    @handle_service_errors
+    @log_operation("identify_slow_queries")
     async def _identify_slow_queries(self, db: Session) -> List[Dict[str, Any]]:
         """Identify potentially slow queries using PostgreSQL performance views"""
         try:
@@ -428,9 +444,11 @@ class QueryOptimizer:
             return slow_queries
             
         except Exception as e:
-            logger.error(f"Error identifying slow queries: {e}")
+            self.error_handler.logger.error(f"Error identifying slow queries: {e}")
             return []
     
+    @handle_service_errors
+    @log_operation("identify_potential_slow_queries")
     async def _identify_potential_slow_queries(self, db: Session) -> List[Dict[str, Any]]:
         """Identify potentially slow queries using table statistics"""
         try:
@@ -465,7 +483,7 @@ class QueryOptimizer:
             return potential_slow_queries
             
         except Exception as e:
-            logger.error(f"Error identifying potential slow queries: {e}")
+            self.error_handler.logger.error(f"Error identifying potential slow queries: {e}")
             return []
 
 # Global query optimizer instance
