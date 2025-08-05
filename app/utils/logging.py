@@ -1,9 +1,52 @@
 #!/usr/bin/env python3
 """
-Logging configuration for ATC Position Recommendation Engine.
+Logging Configuration for VATSIM Data Collection System
 
-This module provides structured logging following our architecture
-principles of maintainability and supportability.
+This module provides structured logging following architecture principles
+of maintainability and supportability. It implements JSON-structured logging
+with context support for better debugging and monitoring.
+
+INPUTS:
+- Log level configuration (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+- Log format specifications (JSON, text)
+- File path and rotation settings
+- Context information for structured logging
+
+OUTPUTS:
+- Structured JSON log entries
+- Rotated log files with size limits
+- Context-aware log messages
+- Exception tracking and stack traces
+- Performance and monitoring logs
+
+LOGGING FEATURES:
+- Structured JSON logging for easy parsing
+- Context-aware logging with variable binding
+- Log file rotation with size limits
+- Exception tracking with stack traces
+- Performance monitoring integration
+- Configurable log levels and formats
+
+LOG LEVELS:
+- DEBUG: Detailed debugging information
+- INFO: General application information
+- WARNING: Warning messages for potential issues
+- ERROR: Error messages for recoverable issues
+- CRITICAL: Critical errors requiring immediate attention
+
+STRUCTURED LOGGING:
+- JSON format for easy parsing and analysis
+- Context variables for request tracking
+- Timestamp and module information
+- Exception details with stack traces
+- Performance metrics and timing data
+
+CONFIGURATION:
+- Environment-based log level configuration
+- File-based logging with rotation
+- Console and file output support
+- Custom formatters and handlers
+- Context variable binding
 """
 
 import logging

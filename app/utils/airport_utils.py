@@ -1,7 +1,57 @@
 #!/usr/bin/env python3
 """
-Airport utilities for dynamic airport loading from database.
-Replaces hardcoded airport lists with configurable region-based filtering.
+Airport Utilities for VATSIM Data Collection System
+
+This module provides airport-related utilities for dynamic airport loading from
+the database. It replaces hardcoded airport lists with configurable region-based
+filtering and provides efficient airport data access.
+
+INPUTS:
+- Database connection and airport queries
+- Region specifications and filtering criteria
+- Airport ICAO codes for coordinate lookup
+- Cache management requests
+
+OUTPUTS:
+- Airport coordinate data and metadata
+- Region-filtered airport lists
+- Airport statistics and counts
+- Cached airport data for performance
+
+FEATURES:
+- Dynamic airport loading from database
+- Region-based airport filtering
+- Airport coordinate lookup and validation
+- Caching for performance optimization
+- Airport statistics and metadata
+
+REGION SUPPORT:
+- Australia: Y* airports (Australian ICAO prefix)
+- USA: K* airports (US ICAO prefix)
+- Europe: E*, L*, G*, F*, D*, S*, N*, O*, U*, V*, W*, X* prefixes
+- Asia: R*, V*, Z*, B*, W* prefixes
+- Africa: F*, H*, N* prefixes
+- South America: S*, C* prefixes
+- North America: K*, C*, M* prefixes
+- Global: All airports
+
+CACHE MANAGEMENT:
+- In-memory airport data caching
+- Automatic cache invalidation
+- Performance optimization for repeated queries
+- Memory-efficient data storage
+
+DATABASE INTEGRATION:
+- SQLAlchemy ORM for airport queries
+- Connection pooling for efficiency
+- Error handling and fallback mechanisms
+- Transaction management for data consistency
+
+OPTIMIZATIONS:
+- Cached airport data to reduce database queries
+- Region-based filtering for targeted queries
+- Efficient coordinate lookup
+- Memory management for large airport datasets
 """
 
 import os

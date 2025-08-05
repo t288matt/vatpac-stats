@@ -1,3 +1,38 @@
+#!/usr/bin/env python3
+"""
+VATSIM Data Collection System - Main Application
+
+This module provides the FastAPI application with REST API endpoints for the VATSIM
+data collection and analysis system. It handles real-time data ingestion, API requests,
+and serves the web dashboard.
+
+INPUTS:
+- Environment variables for configuration
+- VATSIM API data (via background service)
+- Database queries and updates
+- HTTP requests from clients
+
+OUTPUTS:
+- REST API responses (JSON)
+- HTML dashboard pages
+- Real-time data updates
+- Background data ingestion to database
+
+ENDPOINTS:
+- /api/status - System health and status
+- /api/atc-positions - ATC position data
+- /api/flights - Flight data
+- /api/traffic/* - Traffic analysis endpoints
+- /dashboard - Web dashboard interface
+- /frontend/* - Static frontend files
+
+DEPENDENCIES:
+- PostgreSQL database
+- Redis cache
+- VATSIM API
+- Background data ingestion service
+"""
+
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse

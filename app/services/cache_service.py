@@ -1,9 +1,47 @@
 #!/usr/bin/env python3
 """
-Redis Caching Service for ATC Position Recommendation Engine
+Redis Caching Service for VATSIM Data Collection System
 
-This service provides intelligent caching to reduce database load
-and improve API response times for frequently accessed data.
+This service provides intelligent caching to reduce database load and improve
+API response times for frequently accessed data. It uses Redis for high-performance
+caching with configurable TTL values for different data types.
+
+INPUTS:
+- Redis connection configuration
+- Data objects to cache (ATC positions, flights, etc.)
+- Cache keys and TTL values
+- Cache invalidation patterns
+
+OUTPUTS:
+- Cached data objects with TTL management
+- Cache statistics and performance metrics
+- Cache invalidation results
+- Fallback memory cache when Redis unavailable
+
+CACHE TYPES:
+- Active ATC Positions: 30-second TTL
+- Active Flights: 30-second TTL
+- Sector Status: 5-minute TTL
+- Network Statistics: 1-minute TTL
+- Traffic Movements: 5-minute TTL
+- Airport Data: 10-minute TTL
+- Analytics Data: 1-hour TTL
+- Static Data: 1-hour TTL
+
+FEATURES:
+- Redis connection pooling
+- Automatic TTL management
+- Cache invalidation patterns
+- Fallback memory cache
+- Performance monitoring
+- Error handling and recovery
+
+OPTIMIZATIONS:
+- Configurable TTL per data type
+- Connection timeout management
+- JSON serialization for complex objects
+- Pattern-based cache invalidation
+- Hit rate monitoring
 """
 
 import redis

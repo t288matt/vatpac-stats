@@ -1,3 +1,36 @@
+#!/usr/bin/env python3
+"""
+Database Connection and Session Management
+
+This module provides database connection management for the VATSIM data collection
+system. It handles PostgreSQL connection pooling, session management, and database
+initialization with optimized settings for high-throughput data ingestion.
+
+INPUTS:
+- Environment variable DATABASE_URL for connection string
+- SQLAlchemy model definitions
+- Database session requests from application
+
+OUTPUTS:
+- Database engine with connection pooling
+- Database sessions for data access
+- Database initialization and table creation
+- Connection monitoring and health information
+
+FEATURES:
+- Connection pooling (20 connections + 30 overflow)
+- SSD-optimized PostgreSQL settings
+- Automatic connection recycling (5 minutes)
+- Connection health monitoring
+- FastAPI dependency injection support
+
+OPTIMIZATIONS:
+- Disabled SQL logging for performance
+- UTC timezone configuration
+- Asynchronous commit for SSD optimization
+- Connection pre-ping for reliability
+"""
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base

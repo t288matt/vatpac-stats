@@ -1,3 +1,43 @@
+#!/usr/bin/env python3
+"""
+SQLAlchemy Data Models for VATSIM Data Collection System
+
+This module defines all database models and relationships for the VATSIM data
+collection system. It provides optimized data structures for real-time flight
+data, ATC positions, traffic movements, and analytics.
+
+INPUTS:
+- VATSIM API data (controllers, flights, sectors)
+- Real-time flight tracking data
+- Airport and sector information
+- System configuration settings
+
+OUTPUTS:
+- SQLAlchemy model classes for database tables
+- Database schema definitions
+- Model relationships and constraints
+- Data validation and type conversion
+
+MODELS INCLUDED:
+- ATCPosition: ATC controller positions and status
+- Flight: Real-time flight data with position tracking
+- Sector: Airspace sector definitions and traffic density
+- TrafficMovement: Airport arrival/departure tracking
+- FlightSummary: Compressed historical flight data
+- MovementSummary: Hourly movement statistics
+- Airports: Global airport database
+- AirportConfig: Movement detection settings
+- SystemConfig: Application configuration storage
+- Event: Special events and scheduling
+- Transceiver: Radio frequency and position data
+
+OPTIMIZATIONS:
+- Storage-efficient data types (SMALLINT for durations)
+- Optimized indexes for query performance
+- JSON fields for flexible metadata storage
+- Relationship mappings for efficient joins
+"""
+
 from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Text, Boolean, SmallInteger, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime

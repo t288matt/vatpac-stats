@@ -1,15 +1,58 @@
 #!/usr/bin/env python3
 """
-Machine Learning Service for ATC Position Recommendation Engine.
+Machine Learning Service for VATSIM Data Collection System
 
-This service implements Sprint 3 AI/ML features:
-- Machine Learning Models for traffic pattern prediction
-- Anomaly Detection for unusual traffic patterns
-- Pattern Recognition for controller decision learning
-- Optimization Algorithms for position assignment
-- Predictive Analytics for traffic demand forecasting
+This service implements advanced AI/ML features for traffic analysis, prediction,
+and optimization. It provides machine learning models for traffic pattern prediction,
+anomaly detection, pattern recognition, and position optimization.
 
-All parameters are configurable via environment variables - NO HARDCODING.
+INPUTS:
+- Historical traffic data and patterns
+- Real-time flight and ATC position data
+- Sector workload and performance metrics
+- Training data for model development
+
+OUTPUTS:
+- Traffic demand predictions with confidence scores
+- Anomaly detection results and classifications
+- Pattern recognition and trend analysis
+- Position optimization recommendations
+- Model performance metrics and accuracy
+
+ML FEATURES:
+- Traffic Pattern Prediction: Demand forecasting for sectors
+- Anomaly Detection: Unusual traffic pattern identification
+- Pattern Recognition: Controller decision learning
+- Optimization Algorithms: Position assignment optimization
+- Predictive Analytics: Traffic demand forecasting
+
+MODELS INCLUDED:
+- RandomForestRegressor: Traffic demand prediction
+- IsolationForest: Anomaly detection
+- Pattern Recognition: Historical pattern analysis
+- Optimization Models: Position assignment algorithms
+
+CONFIGURATION:
+- All parameters configurable via environment variables
+- Model training intervals and thresholds
+- Prediction confidence thresholds
+- Anomaly detection sensitivity
+- Optimization algorithm parameters
+
+FEATURES:
+- Automatic model training and updates
+- Real-time prediction generation
+- Anomaly detection and alerting
+- Pattern recognition and learning
+- Position optimization recommendations
+- Model performance monitoring
+
+OPTIMIZATIONS:
+- Efficient feature engineering
+- Model caching and persistence
+- Batch prediction processing
+- Memory-efficient data handling
+- Parallel model training
 """
 
 import asyncio

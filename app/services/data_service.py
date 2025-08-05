@@ -1,9 +1,45 @@
 #!/usr/bin/env python3
 """
-Data service for ATC Position Recommendation Engine.
+Data Service for VATSIM Data Collection System
 
-This service handles all database operations and data processing,
-following our architecture principles of maintainability and supportability.
+This service handles all database operations and data processing for the VATSIM
+data collection system. It provides memory-optimized data ingestion with SSD
+wear optimization and efficient database operations.
+
+INPUTS:
+- VATSIM API data (controllers, flights, sectors, transceivers)
+- Real-time flight tracking information
+- ATC position updates and status changes
+- Memory cache for batch processing
+
+OUTPUTS:
+- Database records for all VATSIM data types
+- Memory-optimized data processing
+- Batch database operations
+- Data cleanup and maintenance
+- Network status and health metrics
+
+FEATURES:
+- Memory-based data processing to reduce SSD wear
+- Batch database operations for efficiency
+- Automatic data cleanup and maintenance
+- Real-time status tracking
+- Error handling and recovery
+- Configurable processing intervals
+
+DATA TYPES PROCESSED:
+- ATC Positions: Controller callsigns, facilities, frequencies
+- Flights: Aircraft tracking, position, altitude, speed
+- Sectors: Airspace definitions and traffic density
+- Transceivers: Radio frequency and position data
+- Traffic Movements: Airport arrival/departure tracking
+
+OPTIMIZATIONS:
+- Memory caching to reduce disk I/O
+- Batch database operations
+- SSD wear optimization (periodic writes)
+- Connection pooling
+- Automatic cleanup of old data
 """
 
 import asyncio

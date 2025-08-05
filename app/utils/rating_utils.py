@@ -1,8 +1,61 @@
+#!/usr/bin/env python3
 """
 VATSIM Controller Rating Utilities
 
 This module provides utilities for handling VATSIM controller ratings,
-including mapping numeric ratings to human-readable names and validation.
+including mapping numeric ratings to human-readable names, validation,
+and level categorization for the VATSIM data collection system.
+
+INPUTS:
+- Numeric VATSIM controller ratings (1-15)
+- Rating names for reverse lookup
+- Rating validation requests
+- Level categorization requests
+
+OUTPUTS:
+- Human-readable rating names
+- Rating validation results
+- Level categorization (Student, Controller, Senior, Instructor)
+- Complete rating mappings and definitions
+
+RATING DEFINITIONS:
+- 1: Observer
+- 2-4: Student 1-3
+- 5: Controller
+- 6-7: Unknown Ratings
+- 8: Senior Controller
+- 9: Unknown Rating
+- 10-11: Instructor, Senior Instructor
+- 12-15: Unknown Ratings
+
+LEVEL CATEGORIES:
+- Observer: Rating 1
+- Student: Ratings 2, 3, 4
+- Controller: Rating 5
+- Senior: Rating 8
+- Instructor: Ratings 10, 11
+- Unknown: All other ratings (6, 7, 9, 12-15)
+
+VALIDATION FEATURES:
+- Type checking for rating values
+- Range validation (1-15)
+- Null value handling
+- Error messages for invalid inputs
+- Comprehensive validation results
+
+UTILITY FUNCTIONS:
+- get_rating_name(): Convert numeric to name
+- get_rating_number(): Convert name to numeric
+- is_valid_rating(): Validate rating value
+- get_rating_level(): Get level category
+- validate_rating(): Comprehensive validation
+- get_all_ratings(): Complete rating mapping
+
+ERROR HANDLING:
+- Graceful handling of invalid inputs
+- Clear error messages
+- Type safety with proper validation
+- Fallback values for unknown ratings
 """
 
 from typing import Dict, Optional, Any

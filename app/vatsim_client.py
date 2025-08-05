@@ -1,3 +1,46 @@
+#!/usr/bin/env python3
+"""
+VATSIM API Client for Data Collection
+
+This module provides a client for fetching and parsing real-time data from the
+VATSIM network API. It handles authentication, data fetching, parsing, and
+error handling for VATSIM network data including controllers, flights, and sectors.
+
+INPUTS:
+- VATSIM API endpoints (data and status)
+- Network authentication credentials
+- API request parameters and timeouts
+
+OUTPUTS:
+- Parsed VATSIM network data (controllers, flights, sectors)
+- Structured data objects with type safety
+- Network status and health information
+- Error handling and logging
+
+DATA TYPES:
+- VATSIMATCPosition: ATC controller position data
+- VATSIMFlight: Real-time flight tracking data
+- Network status and health metrics
+
+FEATURES:
+- Asynchronous HTTP client with timeouts
+- Automatic data parsing and validation
+- Facility mapping and position identification
+- Error handling and retry logic
+- Connection pooling and resource management
+
+API ENDPOINTS:
+- /v3/vatsim-data.json: Main network data
+- /v3/status.json: Network status and health
+- /v3/transceivers-data.json: Radio frequency data
+
+OPTIMIZATIONS:
+- HTTP connection pooling
+- Request timeout management
+- JSON parsing optimization
+- Memory-efficient data structures
+"""
+
 import httpx
 import asyncio
 import json

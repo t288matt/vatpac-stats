@@ -1,9 +1,48 @@
 #!/usr/bin/env python3
 """
-VATSIM API service for ATC Position Recommendation Engine.
+VATSIM API Service for Data Collection
 
-This service handles all VATSIM API interactions following our
-architecture principles of maintainability and supportability.
+This service handles all VATSIM API interactions for the data collection system.
+It provides a clean interface for fetching, parsing, and processing VATSIM
+network data including controllers, flights, sectors, and transceivers.
+
+INPUTS:
+- VATSIM API endpoints (data, status, transceivers)
+- Network authentication and configuration
+- API request parameters and timeouts
+- Error handling and retry logic
+
+OUTPUTS:
+- Structured VATSIM data objects (controllers, flights, sectors)
+- Network status and health information
+- Parsed and validated data structures
+- Error handling and logging information
+
+DATA STRUCTURES:
+- VATSIMController: ATC controller position data
+- VATSIMFlight: Real-time flight tracking data
+- VATSIMTransceiver: Radio frequency and position data
+- VATSIMData: Complete network data container
+
+FEATURES:
+- Asynchronous HTTP client with timeouts
+- Automatic data parsing and validation
+- Error handling and retry logic
+- Health checking and status monitoring
+- Connection pooling and resource management
+- Structured data objects with type safety
+
+API ENDPOINTS:
+- /v3/vatsim-data.json: Main network data
+- /v3/status.json: Network status
+- /v3/transceivers-data.json: Radio frequency data
+
+OPTIMIZATIONS:
+- HTTP connection pooling
+- Request timeout management
+- JSON parsing optimization
+- Memory-efficient data structures
+- Automatic error recovery
 """
 
 import asyncio

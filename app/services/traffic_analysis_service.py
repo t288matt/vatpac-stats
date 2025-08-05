@@ -1,6 +1,50 @@
+#!/usr/bin/env python3
 """
-Traffic Analysis Service
-Handles movement detection and traffic data analysis
+Traffic Analysis Service for VATSIM Data Collection System
+
+This service handles movement detection and traffic data analysis for the VATSIM
+data collection system. It provides algorithms for detecting airport arrivals and
+departures, calculating traffic patterns, and generating traffic analytics.
+
+INPUTS:
+- Flight data with position, altitude, speed information
+- Airport configuration and detection thresholds
+- Movement detection configuration settings
+- Historical traffic data for trend analysis
+
+OUTPUTS:
+- Detected traffic movements (arrivals/departures)
+- Traffic pattern analysis and trends
+- Movement confidence scores
+- Traffic summary statistics
+- Airport-specific traffic analytics
+
+ANALYSIS FEATURES:
+- Airport arrival/departure detection
+- Distance and altitude-based movement validation
+- Confidence scoring for movement detection
+- Traffic pattern trend analysis
+- Regional traffic summaries
+- Airport-specific traffic statistics
+
+DETECTION ALGORITHMS:
+- Distance-based airport proximity detection
+- Altitude threshold validation
+- Speed-based movement classification
+- Confidence scoring with multiple factors
+- Configurable detection parameters
+
+CONFIGURATION:
+- Airport-specific detection thresholds
+- Default detection parameters
+- Confidence scoring weights
+- Movement validation criteria
+
+OPTIMIZATIONS:
+- Efficient distance calculations (Haversine)
+- Database query optimization
+- Configurable detection sensitivity
+- Batch processing for multiple flights
 """
 
 import json

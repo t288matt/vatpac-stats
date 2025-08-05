@@ -1,9 +1,40 @@
 #!/usr/bin/env python3
 """
-Configuration management for ATC Position Recommendation Engine.
+Configuration Management for VATSIM Data Collection System
 
 This module implements the no-hardcoding principle by loading all configuration
-from environment variables with sensible defaults.
+from environment variables with sensible defaults. It provides centralized
+configuration management for the entire application.
+
+INPUTS:
+- Environment variables for all configuration settings
+- Database connection strings
+- API endpoints and credentials
+- Feature flags and system settings
+
+OUTPUTS:
+- Structured configuration objects (AppConfig, DatabaseConfig, etc.)
+- Validated configuration settings
+- Default values for missing environment variables
+- Configuration summaries for monitoring
+
+CONFIGURATION SECTIONS:
+- Database: PostgreSQL connection settings
+- VATSIM: API endpoints and authentication
+- Traffic Analysis: Thresholds and algorithms
+- ML: Machine learning model settings
+- API: FastAPI server configuration
+- Logging: Log levels and output settings
+- Features: Feature flags for system components
+- Airports: Airport data configuration
+- Pilots: Pilot data configuration
+
+ENVIRONMENT VARIABLES:
+- DATABASE_URL: PostgreSQL connection string
+- VATSIM_API_URL: VATSIM data API endpoint
+- API_HOST/PORT: Server binding settings
+- LOG_LEVEL: Logging verbosity
+- FEATURE_*: Feature toggle flags
 """
 
 import os

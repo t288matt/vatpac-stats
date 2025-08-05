@@ -1,7 +1,42 @@
 #!/usr/bin/env python3
 """
-Data Ingestion System for VATSIM Data
-Stores real-time VATSIM data in our database
+Data Ingestion System for VATSIM Data Collection
+
+This module provides the core data ingestion functionality for the VATSIM data
+collection system. It handles real-time data processing, storage, and cleanup
+of VATSIM network data including ATC positions, flights, sectors, and transceivers.
+
+INPUTS:
+- VATSIM API data (controllers, flights, sectors, transceivers)
+- Real-time flight tracking information
+- ATC position updates and status changes
+- Sector traffic density data
+
+OUTPUTS:
+- Database records for ATC positions, flights, sectors
+- Real-time data updates and status tracking
+- Historical data preservation
+- Data cleanup and maintenance operations
+
+FEATURES:
+- Asynchronous data processing
+- Database transaction management
+- Real-time status updates
+- Historical data cleanup
+- Error handling and logging
+- Background ingestion service
+
+DATA TYPES PROCESSED:
+- ATC Positions: Controller callsigns, facilities, frequencies
+- Flights: Aircraft tracking, position, altitude, speed
+- Sectors: Airspace definitions and traffic density
+- Transceivers: Radio frequency and position data
+
+OPTIMIZATIONS:
+- Batch database operations
+- Connection pooling
+- Transaction rollback on errors
+- Automatic cleanup of old data
 """
 
 import asyncio

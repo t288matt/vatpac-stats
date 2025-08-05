@@ -1,9 +1,58 @@
 #!/usr/bin/env python3
 """
-Query Optimization Service for ATC Position Recommendation Engine
+Query Optimization Service for VATSIM Data Collection System
 
 This service provides optimized database queries and connection management
-to improve performance and reduce database load.
+to improve performance and reduce database load. It implements query optimization
+techniques including eager loading, query caching, and performance monitoring.
+
+INPUTS:
+- Database session objects
+- Query parameters and filters
+- Performance thresholds and monitoring data
+- Query optimization requests
+
+OUTPUTS:
+- Optimized query results with eager loading
+- Performance metrics and monitoring data
+- Query optimization recommendations
+- Database performance analysis
+
+OPTIMIZATION TECHNIQUES:
+- Eager loading to reduce N+1 queries
+- Query result caching
+- Index-aware query construction
+- Connection pooling optimization
+- Query performance monitoring
+
+QUERY TYPES:
+- Active ATC positions with flight counts
+- Active flights with position data
+- Traffic movements by airport
+- Network statistics and summaries
+- Sector workload analysis
+- Airport traffic summaries
+
+PERFORMANCE FEATURES:
+- Slow query detection and logging
+- Query execution time monitoring
+- Connection pool health checks
+- Query result size optimization
+- Automatic query optimization suggestions
+
+MONITORING:
+- Query execution time tracking
+- Connection pool utilization
+- Query result caching efficiency
+- Database load analysis
+- Performance bottleneck identification
+
+OPTIMIZATIONS:
+- Eager loading for related data
+- Query result limiting
+- Index-optimized filtering
+- Connection reuse
+- Query plan analysis
 """
 
 import logging

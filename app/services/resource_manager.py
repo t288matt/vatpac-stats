@@ -1,9 +1,57 @@
 #!/usr/bin/env python3
 """
-Resource Management Service for ATC Position Recommendation Engine
+Resource Management Service for VATSIM Data Collection System
 
 This service manages system resources, memory usage, and performance monitoring
-to ensure optimal operation under high load conditions.
+to ensure optimal operation under high load conditions. It provides real-time
+monitoring and automatic resource optimization.
+
+INPUTS:
+- System resource metrics (CPU, memory, disk)
+- Performance thresholds and monitoring data
+- Resource optimization requests
+- System health status information
+
+OUTPUTS:
+- Resource usage statistics and metrics
+- Performance optimization recommendations
+- System health alerts and warnings
+- Memory cleanup and optimization results
+
+MONITORING FEATURES:
+- Real-time CPU, memory, and disk monitoring
+- Automatic resource threshold detection
+- Performance bottleneck identification
+- System health status tracking
+- Resource usage trend analysis
+
+RESOURCE TYPES:
+- Memory usage and garbage collection
+- CPU utilization and load balancing
+- Disk space and I/O performance
+- Network connectivity and bandwidth
+- Database connection pool health
+
+OPTIMIZATION FEATURES:
+- Automatic memory cleanup
+- CPU load balancing
+- Disk space management
+- Connection pool optimization
+- Performance tuning recommendations
+
+THRESHOLDS:
+- Memory usage: 80% warning threshold
+- CPU usage: 90% warning threshold
+- Disk usage: 90% warning threshold
+- Monitoring interval: 60 seconds
+- Cleanup interval: 5 minutes
+
+ALERTS AND ACTIONS:
+- High memory usage triggers garbage collection
+- High CPU usage triggers load analysis
+- High disk usage triggers cleanup operations
+- Automatic resource optimization
+- Performance degradation alerts
 """
 
 import psutil
