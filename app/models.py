@@ -19,7 +19,7 @@ OUTPUTS:
 - Data validation and type conversion
 
 MODELS INCLUDED:
-- ATCPosition: ATC controller positions and status
+- Controller: ATC controller positions and status
 - Flight: Real-time flight data with position tracking
 - Sector: Airspace sector definitions and traffic density
 - TrafficMovement: Airport arrival/departure tracking
@@ -44,9 +44,9 @@ from datetime import datetime
 from .database import Base
 import json
 
-class ATCPosition(Base):
-    """ATC Position model representing ATC positions that can be controlled or uncontrolled"""
-    __tablename__ = "atc_positions"
+class Controller(Base):
+    """Controller model representing ATC positions that can be controlled or uncontrolled"""
+    __tablename__ = "controllers"
     
     id = Column(Integer, primary_key=True, index=True)
     callsign = Column(String(50), unique=True, index=True, nullable=False)
@@ -57,13 +57,12 @@ class ATCPosition(Base):
     last_seen = Column(DateTime, default=datetime.utcnow)
     workload_score = Column(Float, default=0.0)
     preferences = Column(Text, nullable=True)  # JSON string for position preferences
-    controller_id = Column(String(50), nullable=True, index=True)  # VATSIM user ID (links multiple positions)
-    controller_name = Column(String(100), nullable=True)  # Controller's real name
-    controller_rating = Column(Integer, nullable=True)  # Controller rating (1-15 from VATSIM)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
-    sectors = relationship("Sector", back_populates="atc_position")
-    flights = relationship("Flight", back_populates="atc_position")
+    sectors = relationship("Sector", back_populates="controller")
+    flights = relationship("Flight", back_populates="controller")
 
 class Sector(Base):
     """Airspace sector model"""
@@ -72,14 +71,16 @@ class Sector(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
     facility = Column(String(50), nullable=False)
-    atc_position_id = Column(Integer, ForeignKey("atc_positions.id"), nullable=True)
+    controller_id = Column(Integer, ForeignKey("controllers.id"), nullable=True)
     traffic_density = Column(Integer, default=0)
     status = Column(String(20), default="unmanned")  # manned, unmanned, busy
     priority_level = Column(Integer, default=1)  # 1-5 priority scale
     boundaries = Column(Text, nullable=True)  # JSON string for sector boundaries
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
-    atc_position = relationship("ATCPosition", back_populates="sectors")
+    controller = relationship("Controller", back_populates="sectors")
 
 class Flight(Base):
     """Flight model representing active flights - OPTIMIZED FOR STORAGE"""
@@ -97,16 +98,17 @@ class Flight(Base):
     vertical_speed = Column(Integer, nullable=True)
     squawk = Column(String(10), nullable=True)
     flight_plan = Column(Text, nullable=True)  # JSON string
-    atc_position_id = Column(Integer, ForeignKey("atc_positions.id"), nullable=True)
+    controller_id = Column(Integer, ForeignKey("controllers.id"), nullable=True)
     last_updated = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
     departure = Column(String(10), nullable=True)
     arrival = Column(String(10), nullable=True)
     route = Column(Text, nullable=True)
     status = Column(String(20), default="active")  # active, completed, cancelled
+    updated_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
-    atc_position = relationship("ATCPosition", back_populates="flights")
+    controller = relationship("Controller", back_populates="flights")
     
     @property
     def position(self):
@@ -151,6 +153,7 @@ class TrafficMovement(Base):
     speed = Column(Integer, nullable=True)
     heading = Column(Integer, nullable=True)
     metadata_json = Column(Text, nullable=True)  # JSON string
+    created_at = Column(DateTime, default=datetime.utcnow)
     
     # No relationships for now
 
@@ -166,12 +169,12 @@ class FlightSummary(Base):
     route = Column(Text, nullable=True)
     max_altitude = Column(SmallInteger, nullable=True)  # SMALLINT for storage efficiency
     duration_minutes = Column(SmallInteger, nullable=True)  # SMALLINT: max 65,535 minutes
-    atc_position_id = Column(Integer, ForeignKey("atc_positions.id"), nullable=True)
+    controller_id = Column(Integer, ForeignKey("controllers.id"), nullable=True)
     sector_id = Column(Integer, ForeignKey("sectors.id"), nullable=True)
     completed_at = Column(DateTime, nullable=False)
     
     # Relationships
-    atc_position = relationship("ATCPosition")
+    controller = relationship("Controller")
     sector = relationship("Sector")
 
 class MovementSummary(Base):
@@ -285,7 +288,7 @@ class Transceiver(Base):
     height_msl = Column(Float, nullable=True)  # Height above mean sea level in meters
     height_agl = Column(Float, nullable=True)  # Height above ground level in meters
     entity_type = Column(String(20), nullable=False)  # 'flight' or 'atc'
-    entity_id = Column(Integer, nullable=True)  # Foreign key to flights.id or atc_positions.id
+    entity_id = Column(Integer, nullable=True)  # Foreign key to flights.id or controllers.id
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Indexes for efficient queries

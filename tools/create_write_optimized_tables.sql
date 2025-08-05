@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS flights (
     departure VARCHAR(10),
     arrival VARCHAR(10),
     route TEXT,
-    status VARCHAR(20) DEFAULT 'active'
+    status VARCHAR(20) DEFAULT 'active',
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- MINIMAL INDEXES for flights (write-optimized)
@@ -64,10 +65,10 @@ CREATE TABLE IF NOT EXISTS sectors (
     name VARCHAR(100) NOT NULL,
     facility VARCHAR(50) NOT NULL,
     controller_id INTEGER,                   -- No FK constraint for write speed
-    traffic_density INTEGER,
-    status VARCHAR(20),
-    priority_level INTEGER,
-    boundaries TEXT,
+    traffic_density INTEGER DEFAULT 0,
+    status VARCHAR(20) DEFAULT 'unmanned',
+    priority_level INTEGER DEFAULT 1,
+    boundaries TEXT,  -- JSON string for sector boundaries
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -89,7 +90,7 @@ CREATE TABLE IF NOT EXISTS traffic_movements (
     altitude INTEGER,
     speed INTEGER,
     heading INTEGER,
-    metadata JSONB,
+    metadata_json TEXT,  -- JSON string
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -97,84 +98,85 @@ CREATE TABLE IF NOT EXISTS traffic_movements (
 CREATE INDEX IF NOT EXISTS idx_traffic_movements_timestamp ON traffic_movements(timestamp);
 
 -- ===========================================
--- SYSTEM CONFIGURATION TABLE
--- ===========================================
-CREATE TABLE IF NOT EXISTS system_config (
-    id SERIAL PRIMARY KEY,
-    key VARCHAR(100) NOT NULL,
-    value TEXT,
-    description TEXT,
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ===========================================
--- EVENTS TABLE (Write-Optimized)
--- ===========================================
-CREATE TABLE IF NOT EXISTS events (
-    id SERIAL PRIMARY KEY,
-    event_type VARCHAR(50) NOT NULL,
-    event_data JSONB,
-    timestamp TIMESTAMPTZ DEFAULT NOW(),
-    severity VARCHAR(20) DEFAULT 'info',
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- MINIMAL INDEXES for events
-CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);
-
--- ===========================================
 -- FLIGHT SUMMARIES TABLE (Write-Optimized)
 -- ===========================================
 CREATE TABLE IF NOT EXISTS flight_summaries (
     id SERIAL PRIMARY KEY,
-    controller_id INTEGER,                   -- No FK constraint for write speed
-    total_flights INTEGER DEFAULT 0,
-    avg_altitude FLOAT,
-    avg_speed FLOAT,
-    unique_aircraft_types INTEGER DEFAULT 0,
-    summary_period VARCHAR(20) DEFAULT 'hourly',
-    period_start TIMESTAMPTZ,
-    period_end TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    callsign VARCHAR(20) NOT NULL,
+    aircraft_type VARCHAR(10),
+    departure VARCHAR(10),
+    arrival VARCHAR(10),
+    route TEXT,
+    max_altitude SMALLINT,
+    duration_minutes SMALLINT,
+    controller_id INTEGER,  -- Foreign key to controllers.id
+    sector_id INTEGER,  -- Foreign key to sectors.id
+    completed_at TIMESTAMPTZ NOT NULL
 );
 
 -- MINIMAL INDEXES for flight summaries
-CREATE INDEX IF NOT EXISTS idx_flight_summaries_period ON flight_summaries(period_start);
+CREATE INDEX IF NOT EXISTS idx_flight_summaries_callsign ON flight_summaries(callsign);
+CREATE INDEX IF NOT EXISTS idx_flight_summaries_completed_at ON flight_summaries(completed_at);
 
 -- ===========================================
 -- MOVEMENT SUMMARIES TABLE (Write-Optimized)
 -- ===========================================
 CREATE TABLE IF NOT EXISTS movement_summaries (
     id SERIAL PRIMARY KEY,
-    airport_code VARCHAR(10) NOT NULL,
-    movement_type VARCHAR(20) NOT NULL,
-    count INTEGER DEFAULT 0,
-    period_start TIMESTAMPTZ,
-    period_end TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    airport_icao VARCHAR(10) NOT NULL,
+    movement_type VARCHAR(10) NOT NULL,
+    aircraft_type VARCHAR(10),
+    date TIMESTAMPTZ NOT NULL,
+    hour SMALLINT NOT NULL,
+    count SMALLINT DEFAULT 1
 );
 
 -- MINIMAL INDEXES for movement summaries
-CREATE INDEX IF NOT EXISTS idx_movement_summaries_period ON movement_summaries(period_start);
+CREATE INDEX IF NOT EXISTS idx_movement_summaries_airport_date ON movement_summaries(airport_icao, date);
+
+-- ===========================================
+-- AIRPORTS TABLE (Global Airport Database)
+-- ===========================================
+CREATE TABLE IF NOT EXISTS airports (
+    id SERIAL PRIMARY KEY,
+    icao_code VARCHAR(10) NOT NULL UNIQUE,
+    name VARCHAR(200),
+    latitude FLOAT NOT NULL,
+    longitude FLOAT NOT NULL,
+    elevation INTEGER,  -- Feet above sea level
+    country VARCHAR(100),
+    region VARCHAR(100),  -- State/province
+    timezone VARCHAR(50),
+    facility_type VARCHAR(50),  -- airport, heliport, seaplane_base
+    runways TEXT,  -- JSON string for runway data
+    frequencies TEXT,  -- JSON string for frequency data
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- INDEXES for airports
+CREATE INDEX IF NOT EXISTS idx_airports_country ON airports(country);
+CREATE INDEX IF NOT EXISTS idx_airports_region ON airports(region);
+CREATE INDEX IF NOT EXISTS idx_airports_icao_prefix ON airports(icao_code);
 
 -- ===========================================
 -- AIRPORT CONFIG TABLE
 -- ===========================================
 CREATE TABLE IF NOT EXISTS airport_config (
     id SERIAL PRIMARY KEY,
-    airport_code VARCHAR(10) NOT NULL,
-    airport_name VARCHAR(200),
-    latitude FLOAT,
-    longitude FLOAT,
-    elevation INTEGER,
-    timezone VARCHAR(50),
-    country VARCHAR(100),
-    region VARCHAR(100),
-    facility_type VARCHAR(50),
-    runways JSONB,
-    frequencies JSONB,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    icao_code VARCHAR(10) NOT NULL UNIQUE,
+    name VARCHAR(200) NOT NULL,
+    latitude FLOAT NOT NULL,
+    longitude FLOAT NOT NULL,
+    detection_radius_nm FLOAT DEFAULT 10.0,
+    departure_altitude_threshold INTEGER DEFAULT 1000,
+    arrival_altitude_threshold INTEGER DEFAULT 3000,
+    departure_speed_threshold INTEGER DEFAULT 50,
+    arrival_speed_threshold INTEGER DEFAULT 150,
+    is_active BOOLEAN DEFAULT TRUE,
+    region VARCHAR(50),
+    last_updated TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ===========================================
@@ -182,12 +184,37 @@ CREATE TABLE IF NOT EXISTS airport_config (
 -- ===========================================
 CREATE TABLE IF NOT EXISTS movement_detection_config (
     id SERIAL PRIMARY KEY,
-    airport_code VARCHAR(10) NOT NULL,
-    detection_type VARCHAR(50) NOT NULL,
-    parameters JSONB,
-    enabled BOOLEAN DEFAULT true,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    config_key VARCHAR(100) NOT NULL UNIQUE,
+    config_value TEXT NOT NULL,
+    description TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    last_updated TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ===========================================
+-- SYSTEM CONFIG TABLE
+-- ===========================================
+CREATE TABLE IF NOT EXISTS system_config (
+    id SERIAL PRIMARY KEY,
+    key VARCHAR(100) NOT NULL UNIQUE,
+    value TEXT NOT NULL,
+    description TEXT,
+    last_updated TIMESTAMPTZ DEFAULT NOW(),
+    environment VARCHAR(20) DEFAULT 'development'
+);
+
+-- ===========================================
+-- EVENTS TABLE
+-- ===========================================
+CREATE TABLE IF NOT EXISTS events (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(200) NOT NULL,
+    start_time TIMESTAMPTZ NOT NULL,
+    end_time TIMESTAMPTZ NOT NULL,
+    expected_traffic INTEGER DEFAULT 0,
+    required_controllers INTEGER DEFAULT 0,
+    status VARCHAR(20) DEFAULT 'scheduled',
+    notes TEXT
 );
 
 -- ===========================================
@@ -284,11 +311,6 @@ CREATE TRIGGER update_flights_updated_at
 -- ===========================================
 -- WRITE PERFORMANCE OPTIMIZATIONS
 -- ===========================================
-
--- Disable foreign key checks for write performance
--- (Note: This is a trade-off between data integrity and write speed)
--- ALTER TABLE flights DISABLE TRIGGER ALL;
--- ALTER TABLE sectors DISABLE TRIGGER ALL;
 
 -- Set table storage parameters for write optimization
 ALTER TABLE flights SET (fillfactor = 100);      -- No space for updates

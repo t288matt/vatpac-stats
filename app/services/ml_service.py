@@ -75,7 +75,7 @@ from ..utils.logging import get_logger_for_module
 from ..utils.error_handling import handle_service_errors, log_operation, create_error_handler
 from ..utils.exceptions import DataProcessingError, ServiceError
 from ..database import get_db, SessionLocal
-from ..models import ATCPosition, Flight, Sector
+from ..models import Controller, Flight, Sector
 
 
 @dataclass

@@ -47,7 +47,7 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 
 from .database import get_db, SessionLocal
-from .models import ATCPosition, Flight, Sector, Transceiver
+from .models import Controller, Flight, Sector, Transceiver
 from .services.vatsim_service import get_vatsim_service
 
 logger = logging.getLogger(__name__)
@@ -102,8 +102,8 @@ class DataIngestionService:
                 controller_rating = atc_position_data.controller_rating
                 
                 # Check if ATC position already exists
-                existing_atc_position = db.query(ATCPosition).filter(
-                    ATCPosition.callsign == callsign
+                existing_atc_position = db.query(Controller).filter(
+                    Controller.callsign == callsign
                 ).first()
                 
                 if existing_atc_position:
@@ -118,7 +118,7 @@ class DataIngestionService:
                     existing_atc_position.last_seen = datetime.utcnow()
                 else:
                     # Create new ATC position
-                    new_atc_position = ATCPosition(
+                    new_atc_position = Controller(
                         callsign=callsign,
                         facility=facility,
                         position=position,
@@ -160,8 +160,8 @@ class DataIngestionService:
                 atc_position_id = None
                 
                 # Find online ATC positions for assignment
-                online_atc_positions = db.query(ATCPosition).filter(
-                    ATCPosition.status == "online"
+                online_atc_positions = db.query(Controller).filter(
+                    Controller.status == "online"
                 ).all()
                 
                 logger.info(f"Flight {callsign}: Found {len(online_atc_positions)} online ATC positions")

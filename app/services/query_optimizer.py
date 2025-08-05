@@ -65,7 +65,7 @@ from ..config import get_config
 from ..utils.logging import get_logger_for_module
 from ..utils.error_handling import handle_service_errors, log_operation, create_error_handler
 from ..utils.exceptions import DatabaseError, DataProcessingError
-from ..models import ATCPosition, Flight, Sector, TrafficMovement, AirportConfig
+from ..models import Controller, Flight, Sector, TrafficMovement, AirportConfig
 
 class QueryOptimizer:
     """Database query optimization service"""
@@ -82,12 +82,12 @@ class QueryOptimizer:
         """Get active ATC positions with optimized query"""
         try:
             # Use eager loading to reduce N+1 queries
-            atc_positions = db.query(ATCPosition).options(
-                joinedload(ATCPosition.flights)
+            atc_positions = db.query(Controller).options(
+                joinedload(Controller.flights)
             ).filter(
                 and_(
-                    ATCPosition.status == "online",
-                    ATCPosition.last_seen >= datetime.utcnow() - timedelta(minutes=5)
+                    Controller.status == "online",
+                    Controller.last_seen >= datetime.utcnow() - timedelta(minutes=5)
                 )
             ).all()
             
@@ -202,7 +202,7 @@ class QueryOptimizer:
         try:
             # Use single query with aggregation
             stats = db.query(
-                func.count(ATCPosition.id).label('total_atc_positions'),
+                func.count(Controller.id).label('total_atc_positions'),
                 func.count(Flight.id).label('total_flights'),
                 func.count(Sector.id).label('total_sectors'),
                 func.count(TrafficMovement.id).label('total_movements')
@@ -214,7 +214,7 @@ class QueryOptimizer:
                 TrafficMovement, TrafficMovement.id.isnot(None)
             ).filter(
                 and_(
-                    ATCPosition.status == "online",
+                    Controller.status == "online",
                     Flight.status == "active",
                     TrafficMovement.timestamp >= datetime.utcnow() - timedelta(hours=24)
                 )

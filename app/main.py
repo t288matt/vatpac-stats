@@ -42,7 +42,7 @@ from sqlalchemy import and_, desc, text
 
 from .config import get_config, validate_config
 from .database import get_db, init_db, get_database_info, SessionLocal
-from .models import ATCPosition, Sector, Flight, TrafficMovement, AirportConfig
+from .models import Controller, Sector, Flight, TrafficMovement, AirportConfig
 from .utils.logging import get_logger_for_module
 from .utils.rating_utils import get_rating_name, get_rating_level, get_all_ratings, validate_rating
 from .services.vatsim_service import get_vatsim_service
@@ -152,7 +152,7 @@ async def get_status(db: Session = Depends(get_db)):
         return cached_stats
     
     # If not cached, get from database
-    atc_positions_count = db.query(ATCPosition).filter(ATCPosition.status == "online").count()
+    atc_positions_count = db.query(Controller).filter(Controller.status == "online").count()
     flights_count = db.query(Flight).filter(Flight.status == "active").count()
     airports_count = db.query(AirportConfig).count()
     movements_count = db.query(TrafficMovement).filter(
@@ -188,7 +188,7 @@ async def get_network_status(db: Session = Depends(get_db)):
         return cached_data
     
     # Get network data from database
-    atc_count = db.query(ATCPosition).filter(ATCPosition.status == "online").count()
+    atc_count = db.query(Controller).filter(Controller.status == "online").count()
     flight_count = db.query(Flight).filter(Flight.status == "active").count()
     sector_count = db.query(Sector).count()
     
@@ -220,7 +220,7 @@ async def get_atc_positions(db: Session = Depends(get_db)):
         }
     
     # Get from database if not cached
-    atc_positions = db.query(ATCPosition).all()
+    atc_positions = db.query(Controller).all()
     
     atc_positions_data = []
     for atc_position in atc_positions:
@@ -278,7 +278,7 @@ async def get_atc_positions_by_controller_id(db: Session = Depends(get_db)):
         }
     
     # Get all ATC positions
-    atc_positions = db.query(ATCPosition).all()
+    atc_positions = db.query(Controller).all()
     
     # Group by controller ID
     atc_positions_by_controller_id = {}

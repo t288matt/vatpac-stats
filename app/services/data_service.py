@@ -53,7 +53,7 @@ from collections import defaultdict
 import time
 
 from ..database import SessionLocal
-from ..models import ATCPosition, Flight, Sector, TrafficMovement, FlightSummary
+from ..models import Controller, Flight, Sector, TrafficMovement, FlightSummary
 from .vatsim_service import VATSIMService
 from .traffic_analysis_service import TrafficAnalysisService
 from .base_service import DatabaseService
@@ -462,7 +462,7 @@ class DataService(DatabaseService):
                     # Use bulk upsert with conflict resolution
                     try:
                         # Try PostgreSQL-specific upsert first
-                        stmt = insert(ATCPosition).values(atc_positions_values)
+                        stmt = insert(Controller).values(atc_positions_values)
                         stmt = stmt.on_conflict_do_update(
                             index_elements=['callsign'],
                             set_=dict(
@@ -479,12 +479,12 @@ class DataService(DatabaseService):
                     except AttributeError:
                         # Fallback to manual upsert for other databases
                         for data in atc_positions_values:
-                            existing = db.query(ATCPosition).filter(ATCPosition.callsign == data['callsign']).first()
+                            existing = db.query(Controller).filter(Controller.callsign == data['callsign']).first()
                             if existing:
                                 for key, value in data.items():
                                     setattr(existing, key, value)
                             else:
-                                atc_position = ATCPosition(**data)
+                                atc_position = Controller(**data)
                                 db.add(atc_position)
                     
                     self.logger.info(f"Bulk upserted {len(atc_positions_values)} ATC positions")
@@ -604,10 +604,10 @@ class DataService(DatabaseService):
                 
                 # Mark ATC positions as offline if not seen in 30 minutes
                 atc_position_cutoff = datetime.utcnow() - timedelta(minutes=30)
-                offline_atc_positions = db.query(ATCPosition).filter(
+                offline_atc_positions = db.query(Controller).filter(
                     and_(
-                        ATCPosition.last_seen < atc_position_cutoff,
-                        ATCPosition.status == 'online'
+                        Controller.last_seen < atc_position_cutoff,
+                        Controller.status == 'online'
                     )
                 ).all()
                 
@@ -679,8 +679,8 @@ class DataService(DatabaseService):
         db = SessionLocal()
         try:
             # Count active ATC positions
-            active_atc_positions = db.query(ATCPosition).filter(
-                ATCPosition.status == "online"
+            active_atc_positions = db.query(Controller).filter(
+                Controller.status == "online"
             ).count()
             
             # Count active flights
