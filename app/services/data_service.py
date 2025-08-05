@@ -43,7 +43,6 @@ OPTIMIZATIONS:
 """
 
 import asyncio
-import logging
 import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
@@ -53,18 +52,19 @@ import json
 from collections import defaultdict
 import time
 
-from ..config import get_config
-from ..utils.logging import get_logger_for_module
 from ..database import SessionLocal
 from ..models import ATCPosition, Flight, Sector, TrafficMovement, FlightSummary
 from .vatsim_service import VATSIMService
 from .traffic_analysis_service import TrafficAnalysisService
+from .base_service import DatabaseService
+from ..utils.error_handling import handle_service_errors, retry_on_failure, log_operation
 
-logger = logging.getLogger(__name__)
-
-class DataService:
+class DataService(DatabaseService):
     def __init__(self):
+        super().__init__("data_service")
         self.vatsim_service = VATSIMService()
+        self.traffic_analysis_service = None
+        
         # Get intervals from environment variables
         self.vatsim_polling_interval = int(os.getenv('VATSIM_POLLING_INTERVAL', 30))
         self.vatsim_write_interval = int(os.getenv('VATSIM_WRITE_INTERVAL', 300))
@@ -74,15 +74,64 @@ class DataService:
             'flights': {},
             'atc_positions': {},
             'last_write': 0,
-            'write_interval': self.vatsim_write_interval,  # Write to disk every 5 minutes instead of every 30 seconds
+            'write_interval': self.vatsim_write_interval,
             'memory_buffer': defaultdict(list)
         }
         self.write_count = 0
         self.last_cleanup = time.time()
+    
+    async def _initialize_service(self):
+        """Initialize data service with dependencies."""
+        await super()._initialize_service()
         
+        # Initialize traffic analysis service
+        self.traffic_analysis_service = TrafficAnalysisService(self.db_session)
+        
+        self.logger.info("Data service initialized successfully")
+    
+    async def _perform_health_check(self) -> Dict[str, Any]:
+        """Perform data service health check."""
+        try:
+            # Check VATSIM service
+            vatsim_health = await self.vatsim_service.health_check()
+            
+            # Check database connectivity
+            db_health = await super()._perform_health_check()
+            
+            # Check cache status
+            cache_status = {
+                'flights_count': len(self.cache['flights']),
+                'atc_positions_count': len(self.cache['atc_positions']),
+                'memory_buffer_size': len(self.cache['memory_buffer'])
+            }
+            
+            return {
+                'vatsim_service': vatsim_health,
+                'database': db_health,
+                'cache_status': cache_status,
+                'write_count': self.write_count,
+                'last_cleanup': self.last_cleanup
+            }
+        except Exception as e:
+            self.logger.error(f"Health check failed: {e}")
+            return {'error': str(e)}
+    
+    async def _cleanup_service(self):
+        """Cleanup data service resources."""
+        await super()._cleanup_service()
+        
+        # Clear memory cache
+        self.cache['flights'].clear()
+        self.cache['atc_positions'].clear()
+        self.cache['memory_buffer'].clear()
+        
+        self.logger.info("Data service cleanup completed")
+        
+    @handle_service_errors
+    @log_operation("data_ingestion")
     async def start_data_ingestion(self):
         """Start the data ingestion process with SSD wear optimization"""
-        logger.info("Starting data ingestion process with SSD wear optimization")
+        self.logger.info("Starting data ingestion process with SSD wear optimization")
         
         while True:
             try:
@@ -98,10 +147,10 @@ class DataService:
                     if current_time - self.cache['last_write'] >= self.cache['write_interval']:
                         await self._flush_memory_to_disk()
                         self.cache['last_write'] = current_time
-                        logger.info(f"Flushed memory cache to disk. Write count: {self.write_count}")
+                        self.logger.info(f"Flushed memory cache to disk. Write count: {self.write_count}")
                     
                     # Cleanup old data periodically
-                    if current_time - self.last_cleanup >= self.vatsim_cleanup_interval:  # Every hour
+                    if current_time - self.last_cleanup >= self.vatsim_cleanup_interval:
                         await self._cleanup_old_data()
                         self.last_cleanup = current_time
                 
@@ -109,7 +158,7 @@ class DataService:
                 await asyncio.sleep(self.vatsim_polling_interval)
                 
             except Exception as e:
-                logger.error(f"Error in data ingestion: {e}")
+                self.logger.error(f"Error in data ingestion: {e}")
                 await asyncio.sleep(self.vatsim_polling_interval)
     
     async def _process_data_in_memory(self, vatsim_data):
@@ -579,4 +628,6 @@ def get_data_service() -> DataService:
     global _data_service
     if _data_service is None:
         _data_service = DataService()
+        # Initialize the service
+        asyncio.create_task(_data_service.initialize())
     return _data_service 

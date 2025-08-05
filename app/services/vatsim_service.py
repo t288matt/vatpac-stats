@@ -126,7 +126,10 @@ class VATSIMAPIError(Exception):
         self.status_code = status_code
 
 
-class VATSIMService:
+from .base_service import BaseService
+from ..utils.error_handling import handle_service_errors, retry_on_failure, log_operation, APIError
+
+class VATSIMService(BaseService):
     """
     Service for handling VATSIM API interactions.
     
@@ -136,8 +139,7 @@ class VATSIMService:
     
     def __init__(self):
         """Initialize VATSIM service with configuration."""
-        self.config = get_config()
-        self.logger = get_logger_for_module(__name__)
+        super().__init__("vatsim_service")
         self.client: Optional[httpx.AsyncClient] = None
     
     async def __aenter__(self):
@@ -148,6 +150,31 @@ class VATSIMService:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
         await self._close_client()
+    
+    async def _initialize_service(self):
+        """Initialize VATSIM service with HTTP client."""
+        await self._create_client()
+        self.logger.info("VATSIM service initialized successfully")
+    
+    async def _perform_health_check(self) -> Dict[str, Any]:
+        """Perform VATSIM service health check."""
+        try:
+            if not self.client:
+                return {"status": "no_client", "error": "HTTP client not initialized"}
+            
+            # Test API connectivity
+            response = await self.client.get(self.config.vatsim.api_url, timeout=5.0)
+            if response.status_code == 200:
+                return {"status": "healthy", "api_accessible": True}
+            else:
+                return {"status": "unhealthy", "api_accessible": False, "status_code": response.status_code}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+    
+    async def _cleanup_service(self):
+        """Cleanup VATSIM service resources."""
+        await self._close_client()
+        self.logger.info("VATSIM service cleanup completed")
     
     async def _create_client(self) -> None:
         """Create HTTP client for API requests."""
@@ -165,6 +192,9 @@ class VATSIMService:
             self.client = None
             self.logger.debug("Closed HTTP client")
     
+    @handle_service_errors
+    @retry_on_failure(max_retries=3, delay=1.0)
+    @log_operation("fetch_vatsim_data")
     async def get_current_data(self) -> VATSIMData:
         """
         Fetch current VATSIM network data.
@@ -529,4 +559,6 @@ def get_vatsim_service() -> VATSIMService:
     global _vatsim_service
     if _vatsim_service is None:
         _vatsim_service = VATSIMService()
+        # Initialize the service
+        asyncio.create_task(_vatsim_service.initialize())
     return _vatsim_service 

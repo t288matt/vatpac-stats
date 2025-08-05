@@ -46,21 +46,18 @@ OPTIMIZATIONS:
 
 import redis
 import json
-import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 import asyncio
 
-from ..config import get_config
-from ..utils.logging import get_logger_for_module
+from .base_service import CacheService as BaseCacheService
+from ..utils.error_handling import handle_service_errors, log_operation, CacheError
 
-logger = get_logger_for_module(__name__)
-
-class CacheService:
+class CacheService(BaseCacheService):
     """Redis caching service for performance optimization"""
     
     def __init__(self):
-        self.config = get_config()
+        super().__init__("cache_service")
         self.redis_client = None
         self.cache_ttl = {
             'active_atc_positions': 30,      # 30 seconds
@@ -77,7 +74,7 @@ class CacheService:
             'airport:coords': 3600,        # 1 hour (static data)
         }
         
-    async def initialize(self):
+    async def _initialize_service(self):
         """Initialize Redis connection"""
         try:
             self.redis_client = redis.Redis(
@@ -90,11 +87,40 @@ class CacheService:
             )
             # Test connection
             self.redis_client.ping()
-            logger.info("Redis cache service initialized successfully")
+            self.logger.info("Redis cache service initialized successfully")
         except Exception as e:
-            logger.warning(f"Redis not available, using memory cache: {e}")
+            self.logger.warning(f"Redis not available, using memory cache: {e}")
             self.redis_client = None
     
+    async def _perform_health_check(self) -> Dict[str, Any]:
+        """Perform cache service health check."""
+        try:
+            if not self.redis_client:
+                return {"status": "no_redis", "fallback": "memory_cache"}
+            
+            # Test Redis connection
+            self.redis_client.ping()
+            info = self.redis_client.info()
+            
+            return {
+                "status": "healthy",
+                "redis_connected": True,
+                "memory_used": info.get('used_memory_human', 'unknown'),
+                "connected_clients": info.get('connected_clients', 0),
+                "hit_rate": self._calculate_hit_rate(info)
+            }
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+    
+    async def _cleanup_service(self):
+        """Cleanup cache service resources."""
+        if self.redis_client:
+            self.redis_client.close()
+            self.redis_client = None
+        self.logger.info("Cache service cleanup completed")
+    
+    @handle_service_errors
+    @log_operation("get_cached_data")
     async def get_cached_data(self, key: str) -> Optional[Dict[str, Any]]:
         """Get data from cache"""
         try:
@@ -106,9 +132,11 @@ class CacheService:
                 return json.loads(cached_data)
             return None
         except Exception as e:
-            logger.error(f"Error getting cached data for {key}: {e}")
+            self.logger.error(f"Error getting cached data for {key}: {e}")
             return None
     
+    @handle_service_errors
+    @log_operation("set_cached_data")
     async def set_cached_data(self, key: str, data: Dict[str, Any], ttl: Optional[int] = None) -> bool:
         """Set data in cache with TTL"""
         try:
@@ -119,7 +147,7 @@ class CacheService:
             self.redis_client.setex(key, ttl, json.dumps(data))
             return True
         except Exception as e:
-            logger.error(f"Error setting cached data for {key}: {e}")
+            self.logger.error(f"Error setting cached data for {key}: {e}")
             return False
     
     async def invalidate_cache(self, pattern: str) -> bool:
@@ -202,5 +230,6 @@ async def get_cache_service() -> CacheService:
     global _cache_service
     if _cache_service is None:
         _cache_service = CacheService()
+        # Initialize the service
         await _cache_service.initialize()
     return _cache_service 
