@@ -98,23 +98,27 @@ class Flight(Base):
     aircraft_type = Column(String(20), nullable=True)
     position_lat = Column(Float, nullable=True)
     position_lng = Column(Float, nullable=True)
+    
+    # Flight tracking fields
     altitude = Column(Integer, nullable=True)
-    speed = Column(Integer, nullable=True)
     heading = Column(Integer, nullable=True)
-    ground_speed = Column(Integer, nullable=True)
-    vertical_speed = Column(Integer, nullable=True)
+    groundspeed = Column(Integer, nullable=True)
+    cruise_tas = Column(Integer, nullable=True)
     squawk = Column(String(10), nullable=True)
-    flight_plan = Column(JSON, nullable=True)  # JSON object
-    controller_id = Column(Integer, ForeignKey("controllers.id"), nullable=True)
-    last_updated = Column(DateTime, default=datetime.utcnow)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Flight plan fields
     departure = Column(String(10), nullable=True)
     arrival = Column(String(10), nullable=True)
     route = Column(Text, nullable=True)
-    status = Column(String(20), default="active")  # active, completed, cancelled
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    flight_plan = Column(JSON, nullable=True)  # JSON object
     
-    # Missing VATSIM API fields - 1:1 mapping with API field names
+    # Status and timestamps
+    status = Column(String(20), default="active")  # active, completed, cancelled
+    last_updated = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # VATSIM API fields - 1:1 mapping with API field names
     cid = Column(Integer, nullable=True, index=True)  # VATSIM user ID
     name = Column(String(100), nullable=True)  # Pilot name
     server = Column(String(50), nullable=True)  # Network server
@@ -122,7 +126,6 @@ class Flight(Base):
     military_rating = Column(Integer, nullable=True)  # Military rating
     latitude = Column(Float, nullable=True)  # Position latitude
     longitude = Column(Float, nullable=True)  # Position longitude
-    groundspeed = Column(Integer, nullable=True)  # Ground speed
     transponder = Column(String(10), nullable=True)  # Transponder code
     qnh_i_hg = Column(DECIMAL(4,2), nullable=True)  # QNH in inches Hg
     qnh_mb = Column(Integer, nullable=True)  # QNH in millibars
@@ -134,7 +137,6 @@ class Flight(Base):
     aircraft_faa = Column(String(20), nullable=True)  # FAA aircraft code
     aircraft_short = Column(String(10), nullable=True)  # Short aircraft code
     alternate = Column(String(10), nullable=True)  # Alternate airport
-    cruise_tas = Column(Integer, nullable=True)  # True airspeed
     planned_altitude = Column(Integer, nullable=True)  # Planned cruise altitude
     deptime = Column(String(10), nullable=True)  # Departure time
     enroute_time = Column(String(10), nullable=True)  # Enroute time
@@ -142,6 +144,9 @@ class Flight(Base):
     remarks = Column(Text, nullable=True)  # Flight plan remarks
     revision_id = Column(Integer, nullable=True)  # Flight plan revision
     assigned_transponder = Column(String(10), nullable=True)  # Assigned transponder
+    
+    # Foreign keys
+    controller_id = Column(Integer, ForeignKey("controllers.id"), nullable=True)
     
     # Relationships
     controller = relationship("Controller", back_populates="flights")

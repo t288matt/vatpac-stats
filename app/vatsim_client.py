@@ -75,10 +75,7 @@ class VATSIMFlight:
     arrival: str
     route: str
     altitude: int
-    speed: int
     heading: int
-    ground_speed: int
-    vertical_speed: int
     squawk: str
     position: Dict[str, float]  # lat/lng
     controller_id: Optional[str]
@@ -174,10 +171,7 @@ class VATSIMClient:
                     arrival=flight_data.get("flight_plan", {}).get("arrival", "") if flight_data.get("flight_plan") else "",
                     route=flight_data.get("flight_plan", {}).get("route", "") if flight_data.get("flight_plan") else "",
                     altitude=int(flight_data.get("altitude", 0)),
-                    speed=int(flight_data.get("groundspeed", 0)),
                     heading=int(flight_data.get("heading", 0)),
-                    ground_speed=int(flight_data.get("groundspeed", 0)),
-                    vertical_speed=int(flight_data.get("vertical_speed", 0)),
                     squawk=flight_data.get("transponder", ""),
                     position=position,
                     controller_id=flight_data.get("controller", "")

@@ -478,7 +478,7 @@ async def get_flights(db: Session = Depends(get_db)):
         }
     
     # If not cached, get from database using direct SQL to avoid session isolation issues
-    result = db.execute(text("SELECT * FROM flights WHERE status = 'active'"))
+    result = db.execute(text("SELECT id, callsign, aircraft_type, departure, arrival, route, altitude, heading, groundspeed, cruise_tas, squawk, position_lat, position_lng, controller_id, last_updated FROM flights WHERE status = 'active'"))
     flights_data = []
     
     for row in result:
@@ -490,10 +490,9 @@ async def get_flights(db: Session = Depends(get_db)):
             "arrival": row.arrival,
             "route": row.route,
             "altitude": row.altitude,
-            "speed": row.speed,
             "heading": row.heading,
-            "ground_speed": row.ground_speed,
-            "vertical_speed": row.vertical_speed,
+            "groundspeed": row.groundspeed,
+            "cruise_tas": row.cruise_tas,
             "squawk": row.squawk,
             "position_lat": row.position_lat,
             "position_lng": row.position_lng,
@@ -554,10 +553,9 @@ async def get_flight_track(
                     "latitude": pos.position_lat,
                     "longitude": pos.position_lng,
                     "altitude": pos.altitude,
-                    "speed": pos.speed,
                     "heading": pos.heading,
-                    "ground_speed": pos.ground_speed,
-                    "vertical_speed": pos.vertical_speed,
+                    "groundspeed": pos.groundspeed,
+                    "cruise_tas": pos.cruise_tas,
                     "squawk": pos.squawk
                 } for pos in flight_positions
             ],
@@ -590,9 +588,9 @@ async def get_flight_stats(callsign: str, db: Session = Depends(get_db)):
         # Calculate flight duration
         duration_minutes = int((last_pos.last_updated - first_pos.last_updated).total_seconds() / 60)
         
-        # Find max altitude and speed
+        # Find max altitude and groundspeed
         max_altitude = max(pos.altitude or 0 for pos in positions)
-        max_speed = max(pos.speed or 0 for pos in positions)
+        max_groundspeed = max(pos.groundspeed or 0 for pos in positions)
         
         return {
             "callsign": callsign,
@@ -604,7 +602,7 @@ async def get_flight_stats(callsign: str, db: Session = Depends(get_db)):
             "arrival": first_pos.arrival,
             "aircraft_type": first_pos.aircraft_type,
             "max_altitude": max_altitude,
-            "max_speed": max_speed,
+            "max_groundspeed": max_groundspeed,
             "route": first_pos.route
         }
     except Exception as e:
@@ -647,8 +645,7 @@ async def get_airport_movements(
             "movement_type": movement.movement_type,
             "timestamp": movement.timestamp.isoformat(),
             "confidence": movement.confidence,
-            "altitude": movement.altitude,
-            "speed": movement.speed
+            "altitude": movement.altitude
         })
     
     # Cache the result
@@ -804,12 +801,11 @@ async def get_flights_from_memory():
             "departure": flight_data.get('departure', ''),
             "arrival": flight_data.get('arrival', ''),
             "altitude": flight_data.get('altitude', 0),
-            "speed": flight_data.get('speed', 0),
             "position_lat": flight_data.get('position_lat', 0.0),
             "position_lng": flight_data.get('position_lng', 0.0),
             "heading": flight_data.get('heading', 0),
-            "ground_speed": flight_data.get('ground_speed', 0),
-            "vertical_speed": flight_data.get('vertical_speed', 0),
+            "groundspeed": flight_data.get('groundspeed', 0),
+            "cruise_tas": flight_data.get('cruise_tas', 0),
             "squawk": flight_data.get('squawk', ''),
             "controller_id": flight_data.get('controller_id'),
             "last_updated": flight_data.get('last_updated', '').isoformat() if hasattr(flight_data.get('last_updated', ''), 'isoformat') else str(flight_data.get('last_updated', ''))

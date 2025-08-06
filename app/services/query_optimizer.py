@@ -139,7 +139,8 @@ class QueryOptimizer:
                     "arrival": flight.arrival,
                     "route": flight.route,
                     "altitude": flight.altitude,
-                    "speed": flight.speed,
+                    "groundspeed": flight.groundspeed,
+                    "cruise_tas": flight.cruise_tas,
                     "position": flight.position,
                     "last_updated": flight.last_updated.isoformat() if flight.last_updated else None,
                     "atc_position_callsign": flight.atc_position.callsign if flight.atc_position else None,
@@ -183,7 +184,6 @@ class QueryOptimizer:
                     "movement_type": movement.movement_type,
                     "timestamp": movement.timestamp.isoformat() if movement.timestamp else None,
                     "altitude": movement.altitude,
-                    "speed": movement.speed,
                     "heading": movement.heading
                 })
             
@@ -255,8 +255,7 @@ class QueryOptimizer:
                 TrafficMovement.airport_code,
                 TrafficMovement.movement_type,
                 func.count(TrafficMovement.id).label('count'),
-                func.avg(TrafficMovement.altitude).label('avg_altitude'),
-                func.avg(TrafficMovement.speed).label('avg_speed')
+                func.avg(TrafficMovement.altitude).label('avg_altitude')
             ).filter(
                 and_(
                     TrafficMovement.airport_code == airport_icao.upper(),
@@ -271,7 +270,6 @@ class QueryOptimizer:
             arrivals = 0
             departures = 0
             total_altitude = 0
-            total_speed = 0
             total_count = 0
             
             for row in summary:
@@ -281,10 +279,8 @@ class QueryOptimizer:
                     departures = row.count
                 total_count += row.count
                 total_altitude += (row.avg_altitude or 0) * row.count
-                total_speed += (row.avg_speed or 0) * row.count
             
             avg_altitude = total_altitude / total_count if total_count > 0 else 0
-            avg_speed = total_speed / total_count if total_count > 0 else 0
             
             logger.info(f"Retrieved traffic summary for {airport_icao}: {arrivals} arrivals, {departures} departures")
             
@@ -294,7 +290,6 @@ class QueryOptimizer:
                 "departures": departures,
                 "total_movements": total_count,
                 "avg_altitude": round(avg_altitude, 2),
-                "avg_speed": round(avg_speed, 2),
                 "period_days": days,
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
@@ -307,7 +302,6 @@ class QueryOptimizer:
                 "departures": 0,
                 "total_movements": 0,
                 "avg_altitude": 0,
-                "avg_speed": 0,
                 "period_days": days,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "error": str(e)

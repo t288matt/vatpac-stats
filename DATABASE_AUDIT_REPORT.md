@@ -52,7 +52,7 @@ This audit was conducted to verify the current database schema against the appli
 - `callsign` (VARCHAR(50) NOT NULL)
 - `aircraft_type` (VARCHAR(20))
 - `position_lat`, `position_lng` (DOUBLE PRECISION)
-- `altitude`, `speed`, `heading`, `ground_speed`, `vertical_speed` (INTEGER)
+- `altitude`, `heading`, `groundspeed`, `cruise_tas` (INTEGER)
 - `squawk` (VARCHAR(10))
 - `flight_plan` (JSONB)
 

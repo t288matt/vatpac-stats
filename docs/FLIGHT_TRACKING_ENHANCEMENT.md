@@ -103,10 +103,9 @@ async def get_flight_track(
                         "latitude": pos.position_lat,
                         "longitude": pos.position_lng,
                         "altitude": pos.altitude,
-                        "speed": pos.speed,
                         "heading": pos.heading,
-                        "ground_speed": pos.ground_speed,
-                        "vertical_speed": pos.vertical_speed,
+                        "groundspeed": pos.groundspeed,
+                        "cruise_tas": pos.cruise_tas,
                         "squawk": pos.squawk
                     } for pos in flight_positions
                 ],

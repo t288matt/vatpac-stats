@@ -30,8 +30,8 @@ This document outlines the complete field mapping between VATSIM API data and ou
 | `"altitude"` | `altitude` | INTEGER | Flight level | ✅ **MAPPED** |
 | `"speed"` | `speed` | INTEGER | Airspeed | ✅ **MAPPED** |
 | `"heading"` | `heading` | INTEGER | Aircraft heading | ✅ **MAPPED** |
-| `"ground_speed"` | `ground_speed` | INTEGER | Ground speed | ✅ **MAPPED** |
-| `"vertical_speed"` | `vertical_speed` | INTEGER | Vertical speed | ✅ **MAPPED** |
+| `"groundspeed"` | `groundspeed` | INTEGER | Ground speed | ✅ **MAPPED** |
+| `"cruise_tas"` | `cruise_tas` | INTEGER | Cruise true airspeed | ✅ **MAPPED** |
 | `"squawk"` | `squawk` | VARCHAR(10) | Transponder code | ✅ **MAPPED** |
 | `"departure"` | `departure` | VARCHAR(10) | Departure airport | ✅ **MAPPED** |
 | `"arrival"` | `arrival` | VARCHAR(10) | Arrival airport | ✅ **MAPPED** |

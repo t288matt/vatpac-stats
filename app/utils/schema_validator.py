@@ -30,13 +30,13 @@ REQUIRED_TABLES = {
     ],
     'flights': [
         'id', 'callsign', 'aircraft_type', 'position_lat', 'position_lng',
-        'altitude', 'speed', 'heading', 'ground_speed', 'vertical_speed',
+        'altitude', 'heading',
         'squawk', 'flight_plan', 'controller_id', 'last_updated', 'created_at',
         'departure', 'arrival', 'route', 'status', 'updated_at'
     ],
     'traffic_movements': [
         'id', 'airport_code', 'movement_type', 'aircraft_callsign',
-        'aircraft_type', 'timestamp', 'runway', 'altitude', 'speed',
+        'aircraft_type', 'timestamp', 'runway', 'altitude',
         'heading', 'metadata_json', 'created_at', 'updated_at'
     ],
     'flight_summaries': [

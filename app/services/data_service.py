@@ -310,8 +310,8 @@ class DataService(DatabaseService):
             
             for flight_data in flights_data:
                 callsign = flight_data.get('callsign', '')
-                departure = flight_data.get('departure', '')
-                arrival = flight_data.get('arrival', '')
+                departure = flight_data.get('flight_plan', {}).get('departure', '') if flight_data.get('flight_plan') else ''
+                arrival = flight_data.get('flight_plan', {}).get('arrival', '') if flight_data.get('flight_plan') else ''
                 
                 # Check if flight filter is enabled
                 if config.flight_filter.enabled:
@@ -327,25 +327,30 @@ class DataService(DatabaseService):
                     if not is_australian_flight:
                         continue
                 
-                # Update memory cache with correct field mapping
-                position_data = flight_data.get('position', {})
+                if not callsign:
+                    continue
                 
-                # Create flight data with timestamp for tracking
+                # Get position data
+                position_data = {
+                    'lat': flight_data.get('latitude', 0.0),
+                    'lng': flight_data.get('longitude', 0.0)
+                }
+                
+                # Create flight record
                 flight_record = {
                     'callsign': callsign,
                     'aircraft_type': flight_data.get('aircraft_type', ''),
                     'departure': departure,
                     'arrival': arrival,
-                    'route': flight_data.get('route', ''),
+                    'route': flight_data.get('flight_plan', {}).get('route', '') if flight_data.get('flight_plan') else '',
                     'altitude': flight_data.get('altitude', 0),
-                    'speed': flight_data.get('speed', 0),
+                    'heading': flight_data.get('heading', 0),
+                    'squawk': flight_data.get('transponder', ''),
                     'position_lat': position_data.get('lat', 0.0) if position_data else 0.0,
                     'position_lng': position_data.get('lng', 0.0) if position_data else 0.0,
-                    'heading': flight_data.get('heading', 0),
-                    'ground_speed': flight_data.get('ground_speed', 0),
-                    'vertical_speed': flight_data.get('vertical_speed', 0),
-                    'squawk': flight_data.get('squawk', ''),
-                    'controller_id': flight_data.get('cid', None),  # API "cid" → DB "controller_id"
+                    'groundspeed': flight_data.get('groundspeed', 0),
+                    'cruise_tas': flight_data.get('cruise_tas', 0),
+                    'controller_id': flight_data.get('cid', None),
                     'last_updated': datetime.now(timezone.utc),
                     'status': 'active'
                 }

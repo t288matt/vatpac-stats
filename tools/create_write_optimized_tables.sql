@@ -30,27 +30,62 @@ CREATE INDEX IF NOT EXISTS idx_controllers_last_seen ON controllers(last_seen);
 -- ===========================================
 -- FLIGHTS TABLE (Write-Optimized)
 -- ===========================================
-CREATE TABLE IF NOT EXISTS flights (
+-- Write-optimized flights table for high-frequency inserts
+CREATE TABLE IF NOT EXISTS flights_write_optimized (
     id SERIAL PRIMARY KEY,
     callsign VARCHAR(50) NOT NULL,
     aircraft_type VARCHAR(20),
-    position_lat FLOAT,
-    position_lng FLOAT,
+    position_lat DOUBLE PRECISION,
+    position_lng DOUBLE PRECISION,
+    
+    -- Flight tracking fields
     altitude INTEGER,
-    speed INTEGER,
     heading INTEGER,
-    ground_speed INTEGER,
-    vertical_speed INTEGER,
+    groundspeed INTEGER,
+    cruise_tas INTEGER,
     squawk VARCHAR(10),
-    flight_plan JSONB,
-    last_updated TIMESTAMPTZ DEFAULT NOW(),
-    controller_id INTEGER,                   -- No FK constraint for write speed
-    created_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Flight plan fields
     departure VARCHAR(10),
     arrival VARCHAR(10),
     route TEXT,
+    flight_plan JSONB,
+    
+    -- Status and timestamps
     status VARCHAR(20) DEFAULT 'active',
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- VATSIM API fields
+    cid INTEGER,
+    name VARCHAR(100),
+    server VARCHAR(50),
+    pilot_rating INTEGER,
+    military_rating INTEGER,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    transponder VARCHAR(10),
+    qnh_i_hg DECIMAL(4,2),
+    qnh_mb INTEGER,
+    logon_time TIMESTAMP WITH TIME ZONE,
+    last_updated_api TIMESTAMP WITH TIME ZONE,
+    
+    -- Flight plan fields
+    flight_rules VARCHAR(10),
+    aircraft_faa VARCHAR(20),
+    aircraft_short VARCHAR(10),
+    alternate VARCHAR(10),
+    planned_altitude INTEGER,
+    deptime VARCHAR(10),
+    enroute_time VARCHAR(10),
+    fuel_time VARCHAR(10),
+    remarks TEXT,
+    revision_id INTEGER,
+    assigned_transponder VARCHAR(10),
+    
+    -- Foreign keys
+    controller_id INTEGER
 );
 
 -- MINIMAL INDEXES for flights (write-optimized)
@@ -88,7 +123,6 @@ CREATE TABLE IF NOT EXISTS traffic_movements (
     timestamp TIMESTAMPTZ DEFAULT NOW(),
     runway VARCHAR(10),
     altitude INTEGER,
-    speed INTEGER,
     heading INTEGER,
     metadata_json TEXT,  -- JSON string
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -239,26 +273,55 @@ DECLARE
 BEGIN
     FOREACH flight_record IN ARRAY flight_data
     LOOP
-        INSERT INTO flights (
+        INSERT INTO flights_write_optimized (
             callsign, aircraft_type, position_lat, position_lng,
-            altitude, speed, heading, ground_speed, vertical_speed,
-            squawk, flight_plan, departure, arrival, route, status
+            altitude, heading, groundspeed, cruise_tas,
+            squawk, departure, arrival, route, flight_plan, status,
+            cid, name, server, pilot_rating, military_rating,
+            latitude, longitude, transponder, qnh_i_hg, qnh_mb,
+            logon_time, last_updated_api, flight_rules, aircraft_faa,
+            aircraft_short, alternate, planned_altitude, deptime,
+            enroute_time, fuel_time, remarks, revision_id,
+            assigned_transponder, controller_id
         ) VALUES (
             flight_record->>'callsign',
             flight_record->>'aircraft_type',
-            (flight_record->>'position_lat')::FLOAT,
-            (flight_record->>'position_lng')::FLOAT,
+            (flight_record->>'position_lat')::DOUBLE PRECISION,
+            (flight_record->>'position_lng')::DOUBLE PRECISION,
             (flight_record->>'altitude')::INTEGER,
-            (flight_record->>'speed')::INTEGER,
             (flight_record->>'heading')::INTEGER,
-            (flight_record->>'ground_speed')::INTEGER,
-            (flight_record->>'vertical_speed')::INTEGER,
+            (flight_record->>'groundspeed')::INTEGER,
+            (flight_record->>'cruise_tas')::INTEGER,
             flight_record->>'squawk',
-            flight_record->'flight_plan',
             flight_record->>'departure',
             flight_record->>'arrival',
             flight_record->>'route',
-            COALESCE(flight_record->>'status', 'active')
+            flight_record->'flight_plan',
+            COALESCE(flight_record->>'status', 'active'),
+            (flight_record->>'cid')::INTEGER,
+            flight_record->>'name',
+            flight_record->>'server',
+            (flight_record->>'pilot_rating')::INTEGER,
+            (flight_record->>'military_rating')::INTEGER,
+            (flight_record->>'latitude')::DOUBLE PRECISION,
+            (flight_record->>'longitude')::DOUBLE PRECISION,
+            flight_record->>'transponder',
+            (flight_record->>'qnh_i_hg')::DECIMAL(4,2),
+            (flight_record->>'qnh_mb')::INTEGER,
+            (flight_record->>'logon_time')::TIMESTAMP WITH TIME ZONE,
+            (flight_record->>'last_updated_api')::TIMESTAMP WITH TIME ZONE,
+            flight_record->>'flight_rules',
+            flight_record->>'aircraft_faa',
+            flight_record->>'aircraft_short',
+            flight_record->>'alternate',
+            (flight_record->>'planned_altitude')::INTEGER,
+            flight_record->>'deptime',
+            flight_record->>'enroute_time',
+            flight_record->>'fuel_time',
+            flight_record->>'remarks',
+            (flight_record->>'revision_id')::INTEGER,
+            flight_record->>'assigned_transponder',
+            (flight_record->>'controller_id')::INTEGER
         );
         inserted_count := inserted_count + 1;
     END LOOP;

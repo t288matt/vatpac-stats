@@ -156,7 +156,6 @@ class DataIngestionService:
                 arrival = flight_data.arrival
                 route = flight_data.route
                 altitude = flight_data.altitude
-                speed = flight_data.speed
                 
                 # Position data - store as separate lat/lng fields
                 position_lat = flight_data.position.get("lat", 0) if flight_data.position else 0
@@ -178,7 +177,6 @@ class DataIngestionService:
                     existing_flight.arrival = arrival
                     existing_flight.route = route
                     existing_flight.altitude = altitude
-                    existing_flight.speed = speed
                     existing_flight.position_lat = position_lat
                     existing_flight.position_lng = position_lng
                     existing_flight.controller_id = controller_id
@@ -222,7 +220,6 @@ class DataIngestionService:
                         arrival=arrival,
                         route=route,
                         altitude=altitude,
-                        speed=speed,
                         position_lat=position_lat,
                         position_lng=position_lng,
                         controller_id=controller_id,

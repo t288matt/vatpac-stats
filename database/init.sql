@@ -63,22 +63,27 @@ CREATE TABLE IF NOT EXISTS flights (
     aircraft_type VARCHAR(20),
     position_lat DOUBLE PRECISION,
     position_lng DOUBLE PRECISION,
+    
+    -- Flight tracking fields
     altitude INTEGER,
-    speed INTEGER,
     heading INTEGER,
-    ground_speed INTEGER,
-    vertical_speed INTEGER,
+    groundspeed INTEGER,
+    cruise_tas INTEGER,
     squawk VARCHAR(10),
-    flight_plan TEXT,
-    controller_id INTEGER REFERENCES controllers(id),
-    last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Flight plan fields
     departure VARCHAR(10),
     arrival VARCHAR(10),
     route TEXT,
+    flight_plan JSONB,  -- Changed to JSONB for better performance
+    
+    -- Status and timestamps
     status VARCHAR(20) DEFAULT 'active',
+    last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    -- Missing VATSIM API fields - 1:1 mapping with API field names
+    
+    -- VATSIM API fields - 1:1 mapping with API field names
     cid INTEGER,  -- VATSIM user ID
     name VARCHAR(100),  -- Pilot name
     server VARCHAR(50),  -- Network server
@@ -86,26 +91,31 @@ CREATE TABLE IF NOT EXISTS flights (
     military_rating INTEGER,  -- Military rating
     latitude DOUBLE PRECISION,  -- Position latitude
     longitude DOUBLE PRECISION,  -- Position longitude
-    groundspeed INTEGER,  -- Ground speed
     transponder VARCHAR(10),  -- Transponder code
     qnh_i_hg DECIMAL(4,2),  -- QNH in inches Hg
     qnh_mb INTEGER,  -- QNH in millibars
     logon_time TIMESTAMP WITH TIME ZONE,  -- When pilot connected
     last_updated_api TIMESTAMP WITH TIME ZONE,  -- API last_updated timestamp
+    
     -- Flight plan fields (nested object)
     flight_rules VARCHAR(10),  -- IFR/VFR
     aircraft_faa VARCHAR(20),  -- FAA aircraft code
     aircraft_short VARCHAR(10),  -- Short aircraft code
     alternate VARCHAR(10),  -- Alternate airport
-    cruise_tas INTEGER,  -- True airspeed
     planned_altitude INTEGER,  -- Planned cruise altitude
     deptime VARCHAR(10),  -- Departure time
     enroute_time VARCHAR(10),  -- Enroute time
     fuel_time VARCHAR(10),  -- Fuel time
     remarks TEXT,  -- Flight plan remarks
     revision_id INTEGER,  -- Flight plan revision
-    assigned_transponder VARCHAR(10)  -- Assigned transponder
+    assigned_transponder VARCHAR(10),  -- Assigned transponder
+    
+    -- Foreign keys
+    controller_id INTEGER REFERENCES controllers(id)
 );
+
+-- Add is_active field for soft deletion and filtering
+ALTER TABLE flights ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
 
 -- VATSIM Status table for general/status data
 CREATE TABLE IF NOT EXISTS vatsim_status (

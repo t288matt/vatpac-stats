@@ -479,7 +479,8 @@ class MLService:
                 "timestamp": flight.last_updated,
                 "flight_count": 1,
                 "altitude": flight.altitude or 0,
-                "speed": flight.speed or 0
+                "groundspeed": flight.groundspeed or 0,
+                "cruise_tas": flight.cruise_tas or 0
             }
             for flight in flights
         ]
@@ -492,7 +493,7 @@ class MLService:
         # Extract features from historical data
         flight_counts = [d["flight_count"] for d in historical_data]
         altitudes = [d["altitude"] for d in historical_data]
-        speeds = [d["speed"] for d in historical_data]
+        groundspeeds = [d["groundspeed"] for d in historical_data]
         
         features = [
             np.mean(flight_counts) if flight_counts else 0.0,
@@ -500,8 +501,8 @@ class MLService:
             np.max(flight_counts) if flight_counts else 0.0,
             np.mean(altitudes) if altitudes else 0.0,
             np.std(altitudes) if altitudes else 0.0,
-            np.mean(speeds) if speeds else 0.0,
-            np.std(speeds) if speeds else 0.0,
+            np.mean(groundspeeds) if groundspeeds else 0.0,
+            np.std(groundspeeds) if groundspeeds else 0.0,
             len(historical_data),
             datetime.now(timezone.utc).hour,
             datetime.now(timezone.utc).weekday()
@@ -571,7 +572,7 @@ class MLService:
             "sector_name": str(sector.name),
             "flight_count": len(flights),
             "avg_altitude": np.mean([f.altitude or 0 for f in flights]) if flights else 0,
-            "avg_speed": np.mean([f.speed or 0 for f in flights]) if flights else 0,
+            "avg_groundspeed": np.mean([f.groundspeed or 0 for f in flights]) if flights else 0,
             "controller_id": sector.controller_id
         }
     
@@ -724,7 +725,7 @@ class MLService:
             {
                 "flight_count": 1,
                 "altitude": flight.altitude or 0,
-                "speed": flight.speed or 0,
+                "groundspeed": flight.groundspeed or 0,
                 "hour": flight.last_updated.hour if flight.last_updated else 0,
                 "weekday": flight.last_updated.weekday() if flight.last_updated else 0
             }
@@ -744,7 +745,7 @@ class MLService:
             feature = [
                 data["flight_count"],
                 data["altitude"],
-                data["speed"],
+                data["groundspeed"],
                 data["hour"],
                 data["weekday"]
             ]
@@ -769,7 +770,7 @@ class MLService:
             feature = [
                 data["flight_count"],
                 data["altitude"],
-                data["speed"]
+                data["groundspeed"]
             ]
             features.append(feature)
         
@@ -793,7 +794,7 @@ class MLService:
             feature = [
                 data["flight_count"],
                 data["altitude"],
-                data["speed"],
+                data["groundspeed"],
                 data["hour"],
                 data["weekday"]
             ]

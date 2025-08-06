@@ -97,7 +97,6 @@ class VATSIMFlight:
     arrival: str
     route: str
     altitude: int
-    speed: int
     position: Optional[Dict[str, float]] = None
     
     # Missing VATSIM API fields - 1:1 mapping with API field names
@@ -477,7 +476,6 @@ class VATSIMService(BaseService):
                     arrival=flight_plan.get("arrival", ""),
                     route=flight_plan.get("route", ""),
                     altitude=int(flight_data.get("altitude", 0)),
-                    speed=int(flight_data.get("groundspeed", 0)),
                     position=position,
                     
                     # Missing VATSIM API fields - 1:1 mapping with API field names

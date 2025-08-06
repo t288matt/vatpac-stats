@@ -80,10 +80,10 @@ docker-compose ps
 
 ## 📊 Database Schema Created
 
-### **Tables Created:**
-- `controllers` - ATC controller positions
+### **Tables Created (13 total):**
+- `controllers` - ATC controller positions with VATSIM API fields
 - `sectors` - Airspace sector definitions
-- `flights` - Real-time flight data
+- `flights` - Real-time flight data with complete VATSIM API mapping
 - `traffic_movements` - Airport arrival/departure tracking
 - `flight_summaries` - Historical flight data
 - `movement_summaries` - Hourly movement statistics
@@ -92,14 +92,24 @@ docker-compose ps
 - `movement_detection_config` - Detection algorithm settings
 - `system_config` - Application configuration
 - `events` - Special events and scheduling
-- `transceivers` - Radio frequency data
+- `transceivers` - Radio frequency and position data
+- `vatsim_status` - VATSIM network status and general information
+
+### **VATSIM API Integration:**
+- ✅ **Complete 1:1 field mapping** with VATSIM API
+- ✅ **Flight data fields**: cid, name, server, pilot_rating, military_rating, latitude, longitude, groundspeed, transponder, qnh_i_hg, qnh_mb, logon_time, last_updated_api
+- ✅ **Flight plan fields**: flight_rules, aircraft_faa, aircraft_short, alternate, cruise_tas, planned_altitude, deptime, enroute_time, fuel_time, remarks, revision_id, assigned_transponder
+- ✅ **Controller fields**: controller_id, controller_name, controller_rating, visual_range, text_atis
+- ✅ **Network status**: api_version, reload, update_timestamp, connected_clients, unique_users
 
 ### **Features Included:**
 - ✅ All required fields with correct data types
 - ✅ Foreign key relationships
-- ✅ Performance indexes
+- ✅ Performance indexes (59 total indexes)
 - ✅ Automatic timestamp updates
 - ✅ Default configuration data
+- ✅ JSONB fields for flexible data storage
+- ✅ Comprehensive VATSIM API field coverage
 
 ## 🎯 Access Points
 

@@ -224,9 +224,9 @@ class TrafficAnalysisService:
             if distance > airport_config.detection_radius_nm:
                 return None
             
-            # Check altitude and speed thresholds
+            # Check altitude and groundspeed thresholds
             altitude_ok = flight.altitude and flight.altitude <= airport_config.departure_altitude_threshold
-            speed_ok = flight.speed and flight.speed <= airport_config.departure_speed_threshold
+            speed_ok = flight.groundspeed and flight.groundspeed <= airport_config.departure_speed_threshold
             
             if altitude_ok and speed_ok:
                 # Check if this movement was already recorded recently
@@ -249,7 +249,6 @@ class TrafficAnalysisService:
                         aircraft_type=flight.aircraft_type,
                         timestamp=datetime.now(timezone.utc),
                         altitude=flight.altitude,
-                        speed=flight.speed,
                         heading=flight.heading
                     )
                     
@@ -274,9 +273,9 @@ class TrafficAnalysisService:
             if distance > airport_config.detection_radius_nm:
                 return None
             
-            # Check altitude and speed thresholds
+            # Check altitude and groundspeed thresholds
             altitude_ok = flight.altitude and flight.altitude <= airport_config.arrival_altitude_threshold
-            speed_ok = flight.speed and flight.speed <= airport_config.arrival_speed_threshold
+            speed_ok = flight.groundspeed and flight.groundspeed <= airport_config.arrival_speed_threshold
             
             if altitude_ok and speed_ok:
                 # Check if this movement was already recorded recently
@@ -299,7 +298,6 @@ class TrafficAnalysisService:
                         aircraft_type=flight.aircraft_type,
                         timestamp=datetime.now(timezone.utc),
                         altitude=flight.altitude,
-                        speed=flight.speed,
                         heading=flight.heading
                     )
                     
@@ -367,7 +365,6 @@ class TrafficAnalysisService:
                     "timestamp": movement.timestamp.isoformat() if movement.timestamp else None,
                     "runway": movement.runway,
                     "altitude": movement.altitude,
-                    "speed": movement.speed,
                     "heading": movement.heading
                 })
             
