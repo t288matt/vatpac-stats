@@ -37,14 +37,14 @@ from typing import List, Dict, Any, Optional
 import logging
 import asyncio
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone, timedelta, timezone, timezone
+from datetime import datetime, timezone, timedelta
 from sqlalchemy import and_, desc, text
 
-from .config import get_config, validate_config
+# Config imports removed as they were unused
 from .database import get_db, init_db, get_database_info, SessionLocal
 from .models import Controller, Sector, Flight, TrafficMovement, AirportConfig, Transceiver
 from .utils.logging import get_logger_for_module
-from .utils.rating_utils import get_rating_name, get_rating_level, get_all_ratings, validate_rating
+from .utils.rating_utils import get_all_ratings, validate_rating
 from .services.vatsim_service import get_vatsim_service
 from .services.data_service import get_data_service
 from .services.traffic_analysis_service import get_traffic_analysis_service
@@ -59,11 +59,17 @@ from .utils.exceptions import APIError, DatabaseError, CacheError
 from .utils.health_monitor import health_monitor
 from .utils.schema_validator import ensure_database_schema
 from .filters.flight_filter import FlightFilter
+from .utils.error_manager import get_error_analytics, get_circuit_breaker_status
+from .services.database_service import get_database_service
 
 # Import new service management components
 from .services.service_manager import ServiceManager
 from .services.event_bus import get_event_bus, publish_event
 from .services.interfaces.event_bus_interface import EventType
+
+# Import Phase 3 services
+from .services.monitoring_service import get_monitoring_service
+from .services.performance_monitor import get_performance_monitor
 
 # Configure logging
 logger = get_logger_for_module(__name__)
@@ -133,6 +139,9 @@ async def lifespan(app: FastAPI):
             'traffic_analysis_service': get_traffic_analysis_service(service_db),
             'query_optimizer': get_query_optimizer(),
             'resource_manager': get_resource_manager(),
+            # Phase 3 services
+            'monitoring_service': get_monitoring_service(),
+            'performance_monitor': get_performance_monitor(),
         }
         
         # Close the service database session
@@ -1279,6 +1288,243 @@ async def get_data_ingestion_diagnostic(db: Session = Depends(get_db)):
             "error_type": type(e).__name__,
             "recommendations": ["Check application logs for detailed error information"]
         }
+
+
+# Phase 2 API Endpoints
+
+@app.get("/api/errors/analytics")
+@handle_service_errors
+@log_operation("get_error_analytics")
+async def get_error_analytics_endpoint(hours: int = 24):
+    """Get error analytics for the specified time period."""
+    return get_error_analytics(hours)
+
+
+@app.get("/api/errors/circuit-breakers")
+@handle_service_errors
+@log_operation("get_circuit_breaker_status")
+async def get_circuit_breaker_status():
+    """Get circuit breaker status for all services."""
+    return get_circuit_breaker_status()
+
+
+@app.get("/api/database/service/stats")
+@handle_service_errors
+@log_operation("get_database_service_stats")
+async def get_database_service_stats():
+    """Get database service statistics."""
+    db_service = get_database_service()
+    return await db_service.get_database_stats()
+
+
+@app.get("/api/database/service/health")
+@handle_service_errors
+@log_operation("get_database_service_health")
+async def get_database_service_health():
+    """Get database service health status."""
+    db_service = get_database_service()
+    return await db_service.health_check()
+
+
+@app.get("/api/events/analytics")
+@handle_service_errors
+@log_operation("get_event_analytics")
+async def get_event_analytics():
+    """Get event bus analytics and metrics."""
+    event_bus = await get_event_bus()
+    return event_bus.get_statistics()
+
+
+# Phase 3 API Endpoints
+
+@app.get("/api/monitoring/metrics")
+@handle_service_errors
+@log_operation("get_monitoring_metrics")
+async def get_monitoring_metrics():
+    """Get monitoring service metrics."""
+    from .services.monitoring_service import get_monitoring_service
+    monitoring_service = get_monitoring_service()
+    return {
+        "metrics_count": len(monitoring_service.metrics_collector.metrics),
+        "active_alerts": len(monitoring_service.alert_manager.get_active_alerts()),
+        "health_checks": len(monitoring_service.health_checker.health_status)
+    }
+
+
+@app.get("/api/monitoring/alerts")
+@handle_service_errors
+@log_operation("get_monitoring_alerts")
+async def get_monitoring_alerts():
+    """Get active monitoring alerts."""
+    from .services.monitoring_service import get_monitoring_service
+    monitoring_service = get_monitoring_service()
+    alerts = monitoring_service.get_active_alerts()
+    return [{
+        "id": alert.id,
+        "type": alert.type.value,
+        "severity": alert.severity.value,
+        "message": alert.message,
+        "service": alert.service,
+        "timestamp": alert.timestamp.isoformat(),
+        "metadata": alert.metadata
+    } for alert in alerts]
+
+
+@app.get("/api/monitoring/health/{service_name}")
+@handle_service_errors
+@log_operation("get_service_health")
+async def get_service_health(service_name: str):
+    """Get health status for a specific service."""
+    from .services.monitoring_service import get_monitoring_service
+    monitoring_service = get_monitoring_service()
+    health_status = monitoring_service.get_health_status(service_name)
+    if health_status:
+        return {
+            "service": health_status.service,
+            "status": health_status.status,
+            "timestamp": health_status.timestamp.isoformat(),
+            "response_time": health_status.response_time,
+            "error_count": health_status.error_count,
+            "details": health_status.details
+        }
+    return {"error": f"Health status not found for service: {service_name}"}
+
+
+@app.get("/api/performance/metrics/{operation}")
+@handle_service_errors
+@log_operation("get_performance_metrics")
+async def get_performance_metrics(operation: str, service: str = "system", hours: int = 24):
+    """Get performance metrics for a specific operation."""
+    from .services.performance_monitor import get_performance_monitor, PerformanceMetric
+    monitor = get_performance_monitor()
+    
+    # Get response time metrics
+    response_time_summary = monitor.get_performance_summary(
+        operation, service, PerformanceMetric.RESPONSE_TIME, hours
+    )
+    
+    # Get memory usage metrics
+    memory_summary = monitor.get_performance_summary(
+        operation, service, PerformanceMetric.MEMORY_USAGE, hours
+    )
+    
+    # Get CPU usage metrics
+    cpu_summary = monitor.get_performance_summary(
+        operation, service, PerformanceMetric.CPU_USAGE, hours
+    )
+    
+    return {
+        "operation": operation,
+        "service": service,
+        "hours": hours,
+        "response_time": response_time_summary,
+        "memory_usage": memory_summary,
+        "cpu_usage": cpu_summary
+    }
+
+
+@app.get("/api/performance/recommendations")
+@handle_service_errors
+@log_operation("get_performance_recommendations")
+async def get_performance_recommendations(service: Optional[str] = None, priority: Optional[str] = None):
+    """Get performance optimization recommendations."""
+    from .services.performance_monitor import get_performance_monitor
+    monitor = get_performance_monitor()
+    recommendations = monitor.get_optimization_recommendations(service, priority)
+    
+    return [{
+        "id": rec.id,
+        "operation": rec.operation,
+        "service": rec.service,
+        "recommendation_type": rec.recommendation_type,
+        "description": rec.description,
+        "expected_improvement": rec.expected_improvement,
+        "implementation_difficulty": rec.implementation_difficulty,
+        "priority": rec.priority,
+        "timestamp": rec.timestamp.isoformat()
+    } for rec in recommendations]
+
+
+@app.get("/api/performance/alerts")
+@handle_service_errors
+@log_operation("get_performance_alerts")
+async def get_performance_alerts():
+    """Get active performance alerts."""
+    from .services.performance_monitor import get_performance_monitor
+    monitor = get_performance_monitor()
+    alerts = monitor.get_performance_alerts()
+    
+    return [{
+        "id": alert.id,
+        "operation": alert.operation,
+        "service": alert.service,
+        "metric_type": alert.metric_type.value,
+        "threshold": alert.threshold,
+        "current_value": alert.current_value,
+        "severity": alert.severity,
+        "message": alert.message,
+        "timestamp": alert.timestamp.isoformat()
+    } for alert in alerts]
+
+
+@app.get("/api/logging/analytics")
+@handle_service_errors
+@log_operation("get_logging_analytics")
+async def get_logging_analytics(service_name: str = "global", hours: int = 24):
+    """Get logging analytics for a service."""
+    from .utils.structured_logging import get_structured_logger
+    logger = get_structured_logger(service_name)
+    analytics = logger.get_log_analytics(hours)
+    
+    return {
+        "service": service_name,
+        "hours": hours,
+        **analytics
+    }
+
+
+@app.get("/api/ml/predictions")
+@handle_service_errors
+@log_operation("get_ml_predictions")
+async def get_ml_predictions(sector_name: str = "YSSY_CTR", hours_ahead: int = 4):
+    """Get ML traffic predictions for a sector (DISABLED)."""
+    return {
+        "sector_name": sector_name,
+        "current_demand": 0,
+        "predicted_demand_1h": 0,
+        "predicted_demand_2h": 0,
+        "predicted_demand_4h": 0,
+        "confidence_score": 0.0,
+        "trend_direction": "stable",
+        "anomaly_score": 0.0,
+        "status": "disabled",
+        "message": "ML service disabled due to heavy dependencies"
+    }
+
+
+@app.get("/api/ml/anomalies")
+@handle_service_errors
+@log_operation("get_ml_anomalies")
+async def get_ml_anomalies():
+    """Get ML anomaly detection results (DISABLED)."""
+    return {
+        "anomalies": [],
+        "status": "disabled",
+        "message": "ML service disabled due to heavy dependencies"
+    }
+
+
+@app.get("/api/ml/patterns")
+@handle_service_errors
+@log_operation("get_ml_patterns")
+async def get_ml_patterns():
+    """Get ML pattern recognition results (DISABLED)."""
+    return {
+        "patterns": [],
+        "status": "disabled",
+        "message": "ML service disabled due to heavy dependencies"
+    }
+
 
 if __name__ == "__main__":
     import uvicorn

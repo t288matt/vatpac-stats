@@ -15,4 +15,6 @@ httpx==0.25.2
 psutil==5.9.6
 
 # Validation
-pydantic==2.5.0 
+pydantic==2.5.0
+
+ 

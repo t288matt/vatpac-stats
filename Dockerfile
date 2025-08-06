@@ -5,9 +5,10 @@ FROM python:3.11-alpine as builder
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Install only essential build dependencies including linux-headers for psutil
+# Install build dependencies
 RUN apk add --no-cache \
     gcc \
+    g++ \
     musl-dev \
     postgresql-dev \
     linux-headers \
@@ -31,7 +32,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PATH=/home/app/.local/bin:$PATH
 
-# Install only runtime dependencies
+# Install runtime dependencies
 RUN apk add --no-cache \
     postgresql-libs \
     curl \
