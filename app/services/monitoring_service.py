@@ -332,7 +332,7 @@ class MonitoringService(BaseService):
         }
     
     @handle_service_errors
-    @log_operation("monitor_service")
+    @log_operation
     async def monitor_service(self, service_name: str, health_func: Callable):
         """Monitor a specific service."""
         health_status = await self.health_checker.check_service_health(service_name, health_func)
@@ -365,51 +365,51 @@ class MonitoringService(BaseService):
         return health_status
     
     @handle_service_errors
-    @log_operation("record_metric")
-    def record_metric(self, name: str, value: float, tags: Dict[str, str] = None, unit: str = ""):
+    @log_operation
+    async def record_metric(self, name: str, value: float, tags: Dict[str, str] = None, unit: str = ""):
         """Record a metric."""
         self.metrics_collector.record_metric(name, value, tags, unit)
     
     @handle_service_errors
-    @log_operation("get_metrics")
-    def get_metrics(self, name: str, hours: int = 24) -> List[Metric]:
+    @log_operation
+    async def get_metrics(self, name: str, hours: int = 24) -> List[Metric]:
         """Get metrics for a specific name."""
         return self.metrics_collector.get_metrics(name, hours)
     
     @handle_service_errors
-    @log_operation("get_metric_summary")
-    def get_metric_summary(self, name: str, hours: int = 24) -> Dict[str, Any]:
+    @log_operation
+    async def get_metric_summary(self, name: str, hours: int = 24) -> Dict[str, Any]:
         """Get metric summary statistics."""
         return self.metrics_collector.get_metric_summary(name, hours)
     
     @handle_service_errors
-    @log_operation("get_health_status")
-    def get_health_status(self, service_name: str) -> Optional[HealthStatus]:
+    @log_operation
+    async def get_health_status(self, service_name: str) -> Optional[HealthStatus]:
         """Get health status for a service."""
         return self.health_checker.get_service_health(service_name)
     
     @handle_service_errors
-    @log_operation("get_all_health_status")
-    def get_all_health_status(self) -> Dict[str, HealthStatus]:
+    @log_operation
+    async def get_all_health_status(self) -> Dict[str, HealthStatus]:
         """Get health status for all services."""
         return self.health_checker.get_all_health_status()
     
     @handle_service_errors
-    @log_operation("create_alert")
-    def create_alert(self, alert_type: AlertType, severity: AlertSeverity, 
+    @log_operation
+    async def create_alert(self, alert_type: AlertType, severity: AlertSeverity, 
                     message: str, service: str, metadata: Dict[str, Any] = None) -> Alert:
         """Create an alert."""
         return self.alert_manager.create_alert(alert_type, severity, message, service, metadata)
     
     @handle_service_errors
-    @log_operation("get_active_alerts")
-    def get_active_alerts(self) -> List[Alert]:
+    @log_operation
+    async def get_active_alerts(self) -> List[Alert]:
         """Get active alerts."""
         return self.alert_manager.get_active_alerts()
     
     @handle_service_errors
-    @log_operation("resolve_alert")
-    def resolve_alert(self, alert_id: str) -> bool:
+    @log_operation
+    async def resolve_alert(self, alert_id: str) -> bool:
         """Resolve an alert."""
         return self.alert_manager.resolve_alert(alert_id)
     
@@ -519,11 +519,11 @@ def get_monitoring_service() -> MonitoringService:
 async def record_metric(name: str, value: float, tags: Dict[str, str] = None, unit: str = ""):
     """Record a metric using the global monitoring service."""
     service = get_monitoring_service()
-    service.record_metric(name, value, tags, unit)
+    await service.record_metric(name, value, tags, unit)
 
 
 async def create_alert(alert_type: AlertType, severity: AlertSeverity, 
                       message: str, service: str, metadata: Dict[str, Any] = None) -> Alert:
     """Create an alert using the global monitoring service."""
     monitoring_service = get_monitoring_service()
-    return monitoring_service.create_alert(alert_type, severity, message, service, metadata) 
+    return await monitoring_service.create_alert(alert_type, severity, message, service, metadata) 

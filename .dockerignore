@@ -35,11 +35,11 @@ docs/
 *.md
 README*
 
-# Test files
-tests/
-test_*.py
-*_test.py
-pytest.ini
+# Test files (included for testing)
+# tests/
+# test_*.py
+# *_test.py
+# pytest.ini
 .coverage
 htmlcov/
 
