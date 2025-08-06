@@ -478,7 +478,7 @@ async def get_flights(db: Session = Depends(get_db)):
         }
     
     # If not cached, get from database using direct SQL to avoid session isolation issues
-    result = db.execute(text("SELECT id, callsign, aircraft_type, departure, arrival, route, altitude, heading, groundspeed, cruise_tas, squawk, position_lat, position_lng, controller_id, last_updated FROM flights WHERE status = 'active'"))
+    result = db.execute(text("SELECT id, callsign, aircraft_type, departure, arrival, route, altitude, heading, groundspeed, cruise_tas, squawk, position_lat, position_lng, latitude, longitude, cid, name, pilot_rating, military_rating, server, last_updated FROM flights WHERE status = 'active'"))
     flights_data = []
     
     for row in result:
@@ -496,19 +496,17 @@ async def get_flights(db: Session = Depends(get_db)):
             "squawk": row.squawk,
             "position_lat": row.position_lat,
             "position_lng": row.position_lng,
-            "controller_id": row.controller_id,
+            "latitude": row.latitude,
+            "longitude": row.longitude,
+            "cid": row.cid,
+            "name": row.name,
+            "pilot_rating": row.pilot_rating,
+            "military_rating": row.military_rating,
+            "server": row.server,
             "last_updated": row.last_updated.isoformat() if row.last_updated else None
         }
         
-        # Debug: Log flights with controller_id
-        if row.controller_id is not None:
-            logger.info(f"Flight {row.callsign} has controller_id: {row.controller_id}")
-        
         flights_data.append(flight_data)
-    
-    # Debug: Check if any flights have controller_id
-    flights_with_controller = [f for f in flights_data if f['controller_id'] is not None]
-    logger.info(f"Found {len(flights_with_controller)} flights with controller_id out of {len(flights_data)} total flights")
     
     # Cache the result
     await cache_service.set_flights_cache(flights_data)
@@ -807,7 +805,7 @@ async def get_flights_from_memory():
             "groundspeed": flight_data.get('groundspeed', 0),
             "cruise_tas": flight_data.get('cruise_tas', 0),
             "squawk": flight_data.get('squawk', ''),
-            "controller_id": flight_data.get('controller_id'),
+
             "last_updated": flight_data.get('last_updated', '').isoformat() if hasattr(flight_data.get('last_updated', ''), 'isoformat') else str(flight_data.get('last_updated', ''))
         })
     

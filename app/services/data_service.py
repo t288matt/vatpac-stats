@@ -350,7 +350,7 @@ class DataService(DatabaseService):
                     'position_lng': position_data.get('lng', 0.0) if position_data else 0.0,
                     'groundspeed': flight_data.get('groundspeed', 0),
                     'cruise_tas': flight_data.get('cruise_tas', 0),
-                    'controller_id': flight_data.get('cid', None),
+        
                     'last_updated': datetime.now(timezone.utc),
                     'status': 'active'
                 }

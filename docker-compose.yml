@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: vatsim_password
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
       - ./tools/postgresql_write_optimized.conf:/etc/postgresql/postgresql.conf
       - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
     ports:
@@ -28,7 +28,7 @@ services:
     container_name: vatsim_redis
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     volumes:
-      - ./data/redis:/data
+      - redis_data:/data
     ports:
       - "6379:6379"
     healthcheck:
@@ -149,3 +149,10 @@ services:
 #   volumes:
 #     - /var/run/docker.sock:/var/run/docker.sock:ro
 #   restart: unless-stopped 
+
+# Define named volumes
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local 

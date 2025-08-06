@@ -4,6 +4,30 @@
 
 The VATSIM Data Collection System is a high-performance, API-driven platform designed for real-time air traffic control data collection, analysis, and monitoring. The system has evolved from a traditional web application to a modern, microservices-oriented architecture optimized for Grafana integration and operational excellence.
 
+## ⚠️ **IMPORTANT: Database Architecture is Stable**
+
+**The database schema and models are well-designed and should NOT be modified during refactoring.** The current database architecture provides:
+
+- ✅ **Complete VATSIM API field mapping** (1:1 mapping with API fields)
+- ✅ **Optimized flight tracking** (every position update preserved)
+- ✅ **Proper indexing** for fast queries
+- ✅ **Unique constraints** to prevent duplicate data
+- ✅ **Efficient data types** for storage optimization
+- ✅ **Clear table relationships** and foreign keys
+
+**Database files to preserve unchanged:**
+- `app/models.py` - All database models
+- `app/database.py` - Database connection management
+- `database/init.sql` - Database initialization
+- All database migration files
+
+**Focus refactoring efforts on:**
+- Service layer architecture
+- Error handling patterns
+- Configuration management
+- Monitoring and observability
+- Testing frameworks
+
 ### 🎯 Core Principles
 
 - **API-First Design**: All functionality exposed through REST APIs

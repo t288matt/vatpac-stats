@@ -108,10 +108,7 @@ CREATE TABLE IF NOT EXISTS flights (
     fuel_time VARCHAR(10),  -- Fuel time
     remarks TEXT,  -- Flight plan remarks
     revision_id INTEGER,  -- Flight plan revision
-    assigned_transponder VARCHAR(10),  -- Assigned transponder
-    
-    -- Foreign keys
-    controller_id INTEGER REFERENCES controllers(id)
+    assigned_transponder VARCHAR(10)  -- Assigned transponder
 );
 
 -- Add is_active field for soft deletion and filtering
@@ -256,7 +253,6 @@ CREATE TABLE IF NOT EXISTS transceivers (
 CREATE INDEX IF NOT EXISTS idx_controllers_callsign ON controllers(callsign);
 CREATE INDEX IF NOT EXISTS idx_controllers_controller_id ON controllers(controller_id);
 CREATE INDEX IF NOT EXISTS idx_flights_callsign ON flights(callsign);
-CREATE INDEX IF NOT EXISTS idx_flights_controller ON flights(controller_id);
 CREATE INDEX IF NOT EXISTS idx_flights_cid ON flights(cid);
 CREATE INDEX IF NOT EXISTS idx_flights_name ON flights(name);
 CREATE INDEX IF NOT EXISTS idx_flights_server ON flights(server);

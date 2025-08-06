@@ -1,21 +1,16 @@
 #!/usr/bin/env python3
 """
-Airport Data Extraction and Population Script
+Simple Airport Population Script for Docker Environment
 
 This script extracts airport data from the Airspace.xml file and populates
-the airports table in the database. It handles the special position format
-used in the XML file and converts it to standard latitude/longitude coordinates.
-
-Usage:
-    python tools/populate_airports_from_xml.py
+the airports table in the database. Designed to work in the Docker environment.
 """
 
 import xml.etree.ElementTree as ET
-import re
-import sys
 import os
-from typing import Dict, List, Optional, Tuple
+import sys
 import logging
+from typing import Dict, List, Tuple, Optional
 
 # Add the app directory to the Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
@@ -84,69 +79,53 @@ def extract_airport_data(xml_file_path: str) -> List[Dict]:
         xml_file_path: Path to the Airspace.xml file
         
     Returns:
-        List of airport dictionaries with parsed data
+        List of airport data dictionaries
     """
-    airports = []
+    airports_data = []
     
     try:
         # Parse the XML file
         tree = ET.parse(xml_file_path)
         root = tree.getroot()
         
-        # Find all Airport elements
+        # Find all airport elements
         for airport_elem in root.findall('.//Airport'):
-            # Extract basic airport information
             icao_code = airport_elem.get('ICAO')
             full_name = airport_elem.get('FullName')
             position = airport_elem.get('Position')
             elevation = airport_elem.get('Elevation')
             
-            if not icao_code or not position:
-                logger.warning(f"Skipping airport without ICAO code or position: {airport_elem.attrib}")
-                continue
-            
-            # Parse position to get latitude and longitude
-            latitude, longitude = parse_position(position)
-            if latitude is None or longitude is None:
-                logger.warning(f"Skipping airport with invalid position: {icao_code} - {position}")
-                continue
-            
-            # Convert elevation to integer if present
-            elevation_int = None
-            if elevation:
-                try:
-                    elevation_int = int(float(elevation))
-                except (ValueError, TypeError):
-                    logger.warning(f"Invalid elevation for {icao_code}: {elevation}")
-            
-            airport_data = {
-                'icao_code': icao_code,
-                'name': full_name,
-                'latitude': latitude,
-                'longitude': longitude,
-                'elevation': elevation_int,
-                'country': 'Australia',  # All airports in this file are Australian
-                'region': 'Australia'
-            }
-            
-            airports.append(airport_data)
-            logger.info(f"Extracted airport: {icao_code} - {full_name}")
+            if icao_code and position:
+                latitude, longitude = parse_position(position)
+                if latitude is not None and longitude is not None:
+                    airport_data = {
+                        'icao_code': icao_code,
+                        'name': full_name or '',
+                        'latitude': latitude,
+                        'longitude': longitude,
+                        'elevation': float(elevation) if elevation else 0
+                    }
+                    airports_data.append(airport_data)
         
-        logger.info(f"Successfully extracted {len(airports)} airports from XML file")
-        return airports
+        logger.info(f"Successfully extracted {len(airports_data)} airports from XML")
+        return airports_data
         
     except Exception as e:
-        logger.error(f"Error parsing XML file: {e}")
+        logger.error(f"Error extracting airport data: {e}")
         return []
 
-def populate_airports_table(airports_data: List[Dict]) -> None:
+def populate_airports_table(airports_data: List[Dict]) -> bool:
     """
     Populate the airports table with extracted data.
     
     Args:
-        airports_data: List of airport dictionaries
+        airports_data: List of airport data dictionaries
+        
+    Returns:
+        True if successful, False otherwise
     """
     db = SessionLocal()
+    
     try:
         # Clear existing data (optional - comment out if you want to keep existing data)
         db.query(Airports).delete()
@@ -157,25 +136,27 @@ def populate_airports_table(airports_data: List[Dict]) -> None:
             airport = Airports(**airport_data)
             db.add(airport)
         
-        # Commit the changes
         db.commit()
-        logger.info(f"Successfully inserted {len(airports_data)} airports into database")
+        logger.info(f"Successfully inserted {len(airports_data)} airports")
         
         # Verify the insertion
         count = db.query(Airports).count()
         logger.info(f"Total airports in database: {count}")
         
+        return True
+        
     except Exception as e:
-        logger.error(f"Error populating airports table: {e}")
+        logger.error(f"Database error: {e}")
         db.rollback()
-        raise
+        return False
+        
     finally:
         db.close()
 
 def main():
     """Main function to extract and populate airport data."""
-    # Path to the Airspace.xml file
-    xml_file_path = os.path.join(os.path.dirname(__file__), '..', 'app', 'utils', 'Airspace.xml')
+    # Path to the Airspace.xml file (corrected for Docker environment)
+    xml_file_path = "app/utils/Airspace.xml"
     
     if not os.path.exists(xml_file_path):
         logger.error(f"Airspace.xml file not found at: {xml_file_path}")
@@ -187,13 +168,16 @@ def main():
     airports_data = extract_airport_data(xml_file_path)
     
     if not airports_data:
-        logger.error("No airport data extracted. Exiting.")
+        logger.error("No airport data extracted from XML")
         return
     
-    # Populate the airports table
-    populate_airports_table(airports_data)
+    # Populate the database
+    success = populate_airports_table(airports_data)
     
-    logger.info("Airport data extraction and population completed successfully!")
+    if success:
+        logger.info("✅ Airport population completed successfully!")
+    else:
+        logger.error("❌ Airport population failed!")
 
 if __name__ == "__main__":
     main() 

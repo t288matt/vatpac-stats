@@ -69,7 +69,6 @@ class Controller(Base):
     
     # Relationships
     sectors = relationship("Sector", back_populates="controller")
-    flights = relationship("Flight", back_populates="controller")
 
 class Sector(Base):
     """Airspace sector model"""
@@ -144,12 +143,6 @@ class Flight(Base):
     remarks = Column(Text, nullable=True)  # Flight plan remarks
     revision_id = Column(Integer, nullable=True)  # Flight plan revision
     assigned_transponder = Column(String(10), nullable=True)  # Assigned transponder
-    
-    # Foreign keys
-    controller_id = Column(Integer, ForeignKey("controllers.id"), nullable=True)
-    
-    # Relationships
-    controller = relationship("Controller", back_populates="flights")
     
     @property
     def position(self):

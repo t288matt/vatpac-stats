@@ -148,7 +148,33 @@ class DataIngestionService:
     async def _process_flights(self, flights_data: List, db: Session):
         """Process and store flight data"""
         try:
+            # Apply flight filter to parsed flights
+            from app.filters.flight_filter import FlightFilter
+            flight_filter = FlightFilter()
+            
+            # Convert VATSIMFlight objects back to dict format for filtering
+            raw_flights_data = []
+            for flight in flights_data:
+                flight_dict = {
+                    "callsign": flight.callsign,
+                    "flight_plan": {
+                        "departure": flight.departure,
+                        "arrival": flight.arrival,
+                        "route": flight.route
+                    }
+                }
+                raw_flights_data.append(flight_dict)
+            
+            # Apply flight filter
+            filtered_flights_data = flight_filter.filter_flights_list(raw_flights_data)
+            
+            # Create lookup for filtered flights
+            filtered_callsigns = {f["callsign"] for f in filtered_flights_data}
+            
+            # Process only filtered flights
             for flight_data in flights_data:
+                if flight_data.callsign not in filtered_callsigns:
+                    continue
                 # Extract flight information from dataclass
                 callsign = flight_data.callsign
                 aircraft_type = flight_data.aircraft_type
@@ -161,9 +187,7 @@ class DataIngestionService:
                 position_lat = flight_data.position.get("lat", 0) if flight_data.position else 0
                 position_lng = flight_data.position.get("lng", 0) if flight_data.position else 0
                 
-                # Controller assignment is handled separately through business logic
                 # VATSIM API doesn't provide controller information for flights
-                controller_id = None
                 
                 # Check if flight already exists
                 existing_flight = db.query(Flight).filter(
@@ -179,7 +203,6 @@ class DataIngestionService:
                     existing_flight.altitude = altitude
                     existing_flight.position_lat = position_lat
                     existing_flight.position_lng = position_lng
-                    existing_flight.controller_id = controller_id
                     existing_flight.last_updated = datetime.now(timezone.utc)
                     
                     # Update missing VATSIM API fields - 1:1 mapping
@@ -222,7 +245,6 @@ class DataIngestionService:
                         altitude=altitude,
                         position_lat=position_lat,
                         position_lng=position_lng,
-                        controller_id=controller_id,
                         last_updated=datetime.now(timezone.utc),
                         
                         # Missing VATSIM API fields - 1:1 mapping

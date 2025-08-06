@@ -78,7 +78,6 @@ class VATSIMFlight:
     heading: int
     squawk: str
     position: Dict[str, float]  # lat/lng
-    controller_id: Optional[str]
 
 class VATSIMClient:
     """Client for fetching VATSIM network data"""
@@ -173,8 +172,7 @@ class VATSIMClient:
                     altitude=int(flight_data.get("altitude", 0)),
                     heading=int(flight_data.get("heading", 0)),
                     squawk=flight_data.get("transponder", ""),
-                    position=position,
-                    controller_id=flight_data.get("controller", "")
+                    position=position
                 )
                 flights.append(flight)
             except Exception as e:

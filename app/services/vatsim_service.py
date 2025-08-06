@@ -304,7 +304,6 @@ class VATSIMService(BaseService):
             
             # Parse the data with proper null checks
             controllers = self._parse_controllers(parsed_data.get("controllers", []))
-            flights = self._parse_flights(parsed_data.get("pilots", []))
             sectors = parsed_data.get("sectors", [])
             
             # Handle missing sectors gracefully
@@ -313,6 +312,9 @@ class VATSIMService(BaseService):
                     "sectors_count": 0,
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 })
+            
+            # Parse all flights - filtering is handled separately by the flight filter
+            flights = self._parse_flights(parsed_data.get("pilots", []))
             
             # Fetch transceivers data
             try:
@@ -325,13 +327,6 @@ class VATSIMService(BaseService):
                     "error": str(e)
                 })
                 transceivers = []
-            
-            # Apply flight filter to raw flight data
-            raw_flights_data = parsed_data.get("pilots", [])
-            filtered_raw_flights = self.flight_filter.filter_flights_list(raw_flights_data)
-            
-            # Parse the filtered flights
-            flights = self._parse_flights(filtered_raw_flights)
             
             # Create VATSIM data object
             vatsim_data = VATSIMData(
