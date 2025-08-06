@@ -57,6 +57,7 @@ from .api.error_monitoring import router as error_monitoring_router
 from .utils.error_handling import handle_service_errors, log_operation, create_error_handler
 from .utils.exceptions import APIError, DatabaseError, CacheError
 from .utils.health_monitor import health_monitor
+from .utils.schema_validator import ensure_database_schema
 
 # Configure logging
 logger = get_logger_for_module(__name__)
@@ -89,6 +90,17 @@ async def lifespan(app: FastAPI):
     try:
         # Initialize database
         init_db()
+        
+        # Validate and ensure database schema is correct
+        db = SessionLocal()
+        try:
+            if not ensure_database_schema(db):
+                logger.error("Database schema validation failed. Application may not function correctly.")
+                # Continue anyway - the app might still work with some features disabled
+        except Exception as e:
+            logger.error(f"Schema validation error: {e}")
+        finally:
+            db.close()
         
         # Initialize cache service
         cache_service = await get_cache_service()

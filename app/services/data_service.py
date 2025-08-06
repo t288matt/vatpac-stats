@@ -273,16 +273,16 @@ class DataService(DatabaseService):
             for atc_position_data in atc_positions_data:
                 callsign = atc_position_data.get('callsign', '')
                 
-                # Update memory cache
+                # Update memory cache with correct API field mapping
                 self.cache['atc_positions'].set(callsign, {
                     'callsign': callsign,
                     'facility': atc_position_data.get('facility', ''),
                     'position': atc_position_data.get('position', ''),
                     'status': 'online',
                     'frequency': atc_position_data.get('frequency', ''),
-                    'controller_id': atc_position_data.get('controller_id', ''),
-                    'controller_name': atc_position_data.get('controller_name', ''),
-                    'controller_rating': atc_position_data.get('controller_rating', 0),
+                    'controller_id': atc_position_data.get('cid', None),  # API "cid" → DB "controller_id"
+                    'controller_name': atc_position_data.get('name', ''),  # API "name" → DB "controller_name"
+                    'controller_rating': atc_position_data.get('rating', 0),  # API "rating" → DB "controller_rating"
                     'last_seen': datetime.utcnow(),
                     'workload_score': 0.0,
                     'preferences': json.dumps(atc_position_data.get('preferences', {}))
@@ -324,10 +324,7 @@ class DataService(DatabaseService):
                 # Update memory cache with correct field mapping
                 position_data = flight_data.get('position', {})
                 
-                # Try to find controlling ATC position for this flight
-                atc_position_id = None
-                # For now, skip ATC position assignment to avoid database issues
-                
+                # Map flight data with correct API field mapping
                 self.cache['flights'].set(callsign, {
                     'callsign': callsign,
                     'aircraft_type': flight_data.get('aircraft_type', ''),
@@ -342,7 +339,7 @@ class DataService(DatabaseService):
                     'ground_speed': flight_data.get('ground_speed', 0),
                     'vertical_speed': flight_data.get('vertical_speed', 0),
                     'squawk': flight_data.get('squawk', ''),
-                    'atc_position_id': atc_position_id,
+                    'controller_id': flight_data.get('cid', None),  # API "cid" → DB "controller_id"
                     'last_updated': datetime.utcnow(),
                     'status': 'active'
                 })

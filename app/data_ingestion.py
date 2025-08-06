@@ -41,7 +41,6 @@ OPTIMIZATIONS:
 
 import asyncio
 import logging
-import hashlib
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
@@ -107,7 +106,7 @@ class DataIngestionService:
                 ).first()
                 
                 if existing_atc_position:
-                    # Update existing ATC position
+                    # Update existing ATC position with all fields
                     existing_atc_position.facility = facility
                     existing_atc_position.position = position
                     existing_atc_position.frequency = frequency
@@ -116,8 +115,12 @@ class DataIngestionService:
                     existing_atc_position.controller_rating = controller_rating
                     existing_atc_position.status = "online"
                     existing_atc_position.last_seen = datetime.utcnow()
+                    
+                    # Update missing VATSIM API fields - 1:1 mapping
+                    existing_atc_position.visual_range = atc_position_data.visual_range
+                    existing_atc_position.text_atis = atc_position_data.text_atis
                 else:
-                    # Create new ATC position
+                    # Create new ATC position with all fields
                     new_atc_position = Controller(
                         callsign=callsign,
                         facility=facility,
@@ -128,7 +131,11 @@ class DataIngestionService:
                         controller_rating=controller_rating,
                         status="online",
                         last_seen=datetime.utcnow(),
-                        workload_score=0.0
+                        workload_score=0.0,
+                        
+                        # Missing VATSIM API fields - 1:1 mapping
+                        visual_range=atc_position_data.visual_range,
+                        text_atis=atc_position_data.text_atis
                     )
                     db.add(new_atc_position)
             
@@ -155,26 +162,9 @@ class DataIngestionService:
                 position_lat = flight_data.position.get("lat", 0) if flight_data.position else 0
                 position_lng = flight_data.position.get("lng", 0) if flight_data.position else 0
                 
-                # Try to find controlling ATC position based on flight position
-                # This is a simplified approach - in reality you'd need more sophisticated logic
+                # Controller assignment is handled separately through business logic
+                # VATSIM API doesn't provide controller information for flights
                 atc_position_id = None
-                
-                # Find online ATC positions for assignment
-                online_atc_positions = db.query(Controller).filter(
-                    Controller.status == "online"
-                ).all()
-                
-                logger.info(f"Flight {callsign}: Found {len(online_atc_positions)} online ATC positions")
-                
-                if online_atc_positions:
-                    # Simple round-robin assignment based on flight callsign hash
-                    # This works regardless of position data availability
-                    flight_hash = hashlib.md5(callsign.encode()).hexdigest()
-                    position_index = int(flight_hash, 16) % len(online_atc_positions)
-                    atc_position_id = online_atc_positions[position_index].id
-                    logger.info(f"Flight {callsign}: Assigned to ATC position {atc_position_id}")
-                else:
-                    logger.warning(f"Flight {callsign}: No online ATC positions available for assignment")
                 
                 # Check if flight already exists
                 existing_flight = db.query(Flight).filter(
@@ -182,7 +172,7 @@ class DataIngestionService:
                 ).first()
                 
                 if existing_flight:
-                    # Update existing flight
+                    # Update existing flight with all fields
                     existing_flight.aircraft_type = aircraft_type
                     existing_flight.departure = departure
                     existing_flight.arrival = arrival
@@ -193,8 +183,38 @@ class DataIngestionService:
                     existing_flight.position_lng = position_lng
                     existing_flight.atc_position_id = atc_position_id
                     existing_flight.last_updated = datetime.utcnow()
+                    
+                    # Update missing VATSIM API fields - 1:1 mapping
+                    existing_flight.cid = flight_data.cid
+                    existing_flight.name = flight_data.name
+                    existing_flight.server = flight_data.server
+                    existing_flight.pilot_rating = flight_data.pilot_rating
+                    existing_flight.military_rating = flight_data.military_rating
+                    existing_flight.latitude = flight_data.latitude
+                    existing_flight.longitude = flight_data.longitude
+                    existing_flight.groundspeed = flight_data.groundspeed
+                    existing_flight.transponder = flight_data.transponder
+                    existing_flight.heading = flight_data.heading
+                    existing_flight.qnh_i_hg = flight_data.qnh_i_hg
+                    existing_flight.qnh_mb = flight_data.qnh_mb
+                    existing_flight.logon_time = flight_data.logon_time
+                    existing_flight.last_updated_api = flight_data.last_updated
+                    
+                    # Flight plan fields
+                    existing_flight.flight_rules = flight_data.flight_rules
+                    existing_flight.aircraft_faa = flight_data.aircraft_faa
+                    existing_flight.aircraft_short = flight_data.aircraft_short
+                    existing_flight.alternate = flight_data.alternate
+                    existing_flight.cruise_tas = flight_data.cruise_tas
+                    existing_flight.planned_altitude = flight_data.planned_altitude
+                    existing_flight.deptime = flight_data.deptime
+                    existing_flight.enroute_time = flight_data.enroute_time
+                    existing_flight.fuel_time = flight_data.fuel_time
+                    existing_flight.remarks = flight_data.remarks
+                    existing_flight.revision_id = flight_data.revision_id
+                    existing_flight.assigned_transponder = flight_data.assigned_transponder
                 else:
-                    # Create new flight
+                    # Create new flight with all fields
                     new_flight = Flight(
                         callsign=callsign,
                         aircraft_type=aircraft_type,
@@ -206,7 +226,37 @@ class DataIngestionService:
                         position_lat=position_lat,
                         position_lng=position_lng,
                         atc_position_id=atc_position_id,
-                        last_updated=datetime.utcnow()
+                        last_updated=datetime.utcnow(),
+                        
+                        # Missing VATSIM API fields - 1:1 mapping
+                        cid=flight_data.cid,
+                        name=flight_data.name,
+                        server=flight_data.server,
+                        pilot_rating=flight_data.pilot_rating,
+                        military_rating=flight_data.military_rating,
+                        latitude=flight_data.latitude,
+                        longitude=flight_data.longitude,
+                        groundspeed=flight_data.groundspeed,
+                        transponder=flight_data.transponder,
+                        heading=flight_data.heading,
+                        qnh_i_hg=flight_data.qnh_i_hg,
+                        qnh_mb=flight_data.qnh_mb,
+                        logon_time=flight_data.logon_time,
+                        last_updated_api=flight_data.last_updated,
+                        
+                        # Flight plan fields
+                        flight_rules=flight_data.flight_rules,
+                        aircraft_faa=flight_data.aircraft_faa,
+                        aircraft_short=flight_data.aircraft_short,
+                        alternate=flight_data.alternate,
+                        cruise_tas=flight_data.cruise_tas,
+                        planned_altitude=flight_data.planned_altitude,
+                        deptime=flight_data.deptime,
+                        enroute_time=flight_data.enroute_time,
+                        fuel_time=flight_data.fuel_time,
+                        remarks=flight_data.remarks,
+                        revision_id=flight_data.revision_id,
+                        assigned_transponder=flight_data.assigned_transponder
                     )
                     db.add(new_flight)
             
@@ -217,7 +267,40 @@ class DataIngestionService:
             raise
     
     async def _process_sectors(self, sectors_data: List[Dict[str, Any]], db: Session):
-        """Process and store sector data"""
+        """
+        Process and store sector data.
+        
+        SECTORS FIELD LIMITATION:
+        =========================
+        The 'sectors' field is completely missing from VATSIM API v3. This method
+        processes sector data that is created by fallback behavior in the parsing
+        layer, not from actual API data.
+        
+        Technical Details:
+        - Expected: Real sector data from VATSIM API
+        - Actual: Fallback-generated sectors based on facility information
+        - Data Source: Created by vatsim_client.parse_sectors() fallback
+        - Database Impact: Minimal sector data, mostly empty table
+        
+        Fallback Data Structure:
+        - name: "{facility}_CTR" (e.g., "VECC_CTR")
+        - facility: Extracted from controller data
+        - status: "unmanned" (default)
+        - traffic_density: 0 (default)
+        - priority_level: 1 (default)
+        
+        Database Behavior:
+        - Creates sectors if they don't exist
+        - Minimal data population
+        - No updates to existing sectors (static fallback data)
+        - Maintains schema compatibility for future API changes
+        
+        Future Considerations:
+        - Monitor for real sectors data from API
+        - Consider manual sector definition
+        - Implement sector-based features when data available
+        - Add feature flags for sector functionality
+        """
         try:
             for sector_data in sectors_data:
                 # Extract sector information

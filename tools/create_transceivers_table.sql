@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS transceivers (
     height_agl DOUBLE PRECISION,  -- Height above ground level in meters
     entity_type VARCHAR(20) NOT NULL,  -- 'flight' or 'atc'
     entity_id INTEGER,  -- Foreign key to flights.id or atc_positions.id
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create indexes for efficient queries

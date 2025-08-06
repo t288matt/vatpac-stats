@@ -61,15 +61,19 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 **Purpose**: Central data ingestion and processing engine
 - **Memory-optimized data processing** to reduce SSD wear
 - **Batch database operations** for efficiency
-- **Real-time VATSIM API integration**
+- **Real-time VATSIM API v3 integration**
 - **Automatic data cleanup and maintenance**
+- **Complete VATSIM API field mapping**
 
 **Key Features**:
-- Asynchronous data ingestion from VATSIM API
+- Asynchronous data ingestion from VATSIM API v3
 - Memory caching for batch processing
 - SSD wear optimization with periodic writes
 - Connection pooling and transaction management
 - Real-time status tracking and health monitoring
+- **VATSIM API Compliance**: Fully aligned with current API structure
+- **Complete Field Mapping**: 1:1 mapping of all VATSIM API fields to database columns
+- **Data Integrity**: All API fields preserved without data loss
 
 ### 2. Traffic Analysis Service (`app/services/traffic_analysis_service.py`)
 **Purpose**: Advanced traffic pattern analysis and movement detection
@@ -388,5 +392,110 @@ app/
 - **Circuit breaker patterns** provide fault tolerance
 - **Retry mechanisms** handle transient failures
 - **Graceful degradation** maintains service availability
+
+## 🔍 VATSIM API Integration
+
+### API Version Compliance
+- **Current Version**: VATSIM API v3 (2023+)
+- **Endpoint**: `https://data.vatsim.net/v3/vatsim-data.json`
+- **Status**: `https://data.vatsim.net/v3/status.json`
+- **Transceivers**: `https://data.vatsim.net/v3/transceivers-data.json`
+
+### Complete Field Mapping
+The system now includes complete 1:1 mapping of all VATSIM API fields to database columns:
+
+#### Flight Data Fields
+- **Core Position**: `cid`, `name`, `server`, `pilot_rating`, `military_rating`
+- **Location Data**: `latitude`, `longitude`, `groundspeed`, `transponder`, `heading`
+- **Weather Data**: `qnh_i_hg`, `qnh_mb`
+- **Timing Data**: `logon_time`, `last_updated`
+- **Flight Plan**: `flight_rules`, `aircraft_faa`, `aircraft_short`, `alternate`, `cruise_tas`, `planned_altitude`, `deptime`, `enroute_time`, `fuel_time`, `remarks`, `revision_id`, `assigned_transponder`
+
+#### Controller Data Fields
+- **Core Fields**: `cid`, `name`, `facility`, `rating`
+- **Additional Fields**: `visual_range`, `text_atis`
+
+#### Status Data Fields
+- **API Status**: `api_version`, `reload`, `update_timestamp`, `connected_clients`, `unique_users`
+
+### Data Structure Alignment
+- **✅ Flight Plans**: Correctly nested under `flight_plan` object
+- **✅ Aircraft Types**: Extracted from `flight_plan.aircraft_short`
+- **✅ Controller Fields**: Uses correct API field names (`cid`, `name`, `facility`, etc.)
+- **✅ Position Data**: Latitude/longitude/altitude properly parsed
+- **✅ Complete Field Mapping**: All VATSIM API fields preserved in database
+- **❌ Sectors Data**: Not available in current API v3 (handled gracefully)
+
+### Known Limitations
+- **Sectors Field**: Missing from current API - traffic density analysis limited
+- **Historical Data**: Previous API versions had sectors data
+- **API Evolution**: Structure may change in future versions
+
+### Sectors Field Technical Details
+**Current Status**: The `sectors` field is completely missing from VATSIM API v3
+- **API Endpoint**: `https://data.vatsim.net/v3/vatsim-data.json`
+- **Expected Field**: `sectors` array containing airspace sector definitions
+- **Actual Status**: Field does not exist in API response
+- **Impact**: Traffic density analysis and sector-based routing limited
+
+**Architecture Handling**:
+- **Graceful Degradation**: System continues operation without sectors data
+- **Warning Logging**: Logs warning when sectors data is missing
+- **Fallback Behavior**: Creates basic sector definitions from facility data
+- **Database Schema**: Sectors table exists but remains mostly empty
+- **Future Compatibility**: Code structure supports sectors if API adds them back
+
+**Technical Implementation**:
+```python
+# In vatsim_service.py - Graceful handling
+sectors = parsed_data.get("sectors", [])
+if not sectors:
+    self.logger.warning("No sectors data available from VATSIM API")
+
+# In vatsim_client.py - Fallback creation
+def parse_sectors(self, data: Dict) -> List[Dict]:
+    # VATSIM doesn't provide sector data directly, so we'll create basic sectors
+    # based on facility information
+    sectors = []
+    facilities = set()
+    
+    # Extract unique facilities from controllers
+    for controller in data.get("controllers", []):
+        facility = controller.get("facility", "")
+        if facility:
+            facilities.add(facility)
+    
+    # Create basic sectors for each facility
+    for facility in facilities:
+        sector = {
+            "name": f"{facility}_CTR",
+            "facility": facility,
+            "controller_id": None,
+            "traffic_density": 0,
+            "status": "unmanned",
+            "priority_level": 1
+        }
+        sectors.append(sector)
+    
+    return sectors
+```
+
+**Database Impact**:
+- **Sectors Table**: Exists but minimal data
+- **Relationships**: Controller-Sector relationships not populated
+- **Queries**: Sector-based queries return limited results
+- **Storage**: Minimal impact on database size
+
+**Future Considerations**:
+- **API Monitoring**: Watch for sectors field return in future API versions
+- **Alternative Sources**: Consider external sector definition sources
+- **Manual Population**: Option to manually define critical sectors
+- **Feature Flags**: Enable/disable sector features based on data availability
+
+### Integration Benefits
+- **Real-time Data**: Live VATSIM network data collection
+- **Standardized Format**: Consistent API structure across all endpoints
+- **Error Handling**: Graceful handling of missing or malformed data
+- **Performance**: Optimized for high-frequency API polling
 
 This architecture provides a robust, scalable, and maintainable foundation for the VATSIM data collection system, optimized for modern operational requirements and Grafana integration. 

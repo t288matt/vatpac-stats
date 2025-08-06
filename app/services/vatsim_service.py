@@ -69,11 +69,21 @@ class VATSIMController:
     controller_name: Optional[str] = None
     controller_rating: Optional[int] = None
     last_seen: Optional[datetime] = None
+    
+    # Missing VATSIM API fields - 1:1 mapping with API field names
+    visual_range: Optional[int] = None  # Controller visual range
+    text_atis: Optional[str] = None  # ATIS information
 
 
 @dataclass
 class VATSIMFlight:
-    """VATSIM flight data structure."""
+    """VATSIM flight data structure.
+    
+    VATSIM API v3 Compliance:
+    - Aircraft type: Extracted from flight_plan.aircraft_short
+    - Flight plan: Nested under flight_plan object
+    - Position data: Latitude/longitude/altitude from pilot object
+    """
     
     callsign: str
     pilot_name: str
@@ -84,7 +94,36 @@ class VATSIMFlight:
     altitude: int
     speed: int
     position: Optional[Dict[str, float]] = None
-    controller_id: Optional[str] = None
+    
+    # Missing VATSIM API fields - 1:1 mapping with API field names
+    cid: Optional[int] = None  # VATSIM user ID
+    name: Optional[str] = None  # Pilot name
+    server: Optional[str] = None  # Network server
+    pilot_rating: Optional[int] = None  # Pilot rating
+    military_rating: Optional[int] = None  # Military rating
+    latitude: Optional[float] = None  # Position latitude
+    longitude: Optional[float] = None  # Position longitude
+    groundspeed: Optional[int] = None  # Ground speed
+    transponder: Optional[str] = None  # Transponder code
+    heading: Optional[int] = None  # Aircraft heading
+    qnh_i_hg: Optional[float] = None  # QNH in inches Hg
+    qnh_mb: Optional[int] = None  # QNH in millibars
+    logon_time: Optional[datetime] = None  # When pilot connected
+    last_updated: Optional[datetime] = None  # API last_updated timestamp
+    
+    # Flight plan fields (nested object)
+    flight_rules: Optional[str] = None  # IFR/VFR
+    aircraft_faa: Optional[str] = None  # FAA aircraft code
+    aircraft_short: Optional[str] = None  # Short aircraft code
+    alternate: Optional[str] = None  # Alternate airport
+    cruise_tas: Optional[int] = None  # True airspeed
+    planned_altitude: Optional[int] = None  # Planned cruise altitude
+    deptime: Optional[str] = None  # Departure time
+    enroute_time: Optional[str] = None  # Enroute time
+    fuel_time: Optional[str] = None  # Fuel time
+    remarks: Optional[str] = None  # Flight plan remarks
+    revision_id: Optional[int] = None  # Flight plan revision
+    assigned_transponder: Optional[str] = None  # Assigned transponder
 
 
 @dataclass
@@ -131,10 +170,41 @@ from ..utils.error_handling import handle_service_errors, retry_on_failure, log_
 
 class VATSIMService(BaseService):
     """
-    Service for handling VATSIM API interactions.
+    Service for handling VATSIM API v3 interactions.
     
     This service provides a clean interface for fetching and processing
     VATSIM network data, following our architecture principles.
+    
+    VATSIM API v3 Compliance:
+    - Endpoint: https://data.vatsim.net/v3/vatsim-data.json
+    - Flight plans: Nested under flight_plan object
+    - Aircraft types: Extracted from flight_plan.aircraft_short
+    - Controller fields: Uses correct API field names (cid, name, facility, etc.)
+    - Sectors data: Not available in current API v3 (handled gracefully)
+    
+    SECTORS FIELD LIMITATION:
+    =========================
+    The 'sectors' field is completely missing from VATSIM API v3. This is a known
+    limitation, not a bug in our code. The field simply doesn't exist in the API
+    response.
+    
+    Technical Details:
+    - Expected: sectors array containing airspace sector definitions
+    - Actual: Field does not exist in API response
+    - Impact: Traffic density analysis and sector-based routing limited
+    - Handling: Graceful degradation with warning logs and fallback behavior
+    
+    Fallback Behavior:
+    - Creates basic sector definitions from facility data
+    - Logs warning when sectors data is missing
+    - Continues operation without sectors data
+    - Database schema supports sectors if API adds them back
+    
+    Future Considerations:
+    - Monitor for sectors field return in future API versions
+    - Consider external sector definition sources
+    - Option to manually define critical sectors
+    - Feature flags for sector-based features
     """
     
     def __init__(self):
@@ -235,6 +305,13 @@ class VATSIMService(BaseService):
             flights = self._parse_flights(parsed_data.get("pilots", []))
             sectors = parsed_data.get("sectors", [])
             
+            # Handle missing sectors gracefully
+            if not sectors:
+                self.logger.warning("No sectors data available from VATSIM API", extra={
+                    "sectors_count": 0,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+            
             # Fetch transceivers data
             try:
                 transceivers_raw = await self._fetch_transceivers_data()
@@ -321,7 +398,11 @@ class VATSIMService(BaseService):
                     status="online",  # If they're in the API, they're online
                     controller_id=str(controller_data.get("cid", "")),
                     controller_name=controller_data.get("name", ""),
-                    controller_rating=controller_data.get("rating", 0)
+                    controller_rating=controller_data.get("rating", 0),
+                    
+                    # Missing VATSIM API fields - 1:1 mapping with API field names
+                    visual_range=controller_data.get("visual_range"),
+                    text_atis=controller_data.get("text_atis")
                 )
                 controllers.append(controller)
                 
@@ -363,17 +444,61 @@ class VATSIMService(BaseService):
                 if flight_plan is None:
                     flight_plan = {}
                 
+                # Parse timestamps
+                logon_time = None
+                if flight_data.get("logon_time"):
+                    try:
+                        logon_time = datetime.fromisoformat(flight_data["logon_time"].replace("Z", "+00:00"))
+                    except:
+                        logon_time = None
+                
+                last_updated = None
+                if flight_data.get("last_updated"):
+                    try:
+                        last_updated = datetime.fromisoformat(flight_data["last_updated"].replace("Z", "+00:00"))
+                    except:
+                        last_updated = None
+                
                 flight = VATSIMFlight(
                     callsign=flight_data.get("callsign", ""),
                     pilot_name=flight_data.get("name", ""),
-                    aircraft_type=flight_data.get("aircraft_type", ""),
+                    aircraft_type=flight_plan.get("aircraft_short", ""),  # Fixed: API provides aircraft type in flight_plan.aircraft_short
                     departure=flight_plan.get("departure", ""),
                     arrival=flight_plan.get("arrival", ""),
                     route=flight_plan.get("route", ""),
                     altitude=int(flight_data.get("altitude", 0)),
                     speed=int(flight_data.get("groundspeed", 0)),
                     position=position,
-                    controller_id=flight_data.get("controller", "")
+                    
+                    # Missing VATSIM API fields - 1:1 mapping with API field names
+                    cid=flight_data.get("cid"),
+                    name=flight_data.get("name"),
+                    server=flight_data.get("server"),
+                    pilot_rating=flight_data.get("pilot_rating"),
+                    military_rating=flight_data.get("military_rating"),
+                    latitude=flight_data.get("latitude"),
+                    longitude=flight_data.get("longitude"),
+                    groundspeed=flight_data.get("groundspeed"),
+                    transponder=flight_data.get("transponder"),
+                    heading=flight_data.get("heading"),
+                    qnh_i_hg=flight_data.get("qnh_i_hg"),
+                    qnh_mb=flight_data.get("qnh_mb"),
+                    logon_time=logon_time,
+                    last_updated=last_updated,
+                    
+                    # Flight plan fields (nested object)
+                    flight_rules=flight_plan.get("flight_rules"),
+                    aircraft_faa=flight_plan.get("aircraft_faa"),
+                    aircraft_short=flight_plan.get("aircraft_short"),
+                    alternate=flight_plan.get("alternate"),
+                    cruise_tas=flight_plan.get("cruise_tas"),
+                    planned_altitude=flight_plan.get("altitude"),
+                    deptime=flight_plan.get("deptime"),
+                    enroute_time=flight_plan.get("enroute_time"),
+                    fuel_time=flight_plan.get("fuel_time"),
+                    remarks=flight_plan.get("remarks"),
+                    revision_id=flight_plan.get("revision_id"),
+                    assigned_transponder=flight_plan.get("assigned_transponder")
                 )
                 flights.append(flight)
                 

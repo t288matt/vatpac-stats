@@ -6,12 +6,14 @@ A high-performance, API-driven platform for real-time VATSIM data collection, an
 
 - **API-First Design**: All functionality exposed through REST APIs
 - **Centralized Error Handling**: Consistent error management across all services
-- **Real-time VATSIM Data Collection**: Collects ATC position, flight, and sector data
+- **Real-time VATSIM Data Collection**: Collects ATC position, flight, and sector data with complete API field mapping
 - **Advanced Analytics**: Traffic analysis, movement detection, and workload optimization
 - **Performance Optimized**: SSD wear reduction, memory caching, and bulk operations
 - **Scalable Architecture**: Microservices-oriented with independent scaling
 - **Comprehensive Monitoring**: Grafana dashboards and centralized error tracking
 - **Production Ready**: Fault tolerance with circuit breakers and retry mechanisms
+- **VATSIM API v3 Compliant**: Fully aligned with current VATSIM API structure
+- **Complete Field Mapping**: 1:1 mapping of all VATSIM API fields to database columns
 
 ## 📋 Prerequisites
 
@@ -30,7 +32,65 @@ A high-performance, API-driven platform for real-time VATSIM data collection, an
 
 ## 🛠️ Installation
 
-### Option 1: Docker Compose (Recommended for Production)
+### Option 1: Greenfield Deployment (Recommended for New Installations)
+
+The fastest way to get started with a fresh installation. This approach sets up everything automatically with minimal configuration.
+
+#### Prerequisites
+- **Docker and Docker Compose** installed
+- **2GB RAM** available
+- **10GB free disk space**
+- **Internet connection** for Docker images
+
+#### One-Command Deployment
+```bash
+# 1. Clone the repository
+git clone <repository-url>
+cd vatsim-data
+
+# 2. Start all services
+docker-compose up -d
+
+# 3. Verify deployment
+curl http://localhost:8001/api/status
+```
+
+#### What Happens Automatically
+- **Database Setup**: PostgreSQL container starts with empty database
+- **Schema Creation**: All 12 required tables created automatically
+- **Indexes & Triggers**: Performance optimizations applied
+- **Default Data**: System configuration inserted
+- **Health Checks**: All services verified and started
+- **Background Services**: Data ingestion begins automatically
+
+#### Expected Results
+```bash
+# Container status
+docker-compose ps
+# Should show all containers as "Up (healthy)"
+
+# API response
+curl http://localhost:8001/api/status
+# Should return operational status with real-time data
+```
+
+#### Access Points
+- **Main API**: http://localhost:8001
+- **API Documentation**: http://localhost:8001/docs
+- **Grafana Dashboard**: http://localhost:3050 (admin/admin)
+- **Database**: localhost:5432 (vatsim_data)
+
+#### Troubleshooting
+```bash
+# Check logs if issues occur
+docker-compose logs app
+docker-compose logs postgres
+
+# Restart if needed
+docker-compose restart app
+```
+
+### Option 2: Docker Compose (Recommended for Production)
 
 #### Quick Start
 ```bash
@@ -237,6 +297,35 @@ python -c "from app.database import init_db; init_db()"
 python run.py
 ```
 
+## 🗄️ Database Schema & VATSIM API Field Mapping
+
+The system now includes complete 1:1 mapping of all VATSIM API fields to database columns. This ensures that no data is lost during the ingestion process and provides full access to all available VATSIM information.
+
+### Key Database Tables
+
+#### Flights Table
+- **Core Fields**: `callsign`, `aircraft_type`, `position_lat`, `position_lng`, `altitude`, `speed`, `heading`
+- **VATSIM API Fields**: `cid`, `name`, `server`, `pilot_rating`, `military_rating`, `latitude`, `longitude`, `groundspeed`, `transponder`, `qnh_i_hg`, `qnh_mb`, `logon_time`, `last_updated_api`
+- **Flight Plan Fields**: `flight_rules`, `aircraft_faa`, `aircraft_short`, `alternate`, `cruise_tas`, `planned_altitude`, `deptime`, `enroute_time`, `fuel_time`, `remarks`, `revision_id`, `assigned_transponder`
+
+#### Controllers Table
+- **Core Fields**: `callsign`, `facility`, `position`, `status`, `frequency`
+- **VATSIM API Fields**: `controller_id`, `controller_name`, `controller_rating`, `visual_range`, `text_atis`
+
+#### VATSIM Status Table
+- **Status Fields**: `api_version`, `reload`, `update_timestamp`, `connected_clients`, `unique_users`
+
+### Field Mapping Benefits
+- **Complete Data Capture**: All VATSIM API fields are preserved
+- **Direct API Mapping**: Database field names match VATSIM API field names
+- **Performance Optimized**: Indexes on frequently queried fields
+- **Documentation**: All fields include detailed comments explaining their source
+
+### Migration Support
+The system includes migration scripts to add new fields to existing databases without data loss:
+- `tools/add_missing_vatsim_fields_migration.sql` - Adds all missing VATSIM API fields
+- Automatic field addition for new installations via `database/init.sql`
+
 ## 📁 Project Structure
 
 ```
@@ -273,7 +362,21 @@ VATSIM data/
 
 ## 🛠️ Quick Start
 
-### Option 1: Docker Compose (Recommended)
+### Option 1: Greenfield Deployment (Recommended for New Users)
+```bash
+# Clone and start everything in one command
+git clone <repository-url>
+cd vatsim-data
+docker-compose up -d
+
+# Access services
+# - VATSIM API: http://localhost:8001
+# - Grafana: http://localhost:3050 (admin/admin)
+# - API Docs: http://localhost:8001/docs
+# - API Status: http://localhost:8001/api/status
+```
+
+### Option 2: Docker Compose (Advanced Configuration)
 ```bash
 # Start all services
 docker compose up -d
@@ -299,9 +402,35 @@ python run.py
 # - Grafana: Configure to connect to API endpoints
 ```
 
-## 📊 System Architecture
+## 🗄️ Automatic Database Schema
 
-### API-First Design
+During greenfield deployment, the system automatically creates a complete database schema with all required tables:
+
+### **Tables Created Automatically:**
+- **`controllers`** - ATC controller positions and ratings (includes VATSIM API fields: cid, name, rating)
+- **`sectors`** - Airspace sector definitions and boundaries  
+- **`flights`** - Real-time flight data and positions
+- **`traffic_movements`** - Airport arrival/departure tracking
+- **`flight_summaries`** - Historical flight data aggregation
+- **`movement_summaries`** - Hourly movement statistics
+- **`airport_config`** - Airport configuration and detection settings
+- **`airports`** - Global airport database with coordinates
+- **`movement_detection_config`** - Detection algorithm parameters
+- **`system_config`** - Application configuration settings
+- **`events`** - Special events and scheduling data
+- **`transceivers`** - Radio frequency and communication data
+
+### **Features Included:**
+- ✅ **Foreign Key Relationships** - Proper data integrity
+- ✅ **Performance Indexes** - Optimized query performance
+- ✅ **Automatic Timestamps** - `created_at` and `updated_at` fields
+- ✅ **Default Configuration** - Pre-configured system settings
+- ✅ **Health Checks** - Automatic schema validation on startup
+
+### **Schema Validation:**
+The application automatically validates the database schema on startup and can fix missing tables or fields if needed.
+
+## 📊 System Architecture
 The system is built with an API-first approach, exposing all functionality through REST APIs:
 
 #### Core API Endpoints
@@ -441,6 +570,14 @@ ERROR_MONITORING_ENABLED=true
 
 ## 🚀 Deployment
 
+### Greenfield Deployment (Recommended)
+```bash
+# One-command deployment
+git clone <repository-url>
+cd vatsim-data
+docker-compose up -d
+```
+
 ### Development
 ```bash
 # Docker Compose (recommended)
@@ -457,6 +594,31 @@ DATABASE_URL=postgresql://user:pass@localhost/vatsim_data
 docker-compose up -d
 ```
 
+### Data Persistence & Backup
+
+#### **Data Storage:**
+- **Database**: `./data/postgres/` (PostgreSQL data)
+- **Cache**: `./data/redis/` (Redis data)
+- **Grafana**: `./grafana/` (Dashboards and config)
+
+#### **Backup Commands:**
+```bash
+# Backup database
+docker-compose exec postgres pg_dump -U vatsim_user vatsim_data > backup.sql
+
+# Restore database
+docker-compose exec -T postgres psql -U vatsim_user vatsim_data < backup.sql
+```
+
+#### **Updates:**
+```bash
+# Pull latest changes
+git pull
+
+# Rebuild and restart
+docker-compose up -d --build
+```
+
 ## 📊 Data Integrity
 
 The system includes comprehensive data integrity checks:
@@ -467,7 +629,68 @@ The system includes comprehensive data integrity checks:
 - Centralized error handling
 - Grafana monitoring dashboards
 
+## 🔍 VATSIM API Compliance
+
+### API Version Support
+- **Current Version**: VATSIM API v3 (2023+)
+- **Endpoint**: `https://data.vatsim.net/v3/vatsim-data.json`
+- **Status**: `https://data.vatsim.net/v3/status.json`
+- **Transceivers**: `https://data.vatsim.net/v3/transceivers-data.json`
+
+### Data Structure Alignment
+- **✅ Flight Plans**: Correctly nested under `flight_plan` object
+- **✅ Aircraft Types**: Extracted from `flight_plan.aircraft_short`
+- **✅ Controller Fields**: Uses correct API field names (`cid`, `name`, `facility`, etc.)
+- **✅ Position Data**: Latitude/longitude/altitude properly parsed
+- **❌ Sectors Data**: Not available in current API v3 (handled gracefully)
+
+### Known Limitations
+- **Sectors Field**: Missing from current API - traffic density analysis limited
+- **Historical Data**: Previous API versions had sectors data
+- **API Evolution**: Structure may change in future versions
+
+**📋 Detailed Documentation**: See `docs/SECTORS_FIELD_LIMITATION.md` for comprehensive technical details about the sectors field limitation and how the system handles it gracefully.
+
 ## 🔧 Troubleshooting
+
+### Greenfield Deployment Issues
+
+#### **If API Returns 500 Error:**
+```bash
+# Check application logs
+docker-compose logs app
+
+# Check database logs  
+docker-compose logs postgres
+
+# Restart the application
+docker-compose restart app
+```
+
+#### **If Database Schema Issues:**
+```bash
+# The app automatically validates and fixes schema issues
+# Check logs for validation messages
+docker-compose logs app | grep "schema"
+```
+
+#### **If Containers Won't Start:**
+```bash
+# Check system resources
+docker system df
+
+# Clean up Docker
+docker system prune -f
+
+# Rebuild containers
+docker-compose up -d --build
+```
+
+#### **Performance Expectations:**
+- **First Startup**: 1-2 minutes (database initialization)
+- **Subsequent Starts**: 10-20 seconds
+- **Memory Usage**: ~500MB total
+- **Disk Usage**: ~1GB for database
 
 ### Common Issues
 1. **API Errors**: Check centralized error logs

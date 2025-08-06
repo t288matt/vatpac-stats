@@ -11,7 +11,7 @@ services:
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
       - ./tools/postgresql_write_optimized.conf:/etc/postgresql/postgresql.conf
-      - ./tools/create_write_optimized_tables.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
     ports:
       - "5432:5432"
     healthcheck:

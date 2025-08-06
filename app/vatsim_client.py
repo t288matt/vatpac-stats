@@ -187,7 +187,33 @@ class VATSIMClient:
         return flights
     
     def parse_sectors(self, data: Dict) -> List[Dict]:
-        """Parse sector data from VATSIM response"""
+        """
+        Parse sector data from VATSIM response.
+        
+        SECTORS FIELD LIMITATION:
+        =========================
+        The 'sectors' field is completely missing from VATSIM API v3. This method
+        implements a fallback behavior to create basic sector definitions from
+        facility information.
+        
+        Technical Details:
+        - Expected: sectors array from API containing airspace sector definitions
+        - Actual: Field does not exist in API response
+        - Fallback: Creates basic sectors based on controller facilities
+        - Impact: Limited traffic density analysis and sector-based routing
+        
+        Fallback Implementation:
+        - Extracts unique facilities from controllers
+        - Creates basic sector for each facility (e.g., "VECC_CTR")
+        - Sets default values for traffic_density, status, priority_level
+        - Maintains compatibility if API adds sectors back
+        
+        Future Considerations:
+        - Monitor API for sectors field return
+        - Consider external sector definition sources
+        - Option to manually define critical sectors
+        - Feature flags for sector-based features
+        """
         # VATSIM doesn't provide sector data directly, so we'll create basic sectors
         # based on facility information
         sectors = []

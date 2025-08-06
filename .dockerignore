@@ -1,139 +1,101 @@
-# Git
-.git
-.gitignore
-
-# Python
+# Development files
+*.pyc
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
+*.pyo
+*.pyd
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# Virtual environments
-venv/
 env/
-ENV/
-env.bak/
-venv.bak/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
 
-# IDE
+# IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS
+# OS files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-# Database files (will be mounted as volumes)
-*.db
-*.db-wal
-*.db-shm
-*.db.backup_*
+# Git
+.git/
+.gitignore
+
+# Documentation
+docs/
+*.md
+README*
+
+# Test files
+tests/
+test_*.py
+*_test.py
+pytest.ini
+.coverage
+htmlcov/
 
 # Logs
 logs/
 *.log
 
-# Temporary files
-*.tmp
-*.temp
-*.bak
-
-# Environment variables
-.env
-.env.local
-.env.production
-
-# Backup files
-backups/
-*.backup
-
-# Data files (large)
+# Data files
 data/
+*.json
 *.csv
-*.json.bak
+*.xlsx
 
-# Performance files
-*.prof
-*.profile
-
-# Coverage reports
-htmlcov/
-.coverage
-.coverage.*
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# pyenv
-.python-version
-
-# pipenv
-Pipfile.lock
-
-# PEP 582
-__pypackages__/
-
-# Celery
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# Docker
-Dockerfile
-docker-compose.yml
+# Docker files
+Dockerfile*
+docker-compose*
 .dockerignore
 
-# Documentation (keep only essential)
-docs/analysis/
-docs/migration/
-docs/optimization/
+# Backup files
+*.backup
+*.bak
 
-# Scripts (keep only essential)
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Grafana (handled separately)
+grafana/
+
+# Tools (not needed in container)
+tools/
+
+# Scripts (not needed in container)
 scripts/
 
-# Tools (keep only essential)
-tools/ 
+# Analysis files
+*.analysis
+*_analysis.py
+
+# Configuration backups
+*.conf.backup
+*.yml.backup
+
+# Database dumps
+*.sql
+*.dump
+
+# Cache
+.cache/
+cache/
+
+# Node modules (if any)
+node_modules/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/ 

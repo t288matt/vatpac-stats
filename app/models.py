@@ -38,7 +38,7 @@ OPTIMIZATIONS:
 - Relationship mappings for efficient joins
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Text, Boolean, SmallInteger, Index
+from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Text, Boolean, SmallInteger, Index, DECIMAL
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from .database import Base
@@ -57,6 +57,13 @@ class Controller(Base):
     last_seen = Column(DateTime, default=datetime.utcnow)
     workload_score = Column(Float, default=0.0)
     preferences = Column(Text, nullable=True)  # JSON string for position preferences
+    # VATSIM API fields
+    controller_id = Column(Integer, nullable=True, index=True)  # From API "cid"
+    controller_name = Column(String(100), nullable=True)  # From API "name"
+    controller_rating = Column(Integer, nullable=True)  # From API "rating"
+    # Missing VATSIM API fields
+    visual_range = Column(Integer, nullable=True)  # From API "visual_range"
+    text_atis = Column(Text, nullable=True)  # From API "text_atis"
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
     
@@ -107,6 +114,35 @@ class Flight(Base):
     status = Column(String(20), default="active")  # active, completed, cancelled
     updated_at = Column(DateTime, default=datetime.utcnow)
     
+    # Missing VATSIM API fields - 1:1 mapping with API field names
+    cid = Column(Integer, nullable=True, index=True)  # VATSIM user ID
+    name = Column(String(100), nullable=True)  # Pilot name
+    server = Column(String(50), nullable=True)  # Network server
+    pilot_rating = Column(Integer, nullable=True)  # Pilot rating
+    military_rating = Column(Integer, nullable=True)  # Military rating
+    latitude = Column(Float, nullable=True)  # Position latitude
+    longitude = Column(Float, nullable=True)  # Position longitude
+    groundspeed = Column(Integer, nullable=True)  # Ground speed
+    transponder = Column(String(10), nullable=True)  # Transponder code
+    qnh_i_hg = Column(DECIMAL(4,2), nullable=True)  # QNH in inches Hg
+    qnh_mb = Column(Integer, nullable=True)  # QNH in millibars
+    logon_time = Column(DateTime, nullable=True)  # When pilot connected
+    last_updated_api = Column(DateTime, nullable=True)  # API last_updated timestamp
+    
+    # Flight plan fields (nested object)
+    flight_rules = Column(String(10), nullable=True)  # IFR/VFR
+    aircraft_faa = Column(String(20), nullable=True)  # FAA aircraft code
+    aircraft_short = Column(String(10), nullable=True)  # Short aircraft code
+    alternate = Column(String(10), nullable=True)  # Alternate airport
+    cruise_tas = Column(Integer, nullable=True)  # True airspeed
+    planned_altitude = Column(Integer, nullable=True)  # Planned cruise altitude
+    deptime = Column(String(10), nullable=True)  # Departure time
+    enroute_time = Column(String(10), nullable=True)  # Enroute time
+    fuel_time = Column(String(10), nullable=True)  # Fuel time
+    remarks = Column(Text, nullable=True)  # Flight plan remarks
+    revision_id = Column(Integer, nullable=True)  # Flight plan revision
+    assigned_transponder = Column(String(10), nullable=True)  # Assigned transponder
+    
     # Relationships
     controller = relationship("Controller", back_populates="flights")
     
@@ -154,6 +190,7 @@ class TrafficMovement(Base):
     heading = Column(Integer, nullable=True)
     metadata_json = Column(Text, nullable=True)  # JSON string
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
     
     # No relationships for now
 
@@ -211,6 +248,7 @@ class AirportConfig(Base):
     is_active = Column(Boolean, default=True)
     region = Column(String(50), nullable=True)  # 'Australia', 'Asia', etc.
     last_updated = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Airports(Base):
     """Global airports table - single source of truth for all airport data"""
@@ -249,6 +287,7 @@ class MovementDetectionConfig(Base):
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     last_updated = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class SystemConfig(Base):
     """System configuration model"""
@@ -260,6 +299,7 @@ class SystemConfig(Base):
     description = Column(Text, nullable=True)
     last_updated = Column(DateTime, default=datetime.utcnow)
     environment = Column(String(20), default="development")
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Event(Base):
     """Event model for special events and scheduling"""
@@ -273,7 +313,6 @@ class Event(Base):
     required_controllers = Column(Integer, default=0)
     status = Column(String(20), default="scheduled")  # scheduled, active, completed
     notes = Column(Text, nullable=True)
-
 
 class Transceiver(Base):
     """Transceiver model for storing radio frequency and position data from VATSIM transceivers API"""
@@ -290,6 +329,7 @@ class Transceiver(Base):
     entity_type = Column(String(20), nullable=False)  # 'flight' or 'atc'
     entity_id = Column(Integer, nullable=True)  # Foreign key to flights.id or controllers.id
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Indexes for efficient queries
     __table_args__ = (
@@ -297,4 +337,17 @@ class Transceiver(Base):
         Index('idx_transceivers_entity_type', 'entity_type'),
         Index('idx_transceivers_frequency', 'frequency'),
         Index('idx_transceivers_timestamp', 'timestamp'),
-    ) 
+    )
+
+class VatsimStatus(Base):
+    """VATSIM network status and general information"""
+    __tablename__ = "vatsim_status"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    api_version = Column(Integer, nullable=True)  # From API "version"
+    reload = Column(Integer, nullable=True)  # From API "reload"
+    update_timestamp = Column(DateTime, nullable=True)  # From API "update_timestamp"
+    connected_clients = Column(Integer, nullable=True)  # From API "connected_clients"
+    unique_users = Column(Integer, nullable=True)  # From API "unique_users"
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow) 
