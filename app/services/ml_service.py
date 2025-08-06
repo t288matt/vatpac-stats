@@ -503,8 +503,8 @@ class MLService:
             np.mean(speeds) if speeds else 0.0,
             np.std(speeds) if speeds else 0.0,
             len(historical_data),
-            datetime.now().hour,
-            datetime.now().weekday()
+            datetime.now(timezone.utc).hour,
+            datetime.now(timezone.utc).weekday()
         ]
         
         return features

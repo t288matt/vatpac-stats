@@ -33,11 +33,11 @@ DEPENDENCIES:
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import logging
 import asyncio
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta, timezone, timezone
 from sqlalchemy import and_, desc, text
 
 from .config import get_config, validate_config
@@ -192,7 +192,7 @@ async def get_status(db: Session = Depends(get_db)):
         
         try:
             movements_count = db.query(TrafficMovement).filter(
-                TrafficMovement.timestamp >= datetime.utcnow() - timedelta(hours=24)
+                TrafficMovement.timestamp >= datetime.now(timezone.utc) - timedelta(hours=24)
             ).count()
         except Exception as e:
             logger.error(f"Error querying movements: {e}")
@@ -206,7 +206,7 @@ async def get_status(db: Session = Depends(get_db)):
             logger.warning("Database appears to be empty - data ingestion may not be working")
             stats = {
                 "status": "operational",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "atc_positions_count": atc_positions_count,
                 "flights_count": flights_count,
                 "airports_count": airports_count,
@@ -223,7 +223,7 @@ async def get_status(db: Session = Depends(get_db)):
         else:
             stats = {
                 "status": "operational",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "atc_positions_count": atc_positions_count,
                 "flights_count": flights_count,
                 "airports_count": airports_count,
@@ -247,7 +247,7 @@ async def get_status(db: Session = Depends(get_db)):
         # Return a basic status even if there are errors
         return {
             "status": "degraded",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "atc_positions_count": 0,
             "flights_count": 0,
             "airports_count": 0,
@@ -282,7 +282,7 @@ async def get_network_status(db: Session = Depends(get_db)):
         "total_controllers": atc_count,
         "total_flights": flight_count,
         "total_sectors": sector_count,
-        "last_update": datetime.utcnow().isoformat()
+        "last_update": datetime.now(timezone.utc).isoformat()
     }
     
     # Cache the result
@@ -489,19 +489,19 @@ async def get_flights(db: Session = Depends(get_db)):
             "squawk": row.squawk,
             "position_lat": row.position_lat,
             "position_lng": row.position_lng,
-            "atc_position_id": row.atc_position_id,
+            "controller_id": row.controller_id,
             "last_updated": row.last_updated.isoformat() if row.last_updated else None
         }
         
-        # Debug: Log flights with atc_position_id
-        if row.atc_position_id is not None:
-            logger.info(f"Flight {row.callsign} has atc_position_id: {row.atc_position_id}")
+        # Debug: Log flights with controller_id
+        if row.controller_id is not None:
+            logger.info(f"Flight {row.callsign} has controller_id: {row.controller_id}")
         
         flights_data.append(flight_data)
     
-    # Debug: Check if any flights have atc_position_id
-    flights_with_atc = [f for f in flights_data if f['atc_position_id'] is not None]
-    logger.info(f"Found {len(flights_with_atc)} flights with atc_position_id out of {len(flights_data)} total flights")
+    # Debug: Check if any flights have controller_id
+    flights_with_controller = [f for f in flights_data if f['controller_id'] is not None]
+    logger.info(f"Found {len(flights_with_controller)} flights with controller_id out of {len(flights_data)} total flights")
     
     # Cache the result
     await cache_service.set_flights_cache(flights_data)
@@ -515,6 +515,93 @@ async def get_flights(db: Session = Depends(get_db)):
         "active": active_count,
         "cached": False
     }
+
+@app.get("/api/flights/{callsign}/track")
+@handle_service_errors
+@log_operation("get_flight_track")
+async def get_flight_track(
+    callsign: str,
+    start_time: Optional[datetime] = None,
+    end_time: Optional[datetime] = None,
+    db: Session = Depends(get_db)
+):
+    """Get complete flight track with all position updates"""
+    try:
+        # Build query for flight positions
+        query = db.query(Flight).filter(Flight.callsign == callsign)
+        
+        if start_time:
+            query = query.filter(Flight.last_updated >= start_time)
+        if end_time:
+            query = query.filter(Flight.last_updated <= end_time)
+        
+        # Get all position updates ordered by time
+        flight_positions = query.order_by(Flight.last_updated).all()
+        
+        return {
+            "callsign": callsign,
+            "positions": [
+                {
+                    "timestamp": pos.last_updated.isoformat(),
+                    "latitude": pos.position_lat,
+                    "longitude": pos.position_lng,
+                    "altitude": pos.altitude,
+                    "speed": pos.speed,
+                    "heading": pos.heading,
+                    "ground_speed": pos.ground_speed,
+                    "vertical_speed": pos.vertical_speed,
+                    "squawk": pos.squawk
+                } for pos in flight_positions
+            ],
+            "total_positions": len(flight_positions),
+            "first_position": flight_positions[0].last_updated.isoformat() if flight_positions else None,
+            "last_position": flight_positions[-1].last_updated.isoformat() if flight_positions else None
+        }
+    except Exception as e:
+        logger.error(f"Error getting flight track: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving flight track")
+
+@app.get("/api/flights/{callsign}/stats")
+@handle_service_errors
+@log_operation("get_flight_stats")
+async def get_flight_stats(callsign: str, db: Session = Depends(get_db)):
+    """Get flight statistics and summary"""
+    try:
+        # Get all positions for this flight
+        positions = db.query(Flight).filter(
+            Flight.callsign == callsign
+        ).order_by(Flight.last_updated).all()
+        
+        if not positions:
+            raise HTTPException(status_code=404, detail="Flight not found")
+        
+        # Calculate statistics
+        first_pos = positions[0]
+        last_pos = positions[-1]
+        
+        # Calculate flight duration
+        duration_minutes = int((last_pos.last_updated - first_pos.last_updated).total_seconds() / 60)
+        
+        # Find max altitude and speed
+        max_altitude = max(pos.altitude or 0 for pos in positions)
+        max_speed = max(pos.speed or 0 for pos in positions)
+        
+        return {
+            "callsign": callsign,
+            "total_positions": len(positions),
+            "duration_minutes": duration_minutes,
+            "first_seen": first_pos.last_updated.isoformat(),
+            "last_seen": last_pos.last_updated.isoformat(),
+            "departure": first_pos.departure,
+            "arrival": first_pos.arrival,
+            "aircraft_type": first_pos.aircraft_type,
+            "max_altitude": max_altitude,
+            "max_speed": max_speed,
+            "route": first_pos.route
+        }
+    except Exception as e:
+        logger.error(f"Error getting flight stats: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving flight statistics")
 
 @app.get("/api/traffic/movements/{airport_icao}")
 @handle_service_errors
@@ -534,7 +621,7 @@ async def get_airport_movements(
         return {"movements": cached_movements, "cached": True}
     
     # If not cached, get from database
-    cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+    cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
     
     movements = db.query(TrafficMovement).filter(
         and_(
@@ -561,46 +648,28 @@ async def get_airport_movements(
     
     return {"movements": movements_data, "cached": False}
 
-@app.get("/api/traffic/summary/{region}")
+@app.get("/api/traffic/summary")
 @handle_service_errors
 @log_operation("get_traffic_summary")
 async def get_traffic_summary(
-    region: str = "Australia",
     hours: int = 24,
     db: Session = Depends(get_db)
 ):
-    """Get traffic summary for region with caching"""
+    """Get traffic summary for all airports with caching"""
     # Try to get from cache first
     cache_service = await get_cache_service()
-    cache_key = f'traffic:summary:{region}:{hours}h'
+    cache_key = f'traffic:summary:all:{hours}h'
     cached_summary = await cache_service.get_cached_data(cache_key)
     
     if cached_summary:
         return cached_summary
     
     # If not cached, calculate from database
-    cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+    cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
     
-    # Get airports for the specified region dynamically
-    region_airports = get_airports_by_region(region)
-    
-    if not region_airports:
-        logger.warning(f"No airports found for region '{region}', returning empty summary")
-        return {
-            "region": region,
-            "period_hours": hours,
-            "total_movements": 0,
-            "arrivals": 0,
-            "departures": 0,
-            "airport_breakdown": {},
-            "timestamp": datetime.utcnow().isoformat()
-        }
-    
+    # Get all movements in the time period
     movements = db.query(TrafficMovement).filter(
-        and_(
-            TrafficMovement.airport_code.in_(region_airports),
-            TrafficMovement.timestamp >= cutoff_time
-        )
+        TrafficMovement.timestamp >= cutoff_time
     ).all()
     
     # Calculate summary statistics
@@ -611,7 +680,7 @@ async def get_traffic_summary(
     # Group by airport
     airport_stats = {}
     for movement in movements:
-        airport = movement.airport_icao
+        airport = movement.airport_code
         if airport not in airport_stats:
             airport_stats[airport] = {"arrivals": 0, "departures": 0}
         
@@ -621,13 +690,12 @@ async def get_traffic_summary(
             airport_stats[airport]["departures"] += 1
     
     summary = {
-        "region": region,
         "period_hours": hours,
         "total_movements": total_movements,
         "arrivals": arrivals,
         "departures": departures,
         "airport_breakdown": airport_stats,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
     # Cache the result
@@ -653,7 +721,7 @@ async def get_traffic_trends(
         return cached_trends
     
     # If not cached, calculate from database
-    cutoff_time = datetime.utcnow() - timedelta(days=days)
+    cutoff_time = datetime.now(timezone.utc) - timedelta(days=days)
     
     movements = db.query(TrafficMovement).filter(
         and_(
@@ -679,7 +747,7 @@ async def get_traffic_trends(
         "period_days": days,
         "daily_stats": daily_stats,
         "total_movements": len(movements),
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
     # Cache the result
@@ -699,7 +767,7 @@ async def get_database_status():
     return {
         "database": db_info,
         "cache": cache_stats,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 @app.get("/api/performance/metrics")
@@ -735,7 +803,7 @@ async def get_flights_from_memory():
             "ground_speed": flight_data.get('ground_speed', 0),
             "vertical_speed": flight_data.get('vertical_speed', 0),
             "squawk": flight_data.get('squawk', ''),
-            "atc_position_id": flight_data.get('atc_position_id'),
+            "controller_id": flight_data.get('controller_id'),
             "last_updated": flight_data.get('last_updated', '').isoformat() if hasattr(flight_data.get('last_updated', ''), 'isoformat') else str(flight_data.get('last_updated', ''))
         })
     
@@ -763,7 +831,7 @@ async def optimize_performance(db: Session = Depends(get_db)):
     return {
         "memory_optimization": memory_optimization,
         "database_optimization": db_optimization,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 @app.get("/traffic-dashboard")
@@ -818,7 +886,7 @@ async def execute_database_query(
         "row_count": len(data),
         "columns": list(columns),
         "query": query,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 @app.get("/api/airports/region/{region}")
@@ -842,7 +910,7 @@ async def get_airports_by_region_api(region: str = "Australia"):
         "region": region,
         "total_airports": stats["total_airports"],
         "airports": stats["airports"],
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
     # Cache the result for 10 minutes (static data)
@@ -874,7 +942,7 @@ async def get_airport_coordinates_api(airport_code: str):
         "airport_code": airport_code.upper(),
         "latitude": coords[0],
         "longitude": coords[1],
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
     # Cache the result for 1 hour (static data)
@@ -917,7 +985,7 @@ async def get_database_tables(db: Session = Depends(get_db)):
     return {
         "tables": tables,
         "total_tables": len(tables),
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 @app.get("/api/health/comprehensive")
@@ -977,11 +1045,11 @@ async def get_data_ingestion_diagnostic(db: Session = Depends(get_db)):
         
         # Check recent data
         recent_flights = db.query(Flight).filter(
-            Flight.last_updated >= datetime.utcnow() - timedelta(hours=1)
+            Flight.last_updated >= datetime.now(timezone.utc) - timedelta(hours=1)
         ).count()
         
         recent_controllers = db.query(Controller).filter(
-            Controller.last_seen >= datetime.utcnow() - timedelta(hours=1)
+            Controller.last_seen >= datetime.now(timezone.utc) - timedelta(hours=1)
         ).count()
         
         # Check VATSIM service status
@@ -999,7 +1067,7 @@ async def get_data_ingestion_diagnostic(db: Session = Depends(get_db)):
             data_service_status = {"error": str(e)}
         
         diagnostic = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "database_state": {
                 "total_flights": total_flights,
                 "total_controllers": total_controllers,
@@ -1030,7 +1098,7 @@ async def get_data_ingestion_diagnostic(db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error in data ingestion diagnostic: {e}")
         return {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "error": str(e),
             "error_type": type(e).__name__,
             "recommendations": ["Check application logs for detailed error information"]

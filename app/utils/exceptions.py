@@ -7,7 +7,7 @@ to provide consistent error handling and meaningful error messages.
 """
 
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class VATSIMSystemError(Exception):
@@ -18,7 +18,7 @@ class VATSIMSystemError(Exception):
         self.message = message
         self.error_code = error_code
         self.details = details or {}
-        self.timestamp = datetime.utcnow()
+        self.timestamp = datetime.now(timezone.utc)
 
 
 class ConfigurationError(VATSIMSystemError):

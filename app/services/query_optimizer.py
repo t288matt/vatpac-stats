@@ -58,7 +58,7 @@ OPTIMIZATIONS:
 from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_, desc, func, text
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta, timezone
 import asyncio
 
 from ..config import get_config
@@ -87,7 +87,7 @@ class QueryOptimizer:
             ).filter(
                 and_(
                     Controller.status == "online",
-                    Controller.last_seen >= datetime.utcnow() - timedelta(minutes=5)
+                    Controller.last_seen >= datetime.now(timezone.utc) - timedelta(minutes=5)
                 )
             ).all()
             
@@ -125,7 +125,7 @@ class QueryOptimizer:
             ).filter(
                 and_(
                     Flight.status == "active",
-                    Flight.last_updated >= datetime.utcnow() - timedelta(minutes=5)
+                    Flight.last_updated >= datetime.now(timezone.utc) - timedelta(minutes=5)
                 )
             ).order_by(desc(Flight.last_updated)).limit(1000).all()
             
@@ -164,7 +164,7 @@ class QueryOptimizer:
     ) -> List[Dict[str, Any]]:
         """Get traffic movements with optimized query"""
         try:
-            cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
             
             # Use optimized query with proper indexing
             movements = db.query(TrafficMovement).filter(
@@ -216,7 +216,7 @@ class QueryOptimizer:
                 and_(
                     Controller.status == "online",
                     Flight.status == "active",
-                    TrafficMovement.timestamp >= datetime.utcnow() - timedelta(hours=24)
+                    TrafficMovement.timestamp >= datetime.now(timezone.utc) - timedelta(hours=24)
                 )
             ).first()
             
@@ -225,7 +225,7 @@ class QueryOptimizer:
                 "flights_count": stats.total_flights or 0,
                 "sectors_count": stats.total_sectors or 0,
                 "movements_count": stats.total_movements or 0,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
             
         except Exception as e:
@@ -235,7 +235,7 @@ class QueryOptimizer:
                 "flights_count": 0,
                 "sectors_count": 0,
                 "movements_count": 0,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
     
     @handle_service_errors
@@ -248,7 +248,7 @@ class QueryOptimizer:
     ) -> Dict[str, Any]:
         """Get airport traffic summary with optimized query"""
         try:
-            cutoff_time = datetime.utcnow() - timedelta(days=days)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(days=days)
             
             # Use aggregation query for better performance
             summary = db.query(
@@ -296,7 +296,7 @@ class QueryOptimizer:
                 "avg_altitude": round(avg_altitude, 2),
                 "avg_speed": round(avg_speed, 2),
                 "period_days": days,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
             
         except Exception as e:
@@ -309,7 +309,7 @@ class QueryOptimizer:
                 "avg_altitude": 0,
                 "avg_speed": 0,
                 "period_days": days,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "error": str(e)
             }
     
@@ -390,7 +390,7 @@ class QueryOptimizer:
                 "status": "optimized",
                 "tables_analyzed": len(tables),
                 "slow_queries_found": len(slow_queries),
-                "optimization_timestamp": datetime.utcnow().isoformat()
+                "optimization_timestamp": datetime.now(timezone.utc).isoformat()
             }
             
         except Exception as e:
@@ -398,7 +398,7 @@ class QueryOptimizer:
             return {
                 "status": "error",
                 "error": str(e),
-                "optimization_timestamp": datetime.utcnow().isoformat()
+                "optimization_timestamp": datetime.now(timezone.utc).isoformat()
             }
     
     @handle_service_errors

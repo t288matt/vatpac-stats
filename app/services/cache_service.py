@@ -47,7 +47,7 @@ OPTIMIZATIONS:
 import redis
 import json
 from typing import Dict, Any, Optional, List
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta, timezone
 import asyncio
 
 from .base_service import CacheService as BaseCacheService
@@ -171,7 +171,7 @@ class CacheService(BaseCacheService):
     
     async def set_atc_positions_cache(self, atc_positions: List[Dict[str, Any]]) -> bool:
         """Set cached ATC positions data"""
-        return await self.set_cached_data('atc_positions:active', {'data': atc_positions, 'timestamp': datetime.utcnow().isoformat()})
+        return await self.set_cached_data('atc_positions:active', {'data': atc_positions, 'timestamp': datetime.now(timezone.utc).isoformat()})
     
     async def get_flights_cache(self) -> Optional[List[Dict[str, Any]]]:
         """Get cached flights data"""
@@ -179,7 +179,7 @@ class CacheService(BaseCacheService):
     
     async def set_flights_cache(self, flights: List[Dict[str, Any]]) -> bool:
         """Set cached flights data"""
-        return await self.set_cached_data('flights:active', {'data': flights, 'timestamp': datetime.utcnow().isoformat()})
+        return await self.set_cached_data('flights:active', {'data': flights, 'timestamp': datetime.now(timezone.utc).isoformat()})
     
     async def get_network_stats_cache(self) -> Optional[Dict[str, Any]]:
         """Get cached network statistics"""

@@ -8,7 +8,7 @@ This script tests the health monitoring endpoints to ensure they're working corr
 import asyncio
 import aiohttp
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 async def test_health_endpoints():
     """Test all health monitoring endpoints"""
@@ -29,10 +29,10 @@ async def test_health_endpoints():
         for endpoint in endpoints:
             try:
                 print(f"\n📊 Testing {endpoint}")
-                start_time = datetime.now()
+                start_time = datetime.now(timezone.utc)
                 
                 async with session.get(f"{base_url}{endpoint}", timeout=10) as response:
-                    response_time = (datetime.now() - start_time).total_seconds()
+                    response_time = (datetime.now(timezone.utc) - start_time).total_seconds()
                     
                     if response.status == 200:
                         data = await response.json()
@@ -94,10 +94,10 @@ async def test_individual_endpoints():
         for endpoint in endpoints:
             try:
                 print(f"\n📊 Testing {endpoint}")
-                start_time = datetime.now()
+                start_time = datetime.now(timezone.utc)
                 
                 async with session.get(f"{base_url}{endpoint}", timeout=10) as response:
-                    response_time = (datetime.now() - start_time).total_seconds()
+                    response_time = (datetime.now(timezone.utc) - start_time).total_seconds()
                     
                     if response.status == 200:
                         data = await response.json()

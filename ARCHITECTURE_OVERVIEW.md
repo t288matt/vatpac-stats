@@ -12,6 +12,7 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - **Scalability**: Microservices architecture with independent scaling
 - **Reliability**: Fault tolerance with circuit breakers and retry mechanisms
 - **Performance**: Memory-optimized data processing with SSD wear optimization
+- **Complete Flight Tracking**: Every flight position update is preserved and retrievable
 
 ## 📊 System Overview
 
@@ -42,6 +43,8 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 │  │  • /api/status                                         │   │
 │  │  • /api/atc-positions                                  │   │
 │  │  • /api/flights                                        │   │
+│  │  • /api/flights/{callsign}/track                       │   │
+│  │  • /api/flights/{callsign}/stats                       │   │
 │  │  • /api/traffic/*                                      │   │
 │  │  • /api/database/*                                     │   │
 │  │  • /api/performance/*                                  │   │
@@ -64,6 +67,7 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - **Real-time VATSIM API v3 integration**
 - **Automatic data cleanup and maintenance**
 - **Complete VATSIM API field mapping**
+- **Flight position tracking** - Every position update preserved
 
 **Key Features**:
 - Asynchronous data ingestion from VATSIM API v3
@@ -74,6 +78,7 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - **VATSIM API Compliance**: Fully aligned with current API structure
 - **Complete Field Mapping**: 1:1 mapping of all VATSIM API fields to database columns
 - **Data Integrity**: All API fields preserved without data loss
+- **Flight Tracking**: Every flight position update stored and retrievable
 
 ### 2. Traffic Analysis Service (`app/services/traffic_analysis_service.py`)
 **Purpose**: Advanced traffic pattern analysis and movement detection
@@ -178,6 +183,8 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 #### Flight Data
 - `GET /api/flights` - Active flights data
 - `GET /api/flights/memory` - Flights from memory cache (debugging)
+- `GET /api/flights/{callsign}/track` - Complete flight track with all position updates
+- `GET /api/flights/{callsign}/stats` - Flight statistics and summary
 
 #### Traffic Analysis
 - `GET /api/traffic/movements/{airport_icao}` - Airport traffic movements
@@ -248,6 +255,11 @@ Error Occurrence → Error Handler → Logging → Monitoring → Recovery
 System Metrics → Resource Manager → Performance API → Grafana → Dashboards
 ```
 
+### 5. Flight Tracking Flow
+```
+Flight Position Update → Memory Cache → Database (Unique Constraint) → Flight Track API → Grafana Maps
+```
+
 ## 🗄️ Database Architecture
 
 ### PostgreSQL Configuration
@@ -255,13 +267,25 @@ System Metrics → Resource Manager → Performance API → Grafana → Dashboar
 - **SSD Optimization**: Asynchronous commits
 - **Performance Tuning**: Query optimization and indexing
 - **Data Retention**: Automatic cleanup of old data
+- **Flight Tracking**: Unique constraints prevent duplicate position records
 
 ### Data Models
 - **ATCPosition**: Controller positions and status
-- **Flight**: Aircraft tracking and position data
+- **Flight**: Aircraft tracking and position data (every position update preserved)
 - **TrafficMovement**: Airport arrival/departure tracking
 - **Sector**: Airspace definitions and traffic density
 - **AirportConfig**: Airport configuration and metadata
+
+### Flight Tracking Schema
+```sql
+-- Unique constraint ensures every position update is preserved
+ALTER TABLE flights ADD CONSTRAINT unique_flight_timestamp 
+UNIQUE (callsign, last_updated);
+
+-- Indexes for fast flight track queries
+CREATE INDEX idx_flights_callsign_timestamp ON flights(callsign, last_updated);
+CREATE INDEX idx_flights_callsign_last_updated ON flights(callsign, last_updated);
+```
 
 ## 🔄 Background Processing
 
@@ -270,12 +294,14 @@ System Metrics → Resource Manager → Performance API → Grafana → Dashboar
 - **Memory-optimized batch processing**
 - **Automatic data cleanup**
 - **Real-time status updates**
+- **Flight position tracking**
 
 ### Background Tasks
 - **Data ingestion**: Continuous VATSIM data collection
 - **Cache management**: Automatic cache invalidation
 - **Performance optimization**: Regular system optimization
 - **Error monitoring**: Continuous error tracking
+- **Flight tracking**: Every position update preserved
 
 ## 📈 Monitoring & Observability
 
@@ -284,6 +310,7 @@ System Metrics → Resource Manager → Performance API → Grafana → Dashboar
 - **Custom visualizations** for traffic analysis
 - **Performance monitoring** with alerts
 - **Error tracking** and analytics
+- **Flight track visualization** on maps
 
 ### Error Monitoring
 - **Centralized error tracking**
@@ -344,6 +371,7 @@ app/
 - **Connection pooling** management
 - **Batch operations** for efficiency
 - **SSD wear optimization**
+- **Flight tracking indexes** for fast queries
 
 ### API Performance
 - **Response caching** strategies
@@ -412,6 +440,12 @@ app/
 - **Retry mechanisms** handle transient failures
 - **Graceful degradation** maintains service availability
 
+### Flight Tracking
+- **Complete position history** for every flight
+- **Fast flight track queries** with optimized indexes
+- **Flight statistics** and analytics
+- **Historical analysis** capabilities
+
 ## 🔍 VATSIM API Integration
 
 ### API Version Compliance
@@ -443,6 +477,7 @@ The system now includes complete 1:1 mapping of all VATSIM API fields to databas
 - **✅ Controller Fields**: Uses correct API field names (`cid`, `name`, `facility`, etc.)
 - **✅ Position Data**: Latitude/longitude/altitude properly parsed
 - **✅ Complete Field Mapping**: All VATSIM API fields preserved in database
+- **✅ Flight Tracking**: Every position update preserved with unique constraints
 - **❌ Sectors Data**: Not available in current API v3 (handled gracefully)
 
 ### Known Limitations
@@ -516,5 +551,6 @@ def parse_sectors(self, data: Dict) -> List[Dict]:
 - **Standardized Format**: Consistent API structure across all endpoints
 - **Error Handling**: Graceful handling of missing or malformed data
 - **Performance**: Optimized for high-frequency API polling
+- **Flight Tracking**: Complete position history for every flight
 
-This architecture provides a robust, scalable, and maintainable foundation for the VATSIM data collection system, optimized for modern operational requirements and Grafana integration. 
+This architecture provides a robust, scalable, and maintainable foundation for the VATSIM data collection system, optimized for modern operational requirements and Grafana integration with complete flight tracking capabilities. 

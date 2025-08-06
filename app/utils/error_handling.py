@@ -11,7 +11,7 @@ import traceback
 import asyncio
 from typing import Dict, Any, Optional, Callable, Type, Union
 from functools import wraps
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta, timezone
 import time
 
 from .logging import get_logger_for_module
@@ -68,7 +68,7 @@ class ErrorTracker:
         """Record an error occurrence."""
         key = f"{error_type}:{service}:{operation}"
         self.error_counts[key] = self.error_counts.get(key, 0) + 1
-        self.error_timestamps[key] = datetime.utcnow()
+        self.error_timestamps[key] = datetime.now(timezone.utc)
         
         if service:
             if service not in self.service_errors:
@@ -83,7 +83,7 @@ class ErrorTracker:
             "service_errors": self.service_errors,
             "recent_errors": {
                 k: v for k, v in self.error_timestamps.items()
-                if datetime.utcnow() - v < timedelta(hours=1)
+                if datetime.now(timezone.utc) - v < timedelta(hours=1)
             }
         }
 
@@ -180,7 +180,7 @@ def log_operation(operation_name: str, log_args: bool = False, log_result: bool 
             log_data = {
                 "operation": operation_name,
                 "service": service,
-                "start_time": datetime.utcnow().isoformat()
+                "start_time": datetime.now(timezone.utc).isoformat()
             }
             
             if log_args:

@@ -334,7 +334,6 @@ def is_australian_airport(airport_code: str) -> bool:
             # Check if the airport exists and is Australian
             airport = session.query(Airports)\
                 .filter(Airports.icao_code == airport_code)\
-                .filter(Airports.is_active == True)\
                 .first()
             
             return airport is not None and airport.icao_code.startswith('Y')

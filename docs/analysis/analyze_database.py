@@ -232,7 +232,7 @@ def analyze_database():
         
         # Data freshness (25 points)
         if latest_flight:
-            time_diff = datetime.now() - latest_flight
+            time_diff = datetime.now(timezone.utc) - latest_flight
             if time_diff.total_seconds() < 300:  # 5 minutes
                 readiness_score += 25
             elif time_diff.total_seconds() < 3600:  # 1 hour
@@ -273,7 +273,7 @@ def analyze_database():
                 logger.info("⚠️ Start the application to collect data")
             if flight_quality and flight_quality[1]/flight_quality[0] < 0.9:
                 logger.info("⚠️ Data quality needs improvement")
-            if latest_flight and (datetime.now() - latest_flight).total_seconds() > 3600:
+            if latest_flight and (datetime.now(timezone.utc) - latest_flight).total_seconds() > 3600:
                 logger.info("⚠️ Data is stale, restart the application")
             if db_size_mb > 100:
                 logger.info("⚠️ Consider database optimization")

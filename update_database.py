@@ -18,7 +18,7 @@ FEATURES:
 import sys
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Add the app directory to the Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
@@ -113,7 +113,7 @@ def main():
     print("=" * 60)
     print("VATSIM Data Collection System - Database Update")
     print("=" * 60)
-    print(f"Started at: {datetime.now()}")
+    print(f"Started at: {datetime.now(timezone.utc)}")
     print()
     
     # Update database schema
@@ -128,7 +128,7 @@ def main():
     
     print()
     print("✅ Database update completed successfully!")
-    print(f"Completed at: {datetime.now()}")
+    print(f"Completed at: {datetime.now(timezone.utc)}")
     print("=" * 60)
 
 if __name__ == "__main__":

@@ -41,7 +41,7 @@ OPTIMIZATIONS:
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta, timezone
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 
@@ -114,7 +114,7 @@ class DataIngestionService:
                     existing_atc_position.controller_name = controller_name
                     existing_atc_position.controller_rating = controller_rating
                     existing_atc_position.status = "online"
-                    existing_atc_position.last_seen = datetime.utcnow()
+                    existing_atc_position.last_seen = datetime.now(timezone.utc)
                     
                     # Update missing VATSIM API fields - 1:1 mapping
                     existing_atc_position.visual_range = atc_position_data.visual_range
@@ -130,7 +130,7 @@ class DataIngestionService:
                         controller_name=controller_name,
                         controller_rating=controller_rating,
                         status="online",
-                        last_seen=datetime.utcnow(),
+                        last_seen=datetime.now(timezone.utc),
                         workload_score=0.0,
                         
                         # Missing VATSIM API fields - 1:1 mapping
@@ -164,7 +164,7 @@ class DataIngestionService:
                 
                 # Controller assignment is handled separately through business logic
                 # VATSIM API doesn't provide controller information for flights
-                atc_position_id = None
+                controller_id = None
                 
                 # Check if flight already exists
                 existing_flight = db.query(Flight).filter(
@@ -181,8 +181,8 @@ class DataIngestionService:
                     existing_flight.speed = speed
                     existing_flight.position_lat = position_lat
                     existing_flight.position_lng = position_lng
-                    existing_flight.atc_position_id = atc_position_id
-                    existing_flight.last_updated = datetime.utcnow()
+                    existing_flight.controller_id = controller_id
+                    existing_flight.last_updated = datetime.now(timezone.utc)
                     
                     # Update missing VATSIM API fields - 1:1 mapping
                     existing_flight.cid = flight_data.cid
@@ -225,8 +225,8 @@ class DataIngestionService:
                         speed=speed,
                         position_lat=position_lat,
                         position_lng=position_lng,
-                        atc_position_id=atc_position_id,
-                        last_updated=datetime.utcnow(),
+                        controller_id=controller_id,
+                        last_updated=datetime.now(timezone.utc),
                         
                         # Missing VATSIM API fields - 1:1 mapping
                         cid=flight_data.cid,
@@ -361,7 +361,7 @@ class DataIngestionService:
                     existing_transceiver.height_agl = height_agl
                     existing_transceiver.entity_type = entity_type
                     existing_transceiver.entity_id = entity_id
-                    existing_transceiver.timestamp = datetime.utcnow()
+                    existing_transceiver.timestamp = datetime.now(timezone.utc)
                 else:
                     # Create new transceiver
                     new_transceiver = Transceiver(
@@ -374,7 +374,7 @@ class DataIngestionService:
                         height_agl=height_agl,
                         entity_type=entity_type,
                         entity_id=entity_id,
-                        timestamp=datetime.utcnow()
+                        timestamp=datetime.now(timezone.utc)
                     )
                     db.add(new_transceiver)
             
@@ -389,7 +389,7 @@ class DataIngestionService:
         db = SessionLocal()
         try:
             # Remove flights that haven't been updated in the last 5 minutes
-            cutoff_time = datetime.utcnow() - timedelta(minutes=5)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=5)
             old_flights = db.query(Flight).filter(
                 Flight.last_updated < cutoff_time
             ).all()
@@ -398,7 +398,7 @@ class DataIngestionService:
                 db.delete(flight)
             
             # Remove controllers that haven't been seen in the last 10 minutes
-            cutoff_time = datetime.utcnow() - timedelta(minutes=10)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=10)
             old_controllers = db.query(Controller).filter(
                 Controller.last_seen < cutoff_time
             ).all()

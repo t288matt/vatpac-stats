@@ -58,7 +58,7 @@ import psutil
 import logging
 import asyncio
 from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta, timezone
 import gc
 import threading
 import time
@@ -217,7 +217,7 @@ class ResourceManager:
                 "open_files": len(process.open_files()),
                 "connections": len(process.connections())
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     
     @handle_service_errors
@@ -243,7 +243,7 @@ class ResourceManager:
             "objects_before": collected_before,
             "objects_after": collected_after,
             "memory_freed_mb": (memory_before.used - memory_after.used) / 1024 / 1024,
-            "optimization_timestamp": datetime.utcnow().isoformat()
+            "optimization_timestamp": datetime.now(timezone.utc).isoformat()
         }
     
     @handle_service_errors
@@ -292,7 +292,7 @@ class ResourceManager:
                 "read_count": disk_io.read_count if disk_io else 0,
                 "write_count": disk_io.write_count if disk_io else 0
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     
     @handle_service_errors

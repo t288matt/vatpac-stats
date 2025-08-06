@@ -28,7 +28,7 @@ import asyncio
 import aiohttp
 import psutil
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta, timezone, timezone
 from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -75,15 +75,15 @@ class HealthMonitor:
         async with aiohttp.ClientSession() as session:
             for endpoint in endpoints:
                 try:
-                    start_time = datetime.now()
+                    start_time = datetime.now(timezone.utc)
                     async with session.get(f"{self.base_url}{endpoint}", timeout=300) as response:
-                        response_time = (datetime.now() - start_time).total_seconds()
+                        response_time = (datetime.now(timezone.utc) - start_time).total_seconds()
                         
                         results[endpoint] = {
                             "status": response.status,
                             "response_time": response_time,
                             "healthy": response.status == 200,
-                            "timestamp": datetime.now().isoformat()
+                            "timestamp": datetime.now(timezone.utc).isoformat()
                         }
                         
                         # Track response times for averaging
@@ -102,7 +102,7 @@ class HealthMonitor:
                         "response_time": 0,
                         "healthy": False,
                         "error": str(e),
-                        "timestamp": datetime.now().isoformat()
+                        "timestamp": datetime.now(timezone.utc).isoformat()
                     }
                     
                     # Track errors
@@ -118,9 +118,9 @@ class HealthMonitor:
             db = SessionLocal()
             
             # Test basic connectivity
-            start_time = datetime.now()
+            start_time = datetime.now(timezone.utc)
             result = db.execute(text("SELECT 1"))
-            db_response_time = (datetime.now() - start_time).total_seconds()
+            db_response_time = (datetime.now(timezone.utc) - start_time).total_seconds()
             
             # Get database statistics
             atc_count = db.execute(text("SELECT COUNT(*) FROM controllers WHERE status = 'online'")).scalar()
@@ -142,7 +142,7 @@ class HealthMonitor:
                 "active_flights": flights_count or 0,
                 "database_size": db_size.size if db_size else "Unknown",
                 "size_bytes": db_size.size_bytes if db_size else 0,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
             
         except Exception as e:
@@ -150,7 +150,7 @@ class HealthMonitor:
             return {
                 "connected": False,
                 "error": str(e),
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
     
     async def check_system_resources(self) -> Dict[str, Any]:
@@ -178,14 +178,14 @@ class HealthMonitor:
                 "disk_total_gb": disk.total / (1024**3),
                 "network_bytes_sent": network.bytes_sent,
                 "network_bytes_recv": network.bytes_recv,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
             
         except Exception as e:
             logger.error(f"System resource check failed: {e}")
             return {
                 "error": str(e),
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
     
     async def check_data_freshness(self) -> Dict[str, Any]:
@@ -206,7 +206,12 @@ class HealthMonitor:
             
             db.close()
             
-            now = datetime.now()
+            # Debug: Log the types and values
+            logger.info(f"Database timestamps - ATC: {type(last_atc_update)} = {last_atc_update}, Flight: {type(last_flight_update)} = {last_flight_update}")
+            
+            # Use timezone-aware datetime for comparison
+            now = datetime.now(timezone.utc)
+            logger.info(f"Current time: {type(now)} = {now}")
             
             return {
                 "last_atc_update": last_atc_update.isoformat() if last_atc_update else None,
@@ -221,7 +226,7 @@ class HealthMonitor:
             logger.error(f"Data freshness check failed: {e}")
             return {
                 "error": str(e),
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
     
     async def get_comprehensive_health_report(self) -> Dict[str, Any]:
@@ -260,14 +265,14 @@ class HealthMonitor:
                 "data_freshness": data_freshness,
                 "average_response_times": avg_response_times,
                 "error_rates": error_rates,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
             
         except Exception as e:
             logger.error(f"Comprehensive health check failed: {e}")
             return {
                 "error": str(e),
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
     
     def _calculate_health_score(self, api_health, db_health, system_health, data_freshness) -> float:

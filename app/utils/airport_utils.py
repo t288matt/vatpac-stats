@@ -84,10 +84,8 @@ def load_airports_from_database() -> Dict[str, Dict[str, float]]:
         Session = sessionmaker(bind=engine)
         session = Session()
         
-        # Query all active airports from the database
-        airports_query = session.query(Airports)\
-            .filter(Airports.is_active == True)\
-            .all()
+        # Query all airports from the database
+        airports_query = session.query(Airports).all()
         
         # Convert to the expected format
         airports = {}
@@ -141,18 +139,14 @@ def get_airports_by_region(region: str = "Australia") -> List[str]:
         
         if region not in region_patterns:
             logger.warning(f"Unknown region '{region}', using all airports")
-            airports = session.query(Airports.icao_code)\
-                .filter(Airports.is_active == True)\
-                .all()
+            airports = session.query(Airports.icao_code).all()
             session.close()
             return [airport[0] for airport in airports]
         
         patterns = region_patterns[region]
         
         if region == "Global":
-            airports = session.query(Airports.icao_code)\
-                .filter(Airports.is_active == True)\
-                .all()
+            airports = session.query(Airports.icao_code).all()
             session.close()
             return [airport[0] for airport in airports]
         
@@ -161,7 +155,6 @@ def get_airports_by_region(region: str = "Australia") -> List[str]:
         for pattern in patterns:
             airports = session.query(Airports.icao_code)\
                 .filter(Airports.icao_code.like(f'{pattern}%'))\
-                .filter(Airports.is_active == True)\
                 .all()
             region_airports.extend([airport[0] for airport in airports])
         
@@ -192,7 +185,6 @@ def get_airport_coordinates(airport_code: str) -> Optional[Tuple[float, float]]:
         
         airport = session.query(Airports)\
             .filter(Airports.icao_code == airport_code)\
-            .filter(Airports.is_active == True)\
             .first()
         
         session.close()

@@ -39,7 +39,7 @@ sectors = parsed_data.get("sectors", [])
 if not sectors:
     self.logger.warning("No sectors data available from VATSIM API", extra={
         "sectors_count": 0,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     })
 ```
 
@@ -177,7 +177,7 @@ CREATE TABLE IF NOT EXISTS sectors (
 # Warning when sectors missing
 self.logger.warning("No sectors data available from VATSIM API", extra={
     "sectors_count": 0,
-    "timestamp": datetime.utcnow().isoformat()
+    "timestamp": datetime.now(timezone.utc).isoformat()
 })
 
 # Graceful fallback

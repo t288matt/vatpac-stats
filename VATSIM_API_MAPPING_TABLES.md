@@ -87,7 +87,7 @@ controller_data = {
     'controller_rating': atc_position_data.get('rating', 0),  # API "rating" → DB "controller_rating"
     'frequency': atc_position_data.get('frequency', ''),
     'status': 'online',
-    'last_seen': datetime.utcnow()
+    'last_seen': datetime.now(timezone.utc)
 }
 ```
 

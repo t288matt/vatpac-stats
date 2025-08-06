@@ -49,7 +49,7 @@ import asyncio
 import httpx
 from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from ..config import get_config
@@ -312,7 +312,7 @@ class VATSIMService(BaseService):
             if not sectors:
                 self.logger.warning("No sectors data available from VATSIM API", extra={
                     "sectors_count": 0,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 })
             
             # Fetch transceivers data
@@ -340,7 +340,7 @@ class VATSIMService(BaseService):
                 flights=flights,
                 sectors=sectors,
                 transceivers=transceivers,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 total_controllers=len(controllers),
                 total_flights=len(flights),
                 total_sectors=len(sectors),
@@ -669,14 +669,14 @@ class VATSIMService(BaseService):
                 "status": "healthy" if response.status_code == 200 else "unhealthy",
                 "status_code": response.status_code,
                 "response_time": response.elapsed.total_seconds(),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
             
         except Exception as e:
             return {
                 "status": "error",
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
 
 

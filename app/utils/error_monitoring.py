@@ -9,7 +9,7 @@ capabilities to track system health and identify patterns in errors.
 import asyncio
 import json
 from typing import Dict, Any, List, Optional, Callable
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta, timezone
 from collections import defaultdict, deque
 import statistics
 
@@ -37,7 +37,7 @@ class ErrorMonitor:
             return
         
         error_record = {
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
             "error_type": error.__class__.__name__,
             "message": error.message,
             "service": service,
@@ -68,7 +68,7 @@ class ErrorMonitor:
         
         # Check for rapid error increase
         recent_errors = [e for e in self.error_window if 
-                        datetime.utcnow() - e["timestamp"] < timedelta(minutes=5)]
+                        datetime.now(timezone.utc) - e["timestamp"] < timedelta(minutes=5)]
         
         if len(recent_errors) >= self.alert_threshold:
             self._trigger_alert("error_spike", {
@@ -94,7 +94,7 @@ class ErrorMonitor:
         """Trigger alerts for error conditions."""
         alert = {
             "type": alert_type,
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
             "data": data
         }
         
@@ -117,7 +117,7 @@ class ErrorMonitor:
     
     def get_error_statistics(self, time_window: timedelta = timedelta(hours=1)) -> Dict[str, Any]:
         """Get error statistics for the specified time window."""
-        cutoff_time = datetime.utcnow() - time_window
+        cutoff_time = datetime.now(timezone.utc) - time_window
         recent_errors = [e for e in self.error_window if e["timestamp"] >= cutoff_time]
         
         if not recent_errors:
@@ -142,7 +142,7 @@ class ErrorMonitor:
                 operations[error["operation"]] += 1
         
         # Calculate average errors per minute
-        time_span = (datetime.utcnow() - cutoff_time).total_seconds() / 60
+        time_span = (datetime.now(timezone.utc) - cutoff_time).total_seconds() / 60
         avg_errors_per_minute = len(recent_errors) / time_span if time_span > 0 else 0
         
         return {
@@ -156,7 +156,7 @@ class ErrorMonitor:
     
     def get_error_trends(self, hours: int = 24) -> Dict[str, Any]:
         """Get error trends over the specified hours."""
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         recent_errors = [e for e in self.error_window if e["timestamp"] >= cutoff_time]
         
         if not recent_errors:
@@ -231,7 +231,7 @@ class ErrorReporter:
         
         return {
             "report_type": "daily_error_report",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "summary": {
                 "total_errors": stats["total_errors"],
                 "average_errors_per_minute": stats["average_errors_per_minute"],
@@ -298,7 +298,7 @@ class ErrorReporter:
         
         # Calculate error rate
         recent_errors = [e for e in service_errors 
-                        if datetime.utcnow() - e["timestamp"] < timedelta(hours=1)]
+                        if datetime.now(timezone.utc) - e["timestamp"] < timedelta(hours=1)]
         error_rate = len(recent_errors) / 60  # errors per minute
         
         return {

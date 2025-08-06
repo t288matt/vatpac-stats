@@ -49,7 +49,7 @@ OPTIMIZATIONS:
 
 import json
 import math
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta, timezone
 from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, desc
@@ -133,12 +133,44 @@ class TrafficAnalysisService:
     def get_airport_config(self, icao_code: str) -> Optional[AirportConfig]:
         """Get airport configuration for movement detection"""
         try:
-            return self.db.query(AirportConfig).filter(
+            # First try to get existing airport config
+            airport_config = self.db.query(AirportConfig).filter(
                 and_(
                     AirportConfig.icao_code == icao_code.upper(),
                     AirportConfig.is_active == True
                 )
             ).first()
+            
+            if airport_config:
+                return airport_config
+            
+            # If no config exists, try to get airport data from airports table
+            from ..models import Airports
+            airport_data = self.db.query(Airports).filter(
+                Airports.icao_code == icao_code.upper()
+            ).first()
+            
+            if airport_data:
+                # Create a default airport config for movement detection
+                default_config = AirportConfig(
+                    icao_code=airport_data.icao_code,
+                    name=airport_data.name or f"Airport {airport_data.icao_code}",
+                    latitude=airport_data.latitude,
+                    longitude=airport_data.longitude,
+                    detection_radius_nm=self.config.get('default_detection_radius_nm', 10.0),
+                    departure_altitude_threshold=self.config.get('default_departure_altitude_threshold', 1000),
+                    arrival_altitude_threshold=self.config.get('default_arrival_altitude_threshold', 3000),
+                    departure_speed_threshold=self.config.get('default_departure_speed_threshold', 50),
+                    arrival_speed_threshold=self.config.get('default_arrival_speed_threshold', 150),
+                    is_active=True,
+                    region=airport_data.country or 'Global'
+                )
+                
+                # Don't save to database to avoid cluttering, just return the config
+                return default_config
+            
+            return None
+            
         except Exception as e:
             self.error_handler.logger.error(f"Error getting airport config for {icao_code}: {e}")
             return None
@@ -203,7 +235,7 @@ class TrafficAnalysisService:
                         TrafficMovement.aircraft_callsign == flight.callsign,
                         TrafficMovement.airport_code == flight.departure.upper(),
                         TrafficMovement.movement_type == 'departure',
-                        TrafficMovement.timestamp >= datetime.utcnow() - timedelta(minutes=5)
+                        TrafficMovement.timestamp >= datetime.now(timezone.utc) - timedelta(minutes=5)
                     )
                 ).first()
                 
@@ -215,7 +247,7 @@ class TrafficAnalysisService:
                         airport_code=flight.departure.upper(),
                         movement_type='departure',
                         aircraft_type=flight.aircraft_type,
-                        timestamp=datetime.utcnow(),
+                        timestamp=datetime.now(timezone.utc),
                         altitude=flight.altitude,
                         speed=flight.speed,
                         heading=flight.heading
@@ -253,7 +285,7 @@ class TrafficAnalysisService:
                         TrafficMovement.aircraft_callsign == flight.callsign,
                         TrafficMovement.airport_code == flight.arrival.upper(),
                         TrafficMovement.movement_type == 'arrival',
-                        TrafficMovement.timestamp >= datetime.utcnow() - timedelta(minutes=5)
+                        TrafficMovement.timestamp >= datetime.now(timezone.utc) - timedelta(minutes=5)
                     )
                 ).first()
                 
@@ -265,7 +297,7 @@ class TrafficAnalysisService:
                         airport_code=flight.arrival.upper(),
                         movement_type='arrival',
                         aircraft_type=flight.aircraft_type,
-                        timestamp=datetime.utcnow(),
+                        timestamp=datetime.now(timezone.utc),
                         altitude=flight.altitude,
                         speed=flight.speed,
                         heading=flight.heading
@@ -315,7 +347,7 @@ class TrafficAnalysisService:
     def get_movements_by_airport(self, airport_code: str, hours: int = 24) -> List[Dict[str, Any]]:
         """Get movements for a specific airport within time range"""
         try:
-            cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
             
             movements = self.db.query(TrafficMovement).filter(
                 and_(
@@ -345,51 +377,52 @@ class TrafficAnalysisService:
             self.error_handler.logger.error(f"Error getting movements for {airport_code}: {e}")
             return []
     
-    def get_movements_summary(self, region: str = 'Australia', hours: int = 24) -> Dict[str, Any]:
-        """Get summary of movements by airport for a region"""
+    def get_movements_summary(self, hours: int = 24) -> Dict[str, Any]:
+        """Get summary of movements by airport for all airports"""
         try:
-            cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
             
-            # Get airports in region
-            airports = self.db.query(AirportConfig).filter(
+            # Get all movements in the time period
+            movements = self.db.query(TrafficMovement).filter(
                 and_(
-                    AirportConfig.region == region,
-                    AirportConfig.is_active == True
+                    TrafficMovement.timestamp >= cutoff_time,
+                    TrafficMovement.confidence_score >= self.config.get('confidence_threshold', 0.7)
                 )
             ).all()
             
+            # Group movements by airport
             summary = {}
-            
-            for airport in airports:
-                movements = self.db.query(TrafficMovement).filter(
-                    and_(
-                        TrafficMovement.airport_code == airport.icao_code,
-                        TrafficMovement.timestamp >= cutoff_time,
-                        TrafficMovement.confidence_score >= self.config.get('confidence_threshold', 0.7)
-                    )
-                ).all()
+            for movement in movements:
+                airport_code = movement.airport_code
+                if airport_code not in summary:
+                    summary[airport_code] = {
+                        'airport_name': f"Airport {airport_code}",
+                        'total_movements': 0,
+                        'arrivals': 0,
+                        'departures': 0,
+                        'last_movement': None
+                    }
                 
-                arrivals = [m for m in movements if m.movement_type == 'arrival']
-                departures = [m for m in movements if m.movement_type == 'departure']
+                summary[airport_code]['total_movements'] += 1
+                if movement.movement_type == 'arrival':
+                    summary[airport_code]['arrivals'] += 1
+                else:
+                    summary[airport_code]['departures'] += 1
                 
-                summary[airport.icao_code] = {
-                    'airport_name': airport.name,
-                    'total_movements': len(movements),
-                    'arrivals': len(arrivals),
-                    'departures': len(departures),
-                    'last_movement': movements[-1].timestamp.isoformat() if movements else None
-                }
+                # Update last movement timestamp
+                if not summary[airport_code]['last_movement'] or movement.timestamp > summary[airport_code]['last_movement']:
+                    summary[airport_code]['last_movement'] = movement.timestamp.isoformat()
             
             return summary
         
         except Exception as e:
-            self.error_handler.logger.error(f"Error getting movements summary for {region}: {e}")
+            self.error_handler.logger.error(f"Error getting movements summary: {e}")
             return {}
     
     def get_traffic_trends(self, airport_icao: str, days: int = 7) -> Dict[str, Any]:
         """Get traffic trends for an airport over time"""
         try:
-            cutoff_time = datetime.utcnow() - timedelta(days=days)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(days=days)
             
             # Get daily movement counts
             daily_movements = self.db.query(

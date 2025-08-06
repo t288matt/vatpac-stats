@@ -262,13 +262,7 @@ class Airports(Base):
     elevation = Column(Integer, nullable=True)  # Feet above sea level
     country = Column(String(100), nullable=True)
     region = Column(String(100), nullable=True)  # State/province
-    timezone = Column(String(50), nullable=True)
-    facility_type = Column(String(50), nullable=True)  # airport, heliport, seaplane_base
-    runways = Column(Text, nullable=True)  # JSON string for runway data
-    frequencies = Column(Text, nullable=True)  # JSON string for frequency data
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
     
     # Indexes for efficient queries
     __table_args__ = (

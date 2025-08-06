@@ -71,7 +71,7 @@ services:
       VATSIM_CLEANUP_INTERVAL: 3600  # How often to cleanup old data (1 hour)
       
       # Geographic Filter Configuration
-      FLIGHT_FILTER_ENABLED: "false"
+      FLIGHT_FILTER_ENABLED: "true"
       FLIGHT_FILTER_LOG_LEVEL: "DEBUG"
     volumes:
       - ./logs:/app/logs:rw

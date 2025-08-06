@@ -44,7 +44,7 @@ OPTIMIZATIONS:
 
 import asyncio
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta, timezone, timezone
 from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc, insert, cast, JSON
@@ -283,7 +283,7 @@ class DataService(DatabaseService):
                     'controller_id': atc_position_data.get('cid', None),  # API "cid" → DB "controller_id"
                     'controller_name': atc_position_data.get('name', ''),  # API "name" → DB "controller_name"
                     'controller_rating': atc_position_data.get('rating', 0),  # API "rating" → DB "controller_rating"
-                    'last_seen': datetime.utcnow(),
+                    'last_seen': datetime.now(timezone.utc),
                     'workload_score': 0.0,
                     'preferences': {}
                 })
@@ -343,7 +343,7 @@ class DataService(DatabaseService):
                     'vertical_speed': flight_data.get('vertical_speed', 0),
                     'squawk': flight_data.get('squawk', ''),
                     'controller_id': flight_data.get('cid', None),  # API "cid" → DB "controller_id"
-                    'last_updated': datetime.utcnow(),
+                    'last_updated': datetime.now(timezone.utc),
                     'status': 'active'
                 }
                 
@@ -394,7 +394,7 @@ class DataService(DatabaseService):
                     'height_agl': transceiver_data.get('height_agl'),
                     'entity_type': transceiver_data.get('entity_type', 'flight'),
                     'entity_id': transceiver_data.get('entity_id'),
-                    'timestamp': datetime.utcnow()
+                    'timestamp': datetime.now(timezone.utc)
                 })
                 processed_count += 1
             
@@ -430,7 +430,7 @@ class DataService(DatabaseService):
                                 TrafficMovement.aircraft_callsign == movement.aircraft_callsign,
                                 TrafficMovement.airport_code == movement.airport_code,
                                 TrafficMovement.movement_type == movement.movement_type,
-                                TrafficMovement.timestamp >= datetime.utcnow() - timedelta(minutes=5)
+                                TrafficMovement.timestamp >= datetime.now(timezone.utc) - timedelta(minutes=5)
                             )
                         ).first()
                         
@@ -502,23 +502,26 @@ class DataService(DatabaseService):
                     # Prepare data for bulk upsert
                     flights_values = [data for _, data in flights_data]
                     
-                    # Use bulk insert (no upsert since callsign is not unique)
+                    # Use bulk upsert to handle duplicates gracefully
                     try:
-                        # Insert all flights as new records
+                        # Try PostgreSQL-specific upsert first
+                        stmt = insert(Flight).values(flights_values)
+                        stmt = stmt.on_conflict_do_nothing()  # Ignore duplicates
+                        db.execute(stmt)
+                    except AttributeError:
+                        # Fallback to manual upsert for other databases
                         for data in flights_values:
-                            flight = Flight(**data)
-                            db.add(flight)
-                    except Exception as e:
-                        self.logger.error(f"Error adding flights to session: {e}")
-                        # Fallback to individual adds
-                        for data in flights_values:
-                            try:
+                            existing = db.query(Flight).filter(
+                                and_(
+                                    Flight.callsign == data['callsign'],
+                                    Flight.last_updated == data['last_updated']
+                                )
+                            ).first()
+                            if not existing:
                                 flight = Flight(**data)
                                 db.add(flight)
-                            except Exception as e2:
-                                self.logger.error(f"Error adding individual flight {data.get('callsign', 'unknown')}: {e2}")
                     
-                    self.logger.info(f"Bulk upserted {len(flights_values)} flights")
+                    self.logger.info(f"Bulk inserted {len(flights_values)} flight positions")
                 
                 # OPTIMIZED BATCH 3: Transceivers with bulk upsert
                 from ..models import Transceiver
@@ -580,7 +583,7 @@ class DataService(DatabaseService):
             db = SessionLocal()
             try:
                 # Mark old flights as completed (older than 1 hour) - preserve historical data
-                cutoff_time = datetime.utcnow() - timedelta(hours=1)
+                cutoff_time = datetime.now(timezone.utc) - timedelta(hours=1)
                 old_flights = db.query(Flight).filter(
                     and_(
                         Flight.last_updated < cutoff_time,
@@ -595,7 +598,7 @@ class DataService(DatabaseService):
                     await self._store_flight_summary(flight)
                 
                 # Mark ATC positions as offline if not seen in 30 minutes
-                atc_position_cutoff = datetime.utcnow() - timedelta(minutes=30)
+                atc_position_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
                 offline_atc_positions = db.query(Controller).filter(
                     and_(
                         Controller.last_seen < atc_position_cutoff,
@@ -607,7 +610,7 @@ class DataService(DatabaseService):
                     atc_position.status = 'offline'
                 
                 # Clean up old movements (older than 7 days)
-                movement_cutoff = datetime.utcnow() - timedelta(days=7)
+                movement_cutoff = datetime.now(timezone.utc) - timedelta(days=7)
                 old_movements = db.query(TrafficMovement).filter(
                     TrafficMovement.timestamp < movement_cutoff
                 ).all()
@@ -646,7 +649,7 @@ class DataService(DatabaseService):
                     route=flight.route,
                     max_altitude=flight.altitude,
                     duration_minutes=duration_minutes,
-                    completed_at=datetime.utcnow()
+                    completed_at=datetime.now(timezone.utc)
                 )
                 
                 db.add(summary)
@@ -688,7 +691,7 @@ class DataService(DatabaseService):
                 "active_atc_positions": active_atc_positions,
                 "active_flights": active_flights,
                 "total_sectors": total_sectors,
-                "last_updated": datetime.utcnow().isoformat()
+                "last_updated": datetime.now(timezone.utc).isoformat()
             }
             
         except Exception as e:
@@ -700,7 +703,7 @@ class DataService(DatabaseService):
                 "active_flights": 0,
                 "total_sectors": 0,
                 "error": str(e),
-                "last_updated": datetime.utcnow().isoformat()
+                "last_updated": datetime.now(timezone.utc).isoformat()
             }
         finally:
             db.close()

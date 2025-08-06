@@ -35,6 +35,9 @@ import logging
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass
 
+# Import the centralized Australian airport validation
+from ..config import is_australian_airport
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -96,19 +99,16 @@ class FlightFilter:
     
     def _is_australian_airport(self, airport_code: str) -> bool:
         """
-        Check if an airport code is Australian (starts with 'Y')
+        Check if an airport code is Australian using centralized validation
         
         Args:
             airport_code: Airport ICAO code
             
         Returns:
-            True if airport code starts with 'Y', False otherwise
+            True if airport code is Australian, False otherwise
         """
-        if not airport_code:
-            return False
-        
-        # Simple check: Australian airports start with 'Y'
-        return airport_code.upper().startswith('Y')
+        # Use the centralized Australian airport validation from config
+        return is_australian_airport(airport_code)
     
     def _is_australian_flight(self, flight_data: Dict) -> bool:
         """

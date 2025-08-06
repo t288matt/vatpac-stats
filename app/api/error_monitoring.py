@@ -8,7 +8,7 @@ data, statistics, and reports.
 
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta, timezone
 
 from ..utils.error_monitoring import get_error_monitor, get_error_reporter
 from ..utils.error_handling import get_error_summary
@@ -32,7 +32,7 @@ async def get_error_summary_endpoint() -> Dict[str, Any]:
         summary = get_error_summary()
         
         return {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "error_summary": summary,
             "service_health": monitor.get_service_health(),
             "recent_statistics": monitor.get_error_statistics(timedelta(hours=1))
@@ -61,7 +61,7 @@ async def get_error_statistics(
         stats = monitor.get_error_statistics(time_window)
         
         return {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "time_window_hours": hours,
             "statistics": stats
         }
@@ -88,7 +88,7 @@ async def get_error_trends(
         trends = monitor.get_error_trends(hours)
         
         return {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "analysis_period_hours": hours,
             "trends": trends
         }
@@ -113,7 +113,7 @@ async def get_service_error_report(service_name: str) -> Dict[str, Any]:
         report = await reporter.generate_service_report(service_name)
         
         return {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "service_report": report
         }
     except Exception as e:
@@ -134,7 +134,7 @@ async def get_daily_error_report() -> Dict[str, Any]:
         report = await reporter.generate_daily_report()
         
         return {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "daily_report": report
         }
     except Exception as e:
@@ -162,7 +162,7 @@ async def get_error_monitoring_health() -> Dict[str, Any]:
         overall_health = "healthy" if unhealthy_services == 0 else "degraded" if unhealthy_services < total_services else "unhealthy"
         
         return {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "monitoring_system": "active",
             "overall_health": overall_health,
             "total_services": total_services,
@@ -188,7 +188,7 @@ async def reset_error_monitoring() -> Dict[str, Any]:
         monitor.reset_monitoring()
         
         return {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "message": "Error monitoring data reset successfully",
             "status": "reset"
         }
@@ -218,7 +218,7 @@ async def get_error_alerts() -> Dict[str, Any]:
                 "type": "error_spike",
                 "severity": "high",
                 "message": f"High error rate detected: {stats['total_errors']} errors in 5 minutes",
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             })
         
         # Check for unhealthy services
@@ -230,7 +230,7 @@ async def get_error_alerts() -> Dict[str, Any]:
                 "severity": "medium",
                 "message": f"Unhealthy services detected: {', '.join(unhealthy_services)}",
                 "services": unhealthy_services,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             })
         
         # Check for specific error type spikes
@@ -242,11 +242,11 @@ async def get_error_alerts() -> Dict[str, Any]:
                     "message": f"High frequency of {error_type} errors: {count} in 5 minutes",
                     "error_type": error_type,
                     "count": count,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 })
         
         return {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "active_alerts": len(alerts),
             "alerts": alerts
         }

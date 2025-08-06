@@ -1,12 +1,13 @@
 # VATSIM Data Collection System
 
-A high-performance, API-driven platform for real-time VATSIM data collection, analysis, and monitoring. The system features centralized error handling, comprehensive observability, and is optimized for Grafana integration.
+A high-performance, API-driven platform for real-time VATSIM data collection, analysis, and monitoring. The system features centralized error handling, comprehensive observability, and is optimized for Grafana integration with complete flight tracking capabilities.
 
 ## 🚀 Features
 
 - **API-First Design**: All functionality exposed through REST APIs
 - **Centralized Error Handling**: Consistent error management across all services
 - **Real-time VATSIM Data Collection**: Collects ATC position, flight, and sector data with complete API field mapping
+- **Complete Flight Tracking**: Every flight position update is preserved and retrievable
 - **Advanced Analytics**: Traffic analysis, movement detection, and workload optimization
 - **Performance Optimized**: SSD wear reduction, memory caching, and bulk operations
 - **Scalable Architecture**: Microservices-oriented with independent scaling
@@ -63,6 +64,7 @@ curl http://localhost:8001/api/status
 - **Default Data**: System configuration inserted
 - **Health Checks**: All services verified and started
 - **Background Services**: Data ingestion begins automatically
+- **Flight Tracking**: Database constraints ensure every position update is preserved
 
 #### Expected Results
 ```bash
@@ -308,6 +310,7 @@ The system now includes complete 1:1 mapping of all VATSIM API fields to databas
 - **Core Fields**: `callsign`, `aircraft_type`, `position_lat`, `position_lng`, `altitude`, `speed`, `heading`
 - **VATSIM API Fields**: `cid`, `name`, `server`, `pilot_rating`, `military_rating`, `latitude`, `longitude`, `groundspeed`, `transponder`, `qnh_i_hg`, `qnh_mb`, `logon_time`, `last_updated_api`
 - **Flight Plan Fields**: `flight_rules`, `aircraft_faa`, `aircraft_short`, `alternate`, `cruise_tas`, `planned_altitude`, `deptime`, `enroute_time`, `fuel_time`, `remarks`, `revision_id`, `assigned_transponder`
+- **Flight Tracking**: Unique constraint ensures every position update is preserved
 
 #### Controllers Table
 - **Core Fields**: `callsign`, `facility`, `position`, `status`, `frequency`
@@ -321,10 +324,12 @@ The system now includes complete 1:1 mapping of all VATSIM API fields to databas
 - **Direct API Mapping**: Database field names match VATSIM API field names
 - **Performance Optimized**: Indexes on frequently queried fields
 - **Documentation**: All fields include detailed comments explaining their source
+- **Flight Tracking**: Every position update preserved with unique constraints
 
 ### Migration Support
 The system includes migration scripts to add new fields to existing databases without data loss:
 - `tools/add_missing_vatsim_fields_migration.sql` - Adds all missing VATSIM API fields
+- `tools/add_flight_tracking_migration.sql` - Adds flight tracking constraints and indexes
 - Automatic field addition for new installations via `database/init.sql`
 
 ## 📁 Project Structure
@@ -353,9 +358,11 @@ VATSIM data/
 ├── docs/                         # Documentation
 │   ├── migration/                # Database migration docs
 │   ├── optimization/             # Performance optimization docs
-│   └── analysis/                 # Data analysis docs
+│   ├── analysis/                 # Data analysis docs
+│   └── FLIGHT_TRACKING_ENHANCEMENT.md # Flight tracking documentation
 ├── scripts/                      # Utility scripts
 ├── tools/                        # Database tools
+│   └── add_flight_tracking_migration.sql # Flight tracking migration
 ├── data/                         # Data files
 ├── logs/                         # Application logs
 └── requirements.txt              # Python dependencies
@@ -410,7 +417,7 @@ During greenfield deployment, the system automatically creates a complete databa
 ### **Tables Created Automatically:**
 - **`controllers`** - ATC controller positions and ratings (includes VATSIM API fields: cid, name, rating)
 - **`sectors`** - Airspace sector definitions and boundaries  
-- **`flights`** - Real-time flight data and positions
+- **`flights`** - Real-time flight data and positions (every position update preserved)
 - **`traffic_movements`** - Airport arrival/departure tracking
 - **`flight_summaries`** - Historical flight data aggregation
 - **`movement_summaries`** - Hourly movement statistics
@@ -427,6 +434,7 @@ During greenfield deployment, the system automatically creates a complete databa
 - ✅ **Automatic Timestamps** - `created_at` and `updated_at` fields
 - ✅ **Default Configuration** - Pre-configured system settings
 - ✅ **Health Checks** - Automatic schema validation on startup
+- ✅ **Flight Tracking** - Unique constraints ensure every position update is preserved
 
 ### **Schema Validation:**
 The application automatically validates the database schema on startup and can fix missing tables or fields if needed.
@@ -438,6 +446,7 @@ The system is built with an API-first approach, exposing all functionality throu
 - **System Status**: `/api/status`, `/api/network/status`
 - **ATC Data**: `/api/atc-positions`, `/api/vatsim/ratings`
 - **Flight Data**: `/api/flights`, `/api/flights/memory`
+- **Flight Tracking**: `/api/flights/{callsign}/track`, `/api/flights/{callsign}/stats`
 - **Traffic Analysis**: `/api/traffic/*` endpoints
 - **Performance**: `/api/performance/*` endpoints
 - **Database**: `/api/database/*` endpoints
@@ -448,6 +457,7 @@ The system is built with an API-first approach, exposing all functionality throu
 2. **PostgreSQL Database** → **Analytics Services** → **Grafana Dashboards**
 3. **Real-time Updates** with centralized error handling
 4. **Caching**: Redis provides high-performance caching layer
+5. **Flight Tracking**: Every position update preserved with unique constraints
 
 ### Services
 - **VATSIM API**: Main application (port 8001)
@@ -500,6 +510,7 @@ FLIGHT_FILTER_LOG_LEVEL=DEBUG
 | **Memory Usage** | 2GB with compression |
 | **Error Handling** | 60+ standardized error blocks |
 | **API Endpoints** | 100% error-handled |
+| **Flight Tracking** | Every position update preserved |
 
 ## 🗄️ Database Support
 
@@ -509,6 +520,7 @@ FLIGHT_FILTER_LOG_LEVEL=DEBUG
 - Connection pooling
 - WAL compression
 - Centralized error handling
+- Flight tracking with unique constraints
 
 ### SQLite (Development)
 - File-based storage
@@ -534,6 +546,9 @@ FLIGHT_FILTER_LOG_LEVEL=DEBUG
 - [Data Integrity Report](docs/analysis/DATA_INTEGRITY_REPORT.md)
 - [Database Analysis](docs/analysis/analyze_database.py)
 
+### Flight Tracking
+- [Flight Tracking Enhancement](docs/FLIGHT_TRACKING_ENHANCEMENT.md) - Complete flight tracking documentation
+
 ## 🛠️ Scripts
 
 ### Migration Scripts
@@ -548,6 +563,7 @@ FLIGHT_FILTER_LOG_LEVEL=DEBUG
 ### Database Tools
 - `tools/create_optimized_tables.sql` - Optimized table schemas
 - `tools/postgresql.conf` - PostgreSQL configuration
+- `tools/add_flight_tracking_migration.sql` - Flight tracking migration
 
 ## 🔍 Monitoring & Observability
 
@@ -556,12 +572,15 @@ FLIGHT_FILTER_LOG_LEVEL=DEBUG
 - **Traffic Analysis**: Real-time traffic patterns and movements
 - **Performance Metrics**: System performance and optimization
 - **Error Monitoring**: Centralized error tracking and analytics
+- **Flight Tracking**: Flight tracks and position history
 
 ### API Endpoints
 - `GET /api/status` - System status and health
 - `GET /api/network/status` - Network statistics
 - `GET /api/atc-positions` - Active ATC positions
 - `GET /api/flights` - Active flights
+- `GET /api/flights/{callsign}/track` - Complete flight track with all position updates
+- `GET /api/flights/{callsign}/stats` - Flight statistics and summary
 - `GET /api/traffic/summary/{region}` - Traffic summary
 - `GET /api/traffic/movements/{airport}` - Airport movements
 - `GET /api/performance/metrics` - Performance metrics
@@ -634,6 +653,7 @@ The system includes comprehensive data integrity checks:
 - Consistency verification
 - Centralized error handling
 - Grafana monitoring dashboards
+- Flight tracking with unique constraints
 
 ## 🔍 VATSIM API Compliance
 
@@ -648,6 +668,8 @@ The system includes comprehensive data integrity checks:
 - **✅ Aircraft Types**: Extracted from `flight_plan.aircraft_short`
 - **✅ Controller Fields**: Uses correct API field names (`cid`, `name`, `facility`, etc.)
 - **✅ Position Data**: Latitude/longitude/altitude properly parsed
+- **✅ Complete Field Mapping**: All VATSIM API fields preserved in database
+- **✅ Flight Tracking**: Every position update preserved with unique constraints
 - **❌ Sectors Data**: Not available in current API v3 (handled gracefully)
 
 ### Known Limitations
@@ -691,6 +713,40 @@ FLIGHT_FILTER_LOG_LEVEL=DEBUG
 - **Improved Performance**: Faster data processing with simple string matching
 - **Focused Analytics**: Concentrates on Australian airspace
 - **High Accuracy**: Simple but effective filtering logic
+
+## 🛫 Flight Tracking System
+
+### Complete Flight Position History
+The system preserves every flight position update from the VATSIM API, providing complete flight tracks and historical data:
+
+#### **Flight Track API**
+- **Endpoint**: `GET /api/flights/{callsign}/track`
+- **Purpose**: Retrieve complete flight track with all position updates
+- **Features**: Time range filtering, ordered by timestamp
+- **Use Cases**: Flight analysis, ATC monitoring, historical review
+
+#### **Flight Statistics API**
+- **Endpoint**: `GET /api/flights/{callsign}/stats`
+- **Purpose**: Get flight summary and statistics
+- **Features**: Duration, max altitude/speed, route information
+- **Use Cases**: Flight summaries, performance metrics, analytics
+
+#### **Database Schema**
+```sql
+-- Unique constraint ensures every position update is preserved
+ALTER TABLE flights ADD CONSTRAINT unique_flight_timestamp 
+UNIQUE (callsign, last_updated);
+
+-- Indexes for fast flight track queries
+CREATE INDEX idx_flights_callsign_timestamp ON flights(callsign, last_updated);
+CREATE INDEX idx_flights_callsign_last_updated ON flights(callsign, last_updated);
+```
+
+#### **Benefits**
+- **Complete History**: Every position update preserved
+- **Fast Queries**: Optimized indexes for flight track retrieval
+- **Analytics Ready**: Flight statistics and performance metrics
+- **Grafana Integration**: Flight tracks displayed on maps
 
 ## 🔧 Troubleshooting
 
@@ -765,6 +821,12 @@ docker-compose up -d --build
 - **Performance Optimization**: Memory and database optimization
 - **Scalability**: Microservices-oriented architecture
 
+### Flight Tracking
+- **Complete Position History**: Every flight position update preserved
+- **Fast Flight Track Queries**: Optimized indexes for retrieval
+- **Flight Statistics**: Performance metrics and analytics
+- **Historical Analysis**: Complete flight data for analysis
+
 ## 📄 License
 
 This project is designed for VATSIM data collection and analysis.
@@ -782,7 +844,8 @@ This project is designed for VATSIM data collection and analysis.
 - **Grafana Setup**: See `grafana/README.md` for detailed Grafana configuration
 - **API Documentation**: http://localhost:8001/docs
 - **Architecture Documentation**: See `ARCHITECTURE_OVERVIEW.md`
+- **Flight Tracking Documentation**: See `docs/FLIGHT_TRACKING_ENHANCEMENT.md`
 
 ---
 
-**Optimized for high-performance data collection with centralized error handling and comprehensive observability.**
+**Optimized for high-performance data collection with centralized error handling, comprehensive observability, and complete flight tracking capabilities.**

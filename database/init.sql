@@ -189,14 +189,7 @@ CREATE TABLE IF NOT EXISTS airports (
     longitude DOUBLE PRECISION NOT NULL,
     elevation INTEGER,
     country VARCHAR(100),
-    region VARCHAR(100),
-    timezone VARCHAR(50),
-    facility_type VARCHAR(50),
-    runways TEXT,
-    frequencies TEXT,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    region VARCHAR(100)
 );
 
 -- Movement detection config table
@@ -297,9 +290,7 @@ CREATE TRIGGER update_airport_config_updated_at
     BEFORE UPDATE ON airport_config 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_airports_updated_at 
-    BEFORE UPDATE ON airports 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 
 CREATE TRIGGER update_movement_detection_config_updated_at 
     BEFORE UPDATE ON movement_detection_config 

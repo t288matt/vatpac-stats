@@ -45,7 +45,7 @@ import httpx
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 
@@ -144,7 +144,7 @@ class VATSIMClient:
                                 controller_id=str(controller_data.get("cid", "")),  # VATSIM user ID
             controller_name=controller_data.get("name", ""),
             controller_rating=controller_data.get("rating", 0),
-                    last_seen=datetime.utcnow()
+                    last_seen=datetime.now(timezone.utc)
                 )
                 atc_positions.append(atc_position)
             except Exception as e:
@@ -255,7 +255,7 @@ class VATSIMClient:
                 "flights": self.parse_flights(filtered_data),
                 "sectors": self.parse_sectors(filtered_data),
                 "raw_data": filtered_data,
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(timezone.utc)
             }
         except Exception as e:
             logger.error(f"Failed to get current VATSIM data: {e}")
