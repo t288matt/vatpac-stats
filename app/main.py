@@ -73,7 +73,15 @@ background_task = None
 @log_operation("background_data_ingestion")
 async def background_data_ingestion():
     """Background task for continuous data ingestion"""
+    import os
     global background_task
+    
+    # Get polling interval from environment variable
+    polling_interval = int(os.getenv('VATSIM_POLLING_INTERVAL', 30))
+    
+    # Log the configured interval
+    logger.info(f"Main background data ingestion configured with polling interval: {polling_interval}s")
+    
     while True:
         try:
             data_service = get_data_service()
@@ -81,7 +89,7 @@ async def background_data_ingestion():
             # Sleep interval is now handled inside the data service
         except Exception as e:
             logger.error(f"Background data ingestion error: {e}")
-            await asyncio.sleep(30)  # Fallback sleep on error
+            await asyncio.sleep(polling_interval)  # Fallback sleep based on environment variable
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

@@ -422,13 +422,20 @@ class DataIngestionService:
 # Background task for continuous data ingestion
 async def background_data_ingestion():
     """Background task to continuously ingest VATSIM data"""
+    import os
     service = DataIngestionService()
+    
+    # Get polling interval from environment variable
+    polling_interval = int(os.getenv('VATSIM_POLLING_INTERVAL', 30))
+    
+    # Log the configured interval
+    logger.info(f"Background data ingestion configured with polling interval: {polling_interval}s")
     
     while True:
         try:
             await service.ingest_current_data()
             await service.cleanup_old_data()
-            await asyncio.sleep(30)  # Update every 30 seconds
+            await asyncio.sleep(polling_interval)  # Update based on environment variable
         except Exception as e:
             logger.error(f"Background ingestion error: {e}")
             await asyncio.sleep(60)  # Wait longer on error

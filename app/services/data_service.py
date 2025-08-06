@@ -122,6 +122,9 @@ class DataService(DatabaseService):
         self.vatsim_write_interval = int(os.getenv('WRITE_TO_DISK_INTERVAL', 30))
         self.vatsim_cleanup_interval = int(os.getenv('VATSIM_CLEANUP_INTERVAL', 3600))
         
+        # Log the configured intervals
+        self.logger.info(f"Data service configured with polling interval: {self.vatsim_polling_interval}s")
+        
         # Use bounded caches to prevent memory leaks
         max_cache_size = int(os.getenv('CACHE_MAX_SIZE', 10000))
         self.cache = {
