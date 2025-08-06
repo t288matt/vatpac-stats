@@ -66,12 +66,12 @@ services:
       BATCH_SIZE_THRESHOLD: 10000
       
       # VATSIM Data Collection Intervals (seconds)
-      VATSIM_POLLING_INTERVAL: 30    # How often to fetch VATSIM data (30 seconds)
+      VATSIM_POLLING_INTERVAL: 10    # How often to fetch VATSIM data (10 seconds)
       WRITE_TO_DISK_INTERVAL: 30     # How often to write data to disk (30 seconds)
       VATSIM_CLEANUP_INTERVAL: 3600  # How often to cleanup old data (1 hour)
       
       # Geographic Filter Configuration
-      FLIGHT_FILTER_ENABLED: "true"
+      FLIGHT_FILTER_ENABLED: "false"
       FLIGHT_FILTER_LOG_LEVEL: "DEBUG"
     volumes:
       - ./logs:/app/logs:rw

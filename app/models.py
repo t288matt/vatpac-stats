@@ -104,7 +104,7 @@ class Flight(Base):
     ground_speed = Column(Integer, nullable=True)
     vertical_speed = Column(Integer, nullable=True)
     squawk = Column(String(10), nullable=True)
-    flight_plan = Column(Text, nullable=True)  # JSON string
+    flight_plan = Column(JSON, nullable=True)  # JSON object
     controller_id = Column(Integer, ForeignKey("controllers.id"), nullable=True)
     last_updated = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)

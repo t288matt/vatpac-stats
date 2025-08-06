@@ -297,35 +297,38 @@ class DataService(DatabaseService):
             return 0
     
     async def _process_flights_in_memory(self, flights_data: List[Dict[str, Any]]) -> int:
-        """Process flights in memory cache - FILTERED FOR AUSTRALIAN AIRPORTS ONLY"""
+        """Process flights in memory cache"""
         try:
             processed_count = 0
-            australian_count = 0
+            
+            # Import flight filter configuration
+            from ..config import get_config
+            config = get_config()
             
             for flight_data in flights_data:
                 callsign = flight_data.get('callsign', '')
                 departure = flight_data.get('departure', '')
                 arrival = flight_data.get('arrival', '')
                 
-                # Import airport configuration
-                from ..config import is_australian_airport
-                
-                # Filter for Australian airports using configuration
-                is_australian_flight = (
-                    (departure and is_australian_airport(departure)) or 
-                    (arrival and is_australian_airport(arrival))
-                )
-                
-                if not is_australian_flight:
-                    continue
-                
-                australian_count += 1
+                # Check if flight filter is enabled
+                if config.flight_filter.enabled:
+                    # Import airport configuration
+                    from ..config import is_australian_airport
+                    
+                    # Filter for Australian airports using configuration
+                    is_australian_flight = (
+                        (departure and is_australian_airport(departure)) or 
+                        (arrival and is_australian_airport(arrival))
+                    )
+                    
+                    if not is_australian_flight:
+                        continue
                 
                 # Update memory cache with correct field mapping
                 position_data = flight_data.get('position', {})
                 
-                # Map flight data with correct API field mapping
-                self.cache['flights'].set(callsign, {
+                # Create flight data with timestamp for tracking
+                flight_record = {
                     'callsign': callsign,
                     'aircraft_type': flight_data.get('aircraft_type', ''),
                     'departure': departure,
@@ -342,10 +345,17 @@ class DataService(DatabaseService):
                     'controller_id': flight_data.get('cid', None),  # API "cid" → DB "controller_id"
                     'last_updated': datetime.utcnow(),
                     'status': 'active'
-                })
+                }
+                
+                # Store flight data with timestamp to create multiple records
+                timestamp_key = f"{callsign}_{int(time.time())}"
+                self.cache['flights'].set(timestamp_key, flight_record)
                 processed_count += 1
             
-            self.logger.info(f"Processed {processed_count} Australian flights out of {len(flights_data)} total flights")
+            if config.flight_filter.enabled:
+                self.logger.info(f"Processed {processed_count} Australian flights out of {len(flights_data)} total flights")
+            else:
+                self.logger.info(f"Processed {processed_count} flights out of {len(flights_data)} total flights (filter disabled)")
             return processed_count
             
         except Exception as e:
@@ -492,36 +502,21 @@ class DataService(DatabaseService):
                     # Prepare data for bulk upsert
                     flights_values = [data for _, data in flights_data]
                     
-                    # Use bulk upsert with conflict resolution
+                    # Use bulk insert (no upsert since callsign is not unique)
                     try:
-                        # Try PostgreSQL-specific upsert first
-                        stmt = insert(Flight).values(flights_values)
-                        stmt = stmt.on_conflict_do_update(
-                            index_elements=['callsign'],
-                            set_=dict(
-                                aircraft_type=stmt.excluded.aircraft_type,
-                                position_lat=stmt.excluded.position_lat,
-                                position_lng=stmt.excluded.position_lng,
-                                altitude=stmt.excluded.altitude,
-                                speed=stmt.excluded.speed,
-                                heading=stmt.excluded.heading,
-                                departure=stmt.excluded.departure,
-                                arrival=stmt.excluded.arrival,
-                                last_updated=stmt.excluded.last_updated,
-                                status=stmt.excluded.status
-                            )
-                        )
-                        db.execute(stmt)
-                    except AttributeError:
-                        # Fallback to manual upsert for other databases
+                        # Insert all flights as new records
                         for data in flights_values:
-                            existing = db.query(Flight).filter(Flight.callsign == data['callsign']).first()
-                            if existing:
-                                for key, value in data.items():
-                                    setattr(existing, key, value)
-                            else:
+                            flight = Flight(**data)
+                            db.add(flight)
+                    except Exception as e:
+                        self.logger.error(f"Error adding flights to session: {e}")
+                        # Fallback to individual adds
+                        for data in flights_values:
+                            try:
                                 flight = Flight(**data)
                                 db.add(flight)
+                            except Exception as e2:
+                                self.logger.error(f"Error adding individual flight {data.get('callsign', 'unknown')}: {e2}")
                     
                     self.logger.info(f"Bulk upserted {len(flights_values)} flights")
                 
