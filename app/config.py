@@ -243,7 +243,6 @@ def get_australian_airports() -> list:
         # Query all Australian airports from the database
         australian_airports = session.query(Airports.icao_code)\
             .filter(Airports.icao_code.like('Y%'))\
-            .filter(Airports.is_active == True)\
             .all()
         
         # Extract the ICAO codes from the query results
@@ -301,7 +300,6 @@ def get_major_australian_airports() -> list:
         # Query only the major airports that exist in the database
         major_airports = session.query(Airports.icao_code)\
             .filter(Airports.icao_code.in_(major_airport_codes))\
-            .filter(Airports.is_active == True)\
             .all()
         
         # Extract the ICAO codes from the query results
