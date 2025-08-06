@@ -109,7 +109,7 @@ class Flight(Base):
     departure = Column(String(10), nullable=True)
     arrival = Column(String(10), nullable=True)
     route = Column(Text, nullable=True)
-    flight_plan = Column(JSON, nullable=True)  # JSON object
+    # flight_plan field removed - using direct fields instead
     
     # Status and timestamps
     status = Column(String(20), default="active")  # active, completed, cancelled

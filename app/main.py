@@ -60,11 +60,19 @@ from .utils.health_monitor import health_monitor
 from .utils.schema_validator import ensure_database_schema
 from .filters.flight_filter import FlightFilter
 
+# Import new service management components
+from .services.service_manager import ServiceManager
+from .services.event_bus import get_event_bus, publish_event
+from .services.interfaces.event_bus_interface import EventType
+
 # Configure logging
 logger = get_logger_for_module(__name__)
 
 # Initialize centralized error handler
 error_handler = create_error_handler("main_api")
+
+# Global service manager
+service_manager: Optional[ServiceManager] = None
 
 # Background task for data ingestion
 background_task = None
@@ -93,8 +101,8 @@ async def background_data_ingestion():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan manager"""
-    global background_task
+    """Application lifespan manager with new service management"""
+    global service_manager, background_task
     
     try:
         # Initialize database
@@ -111,6 +119,31 @@ async def lifespan(app: FastAPI):
         finally:
             db.close()
         
+        # Initialize service manager
+        service_manager = ServiceManager()
+        
+        # Create a database session for service initialization
+        service_db = SessionLocal()
+        
+        # Register services with the service manager
+        services = {
+            'cache_service': await get_cache_service(),
+            'vatsim_service': get_vatsim_service(),
+            'data_service': get_data_service(),
+            'traffic_analysis_service': get_traffic_analysis_service(service_db),
+            'query_optimizer': get_query_optimizer(),
+            'resource_manager': get_resource_manager(),
+        }
+        
+        # Close the service database session
+        service_db.close()
+        
+        await service_manager.register_services(services)
+        
+        # Start all services
+        start_results = await service_manager.start_all_services()
+        logger.info(f"Service startup results: {start_results}")
+        
         # Initialize cache service
         cache_service = await get_cache_service()
         
@@ -123,6 +156,16 @@ async def lifespan(app: FastAPI):
         # Start background task
         background_task = asyncio.create_task(background_data_ingestion())
         
+        # Publish service started event
+        try:
+            event_bus = await get_event_bus()
+            await publish_event(EventType.SERVICE_STARTED, {
+                "service": "main_application",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+        except Exception as e:
+            logger.warning(f"Could not publish service started event: {e}")
+        
         yield
         
     except Exception as e:
@@ -130,12 +173,26 @@ async def lifespan(app: FastAPI):
         raise
     finally:
         # Cleanup
-        if background_task:
+        if 'background_task' in globals() and background_task:
             background_task.cancel()
             try:
                 await background_task
             except asyncio.CancelledError:
                 pass
+        
+        # Graceful shutdown of services
+        if service_manager:
+            await service_manager.graceful_shutdown()
+        
+        # Publish service stopped event
+        try:
+            event_bus = await get_event_bus()
+            await publish_event(EventType.SERVICE_STOPPED, {
+                "service": "main_application",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+        except Exception as e:
+            logger.error(f"Error publishing service stopped event: {e}")
 
 # Create FastAPI app
 app = FastAPI(
@@ -267,6 +324,123 @@ async def get_status(db: Session = Depends(get_db)):
                 "error_type": type(e).__name__,
                 "recommendation": "check_application_logs"
             }
+        }
+
+# Add new service management endpoints
+@app.get("/api/services/status")
+@handle_service_errors
+@log_operation("get_services_status")
+async def get_services_status():
+    """Get status of all services"""
+    global service_manager
+    if service_manager is None:
+        return {
+            "status": "error",
+            "message": "Service manager not initialized",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    
+    try:
+        return {
+            "manager_status": service_manager.get_manager_status(),
+            "services_status": service_manager.get_all_service_status(),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting services status: {e}")
+        return {
+            "status": "error",
+            "message": f"Error getting services status: {str(e)}",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
+@app.get("/api/services/{service_name}/status")
+@handle_service_errors
+@log_operation("get_service_status")
+async def get_service_status(service_name: str):
+    """Get status of a specific service"""
+    global service_manager
+    if service_manager is None:
+        raise HTTPException(status_code=503, detail="Service manager not initialized")
+    
+    try:
+        status = service_manager.get_service_status(service_name)
+        if status is None:
+            raise HTTPException(status_code=404, detail=f"Service {service_name} not found")
+        
+        return status
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting service status for {service_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting service status: {str(e)}")
+
+@app.post("/api/services/{service_name}/restart")
+@handle_service_errors
+@log_operation("restart_service")
+async def restart_service(service_name: str):
+    """Restart a specific service"""
+    global service_manager
+    if service_manager is None:
+        raise HTTPException(status_code=503, detail="Service manager not initialized")
+    
+    try:
+        success = await service_manager.restart_service(service_name)
+        if not success:
+            raise HTTPException(status_code=500, detail=f"Failed to restart service {service_name}")
+        
+        return {
+            "status": "success",
+            "message": f"Service {service_name} restarted successfully",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error restarting service {service_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error restarting service: {str(e)}")
+
+@app.get("/api/services/health")
+@handle_service_errors
+@log_operation("get_services_health")
+async def get_services_health():
+    """Get health status of all services"""
+    global service_manager
+    if service_manager is None:
+        return {
+            "status": "error",
+            "message": "Service manager not initialized",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    
+    try:
+        return await service_manager.health_check_all()
+    except Exception as e:
+        logger.error(f"Error getting services health: {e}")
+        return {
+            "status": "error",
+            "message": f"Error getting services health: {str(e)}",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
+@app.get("/api/events/status")
+@handle_service_errors
+@log_operation("get_events_status")
+async def get_events_status():
+    """Get event bus status and statistics"""
+    try:
+        event_bus = await get_event_bus()
+        return {
+            "event_bus_status": await event_bus.health_check(),
+            "statistics": event_bus.get_statistics(),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting events status: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
 @app.get("/api/network/status")

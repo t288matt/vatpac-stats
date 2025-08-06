@@ -310,8 +310,8 @@ class DataService(DatabaseService):
             
             for flight_data in flights_data:
                 callsign = flight_data.get('callsign', '')
-                departure = flight_data.get('flight_plan', {}).get('departure', '') if flight_data.get('flight_plan') else ''
-                arrival = flight_data.get('flight_plan', {}).get('arrival', '') if flight_data.get('flight_plan') else ''
+                departure = flight_data.get('departure', '')
+                arrival = flight_data.get('arrival', '')
                 
                 # Check if flight filter is enabled
                 if config.flight_filter.enabled:
@@ -342,7 +342,7 @@ class DataService(DatabaseService):
                     'aircraft_type': flight_data.get('aircraft_type', ''),
                     'departure': departure,
                     'arrival': arrival,
-                    'route': flight_data.get('flight_plan', {}).get('route', '') if flight_data.get('flight_plan') else '',
+                    'route': flight_data.get('route', ''),
                     'altitude': flight_data.get('altitude', 0),
                     'heading': flight_data.get('heading', 0),
                     'squawk': flight_data.get('transponder', ''),

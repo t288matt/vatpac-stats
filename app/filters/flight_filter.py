@@ -81,19 +81,9 @@ class FlightFilter:
         Returns:
             Tuple of (departure_code, arrival_code) or (None, None) if not found
         """
-        # Extract from flight plan if available
-        flight_plan = flight_data.get("flight_plan", {})
-        if flight_plan is None:
-            flight_plan = {}
-            
-        departure = flight_plan.get("departure")
-        arrival = flight_plan.get("arrival")
-        
-        # If not in flight plan, try direct fields
-        if not departure:
-            departure = flight_data.get("departure")
-        if not arrival:
-            arrival = flight_data.get("arrival")
+        # Extract direct fields (new VATSIM API v3 structure)
+        departure = flight_data.get("departure")
+        arrival = flight_data.get("arrival")
         
         return departure, arrival
     
