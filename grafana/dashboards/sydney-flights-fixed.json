@@ -83,7 +83,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT \n  callsign,\n  aircraft_type,\n  departure,\n  arrival,\n  route,\n  altitude,\n  speed,\n  heading,\n  ground_speed,\n  vertical_speed,\n  squawk,\n  status,\n  cid,\n  name as pilot_name,\n  server,\n  pilot_rating,\n  military_rating,\n  latitude,\n  longitude,\n  groundspeed,\n  transponder,\n  qnh_i_hg,\n  qnh_mb,\n  logon_time,\n  COALESCE(last_updated_api, updated_at) as last_updated,\n  flight_rules,\n  aircraft_faa,\n  aircraft_short,\n  alternate,\n  cruise_tas,\n  planned_altitude,\n  deptime,\n  enroute_time,\n  fuel_time,\n  remarks,\n  revision_id,\n  assigned_transponder,\n  created_at,\n  updated_at\nFROM flights \nWHERE departure = 'YSSY' OR arrival = 'YSSY'\nORDER BY COALESCE(last_updated_api, updated_at) DESC\nLIMIT 50"
+          "rawSql": "SELECT \n  callsign,\n  aircraft_type,\n  departure,\n  arrival,\n  route,\n  altitude,\n  speed,\n  heading,\n  ground_speed,\n  vertical_speed,\n  squawk,\n  status,\n  cid,\n  name as pilot_name,\n  server,\n  pilot_rating,\n  military_rating,\n  latitude,\n  longitude,\n  groundspeed,\n  transponder,\n  qnh_i_hg,\n  qnh_mb,\n  logon_time,\n  COALESCE(last_updated_api, updated_at) as last_updated,\n  flight_rules,\n  aircraft_faa,\n  aircraft_short,\n  alternate,\n  cruise_tas,\n  planned_altitude,\n  deptime,\n  enroute_time,\n  fuel_time,\n  remarks,\n  revision_id,\n  assigned_transponder,\n  created_at,\n  updated_at\nFROM flights \nWHERE departure = 'YSSY' OR arrival = 'YSSY'\nORDER BY COALESCE(last_updated_api, updated_at) DESC\nLIMIT 50",
           "refId": "A",
           "sql": {
             "columns": [
@@ -104,7 +104,7 @@
           }
         }
       ],
-      "title": "Sydney Flights - All Attributes",
+      "title": "Sydney Flights - All Attributes (Fixed)",
       "type": "table"
     }
   ],
@@ -125,8 +125,8 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Sydney Flights Dashboard",
-  "uid": "sydney-flights",
+  "title": "Sydney Flights Dashboard (Fixed)",
+  "uid": "sydney-flights-fixed",
   "version": 1,
   "weekStart": ""
 } 
