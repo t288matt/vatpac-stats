@@ -38,7 +38,7 @@ OPTIMIZATIONS:
 - Relationship mappings for efficient joins
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Text, Boolean, SmallInteger, Index, DECIMAL
+from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Text, Boolean, SmallInteger, Index, DECIMAL, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from .database import Base
@@ -56,7 +56,7 @@ class Controller(Base):
     frequency = Column(String(20), nullable=True)
     last_seen = Column(DateTime, default=datetime.utcnow)
     workload_score = Column(Float, default=0.0)
-    preferences = Column(Text, nullable=True)  # JSON string for position preferences
+    preferences = Column(JSON, nullable=True)  # JSON object for position preferences
     # VATSIM API fields
     controller_id = Column(Integer, nullable=True, index=True)  # From API "cid"
     controller_name = Column(String(100), nullable=True)  # From API "name"

@@ -42,7 +42,7 @@ from sqlalchemy import and_, desc, text
 
 from .config import get_config, validate_config
 from .database import get_db, init_db, get_database_info, SessionLocal
-from .models import Controller, Sector, Flight, TrafficMovement, AirportConfig
+from .models import Controller, Sector, Flight, TrafficMovement, AirportConfig, Transceiver
 from .utils.logging import get_logger_for_module
 from .utils.rating_utils import get_rating_name, get_rating_level, get_all_ratings, validate_rating
 from .services.vatsim_service import get_vatsim_service
@@ -58,6 +58,7 @@ from .utils.error_handling import handle_service_errors, log_operation, create_e
 from .utils.exceptions import APIError, DatabaseError, CacheError
 from .utils.health_monitor import health_monitor
 from .utils.schema_validator import ensure_database_schema
+from .filters.flight_filter import FlightFilter
 
 # Configure logging
 logger = get_logger_for_module(__name__)
@@ -154,38 +155,111 @@ app.include_router(error_monitoring_router)
 @handle_service_errors
 @log_operation("get_status")
 async def get_status(db: Session = Depends(get_db)):
-    """Get system status with caching"""
-    # Try to get from cache first
-    cache_service = await get_cache_service()
-    cached_stats = await cache_service.get_network_stats_cache()
-    
-    if cached_stats:
-        logger.info("Returning cached network stats")
-        return cached_stats
-    
-    # If not cached, get from database
-    atc_positions_count = db.query(Controller).filter(Controller.status == "online").count()
-    flights_count = db.query(Flight).filter(Flight.status == "active").count()
-    airports_count = db.query(AirportConfig).count()
-    movements_count = db.query(TrafficMovement).filter(
-        TrafficMovement.timestamp >= datetime.utcnow() - timedelta(hours=24)
-    ).count()
-    
-    stats = {
-        "status": "operational",
-        "timestamp": datetime.utcnow().isoformat(),
-        "atc_positions_count": atc_positions_count,
-        "flights_count": flights_count,
-        "airports_count": airports_count,
-        "movements_count": movements_count,
-        "data_freshness": "real-time",
-        "cache_status": "enabled"
-    }
-    
-    # Cache the result
-    await cache_service.set_network_stats_cache(stats)
-    
-    return stats
+    """Get system status with caching and improved error handling"""
+    try:
+        # Try to get from cache first
+        cache_service = await get_cache_service()
+        cached_stats = await cache_service.get_network_stats_cache()
+        
+        if cached_stats:
+            logger.info("Returning cached network stats")
+            return cached_stats
+        
+        # If not cached, get from database with improved error handling
+        try:
+            atc_positions_count = db.query(Controller).filter(Controller.status == "online").count()
+        except Exception as e:
+            logger.error(f"Error querying ATC positions: {e}")
+            atc_positions_count = 0
+        
+        try:
+            flights_count = db.query(Flight).filter(Flight.status == "active").count()
+        except Exception as e:
+            logger.error(f"Error querying flights: {e}")
+            # Check if the issue is with the controller_id column
+            try:
+                # Try a simpler query without relationships
+                flights_count = db.query(Flight.id).filter(Flight.status == "active").count()
+            except Exception as e2:
+                logger.error(f"Error with simplified flight query: {e2}")
+                flights_count = 0
+        
+        try:
+            airports_count = db.query(AirportConfig).count()
+        except Exception as e:
+            logger.error(f"Error querying airports: {e}")
+            airports_count = 0
+        
+        try:
+            movements_count = db.query(TrafficMovement).filter(
+                TrafficMovement.timestamp >= datetime.utcnow() - timedelta(hours=24)
+            ).count()
+        except Exception as e:
+            logger.error(f"Error querying movements: {e}")
+            movements_count = 0
+        
+        # Check if database is empty and provide diagnostic info
+        total_flights = db.query(Flight).count()
+        total_controllers = db.query(Controller).count()
+        
+        if total_flights == 0 and total_controllers == 0:
+            logger.warning("Database appears to be empty - data ingestion may not be working")
+            stats = {
+                "status": "operational",
+                "timestamp": datetime.utcnow().isoformat(),
+                "atc_positions_count": atc_positions_count,
+                "flights_count": flights_count,
+                "airports_count": airports_count,
+                "movements_count": movements_count,
+                "data_freshness": "no_data",
+                "cache_status": "enabled",
+                "diagnostic": {
+                    "total_flights_in_db": total_flights,
+                    "total_controllers_in_db": total_controllers,
+                    "data_ingestion_status": "no_data_detected",
+                    "recommendation": "check_data_ingestion_service"
+                }
+            }
+        else:
+            stats = {
+                "status": "operational",
+                "timestamp": datetime.utcnow().isoformat(),
+                "atc_positions_count": atc_positions_count,
+                "flights_count": flights_count,
+                "airports_count": airports_count,
+                "movements_count": movements_count,
+                "data_freshness": "real-time",
+                "cache_status": "enabled",
+                "diagnostic": {
+                    "total_flights_in_db": total_flights,
+                    "total_controllers_in_db": total_controllers,
+                    "data_ingestion_status": "data_present"
+                }
+            }
+        
+        # Cache the result
+        await cache_service.set_network_stats_cache(stats)
+        
+        return stats
+        
+    except Exception as e:
+        logger.error(f"Unexpected error in get_status: {e}")
+        # Return a basic status even if there are errors
+        return {
+            "status": "degraded",
+            "timestamp": datetime.utcnow().isoformat(),
+            "atc_positions_count": 0,
+            "flights_count": 0,
+            "airports_count": 0,
+            "movements_count": 0,
+            "data_freshness": "unknown",
+            "cache_status": "disabled",
+            "error": str(e),
+            "diagnostic": {
+                "error_type": type(e).__name__,
+                "recommendation": "check_application_logs"
+            }
+        }
 
 @app.get("/api/network/status")
 @handle_service_errors
@@ -880,6 +954,87 @@ async def get_system_health():
 async def get_data_freshness():
     """Get data freshness status"""
     return await health_monitor.check_data_freshness()
+
+@app.get("/api/filter/flight/status")
+@handle_service_errors
+@log_operation("get_flight_filter_status")
+async def get_flight_filter_status():
+    """Get flight filter status and configuration"""
+    flight_filter = FlightFilter()
+    return flight_filter.get_filter_stats()
+
+@app.get("/api/diagnostic/data-ingestion")
+@handle_service_errors
+@log_operation("get_data_ingestion_diagnostic")
+async def get_data_ingestion_diagnostic(db: Session = Depends(get_db)):
+    """Get detailed diagnostic information about data ingestion status"""
+    try:
+        # Check database state
+        total_flights = db.query(Flight).count()
+        total_controllers = db.query(Controller).count()
+        total_airports = db.query(AirportConfig).count()
+        total_transceivers = db.query(Transceiver).count() if 'Transceiver' in globals() else 0
+        
+        # Check recent data
+        recent_flights = db.query(Flight).filter(
+            Flight.last_updated >= datetime.utcnow() - timedelta(hours=1)
+        ).count()
+        
+        recent_controllers = db.query(Controller).filter(
+            Controller.last_seen >= datetime.utcnow() - timedelta(hours=1)
+        ).count()
+        
+        # Check VATSIM service status
+        try:
+            vatsim_service = get_vatsim_service()
+            vatsim_status = await vatsim_service.get_api_status()
+        except Exception as e:
+            vatsim_status = {"error": str(e)}
+        
+        # Check data service status
+        try:
+            data_service = get_data_service()
+            data_service_status = await data_service._perform_health_check()
+        except Exception as e:
+            data_service_status = {"error": str(e)}
+        
+        diagnostic = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "database_state": {
+                "total_flights": total_flights,
+                "total_controllers": total_controllers,
+                "total_airports": total_airports,
+                "total_transceivers": total_transceivers,
+                "recent_flights_1h": recent_flights,
+                "recent_controllers_1h": recent_controllers
+            },
+            "vatsim_service": vatsim_status,
+            "data_service": data_service_status,
+            "recommendations": []
+        }
+        
+        # Generate recommendations based on diagnostic data
+        if total_flights == 0 and total_controllers == 0:
+            diagnostic["recommendations"].append("Database is empty - check if data ingestion is running")
+            diagnostic["recommendations"].append("Verify VATSIM API connectivity")
+            diagnostic["recommendations"].append("Check application logs for data ingestion errors")
+        
+        if recent_flights == 0 and total_flights > 0:
+            diagnostic["recommendations"].append("No recent flight data - data ingestion may be stale")
+        
+        if recent_controllers == 0 and total_controllers > 0:
+            diagnostic["recommendations"].append("No recent controller data - ATC data may be stale")
+        
+        return diagnostic
+        
+    except Exception as e:
+        logger.error(f"Error in data ingestion diagnostic: {e}")
+        return {
+            "timestamp": datetime.utcnow().isoformat(),
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "recommendations": ["Check application logs for detailed error information"]
+        }
 
 if __name__ == "__main__":
     import uvicorn

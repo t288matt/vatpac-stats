@@ -76,7 +76,7 @@ class HealthMonitor:
             for endpoint in endpoints:
                 try:
                     start_time = datetime.now()
-                    async with session.get(f"{self.base_url}{endpoint}", timeout=10) as response:
+                    async with session.get(f"{self.base_url}{endpoint}", timeout=300) as response:
                         response_time = (datetime.now() - start_time).total_seconds()
                         
                         results[endpoint] = {
@@ -123,8 +123,8 @@ class HealthMonitor:
             db_response_time = (datetime.now() - start_time).total_seconds()
             
             # Get database statistics
-            atc_count = db.query(text("SELECT COUNT(*) FROM atc_positions WHERE status = 'online'")).scalar()
-            flights_count = db.query(text("SELECT COUNT(*) FROM flights WHERE status = 'active'")).scalar()
+            atc_count = db.execute(text("SELECT COUNT(*) FROM controllers WHERE status = 'online'")).scalar()
+            flights_count = db.execute(text("SELECT COUNT(*) FROM flights")).scalar()
             
             # Check database size
             db_size_result = db.execute(text("""
@@ -138,7 +138,7 @@ class HealthMonitor:
             return {
                 "connected": True,
                 "response_time": db_response_time,
-                "atc_positions": atc_count or 0,
+                "controllers": atc_count or 0,
                 "active_flights": flights_count or 0,
                 "database_size": db_size.size if db_size else "Unknown",
                 "size_bytes": db_size.size_bytes if db_size else 0,
@@ -195,7 +195,7 @@ class HealthMonitor:
             
             # Check last update times
             last_atc_update = db.execute(text("""
-                SELECT MAX(updated_at) FROM atc_positions 
+                SELECT MAX(updated_at) FROM controllers 
                 WHERE updated_at > NOW() - INTERVAL '1 hour'
             """)).scalar()
             

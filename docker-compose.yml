@@ -67,8 +67,12 @@ services:
       
       # VATSIM Data Collection Intervals (seconds)
       VATSIM_POLLING_INTERVAL: 30    # How often to fetch VATSIM data (30 seconds)
-      VATSIM_WRITE_INTERVAL: 300     # How often to write data to disk (5 minutes)
+      WRITE_TO_DISK_INTERVAL: 30     # How often to write data to disk (30 seconds)
       VATSIM_CLEANUP_INTERVAL: 3600  # How often to cleanup old data (1 hour)
+      
+      # Geographic Filter Configuration
+      FLIGHT_FILTER_ENABLED: "true"
+      FLIGHT_FILTER_LOG_LEVEL: "DEBUG"
     volumes:
       - ./logs:/app/logs:rw
     ports:

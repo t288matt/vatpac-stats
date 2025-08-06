@@ -14,6 +14,7 @@ A high-performance, API-driven platform for real-time VATSIM data collection, an
 - **Production Ready**: Fault tolerance with circuit breakers and retry mechanisms
 - **VATSIM API v3 Compliant**: Fully aligned with current VATSIM API structure
 - **Complete Field Mapping**: 1:1 mapping of all VATSIM API fields to database columns
+- **Australian Flight Filtering**: Simple airport code filtering for Australian flights
 
 ## 📋 Prerequisites
 
@@ -482,6 +483,10 @@ BATCH_SIZE_THRESHOLD=10000
 # Error Handling
 LOG_LEVEL=info
 ERROR_MONITORING_ENABLED=true
+
+# Flight Filter Configuration
+FLIGHT_FILTER_ENABLED=true
+FLIGHT_FILTER_LOG_LEVEL=DEBUG
 ```
 
 ## 📈 Performance Characteristics
@@ -561,6 +566,7 @@ ERROR_MONITORING_ENABLED=true
 - `GET /api/traffic/movements/{airport}` - Airport movements
 - `GET /api/performance/metrics` - Performance metrics
 - `GET /api/database/status` - Database status
+- `GET /api/filter/flight/status` - Flight filter status and configuration
 
 ### Error Monitoring
 - **Centralized Error Tracking**: All errors logged with rich context
@@ -650,6 +656,41 @@ The system includes comprehensive data integrity checks:
 - **API Evolution**: Structure may change in future versions
 
 **📋 Detailed Documentation**: See `docs/SECTORS_FIELD_LIMITATION.md` for comprehensive technical details about the sectors field limitation and how the system handles it gracefully.
+
+## 🛫 Flight Filtering System
+
+### Australian Flight Filter
+The system includes a sophisticated flight filtering mechanism that optimizes data processing by focusing on Australian flights:
+
+#### **Filter Logic**
+- **Inclusion Criteria**: Flights with Australian origin OR destination
+- **Airport Code Validation**: Simple check for airport codes starting with 'Y' (Australian airports)
+- **Performance Optimized**: No database queries, simple string matching
+- **Strict Approach**: Filters out flights with no departure AND no arrival airport codes
+
+#### **Configuration**
+```bash
+# Enable/disable the flight filter
+FLIGHT_FILTER_ENABLED=true
+
+# Set logging level for filter operations
+FLIGHT_FILTER_LOG_LEVEL=DEBUG
+```
+
+#### **API Endpoint**
+- `GET /api/filter/flight/status` - Get filter status and configuration
+
+#### **Airport Code Validation**
+- Simple string matching: airport codes starting with 'Y' are considered Australian
+- No database queries required for performance
+- Supports all Australian airports (YMML, YSSY, YBBN, YPPH, etc.)
+- Handles missing flight plan data gracefully
+
+#### **Benefits**
+- **Reduced Processing Load**: Only processes relevant Australian flights
+- **Improved Performance**: Faster data processing with simple string matching
+- **Focused Analytics**: Concentrates on Australian airspace
+- **High Accuracy**: Simple but effective filtering logic
 
 ## 🔧 Troubleshooting
 

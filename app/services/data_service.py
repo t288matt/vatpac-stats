@@ -47,7 +47,7 @@ import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, desc, insert
+from sqlalchemy import and_, desc, insert, cast, JSON
 import json
 from collections import defaultdict
 import time
@@ -119,7 +119,7 @@ class DataService(DatabaseService):
         
         # Get intervals from environment variables
         self.vatsim_polling_interval = int(os.getenv('VATSIM_POLLING_INTERVAL', 30))
-        self.vatsim_write_interval = int(os.getenv('VATSIM_WRITE_INTERVAL', 300))
+        self.vatsim_write_interval = int(os.getenv('WRITE_TO_DISK_INTERVAL', 30))
         self.vatsim_cleanup_interval = int(os.getenv('VATSIM_CLEANUP_INTERVAL', 3600))
         
         # Use bounded caches to prevent memory leaks
@@ -285,7 +285,7 @@ class DataService(DatabaseService):
                     'controller_rating': atc_position_data.get('rating', 0),  # API "rating" → DB "controller_rating"
                     'last_seen': datetime.utcnow(),
                     'workload_score': 0.0,
-                    'preferences': json.dumps(atc_position_data.get('preferences', {}))
+                    'preferences': {}
                 })
                 processed_count += 1
             

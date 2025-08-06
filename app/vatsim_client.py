@@ -49,6 +49,8 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 
+from .filters.flight_filter import FlightFilter
+
 logger = logging.getLogger(__name__)
 
 @dataclass
@@ -89,6 +91,7 @@ class VATSIMClient:
         self.data_url = f"{self.base_url}/vatsim-data.json"
         self.status_url = f"{self.base_url}/status.json"
         self.client = httpx.AsyncClient(timeout=30.0)
+        self.flight_filter = FlightFilter()
     
     async def fetch_network_data(self) -> Dict:
         """Fetch current VATSIM network data"""
@@ -244,11 +247,14 @@ class VATSIMClient:
         try:
             data = await self.fetch_network_data()
             
+            # Apply flight filter to raw data before parsing
+            filtered_data = self.flight_filter.filter_vatsim_data(data)
+            
             return {
-                "atc_positions": self.parse_atc_positions(data),
-                "flights": self.parse_flights(data),
-                "sectors": self.parse_sectors(data),
-                "raw_data": data,
+                "atc_positions": self.parse_atc_positions(filtered_data),
+                "flights": self.parse_flights(filtered_data),
+                "sectors": self.parse_sectors(filtered_data),
+                "raw_data": filtered_data,
                 "timestamp": datetime.utcnow()
             }
         except Exception as e:

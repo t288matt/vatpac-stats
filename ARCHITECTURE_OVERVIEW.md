@@ -145,6 +145,22 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - Resource allocation strategies
 - System health monitoring
 
+### 7. Flight Filter (`app/filters/flight_filter.py`)
+**Purpose**: Australian flight filtering for data optimization
+- **Simple airport code validation** (starts with 'Y')
+- **Performance-optimized filtering**
+- **Comprehensive logging of filtering decisions**
+- **Strict filtering logic**
+
+**Key Features**:
+- Simple OR logic: include flights with Australian origin OR destination
+- Airport code validation: checks if codes start with 'Y' (Australian airports)
+- Environment-based configuration (`FLIGHT_FILTER_ENABLED`, `FLIGHT_FILTER_LOG_LEVEL`)
+- **Strict approach**: filters out flights with no departure AND no arrival airport codes
+- Real-time filtering statistics and monitoring
+- API endpoint: `/api/filter/flight/status` for filter status
+- Performance optimized: no database queries, simple string matching
+
 ## 🛠️ API Layer
 
 ### REST API Endpoints
@@ -171,6 +187,9 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 #### Performance & Monitoring
 - `GET /api/performance/metrics` - System performance metrics
 - `GET /api/performance/optimize` - Trigger performance optimization
+
+#### Flight Filtering
+- `GET /api/filter/flight/status` - Flight filter status and configuration
 
 #### Database Operations
 - `GET /api/database/tables` - Database tables and record counts
@@ -211,7 +230,7 @@ async def service_method():
 
 ### 1. Data Ingestion Flow
 ```
-VATSIM API → Data Service → Memory Cache → Database → Cache Service
+VATSIM API → Flight Filter → Data Service → Memory Cache → Database → Cache Service
 ```
 
 ### 2. API Request Flow

@@ -54,10 +54,10 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://vatsim_user:vatsim_passwo
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,      # Verify connections before use
-    pool_recycle=300,        # Recycle connections every 5 minutes
-    pool_size=20,            # Maintain 20 connections for concurrent access
-    max_overflow=30,         # Allow up to 30 additional connections
-    pool_timeout=30,         # Connection timeout
+    pool_recycle=180,        # Recycle connections every 3 minutes (reduced)
+    pool_size=10,            # Reduced from 20 to 10 connections
+    max_overflow=20,         # Reduced from 30 to 20 additional connections
+    pool_timeout=60,         # Increased timeout to 60 seconds
     echo=False,              # Disable SQL logging for performance
     connect_args={
         "connect_timeout": 30,      # PostgreSQL connection timeout

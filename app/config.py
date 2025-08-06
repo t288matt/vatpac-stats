@@ -213,6 +213,21 @@ class AirportConfig:
         )
 
 
+@dataclass
+class FlightFilterConfig:
+    """Flight filter configuration with no hardcoding."""
+    enabled: bool = False
+    log_level: str = "INFO"
+    
+    @classmethod
+    def from_env(cls):
+        """Load flight filter configuration from environment variables."""
+        return cls(
+            enabled=os.getenv("FLIGHT_FILTER_ENABLED", "false").lower() == "true",
+            log_level=os.getenv("FLIGHT_FILTER_LOG_LEVEL", "INFO")
+        )
+
+
 def get_australian_airports() -> list:
     """Get list of all Australian airports from the database"""
     try:
@@ -311,24 +326,20 @@ def get_major_australian_airports_sql_list() -> str:
 def is_australian_airport(airport_code: str) -> bool:
     """Check if an airport code is Australian by querying the database"""
     try:
-        from sqlalchemy import create_engine
-        from sqlalchemy.orm import sessionmaker
         from app.models import Airports
+        from app.database import SessionLocal
         
-        config = get_config()
-        engine = create_engine(config.database.url)
-        Session = sessionmaker(bind=engine)
-        session = Session()
-        
-        # Check if the airport exists and is Australian
-        airport = session.query(Airports)\
-            .filter(Airports.icao_code == airport_code)\
-            .filter(Airports.is_active == True)\
-            .first()
-        
-        session.close()
-        
-        return airport is not None and airport.icao_code.startswith('Y')
+        session = SessionLocal()
+        try:
+            # Check if the airport exists and is Australian
+            airport = session.query(Airports)\
+                .filter(Airports.icao_code == airport_code)\
+                .filter(Airports.is_active == True)\
+                .first()
+            
+            return airport is not None and airport.icao_code.startswith('Y')
+        finally:
+            session.close()
         
     except Exception as e:
         print(f"Warning: Could not check if airport is Australian: {e}")
@@ -389,6 +400,7 @@ class AppConfig:
     features: FeatureFlags
     airports: AirportConfig
     pilots: PilotConfig
+    flight_filter: FlightFilterConfig
     environment: str = "development"
     
     @classmethod
@@ -404,6 +416,7 @@ class AppConfig:
             features=FeatureFlags.from_env(),
             airports=AirportConfig.from_env(),
             pilots=PilotConfig.from_env(),
+            flight_filter=FlightFilterConfig.from_env(),
             environment=os.getenv("ENVIRONMENT", "development")
         )
 

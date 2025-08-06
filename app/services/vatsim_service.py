@@ -54,6 +54,11 @@ import logging
 
 from ..config import get_config
 from ..utils.logging import get_logger_for_module
+from .base_service import BaseService
+from ..utils.error_handling import handle_service_errors, retry_on_failure, log_operation, APIError
+from ..filters.flight_filter import FlightFilter
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -165,9 +170,6 @@ class VATSIMAPIError(Exception):
         self.status_code = status_code
 
 
-from .base_service import BaseService
-from ..utils.error_handling import handle_service_errors, retry_on_failure, log_operation, APIError
-
 class VATSIMService(BaseService):
     """
     Service for handling VATSIM API v3 interactions.
@@ -211,6 +213,7 @@ class VATSIMService(BaseService):
         """Initialize VATSIM service with configuration."""
         super().__init__("vatsim_service")
         self.client: Optional[httpx.AsyncClient] = None
+        self.flight_filter = FlightFilter()
     
     async def __aenter__(self):
         """Async context manager entry."""
@@ -323,6 +326,13 @@ class VATSIMService(BaseService):
                     "error": str(e)
                 })
                 transceivers = []
+            
+            # Apply flight filter to raw flight data
+            raw_flights_data = parsed_data.get("pilots", [])
+            filtered_raw_flights = self.flight_filter.filter_flights_list(raw_flights_data)
+            
+            # Parse the filtered flights
+            flights = self._parse_flights(filtered_raw_flights)
             
             # Create VATSIM data object
             vatsim_data = VATSIMData(
