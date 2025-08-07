@@ -292,6 +292,41 @@ Flight Position Update → Memory Cache → Database (Unique Constraint) → Fli
 - **Performance Tuning**: Query optimization and indexing
 - **Data Retention**: Automatic cleanup of old data
 - **Flight Tracking**: Unique constraints prevent duplicate position records
+- **Flight Continuity**: Flights offline >1 hour are marked 'completed' and treated as new flights if reconnected
+- **Stale Status**: Flights not updated in 2.5× API polling interval are marked 'stale' but remain visible
+
+### Flight Status Management & Bloat Prevention
+
+**Status-Based Query Filtering:**
+The system prevents database bloat through intelligent status management rather than physical deletion:
+
+- **Active Queries**: Most application queries filter by `status = 'active'` (1,000-2,000 records)
+- **Historical Data**: Completed flights remain in database but are excluded from operational queries
+- **Performance**: Status-based filtering keeps operational dataset small and fast
+- **Analytics**: Historical data preserved for analysis while maintaining performance
+
+**Cleanup Process Logic:**
+```
+VATSIM API → New Flight → 'active' → (2.5× polling interval) → 'stale' → (1 hour) → 'completed'
+```
+
+**Bloat Prevention Mechanisms:**
+1. **Query Filtering**: 99% of queries only access active flights
+2. **Index Optimization**: Status-based indexes keep active queries fast
+3. **Memory Management**: Application only loads active flights into memory
+4. **Storage Strategy**: Two-tier approach (active = fast, completed = archive)
+
+**Flight Continuity Constraint:**
+- **Offline >1 hour**: Flight marked as 'completed' by cleanup process
+- **Reconnection**: Treated as **new flight** rather than continuing previous flight
+- **Data Integrity**: Ensures clean data but creates separate flight records for long breaks
+- **Operational Impact**: Active dataset stays small regardless of historical data volume
+
+**Stale Status Management:**
+- **Stale Detection**: Flights not updated in 2.5× API polling interval marked as 'stale'
+- **Stale Recovery**: Stale flights automatically return to 'active' if updated within 1 hour
+- **Dashboard Display**: Both active and stale flights shown with status field and color coding
+- **Configurable Timeout**: Stale timeout multiplier configurable via `STALE_FLIGHT_TIMEOUT_MULTIPLIER`
 
 ### Data Models
 - **ATCPosition**: Controller positions and status

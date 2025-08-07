@@ -117,13 +117,13 @@ class DataService(DatabaseService):
         self.vatsim_service = VATSIMService()
         self.traffic_analysis_service = None
         
-        # Get intervals from environment variables
-        self.vatsim_polling_interval = int(os.getenv('VATSIM_POLLING_INTERVAL', 30))
-        self.vatsim_write_interval = int(os.getenv('WRITE_TO_DISK_INTERVAL', 30))
+        # Get intervals from configuration system (with fallback to environment variables for cleanup)
+        self.vatsim_polling_interval = self.config.vatsim.refresh_interval
+        self.vatsim_write_interval = self.config.vatsim.write_interval  # Uses config with 10-minute fallback
         self.vatsim_cleanup_interval = int(os.getenv('VATSIM_CLEANUP_INTERVAL', 3600))
         
         # Log the configured intervals
-        self.logger.info(f"Data service configured with polling interval: {self.vatsim_polling_interval}s")
+        self.logger.info(f"Data service configured with polling interval: {self.vatsim_polling_interval}s, write interval: {self.vatsim_write_interval}s")
         
         # Use bounded caches to prevent memory leaks
         max_cache_size = int(os.getenv('CACHE_MAX_SIZE', 10000))
@@ -206,6 +206,9 @@ class DataService(DatabaseService):
                     if current_time - self.last_cleanup >= self.vatsim_cleanup_interval:
                         await self._cleanup_old_data()
                         self.last_cleanup = current_time
+                    
+                    # Update flight statuses (active ↔ stale) every API polling cycle
+                    await self._update_flight_statuses()
                 
                 # Wait before next cycle
                 await asyncio.sleep(self.vatsim_polling_interval)
@@ -345,13 +348,13 @@ class DataService(DatabaseService):
                     'route': flight_data.get('route', ''),
                     'altitude': flight_data.get('altitude', 0),
                     'heading': flight_data.get('heading', 0),
-                    'squawk': flight_data.get('transponder', ''),
+                    'transponder': flight_data.get('transponder', ''),
                     'position_lat': position_data.get('lat', 0.0) if position_data else 0.0,
                     'position_lng': position_data.get('lng', 0.0) if position_data else 0.0,
                     'groundspeed': flight_data.get('groundspeed', 0),
                     'cruise_tas': flight_data.get('cruise_tas', 0),
         
-                    'last_updated': datetime.now(timezone.utc),
+                    'last_updated_api': datetime.now(timezone.utc),
                     'status': 'active'
                 }
                 
@@ -522,7 +525,7 @@ class DataService(DatabaseService):
                             existing = db.query(Flight).filter(
                                 and_(
                                     Flight.callsign == data['callsign'],
-                                    Flight.last_updated == data['last_updated']
+                                    Flight.last_updated_api == data['last_updated_api']
                                 )
                             ).first()
                             if not existing:
@@ -595,7 +598,7 @@ class DataService(DatabaseService):
                 old_flights = db.query(Flight).filter(
                     and_(
                         Flight.last_updated < cutoff_time,
-                        Flight.status == 'active'
+                        Flight.status.in_(['active', 'stale'])
                     )
                 ).all()
                 
@@ -637,6 +640,55 @@ class DataService(DatabaseService):
                 
         except Exception as e:
             logger.error(f"Error in cleanup process: {e}")
+    
+    async def _update_flight_statuses(self):
+        """Update flight statuses based on recent activity"""
+        try:
+            from ..config import get_config
+            config = get_config()
+            
+            # Calculate stale timeout based on API polling interval
+            stale_timeout_seconds = config.vatsim.refresh_interval * config.flight_status.stale_timeout_multiplier
+            stale_cutoff = datetime.now(timezone.utc) - timedelta(seconds=stale_timeout_seconds)
+            
+            db = SessionLocal()
+            try:
+                # Mark active flights as stale if not updated recently
+                stale_flights = db.query(Flight).filter(
+                    and_(
+                        Flight.last_updated < stale_cutoff,
+                        Flight.status == 'active'
+                    )
+                ).all()
+                
+                for flight in stale_flights:
+                    flight.status = 'stale'
+                
+                # Mark stale flights as active if they get updated
+                active_cutoff = datetime.now(timezone.utc) - timedelta(seconds=config.vatsim.refresh_interval)
+                recovered_flights = db.query(Flight).filter(
+                    and_(
+                        Flight.last_updated >= active_cutoff,
+                        Flight.status == 'stale'
+                    )
+                ).all()
+                
+                for flight in recovered_flights:
+                    flight.status = 'active'
+                
+                db.commit()
+                
+                if stale_flights or recovered_flights:
+                    self.logger.info(f"Updated {len(stale_flights)} flights to stale, {len(recovered_flights)} flights to active")
+                    
+            except Exception as e:
+                db.rollback()
+                self.logger.error(f"Error updating flight statuses: {e}")
+            finally:
+                db.close()
+                
+        except Exception as e:
+            self.logger.error(f"Error in flight status update process: {e}")
     
     async def _store_flight_summary(self, flight: Flight):
         """Store flight summary for analytics before deletion - PRESERVES DATA QUALITY"""

@@ -83,7 +83,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH latest_flights AS (\n  SELECT DISTINCT ON (callsign) \n    callsign,\n    aircraft_type,\n    departure,\n    arrival,\n    route,\n    altitude,\n    heading,\n    squawk,\n    status,\n    cid,\n    name as pilot_name,\n    server,\n    pilot_rating,\n    military_rating,\n    latitude,\n    longitude,\n    groundspeed,\n    transponder,\n    qnh_i_hg,\n    qnh_mb,\n    flight_plan,\n    last_updated\n  FROM flights\n  WHERE status = 'active'\n  ORDER BY callsign, last_updated DESC\n)\nSELECT * FROM latest_flights\nORDER BY last_updated DESC",
+          "rawSql": "WITH latest_flights AS (\n  SELECT DISTINCT ON (callsign) \n    callsign,\n    aircraft_type,\n    departure,\n    arrival,\n    route,\n    altitude,\n    heading,\n    transponder,\n    status,\n    cid,\n    name as pilot_name,\n    server,\n    pilot_rating,\n    military_rating,\n    position_lat,\n    position_lng,\n    groundspeed,\n    qnh_i_hg,\n    qnh_mb,\n    remarks,\n    last_updated\n  FROM flights\n  WHERE status IN ('active', 'stale')\n    AND position_lat IS NOT NULL\n    AND position_lng IS NOT NULL\n  ORDER BY callsign, last_updated DESC\n)\nSELECT * FROM latest_flights\nORDER BY last_updated DESC\nLIMIT 50",
           "refId": "A",
           "sql": {
             "columns": [
@@ -172,7 +172,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH latest_flights AS (\n  SELECT DISTINCT ON (callsign) \n    callsign,\n    last_updated\n  FROM flights\n  WHERE status = 'active'\n  ORDER BY callsign, last_updated DESC\n),\nstats AS (\n  SELECT \n    COUNT(*) as active_flights,\n    MAX(last_updated) as latest_update,\n    EXTRACT(EPOCH FROM (NOW() - MAX(last_updated))) as seconds_since_update\n  FROM latest_flights\n)\nSELECT \n  active_flights as \"Active Flights\",\n  latest_update as \"Latest Update\",\n  ROUND(seconds_since_update::numeric, 1) as \"Seconds Since Update\",\n  CASE \n    WHEN seconds_since_update < 60 THEN 'Fresh' \n    WHEN seconds_since_update < 300 THEN 'Stale' \n    ELSE 'Very Stale' \n  END as \"Data Status\"\nFROM stats",
+          "rawSql": "WITH latest_flights AS (\n  SELECT DISTINCT ON (callsign) \n    callsign,\n    status,\n    last_updated\n  FROM flights\n  WHERE status IN ('active', 'stale')\n  ORDER BY callsign, last_updated DESC\n),\nstats AS (\n  SELECT \n    COUNT(*) as total_flights,\n    COUNT(CASE WHEN status = 'active' THEN 1 END) as active_flights,\n    COUNT(CASE WHEN status = 'stale' THEN 1 END) as stale_flights,\n    MAX(last_updated) as latest_update,\n    EXTRACT(EPOCH FROM (NOW() - MAX(last_updated))) as seconds_since_update\n  FROM latest_flights\n)\nSELECT \n  total_flights as \"Total Flights\",\n  active_flights as \"Active Flights\",\n  stale_flights as \"Stale Flights\",\n  latest_update as \"Latest Update\",\n  ROUND(seconds_since_update::numeric, 1) as \"Seconds Since Update\",\n  CASE \n    WHEN seconds_since_update < 60 THEN 'Fresh' \n    WHEN seconds_since_update < 300 THEN 'Stale' \n    ELSE 'Very Stale' \n  END as \"Data Status\"\nFROM stats",
           "refId": "A",
           "sql": {
             "columns": [

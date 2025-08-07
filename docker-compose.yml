@@ -26,7 +26,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: vatsim_redis
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru --save 30 1
     volumes:
       - redis_data:/data
     ports:
@@ -66,9 +66,62 @@ services:
       BATCH_SIZE_THRESHOLD: 10000
       
       # VATSIM Data Collection Intervals (seconds)
-      VATSIM_POLLING_INTERVAL: 30    # How often to fetch VATSIM data (30 seconds)
-      WRITE_TO_DISK_INTERVAL: 30     # How often to write data to disk (30 seconds)
+      VATSIM_POLLING_INTERVAL: 10    # How often to fetch VATSIM data (10 seconds)
+      VATSIM_DATA_REFRESH_INTERVAL: 10  # How often to refresh VATSIM data (10 seconds)
+      WRITE_TO_DISK_INTERVAL: 15     # How often to write data to disk (15 seconds)
+      VATSIM_API_TIMEOUT: 30         # VATSIM API timeout in seconds
+      VATSIM_API_RETRY_ATTEMPTS: 3   # Number of retry attempts for VATSIM API
       VATSIM_CLEANUP_INTERVAL: 3600  # How often to cleanup old data (1 hour)
+      
+      # Database Configuration
+      DATABASE_POOL_SIZE: 10         # Database connection pool size
+      DATABASE_MAX_OVERFLOW: 20      # Database max overflow connections
+      DATABASE_ECHO: "false"         # Enable SQL echo for debugging
+      
+      # API Configuration
+      API_WORKERS: 4                 # Number of API workers
+      API_DEBUG: "false"             # Enable API debug mode
+      API_RELOAD: "false"            # Enable API auto-reload
+      CORS_ORIGINS: "*"              # CORS allowed origins
+      
+      # Traffic Analysis Configuration
+      TRAFFIC_DENSITY_THRESHOLD_HIGH: 80.0
+      TRAFFIC_DENSITY_THRESHOLD_MEDIUM: 50.0
+      TRAFFIC_DENSITY_THRESHOLD_LOW: 20.0
+      POSITION_PRIORITY_WEIGHT_FLIGHTS: 0.7
+      POSITION_PRIORITY_WEIGHT_SECTORS: 0.3
+      TRAFFIC_PREDICTION_CONFIDENCE_BASE: 0.7
+      FLIGHT_NORMALIZATION_FACTOR: 10.0
+      SECTOR_NORMALIZATION_FACTOR: 5.0
+      WORKLOAD_NORMALIZATION_FACTOR: 15.0
+      IMPACT_NORMALIZATION_FACTOR: 20.0
+      
+      # Machine Learning Configuration
+      ML_MODEL_DIR: "./models"
+      ML_MIN_TRAINING_DATA: 100
+      ML_MIN_HISTORICAL_DATA: 24
+      ML_RF_N_ESTIMATORS: 100
+      ML_RF_MAX_DEPTH: 10
+      ML_ANOMALY_CONTAMINATION: 0.1
+      ML_PATTERN_N_ESTIMATORS: 50
+      ML_PATTERN_MAX_DEPTH: 8
+      ML_PREDICTION_HORIZON_HOURS: 4
+      ML_CONFIDENCE_THRESHOLD: 0.7
+      ML_ANOMALY_THRESHOLD: 0.8
+      
+      # Logging Configuration
+      LOG_FORMAT: "json"
+      LOG_MAX_FILE_SIZE: 10485760    # 10MB in bytes
+      LOG_BACKUP_COUNT: 5
+      
+      # Feature Flags
+      FEATURE_TRAFFIC_ANALYSIS: "true"
+      FEATURE_HEAT_MAP: "true"
+      FEATURE_POSITION_RECOMMENDATIONS: "true"
+      FEATURE_TRAFFIC_PREDICTION: "true"
+      FEATURE_ALERTS: "true"
+      FEATURE_REAL_TIME_UPDATES: "true"
+      FEATURE_BACKGROUND_PROCESSING: "true"
       
       # Geographic Filter Configuration
       FLIGHT_FILTER_ENABLED: "true"

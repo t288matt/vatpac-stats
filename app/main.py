@@ -91,7 +91,9 @@ async def background_data_ingestion():
     global background_task
     
     # Get polling interval from environment variable
-    polling_interval = int(os.getenv('VATSIM_POLLING_INTERVAL', 30))
+    # Note: The 60s fallback is only used if VATSIM_POLLING_INTERVAL env var is not set
+    # The actual value should be configured in docker-compose.yml (currently set to 10s)
+    polling_interval = int(os.getenv('VATSIM_POLLING_INTERVAL', 60))
     
     # Log the configured interval
     logger.info(f"Main background data ingestion configured with polling interval: {polling_interval}s")

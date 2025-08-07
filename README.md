@@ -1,30 +1,6 @@
-# VATSIM Data Collection & Visualization System
+# VATSIM Data Collection System
 
-A comprehensive system for collecting, processing, and visualizing VATSIM flight data with real-time monitoring capabilities.
-
-## ⚠️ **IMPORTANT: Database Architecture is Stable**
-
-**The database schema and models are well-designed and should NOT be modified during refactoring.** The current database architecture provides:
-
-- ✅ **Complete VATSIM API field mapping** (1:1 mapping with API fields)
-- ✅ **Optimized flight tracking** (every position update preserved)
-- ✅ **Proper indexing** for fast queries
-- ✅ **Unique constraints** to prevent duplicate data
-- ✅ **Efficient data types** for storage optimization
-- ✅ **Clear table relationships** and foreign keys
-
-**Database files to preserve unchanged:**
-- `app/models.py` - All database models
-- `app/database.py` - Database connection management
-- `database/init.sql` - Database initialization
-- All database migration files
-
-**Focus refactoring efforts on:**
-- Service layer architecture
-- Error handling patterns
-- Configuration management
-- Monitoring and observability
-- Testing frameworks
+A real-time VATSIM data collection and traffic analysis system that processes flight data, ATC positions, and network statistics with focus on Australian airspace.
 
 ## 🚀 Quick Start
 
@@ -38,7 +14,7 @@ A comprehensive system for collecting, processing, and visualizing VATSIM flight
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd VATSIM-data
+   cd vatsim-data
    ```
 
 2. **Start the system**
@@ -54,73 +30,150 @@ A comprehensive system for collecting, processing, and visualizing VATSIM flight
 ## 📊 System Architecture
 
 ### Services
-- **PostgreSQL Database**: Persistent data storage with named volumes
-- **Redis Cache**: In-memory caching for performance
-- **Python Application**: VATSIM data collection and API
-- **Grafana**: Real-time visualization and monitoring
+- **App Service**: Main application (Python/FastAPI) - VATSIM data collection and API
+- **PostgreSQL**: Primary database for flight data with optimized schema
+- **Redis**: Caching layer for high-performance data access
+- **Grafana**: Data visualization and monitoring dashboards
 
-### Data Persistence
-The system now uses **named Docker volumes** for reliable data persistence:
-- `vatsimdata_postgres_data`: Database storage
-- `vatsimdata_redis_data`: Cache storage
+### Data Flow
+1. **VATSIM API** → Data Service → Memory Cache → Database
+2. **10-second polling** interval for real-time updates
+3. **15-second disk write** interval for SSD optimization
+4. **Automatic cleanup** of old data every hour
 
-This prevents data loss from bind mount corruption and ensures data survives container restarts.
+## 🗄️ Database Schema
 
-## 🔧 Configuration
+### Flight Table (Current State)
+
+The flight table stores comprehensive flight data with 39 optimized columns:
+
+| Field Category | Fields | Source | Description |
+|----------------|--------|--------|-------------|
+| **Primary Key** | `id` | App | Auto-generated primary key |
+| **Basic Info** | `callsign`, `aircraft_type`, `departure`, `arrival`, `route` | API | Flight identification and routing |
+| **Position** | `position_lat`, `position_lng`, `altitude`, `heading`, `groundspeed` | API | Real-time position data |
+| **Communication** | `transponder` | API | Transponder code |
+| **Flight Plan** | `flight_rules`, `aircraft_faa`, `planned_altitude`, `deptime`, etc. | API | Detailed flight plan information |
+| **Pilot Info** | `cid`, `name`, `server`, `pilot_rating` | API | Pilot and network information |
+| **Status** | `status` | App | Flight status management |
+| **Timestamps** | `last_updated_api`, `created_at`, `updated_at` | Mixed | Data timestamps |
+
+### Flight Status System
+
+Flight status is managed through a lifecycle system:
+
+| Status | Description | Trigger |
+|--------|-------------|---------|
+| `'active'` | Currently flying | Updated in last API call |
+| `'stale'` | Recently seen but not in latest update | Not updated in last 2.5× API polling interval |
+| `'completed'` | Flight finished | Automatic cleanup (1 hour) |
+| `'cancelled'` | Flight cancelled | Manual/API update |
+| `'unknown'` | Status unclear | Fallback/error state |
+
+**Status Lifecycle:**
+```
+VATSIM API → New Flight → 'active' → (2.5× polling interval) → 'stale' → (1 hour) → 'completed'
+```
+
+**Cleanup Process:** The system automatically runs every hour to mark flights older than 1 hour as 'completed'. This prevents database bloat while preserving flight data for analytics.
+
+**⚠️ Flight Continuity Constraint:** If a flight logs off during cruise for more than 1 hour, it will be marked as 'completed' by the cleanup process. If the pilot logs back on, it will be treated as a **new flight** rather than continuing the previous flight. This ensures data integrity but means long breaks in flight will create separate flight records.
+
+**🔄 Stale Flight Recovery:** Flights marked as 'stale' will automatically return to 'active' status if they receive an update within the 1-hour cleanup window.
+
+## ⚙️ Configuration
 
 ### Environment Variables
-Key configuration options in `docker-compose.yml`:
 
 ```yaml
-# Data Collection
-VATSIM_POLLING_INTERVAL: 30      # Seconds between VATSIM API calls
-WRITE_TO_DISK_INTERVAL: 30       # Seconds between database writes
-VATSIM_CLEANUP_INTERVAL: 3600    # Seconds between data cleanup
+# VATSIM Data Collection
+VATSIM_POLLING_INTERVAL: 10      # API polling (seconds)
+WRITE_TO_DISK_INTERVAL: 15       # Database writes (seconds)
+VATSIM_CLEANUP_INTERVAL: 3600    # Data cleanup (seconds)
+STALE_FLIGHT_TIMEOUT_MULTIPLIER: 2.5  # Stale timeout multiplier
 
-# Geographic Filtering
-FLIGHT_FILTER_ENABLED: "true"     # Only collect Australian flights
-FLIGHT_FILTER_LOG_LEVEL: "DEBUG"  # Filter logging level
+# Database
+DATABASE_URL: postgresql://user:pass@host:5432/db
+DATABASE_POOL_SIZE: 10
+DATABASE_MAX_OVERFLOW: 20
+
+# API Configuration
+API_HOST: 0.0.0.0
+API_PORT: 8001
+API_WORKERS: 4
+
+# Redis Configuration
+REDIS_URL: redis://redis:6379
+REDIS_MAX_CONNECTIONS: 20
+
+# Logging
+LOG_LEVEL: INFO
 ```
 
-### Data Retention
-- **Active Flights**: Stored in real-time, marked as 'completed' after 1 hour
-- **Flight Summaries**: Preserved for analytics after completion
-- **ATC Positions**: Marked offline after 30 minutes of inactivity
-- **Traffic Movements**: Retained for 7 days
+## 🔌 API Endpoints
 
-## 📈 Monitoring & Visualization
+### Flight Data
+- `GET /api/flights` - Get all active flights
+- `GET /api/flights/{callsign}` - Get specific flight
+- `GET /api/flights/status/{status}` - Get flights by status
+
+### Network Status
+- `GET /api/status` - System health and statistics
+- `GET /api/controllers` - Active ATC positions
+- `GET /api/transceivers` - Radio frequency data
+
+### Analytics
+- `GET /api/analytics/traffic` - Traffic movement statistics
+- `GET /api/analytics/flights` - Flight summary data
+
+## 📈 Monitoring
 
 ### Grafana Dashboards
-- **Sydney Flights Dashboard**: Real-time Australian flight tracking
-- **Test Dashboard**: System monitoring and testing
+- **Real-time Flight Tracking**: Live flight positions and status
+- **Network Statistics**: VATSIM network health and activity
+- **Traffic Analysis**: Airport movement patterns
+- **System Performance**: Application metrics and database performance
 
-### Key Metrics
-- Active flights count
-- ATC controller positions
-- Flight completion rates
-- System performance indicators
+### Health Checks
+- **API Connectivity**: VATSIM API status
+- **Database Health**: Connection and query performance
+- **Cache Status**: Memory usage and hit rates
+- **Data Flow**: Processing pipeline status
 
-## 🛠️ Maintenance
+## 🛠️ Development
 
-### Backup Named Volumes
+### Prerequisites
+- Docker and Docker Compose
+- Python 3.11+
+- PostgreSQL 15+
+- Redis 7+
+
+### Quick Start
 ```bash
-# Backup PostgreSQL data
-docker run --rm -v vatsimdata_postgres_data:/data -v $(pwd):/backup alpine tar czf /backup/postgres_backup.tar.gz -C /data .
+# Clone repository
+git clone <repository-url>
+cd vatsim-data
 
-# Restore PostgreSQL data
-docker run --rm -v vatsimdata_postgres_data:/data -v $(pwd):/backup alpine tar xzf /backup/postgres_backup.tar.gz -C /data
-```
+# Start services
+docker-compose up -d
 
-### System Health Checks
-```bash
-# Check service status
+# Check status
 docker-compose ps
 
-# View application logs
-docker logs vatsim_app
+# View logs
+docker-compose logs -f app
+```
 
-# Check database connectivity
-docker exec vatsim_postgres psql -U vatsim_user -d vatsim_data -c "SELECT COUNT(*) FROM flights;"
+### Database Operations
+```bash
+# Check database schema
+docker exec vatsim_postgres psql -U vatsim_user -d vatsim_data -c "\d flights"
+
+# View recent flights
+docker exec vatsim_postgres psql -U vatsim_user -d vatsim_data -c "SELECT callsign, status, last_updated_api FROM flights WHERE last_updated_api IS NOT NULL ORDER BY last_updated_api DESC LIMIT 5;"
+
+# Check status distribution
+docker exec vatsim_postgres psql -U vatsim_user -d vatsim_data -c "SELECT status, COUNT(*) FROM flights GROUP BY status;"
 ```
 
 ## 🔍 Troubleshooting
@@ -130,7 +183,7 @@ docker exec vatsim_postgres psql -U vatsim_user -d vatsim_data -c "SELECT COUNT(
 **No Data in Dashboard**
 - Check if Australian flights are available in VATSIM network
 - Verify flight filter is enabled: `FLIGHT_FILTER_ENABLED: "true"`
-- Monitor application logs: `docker logs vatsim_app --tail 20`
+- Monitor application logs: `docker-compose logs app --tail 20`
 
 **Database Connection Issues**
 - Ensure PostgreSQL container is healthy: `docker ps`
@@ -149,61 +202,33 @@ If data loss occurs:
 3. Restore from backup if necessary
 4. Restart services: `docker-compose restart`
 
-## 📋 API Endpoints
+## 📋 Features
 
-### Health Check
-```
-GET /api/status
-```
-
-### Flight Data
-```
-GET /api/flights
-GET /api/flights/{callsign}
-```
-
-### ATC Controllers
-```
-GET /api/controllers
-GET /api/controllers/{callsign}
-```
-
-## 🔒 Security
-
-- Database access restricted to container network
-- Grafana authentication enabled (admin/admin)
-- API endpoints available on localhost only
-- Named volumes provide data isolation
-
-## 📝 Recent Updates
-
-### v2.1.0 - Named Volumes Implementation
-- **Improved Data Persistence**: Replaced bind mounts with named Docker volumes
-- **Enhanced Reliability**: Data survives container restarts and system reboots
-- **Better Performance**: Optimized storage for Docker environments
-- **Easier Backup**: Simplified volume backup and restore procedures
-- **📖 Detailed Documentation**: See `docs/NAMED_VOLUMES_IMPLEMENTATION.md` for complete implementation details
-
-### Previous Versions
-- v2.0.0: Australian flight filtering
-- v1.0.0: Initial VATSIM data collection
+- **Real-time Data Collection**: Fetches VATSIM API data every 10 seconds
+- **Australian Flight Filtering**: Focuses on flights to/from Australian airports
+- **Database Storage**: PostgreSQL with optimized schema for flight data
+- **Caching**: Redis for high-performance data access
+- **Monitoring**: Grafana dashboards for data visualization
+- **API Endpoints**: RESTful API for data access
+- **Clean Schema**: Optimized database design with no duplicate fields
+- **Status Management**: Comprehensive flight lifecycle tracking
+- **Data Integrity**: Check constraints and validation
+- **Performance Optimized**: Indexed queries and bulk operations
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Test thoroughly
+4. Add tests if applicable
 5. Submit a pull request
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🆘 Support
+## 📚 Documentation
 
-For issues and questions:
-1. Check the troubleshooting section
-2. Review application logs
-3. Verify system requirements
-4. Create an issue with detailed information
+- **Flight Status System**: See `docs/FLIGHT_STATUS_SYSTEM.md` for detailed status management
+- **Schema Cleanup**: See `SCHEMA_CLEANUP_SUMMARY.md` for recent optimizations
+- **API Documentation**: Available at http://localhost:8001/docs when running

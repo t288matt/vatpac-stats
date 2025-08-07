@@ -69,8 +69,9 @@ class VATSIMConfig:
     transceivers_api_url: str
     timeout: int = 30
     retry_attempts: int = 3
-    refresh_interval: int = 30
+    refresh_interval: int = 10
     user_agent: str = "ATC-Position-Engine/1.0"
+    write_interval: int = 600  # 10 minutes - fallback if docker-compose doesn't set WRITE_TO_DISK_INTERVAL
     
     @classmethod
     def from_env(cls):
@@ -80,8 +81,11 @@ class VATSIMConfig:
             transceivers_api_url=os.getenv("VATSIM_TRANSCEIVERS_API_URL", "https://data.vatsim.net/v3/transceivers-data.json"),
             timeout=int(os.getenv("VATSIM_API_TIMEOUT", "30")),
             retry_attempts=int(os.getenv("VATSIM_API_RETRY_ATTEMPTS", "3")),
-            refresh_interval=int(os.getenv("VATSIM_DATA_REFRESH_INTERVAL", "30")),
-            user_agent=os.getenv("VATSIM_USER_AGENT", "ATC-Position-Engine/1.0")
+            refresh_interval=int(os.getenv("VATSIM_DATA_REFRESH_INTERVAL", "10")),
+            user_agent=os.getenv("VATSIM_USER_AGENT", "ATC-Position-Engine/1.0"),
+            # WRITE_TO_DISK_INTERVAL: Fallback to 10 minutes (600 seconds) if docker-compose doesn't set it
+            # Docker environment typically sets this to 15 seconds for optimized performance
+            write_interval=int(os.getenv("WRITE_TO_DISK_INTERVAL", "600"))
         )
 
 
@@ -225,6 +229,19 @@ class FlightFilterConfig:
         return cls(
             enabled=os.getenv("FLIGHT_FILTER_ENABLED", "false").lower() == "true",
             log_level=os.getenv("FLIGHT_FILTER_LOG_LEVEL", "INFO")
+        )
+
+
+@dataclass
+class FlightStatusConfig:
+    """Flight status configuration with no hardcoding."""
+    stale_timeout_multiplier: float = 2.5  # Multiplier for API polling interval
+    
+    @classmethod
+    def from_env(cls):
+        """Load flight status configuration from environment variables."""
+        return cls(
+            stale_timeout_multiplier=float(os.getenv("STALE_FLIGHT_TIMEOUT_MULTIPLIER", "2.5"))
         )
 
 
@@ -398,6 +415,7 @@ class AppConfig:
     airports: AirportConfig
     pilots: PilotConfig
     flight_filter: FlightFilterConfig
+    flight_status: FlightStatusConfig
     environment: str = "development"
     
     @classmethod
@@ -414,6 +432,7 @@ class AppConfig:
             airports=AirportConfig.from_env(),
             pilots=PilotConfig.from_env(),
             flight_filter=FlightFilterConfig.from_env(),
+            flight_status=FlightStatusConfig.from_env(),
             environment=os.getenv("ENVIRONMENT", "development")
         )
 

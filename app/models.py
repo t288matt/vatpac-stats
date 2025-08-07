@@ -103,16 +103,14 @@ class Flight(Base):
     heading = Column(Integer, nullable=True)
     groundspeed = Column(Integer, nullable=True)
     cruise_tas = Column(Integer, nullable=True)
-    squawk = Column(String(10), nullable=True)
     
     # Flight plan fields
     departure = Column(String(10), nullable=True)
     arrival = Column(String(10), nullable=True)
     route = Column(Text, nullable=True)
-    # flight_plan field removed - using direct fields instead
     
     # Status and timestamps
-    status = Column(String(20), default="active")  # active, completed, cancelled
+    status = Column(String(20), default="active")  # active, stale, completed, cancelled, unknown
     last_updated = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
