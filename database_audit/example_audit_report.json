@@ -1,0 +1,105 @@
+{
+  "audit_timestamp": "2025-01-27T10:30:00Z",
+  "audit_type": "full",
+  "database_info": {
+    "version": "PostgreSQL 15.0",
+    "total_tables": 13,
+    "total_fields": 156,
+    "total_indexes": 59
+  },
+  "overall_status": "pass",
+  "table_audits": [
+    {
+      "table_name": "flights",
+      "status": "pass",
+      "missing_fields": [],
+      "extra_fields": [],
+      "type_mismatches": [],
+      "index_count": 25,
+      "record_count": 15420,
+      "size_mb": 245.6,
+      "vatsim_api_mapping": {
+        "status": "pass",
+        "missing_mappings": [],
+        "extra_mappings": []
+      }
+    },
+    {
+      "table_name": "controllers",
+      "status": "pass",
+      "missing_fields": [],
+      "extra_fields": [],
+      "type_mismatches": [],
+      "index_count": 8,
+      "record_count": 1250,
+      "size_mb": 12.3,
+      "vatsim_api_mapping": {
+        "status": "pass",
+        "missing_mappings": [],
+        "extra_mappings": []
+      }
+    },
+    {
+      "table_name": "transceivers",
+      "status": "warn",
+      "missing_fields": [],
+      "extra_fields": ["temp_field"],
+      "type_mismatches": [],
+      "index_count": 5,
+      "record_count": 890,
+      "size_mb": 8.7,
+      "vatsim_api_mapping": {
+        "status": "pass",
+        "missing_mappings": [],
+        "extra_mappings": []
+      }
+    }
+  ],
+  "performance_metrics": {
+    "index_usage": {
+      "unused_indexes": 3,
+      "high_usage_indexes": 45,
+      "recommendations": [
+        "Consider dropping unused index idx_flights_temp_field"
+      ]
+    },
+    "table_sizes": {
+      "largest_table": "flights (245.6 MB)",
+      "size_recommendations": [
+        "Monitor flights table growth - consider partitioning if exceeds 1GB"
+      ]
+    },
+    "slow_queries": {
+      "count": 2,
+      "queries": [
+        {
+          "query": "SELECT * FROM flights WHERE departure_time > '2025-01-01'",
+          "avg_time_ms": 1250,
+          "recommendation": "Add index on departure_time"
+        }
+      ]
+    }
+  },
+  "data_integrity": {
+    "orphaned_records": {
+      "flights_without_controllers": 0,
+      "controllers_without_facilities": 0
+    },
+    "duplicate_records": {
+      "duplicate_callsigns": 0,
+      "duplicate_controller_ids": 0
+    },
+    "constraint_violations": {
+      "not_null_violations": 0,
+      "unique_violations": 0
+    }
+  },
+  "recommendations": [
+    "Consider adding more indexes to airports table (currently 1)",
+    "Monitor table size growth for flights table",
+    "Drop unused index idx_flights_temp_field",
+    "Add index on flights.departure_time for better query performance"
+  ],
+  "audit_duration_seconds": 45.2,
+  "configuration_used": "database_audit_config.json"
+}
