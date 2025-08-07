@@ -57,6 +57,7 @@ from ..models import Controller, Flight, Sector, TrafficMovement, FlightSummary
 from .vatsim_service import VATSIMService
 from .traffic_analysis_service import TrafficAnalysisService
 from .base_service import DatabaseService
+from .flight_completion_service import flight_completion_service
 from ..utils.error_handling import handle_service_errors, retry_on_failure, log_operation
 
 
@@ -279,6 +280,35 @@ class DataService(DatabaseService):
         except Exception as e:
             self.logger.error(f"Error processing data in memory: {e}")
     
+    def _validate_controller_data(self, controller_data: Dict[str, Any]) -> bool:
+        """Validate controller data types before database insert"""
+        try:
+            # Convert controller_id to integer
+            if controller_data.get('controller_id'):
+                controller_data['controller_id'] = int(controller_data['controller_id'])
+            else:
+                controller_data['controller_id'] = None
+                
+            # Convert controller_rating to integer
+            if controller_data.get('controller_rating'):
+                controller_data['controller_rating'] = int(controller_data['controller_rating'])
+            else:
+                controller_data['controller_rating'] = None
+                
+            # Convert preferences to JSON string
+            if controller_data.get('preferences'):
+                if isinstance(controller_data['preferences'], dict):
+                    controller_data['preferences'] = json.dumps(controller_data['preferences'])
+                elif not isinstance(controller_data['preferences'], str):
+                    controller_data['preferences'] = None
+            else:
+                controller_data['preferences'] = None
+                
+            return True
+        except (ValueError, TypeError) as e:
+            self.logger.error(f"Controller data validation failed: {e}")
+            return False
+
     async def _process_atc_positions_in_memory(self, atc_positions_data: List[Dict[str, Any]]) -> int:
         """Process ATC positions in memory cache"""
         try:
@@ -294,12 +324,12 @@ class DataService(DatabaseService):
                     'position': atc_position_data.get('position', ''),
                     'status': 'online',
                     'frequency': atc_position_data.get('frequency', ''),
-                    'controller_id': atc_position_data.get('cid', None),  # API "cid" → DB "controller_id"
+                    'controller_id': int(atc_position_data.get('cid', 0)) if atc_position_data.get('cid') else None,  # API "cid" → DB "controller_id"
                     'controller_name': atc_position_data.get('name', ''),  # API "name" → DB "controller_name"
-                    'controller_rating': atc_position_data.get('rating', 0),  # API "rating" → DB "controller_rating"
+                    'controller_rating': int(atc_position_data.get('rating', 0)) if atc_position_data.get('rating') else None,  # API "rating" → DB "controller_rating"
                     'last_seen': datetime.now(timezone.utc),
                     'workload_score': 0.0,
-                    'preferences': {}
+                    'preferences': json.dumps({}) if {} else None
                 })
                 processed_count += 1
             
@@ -525,25 +555,15 @@ class DataService(DatabaseService):
         try:
             db = SessionLocal()
             try:
-                # Find the flight
-                flight = db.query(Flight).filter(
-                    and_(
-                        Flight.callsign == landing_detection['callsign'],
-                        Flight.status.in_(['active', 'stale'])
-                    )
-                ).first()
+                # Use the new flight completion service
+                success = flight_completion_service.complete_by_landing(
+                    landing_detection['callsign'], 
+                    landing_detection, 
+                    db
+                )
                 
-                if not flight:
+                if not success:
                     return False
-                
-                # Mark flight as landed (not completed - pilot still connected)
-                flight.status = 'landed'
-                flight.landed_at = landing_detection['timestamp']
-                flight.completion_method = 'landing'
-                flight.completion_confidence = landing_detection['confidence']
-                
-                # Only update the main flight record - don't update existing records
-                # This preserves the original timestamps of existing records
                 
                 # Create traffic movement record for landing
                 from ..models import TrafficMovement
@@ -563,7 +583,7 @@ class DataService(DatabaseService):
                 
                 db.commit()
                 
-                self.logger.info(f"Flight {flight.callsign} landed at {landing_detection['airport_code']}", extra={
+                self.logger.info(f"Flight {landing_detection['callsign']} landed at {landing_detection['airport_code']}", extra={
                     'distance_nm': landing_detection['distance_nm'],
                     'altitude_above_airport': landing_detection['altitude_above_airport'],
                     'groundspeed': landing_detection['groundspeed']
@@ -606,28 +626,18 @@ class DataService(DatabaseService):
                 vatsim_data = await self.vatsim_service.get_current_data()
                 connected_callsigns = {flight.callsign for flight in vatsim_data.flights}
                 
-                # Check for disconnected pilots
+                # Check for disconnected pilots using the new service
                 disconnect_count = 0
                 for flight in landed_flights:
                     if flight.callsign not in connected_callsigns:
-                        # Pilot has disconnected
-                        flight.status = 'completed'
-                        flight.completed_at = datetime.now(timezone.utc)
-                        flight.pilot_disconnected_at = datetime.now(timezone.utc)
-                        flight.disconnect_method = 'detected'
-                        
-                        # Only update the main flight record - don't update existing records
-                        # This preserves the original timestamps of existing records
-                        
-                        # Now store flight summary
-                        await self._store_flight_summary(flight)
-                        
-                        disconnect_count += 1
-                        
-                        self.logger.info(f"Flight {flight.callsign} completed by pilot disconnect")
+                        # Use the new flight completion service
+                        success = flight_completion_service.complete_by_disconnect(flight.callsign, db)
+                        if success:
+                            # Store flight summary
+                            await self._store_flight_summary(flight)
+                            disconnect_count += 1
                 
                 if disconnect_count > 0:
-                    db.commit()
                     self.logger.info(f"Detected and completed {disconnect_count} flights by pilot disconnect")
                 
                 return disconnect_count
@@ -646,17 +656,14 @@ class DataService(DatabaseService):
     async def _complete_flight_by_time(self, flight: Flight) -> bool:
         """Complete a flight based on time-based fallback"""
         try:
-            # Mark flight as completed
-            flight.status = 'completed'
-            flight.completed_at = datetime.now(timezone.utc)
-            flight.completion_method = 'time'
-            flight.completion_confidence = 1.0  # Binary confidence
-            
-            # Store flight summary
-            await self._store_flight_summary(flight)
-            
-            self.logger.info(f"Flight {flight.callsign} completed by time-based fallback")
-            return True
+            # Use the new flight completion service
+            success = flight_completion_service.complete_by_time(flight.callsign)
+            if success:
+                # Store flight summary
+                await self._store_flight_summary(flight)
+                self.logger.info(f"Flight {flight.callsign} completed by time-based fallback")
+                return True
+            return False
             
         except Exception as e:
             self.logger.error(f"Error completing flight by time: {e}")
@@ -720,36 +727,43 @@ class DataService(DatabaseService):
                 # OPTIMIZED BATCH 1: ATC Positions with bulk upsert
                 atc_positions_data = list(self.cache['atc_positions'].items())
                 if atc_positions_data:
-                    # Prepare data for bulk upsert
-                    atc_positions_values = [data for _, data in atc_positions_data]
+                    # Prepare data for bulk upsert with validation
+                    atc_positions_values = []
+                    for _, data in atc_positions_data:
+                        # Validate and convert data types
+                        if self._validate_controller_data(data):
+                            atc_positions_values.append(data)
+                        else:
+                            self.logger.warning(f"Skipping invalid controller data for {data.get('callsign', 'unknown')}")
                     
                     # Use bulk upsert with conflict resolution
-                    try:
-                        # Try PostgreSQL-specific upsert first
-                        stmt = insert(Controller).values(atc_positions_values)
-                        stmt = stmt.on_conflict_do_update(
-                            index_elements=['callsign'],
-                            set_=dict(
-                                facility=stmt.excluded.facility,
-                                position=stmt.excluded.position,
-                                status=stmt.excluded.status,
-                                frequency=stmt.excluded.frequency,
-                                last_seen=stmt.excluded.last_seen,
-                                workload_score=stmt.excluded.workload_score,
-                                preferences=stmt.excluded.preferences
+                    if atc_positions_values:
+                        try:
+                            # Try PostgreSQL-specific upsert first
+                            stmt = insert(Controller).values(atc_positions_values)
+                            stmt = stmt.on_conflict_do_update(
+                                index_elements=['callsign'],
+                                set_=dict(
+                                    facility=stmt.excluded.facility,
+                                    position=stmt.excluded.position,
+                                    status=stmt.excluded.status,
+                                    frequency=stmt.excluded.frequency,
+                                    last_seen=stmt.excluded.last_seen,
+                                    workload_score=stmt.excluded.workload_score,
+                                    preferences=stmt.excluded.preferences
+                                )
                             )
-                        )
-                        db.execute(stmt)
-                    except AttributeError:
-                        # Fallback to manual upsert for other databases
-                        for data in atc_positions_values:
-                            existing = db.query(Controller).filter(Controller.callsign == data['callsign']).first()
-                            if existing:
-                                for key, value in data.items():
-                                    setattr(existing, key, value)
-                            else:
-                                atc_position = Controller(**data)
-                                db.add(atc_position)
+                            db.execute(stmt)
+                        except AttributeError:
+                            # Fallback to manual upsert for other databases
+                            for data in atc_positions_values:
+                                existing = db.query(Controller).filter(Controller.callsign == data['callsign']).first()
+                                if existing:
+                                    for key, value in data.items():
+                                        setattr(existing, key, value)
+                                else:
+                                    atc_position = Controller(**data)
+                                    db.add(atc_position)
                     
                     self.logger.info(f"Bulk upserted {len(atc_positions_values)} ATC positions")
                 

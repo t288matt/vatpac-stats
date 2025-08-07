@@ -400,9 +400,9 @@ class VATSIMService(BaseService):
                     position=position,
                     frequency=controller_data.get("frequency", ""),
                     status="online",  # If they're in the API, they're online
-                    controller_id=str(controller_data.get("cid", "")),
+                    controller_id=int(controller_data.get("cid", 0)) if controller_data.get("cid") else None,
                     controller_name=controller_data.get("name", ""),
-                    controller_rating=controller_data.get("rating", 0),
+                    controller_rating=int(controller_data.get("rating", 0)) if controller_data.get("rating") else None,
                     
                     # Missing VATSIM API fields - 1:1 mapping with API field names
                     visual_range=controller_data.get("visual_range"),
