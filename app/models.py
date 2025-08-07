@@ -355,4 +355,35 @@ class VatsimStatus(Base):
     connected_clients = Column(Integer, nullable=True)  # From API "connected_clients"
     unique_users = Column(Integer, nullable=True)  # From API "unique_users"
     created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow) 
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class FrequencyMatch(Base):
+    """Frequency matching events between pilots and ATC controllers"""
+    __tablename__ = "frequency_matches"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    pilot_callsign = Column(String(50), nullable=False, index=True)
+    controller_callsign = Column(String(50), nullable=False, index=True)
+    frequency = Column(Integer, nullable=False, index=True)  # Frequency in Hz
+    pilot_lat = Column(Float, nullable=True)
+    pilot_lon = Column(Float, nullable=True)
+    controller_lat = Column(Float, nullable=True)
+    controller_lon = Column(Float, nullable=True)
+    distance_nm = Column(Float, nullable=True)  # Distance between pilot and controller
+    match_timestamp = Column(DateTime, nullable=False, index=True)
+    duration_seconds = Column(Integer, nullable=True)  # Duration of the match
+    is_active = Column(Boolean, default=True, index=True)
+    match_confidence = Column(Float, default=1.0)  # Confidence score (0.0 to 1.0)
+    communication_type = Column(String(20), nullable=False, index=True)  # 'approach', 'departure', 'enroute', 'ground', 'tower', 'hf_enroute', 'unknown'
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Indexes for efficient queries
+    __table_args__ = (
+        Index('idx_frequency_matches_pilot_controller', 'pilot_callsign', 'controller_callsign'),
+        Index('idx_frequency_matches_frequency_timestamp', 'frequency', 'match_timestamp'),
+        Index('idx_frequency_matches_active_timestamp', 'is_active', 'match_timestamp'),
+        Index('idx_frequency_matches_communication_type', 'communication_type'),
+        Index('idx_frequency_matches_distance', 'distance_nm'),
+    ) 

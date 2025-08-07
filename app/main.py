@@ -70,6 +70,7 @@ from .services.interfaces.event_bus_interface import EventType
 # Import Phase 3 services
 from .services.monitoring_service import get_monitoring_service
 from .services.performance_monitor import get_performance_monitor
+from .services.frequency_matching_service import FrequencyMatchingService, FrequencyMatch, FrequencyMatchSummary, CommunicationPattern
 
 # Configure logging
 logger = get_logger_for_module(__name__)
@@ -82,6 +83,9 @@ service_manager: Optional[ServiceManager] = None
 
 # Background task for data ingestion
 background_task = None
+
+# Initialize frequency matching service
+frequency_matching_service = FrequencyMatchingService()
 
 @handle_service_errors
 @log_operation("background_data_ingestion")
@@ -663,7 +667,7 @@ async def get_flights(db: Session = Depends(get_db)):
         }
     
     # If not cached, get from database using direct SQL to avoid session isolation issues
-    result = db.execute(text("SELECT id, callsign, aircraft_type, departure, arrival, route, altitude, heading, groundspeed, cruise_tas, squawk, position_lat, position_lng, latitude, longitude, cid, name, pilot_rating, military_rating, server, last_updated FROM flights WHERE status = 'active'"))
+    result = db.execute(text("SELECT id, callsign, aircraft_type, departure, arrival, route, altitude, heading, groundspeed, cruise_tas, transponder, position_lat, position_lng, latitude, longitude, cid, name, pilot_rating, military_rating, server, last_updated FROM flights WHERE status = 'active'"))
     flights_data = []
     
     for row in result:
@@ -678,7 +682,7 @@ async def get_flights(db: Session = Depends(get_db)):
             "heading": row.heading,
             "groundspeed": row.groundspeed,
             "cruise_tas": row.cruise_tas,
-            "squawk": row.squawk,
+            "squawk": row.transponder,
             "position_lat": row.position_lat,
             "position_lng": row.position_lng,
             "latitude": row.latitude,
@@ -739,7 +743,7 @@ async def get_flight_track(
                     "heading": pos.heading,
                     "groundspeed": pos.groundspeed,
                     "cruise_tas": pos.cruise_tas,
-                    "squawk": pos.squawk
+                    "squawk": pos.transponder
                 } for pos in flight_positions
             ],
             "total_positions": len(flight_positions),
@@ -989,7 +993,7 @@ async def get_flights_from_memory():
             "heading": flight_data.get('heading', 0),
             "groundspeed": flight_data.get('groundspeed', 0),
             "cruise_tas": flight_data.get('cruise_tas', 0),
-            "squawk": flight_data.get('squawk', ''),
+            "squawk": flight_data.get('transponder', ''),
 
             "last_updated": flight_data.get('last_updated', '').isoformat() if hasattr(flight_data.get('last_updated', ''), 'isoformat') else str(flight_data.get('last_updated', ''))
         })
@@ -1788,6 +1792,512 @@ async def get_flight_disconnect_status(callsign: str, db: Session = Depends(get_
         logger.error(f"Error getting disconnect status for {callsign}: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving disconnect status")
 
+
+@app.get("/api/frequency-matching/matches")
+async def get_frequency_matches():
+    """
+    Get current frequency matches between pilots and ATC
+    
+    Returns:
+        List of active frequency matches
+    """
+    try:
+        matches = await frequency_matching_service.detect_frequency_matches()
+        
+        # Convert to JSON-serializable format
+        matches_data = []
+        for match in matches:
+            match_data = {
+                "pilot_callsign": match.pilot_callsign,
+                "controller_callsign": match.controller_callsign,
+                "frequency": match.frequency,
+                "pilot_lat": match.pilot_lat,
+                "pilot_lon": match.pilot_lon,
+                "controller_lat": match.controller_lat,
+                "controller_lon": match.controller_lon,
+                "distance_nm": match.distance_nm,
+                "match_timestamp": match.match_timestamp.isoformat(),
+                "duration_seconds": match.duration_seconds,
+                "is_active": match.is_active,
+                "match_confidence": match.match_confidence,
+                "communication_type": match.communication_type
+            }
+            matches_data.append(match_data)
+        
+        return {
+            "status": "success",
+            "matches": matches_data,
+            "total_matches": len(matches_data),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting frequency matches: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get frequency matches: {e}")
+
+
+@app.get("/api/frequency-matching/summary")
+async def get_frequency_match_summary():
+    """
+    Get summary statistics for frequency matching
+    
+    Returns:
+        Frequency matching summary statistics
+    """
+    try:
+        summary = await frequency_matching_service.get_frequency_match_summary()
+        
+        return {
+            "status": "success",
+            "summary": {
+                "total_matches": summary.total_matches,
+                "active_matches": summary.active_matches,
+                "unique_pilots": summary.unique_pilots,
+                "unique_controllers": summary.unique_controllers,
+                "unique_frequencies": summary.unique_frequencies,
+                "avg_match_duration": summary.avg_match_duration,
+                "most_common_frequency": summary.most_common_frequency,
+                "busiest_controller": summary.busiest_controller,
+                "busiest_pilot": summary.busiest_pilot,
+                "communication_patterns": summary.communication_patterns,
+                "geographic_distribution": summary.geographic_distribution
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting frequency match summary: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get frequency match summary: {e}")
+
+
+@app.get("/api/frequency-matching/patterns")
+async def get_communication_patterns(frequency: Optional[int] = None):
+    """
+    Get communication patterns for frequency usage
+    
+    Args:
+        frequency: Optional specific frequency to analyze (in Hz)
+    
+    Returns:
+        Communication pattern analysis
+    """
+    try:
+        patterns = await frequency_matching_service.get_communication_patterns(frequency)
+        
+        # Convert to JSON-serializable format
+        patterns_data = []
+        for pattern in patterns:
+            pattern_data = {
+                "frequency": pattern.frequency,
+                "total_communications": pattern.total_communications,
+                "unique_pilots": pattern.unique_pilots,
+                "unique_controllers": pattern.unique_controllers,
+                "avg_duration": pattern.avg_duration,
+                "peak_hours": pattern.peak_hours,
+                "communication_types": pattern.communication_types,
+                "geographic_centers": pattern.geographic_centers
+            }
+            patterns_data.append(pattern_data)
+        
+        return {
+            "status": "success",
+            "patterns": patterns_data,
+            "total_patterns": len(patterns_data),
+            "frequency_filter": frequency,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting communication patterns: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get communication patterns: {e}")
+
+
+@app.get("/api/frequency-matching/health")
+async def get_frequency_matching_health():
+    """
+    Get health status of frequency matching service
+    
+    Returns:
+        Health status information
+    """
+    try:
+        health = await frequency_matching_service.health_check()
+        
+        return {
+            "status": "success",
+            "health": health,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting frequency matching health: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get frequency matching health: {e}")
+
+
+@app.get("/api/frequency-matching/pilot/{callsign}")
+async def get_pilot_frequency_matches(callsign: str):
+    """
+    Get frequency matches for a specific pilot
+    
+    Args:
+        callsign: Pilot callsign to search for
+    
+    Returns:
+        Frequency matches for the specified pilot
+    """
+    try:
+        matches = await frequency_matching_service.detect_frequency_matches()
+        
+        # Filter for specific pilot
+        pilot_matches = [m for m in matches if m.pilot_callsign.upper() == callsign.upper()]
+        
+        # Convert to JSON-serializable format
+        matches_data = []
+        for match in pilot_matches:
+            match_data = {
+                "pilot_callsign": match.pilot_callsign,
+                "controller_callsign": match.controller_callsign,
+                "frequency": match.frequency,
+                "pilot_lat": match.pilot_lat,
+                "pilot_lon": match.pilot_lon,
+                "controller_lat": match.controller_lat,
+                "controller_lon": match.controller_lon,
+                "distance_nm": match.distance_nm,
+                "match_timestamp": match.match_timestamp.isoformat(),
+                "duration_seconds": match.duration_seconds,
+                "is_active": match.is_active,
+                "match_confidence": match.match_confidence,
+                "communication_type": match.communication_type
+            }
+            matches_data.append(match_data)
+        
+        return {
+            "status": "success",
+            "pilot_callsign": callsign,
+            "matches": matches_data,
+            "total_matches": len(matches_data),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting pilot frequency matches: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get pilot frequency matches: {e}")
+
+
+@app.get("/api/frequency-matching/controller/{callsign}")
+async def get_controller_frequency_matches(callsign: str):
+    """
+    Get frequency matches for a specific controller
+    
+    Args:
+        callsign: Controller callsign to search for
+    
+    Returns:
+        Frequency matches for the specified controller
+    """
+    try:
+        matches = await frequency_matching_service.detect_frequency_matches()
+        
+        # Filter for specific controller
+        controller_matches = [m for m in matches if m.controller_callsign.upper() == callsign.upper()]
+        
+        # Convert to JSON-serializable format
+        matches_data = []
+        for match in controller_matches:
+            match_data = {
+                "pilot_callsign": match.pilot_callsign,
+                "controller_callsign": match.controller_callsign,
+                "frequency": match.frequency,
+                "pilot_lat": match.pilot_lat,
+                "pilot_lon": match.pilot_lon,
+                "controller_lat": match.controller_lat,
+                "controller_lon": match.controller_lon,
+                "distance_nm": match.distance_nm,
+                "match_timestamp": match.match_timestamp.isoformat(),
+                "duration_seconds": match.duration_seconds,
+                "is_active": match.is_active,
+                "match_confidence": match.match_confidence,
+                "communication_type": match.communication_type
+            }
+            matches_data.append(match_data)
+        
+        return {
+            "status": "success",
+            "controller_callsign": callsign,
+            "matches": matches_data,
+            "total_matches": len(matches_data),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting controller frequency matches: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get controller frequency matches: {e}")
+
+
+@app.get("/api/frequency-matching/frequency/{frequency_hz}")
+async def get_frequency_matches_by_frequency(frequency_hz: int):
+    """
+    Get frequency matches for a specific frequency
+    
+    Args:
+        frequency_hz: Frequency in Hz to search for
+    
+    Returns:
+        Frequency matches for the specified frequency
+    """
+    try:
+        matches = await frequency_matching_service.detect_frequency_matches()
+        
+        # Filter for specific frequency (with tolerance)
+        tolerance = 100  # Hz tolerance
+        frequency_matches = [m for m in matches if abs(m.frequency - frequency_hz) <= tolerance]
+        
+        # Convert to JSON-serializable format
+        matches_data = []
+        for match in frequency_matches:
+            match_data = {
+                "pilot_callsign": match.pilot_callsign,
+                "controller_callsign": match.controller_callsign,
+                "frequency": match.frequency,
+                "pilot_lat": match.pilot_lat,
+                "pilot_lon": match.pilot_lon,
+                "controller_lat": match.controller_lat,
+                "controller_lon": match.controller_lon,
+                "distance_nm": match.distance_nm,
+                "match_timestamp": match.match_timestamp.isoformat(),
+                "duration_seconds": match.duration_seconds,
+                "is_active": match.is_active,
+                "match_confidence": match.match_confidence,
+                "communication_type": match.communication_type
+            }
+            matches_data.append(match_data)
+        
+        return {
+            "status": "success",
+            "frequency_hz": frequency_hz,
+            "tolerance_hz": tolerance,
+            "matches": matches_data,
+            "total_matches": len(matches_data),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting frequency matches by frequency: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get frequency matches by frequency: {e}")
+
+
+@app.get("/api/frequency-matching/history")
+async def get_historical_frequency_matches(
+    pilot_callsign: Optional[str] = None,
+    controller_callsign: Optional[str] = None,
+    frequency: Optional[int] = None,
+    hours: int = 24
+):
+    """
+    Get historical frequency matches from database
+    
+    Args:
+        pilot_callsign: Optional pilot callsign filter
+        controller_callsign: Optional controller callsign filter
+        frequency: Optional frequency filter (in Hz)
+        hours: Number of hours to look back (default: 24)
+    
+    Returns:
+        Historical frequency matches
+    """
+    try:
+        matches = await frequency_matching_service.get_historical_frequency_matches(
+            pilot_callsign=pilot_callsign,
+            controller_callsign=controller_callsign,
+            frequency=frequency,
+            hours=hours
+        )
+        
+        # Convert to JSON-serializable format
+        matches_data = []
+        for match in matches:
+            match_data = {
+                "id": match.id,
+                "pilot_callsign": match.pilot_callsign,
+                "controller_callsign": match.controller_callsign,
+                "frequency": match.frequency,
+                "pilot_lat": match.pilot_lat,
+                "pilot_lon": match.pilot_lon,
+                "controller_lat": match.controller_lat,
+                "controller_lon": match.controller_lon,
+                "distance_nm": match.distance_nm,
+                "match_timestamp": match.match_timestamp.isoformat(),
+                "duration_seconds": match.duration_seconds,
+                "is_active": match.is_active,
+                "match_confidence": match.match_confidence,
+                "communication_type": match.communication_type,
+                "created_at": match.created_at.isoformat() if match.created_at else None
+            }
+            matches_data.append(match_data)
+        
+        return {
+            "status": "success",
+            "matches": matches_data,
+            "total_matches": len(matches_data),
+            "filters": {
+                "pilot_callsign": pilot_callsign,
+                "controller_callsign": controller_callsign,
+                "frequency": frequency,
+                "hours": hours
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting historical frequency matches: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get historical frequency matches: {e}")
+
+
+@app.get("/api/frequency-matching/statistics")
+async def get_frequency_matching_statistics(hours: int = 24):
+    """
+    Get comprehensive statistics for frequency matching
+    
+    Args:
+        hours: Number of hours to analyze (default: 24)
+    
+    Returns:
+        Frequency matching statistics
+    """
+    try:
+        # Get historical data
+        matches = await frequency_matching_service.get_historical_frequency_matches(hours=hours)
+        
+        if not matches:
+            return {
+                "status": "success",
+                "statistics": {
+                    "total_matches": 0,
+                    "active_matches": 0,
+                    "unique_pilots": 0,
+                    "unique_controllers": 0,
+                    "unique_frequencies": 0,
+                    "avg_duration": 0.0,
+                    "most_common_frequency": None,
+                    "busiest_controller": None,
+                    "busiest_pilot": None,
+                    "communication_patterns": {},
+                    "geographic_distribution": {},
+                    "frequency_distribution": {},
+                    "hourly_distribution": {}
+                },
+                "hours_analyzed": hours,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        
+        # Calculate statistics
+        unique_pilots = len(set(m.pilot_callsign for m in matches))
+        unique_controllers = len(set(m.controller_callsign for m in matches))
+        unique_frequencies = len(set(m.frequency for m in matches))
+        
+        # Average duration
+        durations = [m.duration_seconds or 0 for m in matches if m.duration_seconds]
+        avg_duration = sum(durations) / len(durations) if durations else 0.0
+        
+        # Most common frequency
+        frequency_counts = {}
+        for match in matches:
+            frequency_counts[match.frequency] = frequency_counts.get(match.frequency, 0) + 1
+        most_common_frequency = max(frequency_counts.items(), key=lambda x: x[1])[0] if frequency_counts else None
+        
+        # Busiest controller and pilot
+        controller_counts = {}
+        pilot_counts = {}
+        for match in matches:
+            controller_counts[match.controller_callsign] = controller_counts.get(match.controller_callsign, 0) + 1
+            pilot_counts[match.pilot_callsign] = pilot_counts.get(match.pilot_callsign, 0) + 1
+        
+        busiest_controller = max(controller_counts.items(), key=lambda x: x[1])[0] if controller_counts else None
+        busiest_pilot = max(pilot_counts.items(), key=lambda x: x[1])[0] if pilot_counts else None
+        
+        # Communication patterns
+        communication_patterns = {}
+        for match in matches:
+            comm_type = match.communication_type
+            communication_patterns[comm_type] = communication_patterns.get(comm_type, 0) + 1
+        
+        # Geographic distribution
+        geographic_distribution = {}
+        for match in matches:
+            if match.distance_nm:
+                if match.distance_nm <= 10:
+                    region = "local"
+                elif match.distance_nm <= 50:
+                    region = "regional"
+                else:
+                    region = "long_range"
+                geographic_distribution[region] = geographic_distribution.get(region, 0) + 1
+        
+        # Frequency distribution
+        frequency_distribution = {}
+        for match in matches:
+            freq_range = f"{match.frequency // 1000000}MHz"
+            frequency_distribution[freq_range] = frequency_distribution.get(freq_range, 0) + 1
+        
+        # Hourly distribution
+        hourly_distribution = {}
+        for match in matches:
+            hour = match.match_timestamp.hour
+            hourly_distribution[hour] = hourly_distribution.get(hour, 0) + 1
+        
+        statistics = {
+            "total_matches": len(matches),
+            "active_matches": len([m for m in matches if m.is_active]),
+            "unique_pilots": unique_pilots,
+            "unique_controllers": unique_controllers,
+            "unique_frequencies": unique_frequencies,
+            "avg_duration": avg_duration,
+            "most_common_frequency": most_common_frequency,
+            "busiest_controller": busiest_controller,
+            "busiest_pilot": busiest_pilot,
+            "communication_patterns": communication_patterns,
+            "geographic_distribution": geographic_distribution,
+            "frequency_distribution": frequency_distribution,
+            "hourly_distribution": hourly_distribution
+        }
+        
+        return {
+            "status": "success",
+            "statistics": statistics,
+            "hours_analyzed": hours,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting frequency matching statistics: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get frequency matching statistics: {e}")
+
+
+@app.post("/api/frequency-matching/store")
+async def store_current_frequency_matches():
+    """
+    Store current frequency matches in database
+    
+    Returns:
+        Storage operation result
+    """
+    try:
+        # Get current matches
+        matches = await frequency_matching_service.detect_frequency_matches()
+        
+        # Store in database
+        stored_count = await frequency_matching_service.store_frequency_matches(matches)
+        
+        return {
+            "status": "success",
+            "stored_count": stored_count,
+            "total_matches": len(matches),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error storing frequency matches: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to store frequency matches: {e}")
 
 if __name__ == "__main__":
     import uvicorn

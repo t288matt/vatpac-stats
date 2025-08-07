@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS flights (
     heading INTEGER,
     groundspeed INTEGER,
     cruise_tas INTEGER,
-    squawk VARCHAR(10),
+    transponder VARCHAR(10),
     
     -- Flight plan fields
     departure VARCHAR(10),

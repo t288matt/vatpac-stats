@@ -96,7 +96,7 @@ def handle_service_errors(func: Callable) -> Callable:
     """Decorator for standardized service error handling."""
     
     @wraps(func)
-    async def wrapper(*args, **kwargs):
+    async def async_wrapper(*args, **kwargs):
         operation = func.__name__
         service = getattr(args[0], 'service_name', 'unknown') if args else 'unknown'
         
@@ -111,7 +111,27 @@ def handle_service_errors(func: Callable) -> Callable:
             logger.error(f"Unexpected error in {operation}: {e}", exc_info=True)
             raise create_error("service", f"Unexpected error: {e}", service_name=service, operation=operation)
     
-    return wrapper
+    @wraps(func)
+    def sync_wrapper(*args, **kwargs):
+        operation = func.__name__
+        service = getattr(args[0], 'service_name', 'unknown') if args else 'unknown'
+        
+        try:
+            return func(*args, **kwargs)
+        except VATSIMSystemError as e:
+            error_tracker.record_error(e.__class__.__name__, service, operation)
+            logger.error(f"Service error in {service}: {e.message}", extra=e.details)
+            raise
+        except Exception as e:
+            error_tracker.record_error("UnexpectedError", service, operation)
+            logger.error(f"Unexpected error in {operation}: {e}", exc_info=True)
+            raise create_error("service", f"Unexpected error: {e}", service_name=service, operation=operation)
+    
+    # Return async wrapper for async functions, sync wrapper for sync functions
+    if asyncio.iscoroutinefunction(func):
+        return async_wrapper
+    else:
+        return sync_wrapper
 
 
 def retry_on_failure(
@@ -172,7 +192,7 @@ def log_operation(operation_name: str, log_args: bool = False, log_result: bool 
     
     def decorator(func: Callable) -> Callable:
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def async_wrapper(*args, **kwargs):
             start_time = time.time()
             service = getattr(args[0], 'service_name', 'unknown') if args else 'unknown'
             
@@ -221,7 +241,61 @@ def log_operation(operation_name: str, log_args: bool = False, log_result: bool 
                 )
                 raise
         
-        return wrapper
+        @wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            start_time = time.time()
+            service = getattr(args[0], 'service_name', 'unknown') if args else 'unknown'
+            
+            # Log operation start
+            log_data = {
+                "operation": operation_name,
+                "service": service,
+                "start_time": datetime.now(timezone.utc).isoformat()
+            }
+            
+            if log_args:
+                log_data["args"] = str(args[1:]) if len(args) > 1 else "[]"
+                log_data["kwargs"] = str(kwargs)
+            
+            logger.info(f"Starting operation: {operation_name}", extra=log_data)
+            
+            try:
+                result = func(*args, **kwargs)
+                duration = time.time() - start_time
+                
+                # Log operation completion
+                completion_data = {
+                    "operation": operation_name,
+                    "service": service,
+                    "duration": duration,
+                    "status": "success"
+                }
+                
+                if log_result:
+                    completion_data["result"] = str(result)[:200]  # Truncate long results
+                
+                logger.info(f"Completed operation: {operation_name} in {duration:.2f}s", extra=completion_data)
+                return result
+                
+            except Exception as e:
+                duration = time.time() - start_time
+                logger.error(
+                    f"Failed operation: {operation_name} after {duration:.2f}s - {e}",
+                    extra={
+                        "operation": operation_name,
+                        "service": service,
+                        "duration": duration,
+                        "error": str(e)
+                    },
+                    exc_info=True
+                )
+                raise
+        
+        # Return async wrapper for async functions, sync wrapper for sync functions
+        if asyncio.iscoroutinefunction(func):
+            return async_wrapper
+        else:
+            return sync_wrapper
     return decorator
 
 

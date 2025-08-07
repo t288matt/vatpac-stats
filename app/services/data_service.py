@@ -277,7 +277,7 @@ class DataService(DatabaseService):
             })
             
         except Exception as e:
-            logger.error(f"Error processing data in memory: {e}")
+            self.logger.error(f"Error processing data in memory: {e}")
     
     async def _process_atc_positions_in_memory(self, atc_positions_data: List[Dict[str, Any]]) -> int:
         """Process ATC positions in memory cache"""
@@ -361,6 +361,32 @@ class DataService(DatabaseService):
                     'position_lng': position_data.get('lng', 0.0) if position_data else 0.0,
                     'groundspeed': flight_data.get('groundspeed', 0),
                     'cruise_tas': flight_data.get('cruise_tas', 0),
+                    
+                    # VATSIM API fields
+                    'cid': flight_data.get('cid'),
+                    'name': flight_data.get('name'),
+                    'server': flight_data.get('server'),
+                    'pilot_rating': flight_data.get('pilot_rating'),
+                    'military_rating': flight_data.get('military_rating'),
+                    'latitude': flight_data.get('latitude'),
+                    'longitude': flight_data.get('longitude'),
+                    'qnh_i_hg': flight_data.get('qnh_i_hg'),
+                    'qnh_mb': flight_data.get('qnh_mb'),
+                    'logon_time': flight_data.get('logon_time'),
+                    'last_updated': flight_data.get('last_updated'),
+                    
+                    # Flight plan fields
+                    'flight_rules': flight_data.get('flight_rules'),
+                    'aircraft_faa': flight_data.get('aircraft_faa'),
+                    'aircraft_short': flight_data.get('aircraft_short'),
+                    'alternate': flight_data.get('alternate'),
+                    'planned_altitude': flight_data.get('planned_altitude'),
+                    'deptime': flight_data.get('deptime'),
+                    'enroute_time': flight_data.get('enroute_time'),
+                    'fuel_time': flight_data.get('fuel_time'),
+                    'remarks': flight_data.get('remarks'),
+                    'revision_id': flight_data.get('revision_id'),
+                    'assigned_transponder': flight_data.get('assigned_transponder'),
         
                     'last_updated_api': datetime.now(timezone.utc),
                     'status': 'active'
@@ -370,6 +396,31 @@ class DataService(DatabaseService):
                 timestamp_key = f"{callsign}_{int(time.time())}"
                 self.cache['flights'].set(timestamp_key, flight_record)
                 processed_count += 1
+                
+                # FIX: Update existing flight records to 'active' status when they appear in current VATSIM data
+                # This ensures flights that are currently flying are marked as active
+                db = SessionLocal()
+                try:
+                    existing_flights = db.query(Flight).filter(
+                        and_(
+                            Flight.callsign == callsign,
+                            Flight.status.in_(['stale', 'active'])
+                        )
+                    ).all()
+                    
+                    for existing_flight in existing_flights:
+                        existing_flight.status = 'active'
+                        existing_flight.last_updated = datetime.now(timezone.utc)
+                    
+                    if existing_flights:
+                        db.commit()
+                        self.logger.debug(f"Updated {len(existing_flights)} existing records for {callsign} to active status")
+                        
+                except Exception as e:
+                    db.rollback()
+                    self.logger.error(f"Error updating existing flight status for {callsign}: {e}")
+                finally:
+                    db.close()
             
             if config.flight_filter.enabled:
                 self.logger.info(f"Processed {processed_count} Australian flights out of {len(flights_data)} total flights")
@@ -492,6 +543,22 @@ class DataService(DatabaseService):
                 flight.completion_method = 'landing'
                 flight.completion_confidence = landing_detection['confidence']
                 
+                # FIX: Update all existing position records for this flight to 'landed' status
+                # This ensures consistent status reporting across all records for the same flight
+                existing_flights = db.query(Flight).filter(
+                    and_(
+                        Flight.callsign == landing_detection['callsign'],
+                        Flight.status.in_(['active', 'stale'])
+                    )
+                ).all()
+                
+                for existing_flight in existing_flights:
+                    if existing_flight.id != flight.id:  # Don't update the main flight record twice
+                        existing_flight.status = 'landed'
+                        existing_flight.landed_at = landing_detection['timestamp']
+                        existing_flight.completion_method = 'landing'
+                        existing_flight.completion_confidence = landing_detection['confidence']
+                
                 # Create traffic movement record for landing
                 from ..models import TrafficMovement
                 movement = TrafficMovement(
@@ -562,6 +629,22 @@ class DataService(DatabaseService):
                         flight.completed_at = datetime.now(timezone.utc)
                         flight.pilot_disconnected_at = datetime.now(timezone.utc)
                         flight.disconnect_method = 'detected'
+                        
+                        # FIX: Update all existing landed records for this flight to 'completed' status
+                        # This ensures consistent status reporting across all records for the same flight
+                        existing_landed_flights = db.query(Flight).filter(
+                            and_(
+                                Flight.callsign == flight.callsign,
+                                Flight.status == 'landed'
+                            )
+                        ).all()
+                        
+                        for existing_flight in existing_landed_flights:
+                            if existing_flight.id != flight.id:  # Don't update the main flight record twice
+                                existing_flight.status = 'completed'
+                                existing_flight.completed_at = datetime.now(timezone.utc)
+                                existing_flight.pilot_disconnected_at = datetime.now(timezone.utc)
+                                existing_flight.disconnect_method = 'detected'
                         
                         # Now store flight summary
                         await self._store_flight_summary(flight)
@@ -844,12 +927,12 @@ class DataService(DatabaseService):
                 
             except Exception as e:
                 db.rollback()
-                logger.error(f"Error in cleanup: {e}")
+                self.logger.error(f"Error in cleanup: {e}")
             finally:
                 db.close()
                 
         except Exception as e:
-            logger.error(f"Error in cleanup process: {e}")
+            self.logger.error(f"Error in cleanup process: {e}")
     
     async def _update_flight_statuses(self):
         """Update flight statuses based on recent activity"""
@@ -927,12 +1010,12 @@ class DataService(DatabaseService):
                 
             except Exception as e:
                 db.rollback()
-                logger.error(f"Error storing flight summary: {e}")
+                self.logger.error(f"Error storing flight summary: {e}")
             finally:
                 db.close()
                 
         except Exception as e:
-            logger.error(f"Error in flight summary storage: {e}")
+            self.logger.error(f"Error in flight summary storage: {e}")
     
     def get_network_status(self) -> Dict[str, Any]:
         """
@@ -965,7 +1048,7 @@ class DataService(DatabaseService):
             }
             
         except Exception as e:
-            logger.error("Failed to get network status", extra={
+            self.logger.error("Failed to get network status", extra={
                 "error": str(e)
             })
             return {
