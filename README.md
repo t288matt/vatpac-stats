@@ -58,28 +58,15 @@ The flight table stores comprehensive flight data with 39 optimized columns:
 | **Status** | `status` | App | Flight status management |
 | **Timestamps** | `last_updated_api`, `created_at`, `updated_at` | Mixed | Data timestamps |
 
-### Flight Status System
+### Flight Tracking System
 
-Flight status is managed through a lifecycle system:
+The system tracks all flights in real-time without status complexity:
 
-| Status | Description | Trigger |
-|--------|-------------|---------|
-| `'active'` | Currently flying | Updated in last API call |
-| `'stale'` | Recently seen but not in latest update | Not updated in last 2.5× API polling interval |
-| `'completed'` | Flight finished | Automatic cleanup (1 hour) |
-| `'cancelled'` | Flight cancelled | Manual/API update |
-| `'unknown'` | Status unclear | Fallback/error state |
+**Real-time Data:** All flights are tracked equally without status-based filtering or lifecycle management.
 
-**Status Lifecycle:**
-```
-VATSIM API → New Flight → 'active' → (2.5× polling interval) → 'stale' → (1 hour) → 'completed'
-```
+**Simplified Architecture:** The system focuses on core flight data collection without the complexity of status transitions, cleanup processes, or completion detection.
 
-**Cleanup Process:** The system automatically runs every hour to mark flights older than 1 hour as 'completed'. This prevents database bloat while preserving flight data for analytics.
-
-**⚠️ Flight Continuity Constraint:** If a flight logs off during cruise for more than 1 hour, it will be marked as 'completed' by the cleanup process. If the pilot logs back on, it will be treated as a **new flight** rather than continuing the previous flight. This ensures data integrity but means long breaks in flight will create separate flight records.
-
-**🔄 Stale Flight Recovery:** Flights marked as 'stale' will automatically return to 'active' status if they receive an update within the 1-hour cleanup window.
+**Data Preservation:** All flight data is preserved for analytics without status-based filtering or automatic cleanup.
 
 ## ⚙️ Configuration
 
@@ -89,8 +76,6 @@ VATSIM API → New Flight → 'active' → (2.5× polling interval) → 'stale' 
 # VATSIM Data Collection
 VATSIM_POLLING_INTERVAL: 10      # API polling (seconds)
 WRITE_TO_DISK_INTERVAL: 15       # Database writes (seconds)
-VATSIM_CLEANUP_INTERVAL: 3600    # Data cleanup (seconds)
-STALE_FLIGHT_TIMEOUT_MULTIPLIER: 2.5  # Stale timeout multiplier
 
 # Database
 DATABASE_URL: postgresql://user:pass@host:5432/db
@@ -113,9 +98,8 @@ LOG_LEVEL: INFO
 ## 🔌 API Endpoints
 
 ### Flight Data
-- `GET /api/flights` - Get all active flights
+- `GET /api/flights` - Get all flights
 - `GET /api/flights/{callsign}` - Get specific flight
-- `GET /api/flights/status/{status}` - Get flights by status
 
 ### Network Status
 - `GET /api/status` - System health and statistics
@@ -129,7 +113,7 @@ LOG_LEVEL: INFO
 ## 📈 Monitoring
 
 ### Grafana Dashboards
-- **Real-time Flight Tracking**: Live flight positions and status
+- **Real-time Flight Tracking**: Live flight positions
 - **Network Statistics**: VATSIM network health and activity
 - **Traffic Analysis**: Airport movement patterns
 - **System Performance**: Application metrics and database performance

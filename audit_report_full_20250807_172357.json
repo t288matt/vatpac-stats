@@ -1,0 +1,3198 @@
+{
+  "audit_timestamp": "2025-08-07T17:23:57.144083",
+  "audit_type": "full",
+  "database_version": "PostgreSQL 15.13 on x86_64-pc-linux-musl, compiled by gcc (Alpine 14.2.0) 14.2.0, 64-bit",
+  "total_tables": 14,
+  "total_fields": 185,
+  "total_indexes": 43,
+  "table_audits": [
+    {
+      "table_name": "movement_summaries",
+      "database_fields": [
+        {
+          "field_name": "id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": "nextval('movement_summaries_id_seq'::regclass)",
+          "constraints": null,
+          "description": "Database column: id"
+        },
+        {
+          "field_name": "airport_icao",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: airport_icao"
+        },
+        {
+          "field_name": "movement_type",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: movement_type"
+        },
+        {
+          "field_name": "aircraft_type",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: aircraft_type"
+        },
+        {
+          "field_name": "date",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: date"
+        },
+        {
+          "field_name": "hour",
+          "source_type": "database",
+          "data_type": "SMALLINT",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: hour"
+        },
+        {
+          "field_name": "count",
+          "source_type": "database",
+          "data_type": "SMALLINT",
+          "nullable": true,
+          "default_value": "1",
+          "constraints": null,
+          "description": "Database column: count"
+        }
+      ],
+      "model_fields": [],
+      "api_fields": [],
+      "missing_fields": [],
+      "extra_fields": [
+        "airport_icao",
+        "count",
+        "hour",
+        "id",
+        "aircraft_type",
+        "movement_type",
+        "date"
+      ],
+      "type_mismatches": [],
+      "index_count": 0,
+      "constraint_count": 0,
+      "record_count": 0,
+      "status": "warn"
+    },
+    {
+      "table_name": "controllers",
+      "database_fields": [
+        {
+          "field_name": "id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": "nextval('controllers_id_seq'::regclass)",
+          "constraints": null,
+          "description": "Database column: id"
+        },
+        {
+          "field_name": "callsign",
+          "source_type": "database",
+          "data_type": "VARCHAR(50)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: callsign"
+        },
+        {
+          "field_name": "facility",
+          "source_type": "database",
+          "data_type": "VARCHAR(50)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: facility"
+        },
+        {
+          "field_name": "position",
+          "source_type": "database",
+          "data_type": "VARCHAR(50)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: position"
+        },
+        {
+          "field_name": "status",
+          "source_type": "database",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": "'offline'::character varying",
+          "constraints": null,
+          "description": "Database column: status"
+        },
+        {
+          "field_name": "frequency",
+          "source_type": "database",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: frequency"
+        },
+        {
+          "field_name": "last_seen",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: last_seen"
+        },
+        {
+          "field_name": "workload_score",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": "0.0",
+          "constraints": null,
+          "description": "Database column: workload_score"
+        },
+        {
+          "field_name": "preferences",
+          "source_type": "database",
+          "data_type": "TEXT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: preferences"
+        },
+        {
+          "field_name": "controller_id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: controller_id"
+        },
+        {
+          "field_name": "controller_name",
+          "source_type": "database",
+          "data_type": "VARCHAR(100)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: controller_name"
+        },
+        {
+          "field_name": "controller_rating",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: controller_rating"
+        },
+        {
+          "field_name": "visual_range",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: visual_range"
+        },
+        {
+          "field_name": "text_atis",
+          "source_type": "database",
+          "data_type": "TEXT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: text_atis"
+        },
+        {
+          "field_name": "created_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: created_at"
+        },
+        {
+          "field_name": "updated_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: updated_at"
+        }
+      ],
+      "model_fields": [
+        {
+          "field_name": "id",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: id"
+        },
+        {
+          "field_name": "callsign",
+          "source_type": "model",
+          "data_type": "VARCHAR(50)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: callsign"
+        },
+        {
+          "field_name": "facility",
+          "source_type": "model",
+          "data_type": "VARCHAR(50)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: facility"
+        },
+        {
+          "field_name": "position",
+          "source_type": "model",
+          "data_type": "VARCHAR(50)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: position"
+        },
+        {
+          "field_name": "status",
+          "source_type": "model",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": "offline",
+          "constraints": null,
+          "description": "Model field: status"
+        },
+        {
+          "field_name": "frequency",
+          "source_type": "model",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: frequency"
+        },
+        {
+          "field_name": "last_seen",
+          "source_type": "model",
+          "data_type": "DATETIME",
+          "nullable": true,
+          "default_value": "<function datetime.utcnow at 0x0000020E42C593A0>",
+          "constraints": null,
+          "description": "Model field: last_seen"
+        },
+        {
+          "field_name": "workload_score",
+          "source_type": "model",
+          "data_type": "FLOAT",
+          "nullable": true,
+          "default_value": "0.0",
+          "constraints": null,
+          "description": "Model field: workload_score"
+        },
+        {
+          "field_name": "preferences",
+          "source_type": "model",
+          "data_type": "JSON",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: preferences"
+        },
+        {
+          "field_name": "controller_id",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: controller_id"
+        },
+        {
+          "field_name": "controller_name",
+          "source_type": "model",
+          "data_type": "VARCHAR(100)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: controller_name"
+        },
+        {
+          "field_name": "controller_rating",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: controller_rating"
+        },
+        {
+          "field_name": "visual_range",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: visual_range"
+        },
+        {
+          "field_name": "text_atis",
+          "source_type": "model",
+          "data_type": "TEXT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: text_atis"
+        },
+        {
+          "field_name": "created_at",
+          "source_type": "model",
+          "data_type": "DATETIME",
+          "nullable": true,
+          "default_value": "<function datetime.utcnow at 0x0000020E42C59440>",
+          "constraints": null,
+          "description": "Model field: created_at"
+        },
+        {
+          "field_name": "updated_at",
+          "source_type": "model",
+          "data_type": "DATETIME",
+          "nullable": true,
+          "default_value": "<function datetime.utcnow at 0x0000020E42C594E0>",
+          "constraints": null,
+          "description": "Model field: updated_at"
+        }
+      ],
+      "api_fields": [
+        {
+          "field_name": "controller_id",
+          "source_type": "api",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: VATSIM user ID"
+        },
+        {
+          "field_name": "controller_name",
+          "source_type": "api",
+          "data_type": "VARCHAR(100)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Controller name"
+        },
+        {
+          "field_name": "controller_rating",
+          "source_type": "api",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Controller rating"
+        },
+        {
+          "field_name": "callsign",
+          "source_type": "api",
+          "data_type": "VARCHAR(50)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: ATC callsign"
+        },
+        {
+          "field_name": "facility",
+          "source_type": "api",
+          "data_type": "VARCHAR(50)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Facility type"
+        },
+        {
+          "field_name": "frequency",
+          "source_type": "api",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Radio frequency"
+        },
+        {
+          "field_name": "position",
+          "source_type": "api",
+          "data_type": "VARCHAR(50)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Position description"
+        },
+        {
+          "field_name": "status",
+          "source_type": "api",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Online/offline status"
+        },
+        {
+          "field_name": "visual_range",
+          "source_type": "api",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Visual range in nautical miles"
+        },
+        {
+          "field_name": "text_atis",
+          "source_type": "api",
+          "data_type": "TEXT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: ATIS text information"
+        }
+      ],
+      "missing_fields": [],
+      "extra_fields": [],
+      "type_mismatches": [
+        {
+          "field_name": "created_at",
+          "database_type": "TIMESTAMP",
+          "model_type": "DATETIME",
+          "severity": "medium"
+        },
+        {
+          "field_name": "workload_score",
+          "database_type": "DOUBLE PRECISION",
+          "model_type": "FLOAT",
+          "severity": "medium"
+        },
+        {
+          "field_name": "last_seen",
+          "database_type": "TIMESTAMP",
+          "model_type": "DATETIME",
+          "severity": "medium"
+        },
+        {
+          "field_name": "updated_at",
+          "database_type": "TIMESTAMP",
+          "model_type": "DATETIME",
+          "severity": "medium"
+        },
+        {
+          "field_name": "preferences",
+          "database_type": "TEXT",
+          "model_type": "JSON",
+          "severity": "medium"
+        }
+      ],
+      "index_count": 4,
+      "constraint_count": 1,
+      "record_count": 271,
+      "status": "warn"
+    },
+    {
+      "table_name": "sectors",
+      "database_fields": [
+        {
+          "field_name": "id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": "nextval('sectors_id_seq'::regclass)",
+          "constraints": null,
+          "description": "Database column: id"
+        },
+        {
+          "field_name": "name",
+          "source_type": "database",
+          "data_type": "VARCHAR(100)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: name"
+        },
+        {
+          "field_name": "facility",
+          "source_type": "database",
+          "data_type": "VARCHAR(50)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: facility"
+        },
+        {
+          "field_name": "controller_id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: controller_id"
+        },
+        {
+          "field_name": "traffic_density",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": "0",
+          "constraints": null,
+          "description": "Database column: traffic_density"
+        },
+        {
+          "field_name": "status",
+          "source_type": "database",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": "'unmanned'::character varying",
+          "constraints": null,
+          "description": "Database column: status"
+        },
+        {
+          "field_name": "priority_level",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": "1",
+          "constraints": null,
+          "description": "Database column: priority_level"
+        },
+        {
+          "field_name": "boundaries",
+          "source_type": "database",
+          "data_type": "TEXT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: boundaries"
+        },
+        {
+          "field_name": "created_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: created_at"
+        },
+        {
+          "field_name": "updated_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: updated_at"
+        }
+      ],
+      "model_fields": [],
+      "api_fields": [],
+      "missing_fields": [],
+      "extra_fields": [
+        "created_at",
+        "status",
+        "id",
+        "priority_level",
+        "facility",
+        "controller_id",
+        "name",
+        "traffic_density",
+        "updated_at",
+        "boundaries"
+      ],
+      "type_mismatches": [],
+      "index_count": 0,
+      "constraint_count": 1,
+      "record_count": 0,
+      "status": "warn"
+    },
+    {
+      "table_name": "airport_config",
+      "database_fields": [
+        {
+          "field_name": "id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": "nextval('airport_config_id_seq'::regclass)",
+          "constraints": null,
+          "description": "Database column: id"
+        },
+        {
+          "field_name": "icao_code",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: icao_code"
+        },
+        {
+          "field_name": "name",
+          "source_type": "database",
+          "data_type": "VARCHAR(200)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: name"
+        },
+        {
+          "field_name": "latitude",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: latitude"
+        },
+        {
+          "field_name": "longitude",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: longitude"
+        },
+        {
+          "field_name": "detection_radius_nm",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": "10.0",
+          "constraints": null,
+          "description": "Database column: detection_radius_nm"
+        },
+        {
+          "field_name": "departure_altitude_threshold",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": "1000",
+          "constraints": null,
+          "description": "Database column: departure_altitude_threshold"
+        },
+        {
+          "field_name": "arrival_altitude_threshold",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": "3000",
+          "constraints": null,
+          "description": "Database column: arrival_altitude_threshold"
+        },
+        {
+          "field_name": "departure_speed_threshold",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": "50",
+          "constraints": null,
+          "description": "Database column: departure_speed_threshold"
+        },
+        {
+          "field_name": "arrival_speed_threshold",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": "150",
+          "constraints": null,
+          "description": "Database column: arrival_speed_threshold"
+        },
+        {
+          "field_name": "is_active",
+          "source_type": "database",
+          "data_type": "BOOLEAN",
+          "nullable": true,
+          "default_value": "true",
+          "constraints": null,
+          "description": "Database column: is_active"
+        },
+        {
+          "field_name": "region",
+          "source_type": "database",
+          "data_type": "VARCHAR(50)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: region"
+        },
+        {
+          "field_name": "last_updated",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: last_updated"
+        },
+        {
+          "field_name": "updated_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: updated_at"
+        }
+      ],
+      "model_fields": [],
+      "api_fields": [],
+      "missing_fields": [],
+      "extra_fields": [
+        "departure_speed_threshold",
+        "departure_altitude_threshold",
+        "id",
+        "longitude",
+        "is_active",
+        "arrival_speed_threshold",
+        "latitude",
+        "last_updated",
+        "arrival_altitude_threshold",
+        "name",
+        "updated_at",
+        "region",
+        "detection_radius_nm",
+        "icao_code"
+      ],
+      "type_mismatches": [],
+      "index_count": 2,
+      "constraint_count": 1,
+      "record_count": 0,
+      "status": "warn"
+    },
+    {
+      "table_name": "airports",
+      "database_fields": [
+        {
+          "field_name": "id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": "nextval('airports_id_seq'::regclass)",
+          "constraints": null,
+          "description": "Database column: id"
+        },
+        {
+          "field_name": "icao_code",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: icao_code"
+        },
+        {
+          "field_name": "name",
+          "source_type": "database",
+          "data_type": "VARCHAR(200)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: name"
+        },
+        {
+          "field_name": "latitude",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: latitude"
+        },
+        {
+          "field_name": "longitude",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: longitude"
+        },
+        {
+          "field_name": "elevation",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: elevation"
+        },
+        {
+          "field_name": "country",
+          "source_type": "database",
+          "data_type": "VARCHAR(100)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: country"
+        },
+        {
+          "field_name": "region",
+          "source_type": "database",
+          "data_type": "VARCHAR(100)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: region"
+        }
+      ],
+      "model_fields": [
+        {
+          "field_name": "id",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: id"
+        },
+        {
+          "field_name": "icao_code",
+          "source_type": "model",
+          "data_type": "VARCHAR(10)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: icao_code"
+        },
+        {
+          "field_name": "name",
+          "source_type": "model",
+          "data_type": "VARCHAR(200)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: name"
+        },
+        {
+          "field_name": "latitude",
+          "source_type": "model",
+          "data_type": "FLOAT",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: latitude"
+        },
+        {
+          "field_name": "longitude",
+          "source_type": "model",
+          "data_type": "FLOAT",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: longitude"
+        },
+        {
+          "field_name": "elevation",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: elevation"
+        },
+        {
+          "field_name": "country",
+          "source_type": "model",
+          "data_type": "VARCHAR(100)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: country"
+        },
+        {
+          "field_name": "region",
+          "source_type": "model",
+          "data_type": "VARCHAR(100)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: region"
+        }
+      ],
+      "api_fields": [],
+      "missing_fields": [],
+      "extra_fields": [],
+      "type_mismatches": [
+        {
+          "field_name": "longitude",
+          "database_type": "DOUBLE PRECISION",
+          "model_type": "FLOAT",
+          "severity": "medium"
+        },
+        {
+          "field_name": "latitude",
+          "database_type": "DOUBLE PRECISION",
+          "model_type": "FLOAT",
+          "severity": "medium"
+        }
+      ],
+      "index_count": 2,
+      "constraint_count": 1,
+      "record_count": 2720,
+      "status": "warn"
+    },
+    {
+      "table_name": "flight_summaries",
+      "database_fields": [
+        {
+          "field_name": "id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": "nextval('flight_summaries_id_seq'::regclass)",
+          "constraints": null,
+          "description": "Database column: id"
+        },
+        {
+          "field_name": "callsign",
+          "source_type": "database",
+          "data_type": "VARCHAR(20)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: callsign"
+        },
+        {
+          "field_name": "aircraft_type",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: aircraft_type"
+        },
+        {
+          "field_name": "departure",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: departure"
+        },
+        {
+          "field_name": "arrival",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: arrival"
+        },
+        {
+          "field_name": "route",
+          "source_type": "database",
+          "data_type": "TEXT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: route"
+        },
+        {
+          "field_name": "max_altitude",
+          "source_type": "database",
+          "data_type": "SMALLINT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: max_altitude"
+        },
+        {
+          "field_name": "duration_minutes",
+          "source_type": "database",
+          "data_type": "SMALLINT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: duration_minutes"
+        },
+        {
+          "field_name": "controller_id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: controller_id"
+        },
+        {
+          "field_name": "sector_id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: sector_id"
+        },
+        {
+          "field_name": "completed_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: completed_at"
+        }
+      ],
+      "model_fields": [],
+      "api_fields": [],
+      "missing_fields": [],
+      "extra_fields": [
+        "duration_minutes",
+        "id",
+        "aircraft_type",
+        "sector_id",
+        "max_altitude",
+        "route",
+        "completed_at",
+        "controller_id",
+        "arrival",
+        "departure",
+        "callsign"
+      ],
+      "type_mismatches": [],
+      "index_count": 0,
+      "constraint_count": 2,
+      "record_count": 363,
+      "status": "warn"
+    },
+    {
+      "table_name": "vatsim_status",
+      "database_fields": [
+        {
+          "field_name": "id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": "nextval('vatsim_status_id_seq'::regclass)",
+          "constraints": null,
+          "description": "Database column: id"
+        },
+        {
+          "field_name": "api_version",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: api_version"
+        },
+        {
+          "field_name": "reload",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: reload"
+        },
+        {
+          "field_name": "update_timestamp",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: update_timestamp"
+        },
+        {
+          "field_name": "connected_clients",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: connected_clients"
+        },
+        {
+          "field_name": "unique_users",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: unique_users"
+        },
+        {
+          "field_name": "created_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: created_at"
+        },
+        {
+          "field_name": "updated_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: updated_at"
+        }
+      ],
+      "model_fields": [],
+      "api_fields": [],
+      "missing_fields": [],
+      "extra_fields": [
+        "api_version",
+        "created_at",
+        "id",
+        "reload",
+        "update_timestamp",
+        "unique_users",
+        "connected_clients",
+        "updated_at"
+      ],
+      "type_mismatches": [],
+      "index_count": 1,
+      "constraint_count": 0,
+      "record_count": 0,
+      "status": "warn"
+    },
+    {
+      "table_name": "flights",
+      "database_fields": [
+        {
+          "field_name": "id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": "nextval('flights_id_seq'::regclass)",
+          "constraints": null,
+          "description": "Database column: id"
+        },
+        {
+          "field_name": "callsign",
+          "source_type": "database",
+          "data_type": "VARCHAR(50)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: callsign"
+        },
+        {
+          "field_name": "aircraft_type",
+          "source_type": "database",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: aircraft_type"
+        },
+        {
+          "field_name": "position_lat",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: position_lat"
+        },
+        {
+          "field_name": "position_lng",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: position_lng"
+        },
+        {
+          "field_name": "altitude",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: altitude"
+        },
+        {
+          "field_name": "heading",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: heading"
+        },
+        {
+          "field_name": "groundspeed",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: groundspeed"
+        },
+        {
+          "field_name": "cruise_tas",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: cruise_tas"
+        },
+        {
+          "field_name": "departure",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: departure"
+        },
+        {
+          "field_name": "arrival",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: arrival"
+        },
+        {
+          "field_name": "route",
+          "source_type": "database",
+          "data_type": "TEXT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: route"
+        },
+        {
+          "field_name": "status",
+          "source_type": "database",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": "'active'::character varying",
+          "constraints": null,
+          "description": "Database column: status"
+        },
+        {
+          "field_name": "last_updated",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: last_updated"
+        },
+        {
+          "field_name": "created_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: created_at"
+        },
+        {
+          "field_name": "updated_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: updated_at"
+        },
+        {
+          "field_name": "cid",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: cid"
+        },
+        {
+          "field_name": "name",
+          "source_type": "database",
+          "data_type": "VARCHAR(100)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: name"
+        },
+        {
+          "field_name": "server",
+          "source_type": "database",
+          "data_type": "VARCHAR(50)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: server"
+        },
+        {
+          "field_name": "pilot_rating",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: pilot_rating"
+        },
+        {
+          "field_name": "military_rating",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: military_rating"
+        },
+        {
+          "field_name": "latitude",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: latitude"
+        },
+        {
+          "field_name": "longitude",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: longitude"
+        },
+        {
+          "field_name": "transponder",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: transponder"
+        },
+        {
+          "field_name": "qnh_i_hg",
+          "source_type": "database",
+          "data_type": "NUMERIC(4, 2)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: qnh_i_hg"
+        },
+        {
+          "field_name": "qnh_mb",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: qnh_mb"
+        },
+        {
+          "field_name": "logon_time",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: logon_time"
+        },
+        {
+          "field_name": "last_updated_api",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: last_updated_api"
+        },
+        {
+          "field_name": "flight_rules",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: flight_rules"
+        },
+        {
+          "field_name": "aircraft_faa",
+          "source_type": "database",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: aircraft_faa"
+        },
+        {
+          "field_name": "aircraft_short",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: aircraft_short"
+        },
+        {
+          "field_name": "alternate",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: alternate"
+        },
+        {
+          "field_name": "planned_altitude",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: planned_altitude"
+        },
+        {
+          "field_name": "deptime",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: deptime"
+        },
+        {
+          "field_name": "enroute_time",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: enroute_time"
+        },
+        {
+          "field_name": "fuel_time",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: fuel_time"
+        },
+        {
+          "field_name": "remarks",
+          "source_type": "database",
+          "data_type": "TEXT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: remarks"
+        },
+        {
+          "field_name": "revision_id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: revision_id"
+        },
+        {
+          "field_name": "assigned_transponder",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: assigned_transponder"
+        },
+        {
+          "field_name": "completed_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: completed_at"
+        },
+        {
+          "field_name": "completion_method",
+          "source_type": "database",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: completion_method"
+        },
+        {
+          "field_name": "completion_confidence",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: completion_confidence"
+        },
+        {
+          "field_name": "pilot_disconnected_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: pilot_disconnected_at"
+        },
+        {
+          "field_name": "disconnect_method",
+          "source_type": "database",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: disconnect_method"
+        },
+        {
+          "field_name": "landed_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: landed_at"
+        }
+      ],
+      "model_fields": [
+        {
+          "field_name": "id",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: id"
+        },
+        {
+          "field_name": "callsign",
+          "source_type": "model",
+          "data_type": "VARCHAR(50)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: callsign"
+        },
+        {
+          "field_name": "aircraft_type",
+          "source_type": "model",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: aircraft_type"
+        },
+        {
+          "field_name": "position_lat",
+          "source_type": "model",
+          "data_type": "FLOAT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: position_lat"
+        },
+        {
+          "field_name": "position_lng",
+          "source_type": "model",
+          "data_type": "FLOAT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: position_lng"
+        },
+        {
+          "field_name": "altitude",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: altitude"
+        },
+        {
+          "field_name": "heading",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: heading"
+        },
+        {
+          "field_name": "groundspeed",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: groundspeed"
+        },
+        {
+          "field_name": "cruise_tas",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: cruise_tas"
+        },
+        {
+          "field_name": "departure",
+          "source_type": "model",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: departure"
+        },
+        {
+          "field_name": "arrival",
+          "source_type": "model",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: arrival"
+        },
+        {
+          "field_name": "route",
+          "source_type": "model",
+          "data_type": "TEXT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: route"
+        },
+        {
+          "field_name": "status",
+          "source_type": "model",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": "active",
+          "constraints": null,
+          "description": "Model field: status"
+        },
+        {
+          "field_name": "last_updated",
+          "source_type": "model",
+          "data_type": "DATETIME",
+          "nullable": true,
+          "default_value": "<function datetime.utcnow at 0x0000020E42C7CFE0>",
+          "constraints": null,
+          "description": "Model field: last_updated"
+        },
+        {
+          "field_name": "created_at",
+          "source_type": "model",
+          "data_type": "DATETIME",
+          "nullable": true,
+          "default_value": "<function datetime.utcnow at 0x0000020E42C7D080>",
+          "constraints": null,
+          "description": "Model field: created_at"
+        },
+        {
+          "field_name": "updated_at",
+          "source_type": "model",
+          "data_type": "DATETIME",
+          "nullable": true,
+          "default_value": "<function datetime.utcnow at 0x0000020E42C7D120>",
+          "constraints": null,
+          "description": "Model field: updated_at"
+        },
+        {
+          "field_name": "landed_at",
+          "source_type": "model",
+          "data_type": "DATETIME",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: landed_at"
+        },
+        {
+          "field_name": "completed_at",
+          "source_type": "model",
+          "data_type": "DATETIME",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: completed_at"
+        },
+        {
+          "field_name": "completion_method",
+          "source_type": "model",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: completion_method"
+        },
+        {
+          "field_name": "completion_confidence",
+          "source_type": "model",
+          "data_type": "FLOAT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: completion_confidence"
+        },
+        {
+          "field_name": "pilot_disconnected_at",
+          "source_type": "model",
+          "data_type": "DATETIME",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: pilot_disconnected_at"
+        },
+        {
+          "field_name": "disconnect_method",
+          "source_type": "model",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: disconnect_method"
+        },
+        {
+          "field_name": "cid",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: cid"
+        },
+        {
+          "field_name": "name",
+          "source_type": "model",
+          "data_type": "VARCHAR(100)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: name"
+        },
+        {
+          "field_name": "server",
+          "source_type": "model",
+          "data_type": "VARCHAR(50)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: server"
+        },
+        {
+          "field_name": "pilot_rating",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: pilot_rating"
+        },
+        {
+          "field_name": "military_rating",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: military_rating"
+        },
+        {
+          "field_name": "latitude",
+          "source_type": "model",
+          "data_type": "FLOAT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: latitude"
+        },
+        {
+          "field_name": "longitude",
+          "source_type": "model",
+          "data_type": "FLOAT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: longitude"
+        },
+        {
+          "field_name": "transponder",
+          "source_type": "model",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: transponder"
+        },
+        {
+          "field_name": "qnh_i_hg",
+          "source_type": "model",
+          "data_type": "DECIMAL(4, 2)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: qnh_i_hg"
+        },
+        {
+          "field_name": "qnh_mb",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: qnh_mb"
+        },
+        {
+          "field_name": "logon_time",
+          "source_type": "model",
+          "data_type": "DATETIME",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: logon_time"
+        },
+        {
+          "field_name": "last_updated_api",
+          "source_type": "model",
+          "data_type": "DATETIME",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: last_updated_api"
+        },
+        {
+          "field_name": "flight_rules",
+          "source_type": "model",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: flight_rules"
+        },
+        {
+          "field_name": "aircraft_faa",
+          "source_type": "model",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: aircraft_faa"
+        },
+        {
+          "field_name": "aircraft_short",
+          "source_type": "model",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: aircraft_short"
+        },
+        {
+          "field_name": "alternate",
+          "source_type": "model",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: alternate"
+        },
+        {
+          "field_name": "planned_altitude",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: planned_altitude"
+        },
+        {
+          "field_name": "deptime",
+          "source_type": "model",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: deptime"
+        },
+        {
+          "field_name": "enroute_time",
+          "source_type": "model",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: enroute_time"
+        },
+        {
+          "field_name": "fuel_time",
+          "source_type": "model",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: fuel_time"
+        },
+        {
+          "field_name": "remarks",
+          "source_type": "model",
+          "data_type": "TEXT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: remarks"
+        },
+        {
+          "field_name": "revision_id",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: revision_id"
+        },
+        {
+          "field_name": "assigned_transponder",
+          "source_type": "model",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: assigned_transponder"
+        }
+      ],
+      "api_fields": [
+        {
+          "field_name": "cid",
+          "source_type": "api",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: VATSIM user ID"
+        },
+        {
+          "field_name": "name",
+          "source_type": "api",
+          "data_type": "VARCHAR(100)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Pilot name"
+        },
+        {
+          "field_name": "server",
+          "source_type": "api",
+          "data_type": "VARCHAR(50)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Network server"
+        },
+        {
+          "field_name": "pilot_rating",
+          "source_type": "api",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Pilot rating"
+        },
+        {
+          "field_name": "military_rating",
+          "source_type": "api",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Military rating"
+        },
+        {
+          "field_name": "latitude",
+          "source_type": "api",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Position latitude"
+        },
+        {
+          "field_name": "longitude",
+          "source_type": "api",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Position longitude"
+        },
+        {
+          "field_name": "groundspeed",
+          "source_type": "api",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Ground speed"
+        },
+        {
+          "field_name": "transponder",
+          "source_type": "api",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Transponder code"
+        },
+        {
+          "field_name": "qnh_i_hg",
+          "source_type": "api",
+          "data_type": "DECIMAL(4,2)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: QNH in inches Hg"
+        },
+        {
+          "field_name": "qnh_mb",
+          "source_type": "api",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: QNH in millibars"
+        },
+        {
+          "field_name": "logon_time",
+          "source_type": "api",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: When pilot connected"
+        },
+        {
+          "field_name": "last_updated_api",
+          "source_type": "api",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: API last_updated timestamp"
+        }
+      ],
+      "missing_fields": [],
+      "extra_fields": [],
+      "type_mismatches": [
+        {
+          "field_name": "created_at",
+          "database_type": "TIMESTAMP",
+          "model_type": "DATETIME",
+          "severity": "medium"
+        },
+        {
+          "field_name": "landed_at",
+          "database_type": "TIMESTAMP",
+          "model_type": "DATETIME",
+          "severity": "medium"
+        },
+        {
+          "field_name": "position_lng",
+          "database_type": "DOUBLE PRECISION",
+          "model_type": "FLOAT",
+          "severity": "medium"
+        },
+        {
+          "field_name": "last_updated",
+          "database_type": "TIMESTAMP",
+          "model_type": "DATETIME",
+          "severity": "medium"
+        },
+        {
+          "field_name": "logon_time",
+          "database_type": "TIMESTAMP",
+          "model_type": "DATETIME",
+          "severity": "medium"
+        },
+        {
+          "field_name": "qnh_i_hg",
+          "database_type": "NUMERIC(4, 2)",
+          "model_type": "DECIMAL(4, 2)",
+          "severity": "medium"
+        },
+        {
+          "field_name": "completion_confidence",
+          "database_type": "DOUBLE PRECISION",
+          "model_type": "FLOAT",
+          "severity": "medium"
+        },
+        {
+          "field_name": "latitude",
+          "database_type": "DOUBLE PRECISION",
+          "model_type": "FLOAT",
+          "severity": "medium"
+        },
+        {
+          "field_name": "position_lat",
+          "database_type": "DOUBLE PRECISION",
+          "model_type": "FLOAT",
+          "severity": "medium"
+        },
+        {
+          "field_name": "updated_at",
+          "database_type": "TIMESTAMP",
+          "model_type": "DATETIME",
+          "severity": "medium"
+        },
+        {
+          "field_name": "longitude",
+          "database_type": "DOUBLE PRECISION",
+          "model_type": "FLOAT",
+          "severity": "medium"
+        },
+        {
+          "field_name": "pilot_disconnected_at",
+          "database_type": "TIMESTAMP",
+          "model_type": "DATETIME",
+          "severity": "medium"
+        },
+        {
+          "field_name": "completed_at",
+          "database_type": "TIMESTAMP",
+          "model_type": "DATETIME",
+          "severity": "medium"
+        },
+        {
+          "field_name": "last_updated_api",
+          "database_type": "TIMESTAMP",
+          "model_type": "DATETIME",
+          "severity": "medium"
+        }
+      ],
+      "index_count": 14,
+      "constraint_count": 0,
+      "record_count": 6749,
+      "status": "warn"
+    },
+    {
+      "table_name": "traffic_movements",
+      "database_fields": [
+        {
+          "field_name": "id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": "nextval('traffic_movements_id_seq'::regclass)",
+          "constraints": null,
+          "description": "Database column: id"
+        },
+        {
+          "field_name": "airport_code",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: airport_code"
+        },
+        {
+          "field_name": "movement_type",
+          "source_type": "database",
+          "data_type": "VARCHAR(20)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: movement_type"
+        },
+        {
+          "field_name": "aircraft_callsign",
+          "source_type": "database",
+          "data_type": "VARCHAR(50)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: aircraft_callsign"
+        },
+        {
+          "field_name": "aircraft_type",
+          "source_type": "database",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: aircraft_type"
+        },
+        {
+          "field_name": "timestamp",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": false,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: timestamp"
+        },
+        {
+          "field_name": "runway",
+          "source_type": "database",
+          "data_type": "VARCHAR(10)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: runway"
+        },
+        {
+          "field_name": "altitude",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: altitude"
+        },
+        {
+          "field_name": "speed",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: speed"
+        },
+        {
+          "field_name": "heading",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: heading"
+        },
+        {
+          "field_name": "metadata_json",
+          "source_type": "database",
+          "data_type": "TEXT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: metadata_json"
+        },
+        {
+          "field_name": "created_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: created_at"
+        },
+        {
+          "field_name": "updated_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: updated_at"
+        },
+        {
+          "field_name": "flight_completion_triggered",
+          "source_type": "database",
+          "data_type": "BOOLEAN",
+          "nullable": true,
+          "default_value": "false",
+          "constraints": null,
+          "description": "Database column: flight_completion_triggered"
+        },
+        {
+          "field_name": "completion_timestamp",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: completion_timestamp"
+        },
+        {
+          "field_name": "completion_confidence",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: completion_confidence"
+        }
+      ],
+      "model_fields": [],
+      "api_fields": [],
+      "missing_fields": [],
+      "extra_fields": [
+        "created_at",
+        "completion_timestamp",
+        "aircraft_callsign",
+        "id",
+        "completion_confidence",
+        "flight_completion_triggered",
+        "airport_code",
+        "runway",
+        "updated_at",
+        "movement_type",
+        "speed",
+        "heading",
+        "timestamp",
+        "altitude",
+        "aircraft_type",
+        "metadata_json"
+      ],
+      "type_mismatches": [],
+      "index_count": 4,
+      "constraint_count": 0,
+      "record_count": 415,
+      "status": "warn"
+    },
+    {
+      "table_name": "transceivers",
+      "database_fields": [
+        {
+          "field_name": "id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": "nextval('transceivers_id_seq'::regclass)",
+          "constraints": null,
+          "description": "Database column: id"
+        },
+        {
+          "field_name": "callsign",
+          "source_type": "database",
+          "data_type": "VARCHAR(50)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: callsign"
+        },
+        {
+          "field_name": "transceiver_id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: transceiver_id"
+        },
+        {
+          "field_name": "frequency",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: frequency"
+        },
+        {
+          "field_name": "position_lat",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: position_lat"
+        },
+        {
+          "field_name": "position_lon",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: position_lon"
+        },
+        {
+          "field_name": "height_msl",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: height_msl"
+        },
+        {
+          "field_name": "height_agl",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: height_agl"
+        },
+        {
+          "field_name": "entity_type",
+          "source_type": "database",
+          "data_type": "VARCHAR(20)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: entity_type"
+        },
+        {
+          "field_name": "entity_id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: entity_id"
+        },
+        {
+          "field_name": "timestamp",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": false,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: timestamp"
+        },
+        {
+          "field_name": "updated_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: updated_at"
+        }
+      ],
+      "model_fields": [
+        {
+          "field_name": "id",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: id"
+        },
+        {
+          "field_name": "callsign",
+          "source_type": "model",
+          "data_type": "VARCHAR(50)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: callsign"
+        },
+        {
+          "field_name": "transceiver_id",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: transceiver_id"
+        },
+        {
+          "field_name": "frequency",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: frequency"
+        },
+        {
+          "field_name": "position_lat",
+          "source_type": "model",
+          "data_type": "FLOAT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: position_lat"
+        },
+        {
+          "field_name": "position_lon",
+          "source_type": "model",
+          "data_type": "FLOAT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: position_lon"
+        },
+        {
+          "field_name": "height_msl",
+          "source_type": "model",
+          "data_type": "FLOAT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: height_msl"
+        },
+        {
+          "field_name": "height_agl",
+          "source_type": "model",
+          "data_type": "FLOAT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: height_agl"
+        },
+        {
+          "field_name": "entity_type",
+          "source_type": "model",
+          "data_type": "VARCHAR(20)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: entity_type"
+        },
+        {
+          "field_name": "entity_id",
+          "source_type": "model",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Model field: entity_id"
+        },
+        {
+          "field_name": "timestamp",
+          "source_type": "model",
+          "data_type": "DATETIME",
+          "nullable": false,
+          "default_value": "<function datetime.utcnow at 0x0000020E42D70D60>",
+          "constraints": null,
+          "description": "Model field: timestamp"
+        },
+        {
+          "field_name": "updated_at",
+          "source_type": "model",
+          "data_type": "DATETIME",
+          "nullable": true,
+          "default_value": "<function datetime.utcnow at 0x0000020E42D70E00>",
+          "constraints": null,
+          "description": "Model field: updated_at"
+        }
+      ],
+      "api_fields": [
+        {
+          "field_name": "callsign",
+          "source_type": "api",
+          "data_type": "VARCHAR(50)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Entity callsign"
+        },
+        {
+          "field_name": "transceiver_id",
+          "source_type": "api",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Transceiver ID"
+        },
+        {
+          "field_name": "frequency",
+          "source_type": "api",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Frequency in Hz"
+        },
+        {
+          "field_name": "position_lat",
+          "source_type": "api",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Latitude"
+        },
+        {
+          "field_name": "position_lon",
+          "source_type": "api",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Longitude"
+        },
+        {
+          "field_name": "height_msl",
+          "source_type": "api",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Height above sea level"
+        },
+        {
+          "field_name": "height_agl",
+          "source_type": "api",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Height above ground"
+        },
+        {
+          "field_name": "entity_type",
+          "source_type": "api",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Flight or ATC"
+        },
+        {
+          "field_name": "entity_id",
+          "source_type": "api",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "VATSIM API: Foreign key reference"
+        }
+      ],
+      "missing_fields": [],
+      "extra_fields": [],
+      "type_mismatches": [
+        {
+          "field_name": "timestamp",
+          "database_type": "TIMESTAMP",
+          "model_type": "DATETIME",
+          "severity": "medium"
+        },
+        {
+          "field_name": "height_msl",
+          "database_type": "DOUBLE PRECISION",
+          "model_type": "FLOAT",
+          "severity": "medium"
+        },
+        {
+          "field_name": "position_lat",
+          "database_type": "DOUBLE PRECISION",
+          "model_type": "FLOAT",
+          "severity": "medium"
+        },
+        {
+          "field_name": "updated_at",
+          "database_type": "TIMESTAMP",
+          "model_type": "DATETIME",
+          "severity": "medium"
+        },
+        {
+          "field_name": "position_lon",
+          "database_type": "DOUBLE PRECISION",
+          "model_type": "FLOAT",
+          "severity": "medium"
+        },
+        {
+          "field_name": "height_agl",
+          "database_type": "DOUBLE PRECISION",
+          "model_type": "FLOAT",
+          "severity": "medium"
+        }
+      ],
+      "index_count": 2,
+      "constraint_count": 0,
+      "record_count": 4653,
+      "status": "warn"
+    },
+    {
+      "table_name": "events",
+      "database_fields": [
+        {
+          "field_name": "id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": "nextval('events_id_seq'::regclass)",
+          "constraints": null,
+          "description": "Database column: id"
+        },
+        {
+          "field_name": "name",
+          "source_type": "database",
+          "data_type": "VARCHAR(200)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: name"
+        },
+        {
+          "field_name": "start_time",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: start_time"
+        },
+        {
+          "field_name": "end_time",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: end_time"
+        },
+        {
+          "field_name": "expected_traffic",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": "0",
+          "constraints": null,
+          "description": "Database column: expected_traffic"
+        },
+        {
+          "field_name": "required_controllers",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": "0",
+          "constraints": null,
+          "description": "Database column: required_controllers"
+        },
+        {
+          "field_name": "status",
+          "source_type": "database",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": "'scheduled'::character varying",
+          "constraints": null,
+          "description": "Database column: status"
+        },
+        {
+          "field_name": "notes",
+          "source_type": "database",
+          "data_type": "TEXT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: notes"
+        }
+      ],
+      "model_fields": [],
+      "api_fields": [],
+      "missing_fields": [],
+      "extra_fields": [
+        "status",
+        "id",
+        "start_time",
+        "required_controllers",
+        "name",
+        "notes",
+        "expected_traffic",
+        "end_time"
+      ],
+      "type_mismatches": [],
+      "index_count": 0,
+      "constraint_count": 0,
+      "record_count": 0,
+      "status": "warn"
+    },
+    {
+      "table_name": "system_config",
+      "database_fields": [
+        {
+          "field_name": "id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": "nextval('system_config_id_seq'::regclass)",
+          "constraints": null,
+          "description": "Database column: id"
+        },
+        {
+          "field_name": "key",
+          "source_type": "database",
+          "data_type": "VARCHAR(100)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: key"
+        },
+        {
+          "field_name": "value",
+          "source_type": "database",
+          "data_type": "TEXT",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: value"
+        },
+        {
+          "field_name": "description",
+          "source_type": "database",
+          "data_type": "TEXT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: description"
+        },
+        {
+          "field_name": "last_updated",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: last_updated"
+        },
+        {
+          "field_name": "environment",
+          "source_type": "database",
+          "data_type": "VARCHAR(20)",
+          "nullable": true,
+          "default_value": "'development'::character varying",
+          "constraints": null,
+          "description": "Database column: environment"
+        },
+        {
+          "field_name": "updated_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: updated_at"
+        }
+      ],
+      "model_fields": [],
+      "api_fields": [],
+      "missing_fields": [],
+      "extra_fields": [
+        "description",
+        "id",
+        "updated_at",
+        "environment",
+        "last_updated",
+        "key",
+        "value"
+      ],
+      "type_mismatches": [],
+      "index_count": 1,
+      "constraint_count": 1,
+      "record_count": 5,
+      "status": "warn"
+    },
+    {
+      "table_name": "movement_detection_config",
+      "database_fields": [
+        {
+          "field_name": "id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": "nextval('movement_detection_config_id_seq'::regclass)",
+          "constraints": null,
+          "description": "Database column: id"
+        },
+        {
+          "field_name": "config_key",
+          "source_type": "database",
+          "data_type": "VARCHAR(100)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: config_key"
+        },
+        {
+          "field_name": "config_value",
+          "source_type": "database",
+          "data_type": "TEXT",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: config_value"
+        },
+        {
+          "field_name": "description",
+          "source_type": "database",
+          "data_type": "TEXT",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: description"
+        },
+        {
+          "field_name": "is_active",
+          "source_type": "database",
+          "data_type": "BOOLEAN",
+          "nullable": true,
+          "default_value": "true",
+          "constraints": null,
+          "description": "Database column: is_active"
+        },
+        {
+          "field_name": "last_updated",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: last_updated"
+        },
+        {
+          "field_name": "updated_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": "now()",
+          "constraints": null,
+          "description": "Database column: updated_at"
+        }
+      ],
+      "model_fields": [],
+      "api_fields": [],
+      "missing_fields": [],
+      "extra_fields": [
+        "config_value",
+        "description",
+        "id",
+        "updated_at",
+        "is_active",
+        "last_updated",
+        "config_key"
+      ],
+      "type_mismatches": [],
+      "index_count": 1,
+      "constraint_count": 1,
+      "record_count": 0,
+      "status": "warn"
+    },
+    {
+      "table_name": "frequency_matches",
+      "database_fields": [
+        {
+          "field_name": "id",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": "nextval('frequency_matches_id_seq'::regclass)",
+          "constraints": null,
+          "description": "Database column: id"
+        },
+        {
+          "field_name": "pilot_callsign",
+          "source_type": "database",
+          "data_type": "VARCHAR(50)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: pilot_callsign"
+        },
+        {
+          "field_name": "controller_callsign",
+          "source_type": "database",
+          "data_type": "VARCHAR(50)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: controller_callsign"
+        },
+        {
+          "field_name": "frequency",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: frequency"
+        },
+        {
+          "field_name": "pilot_lat",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: pilot_lat"
+        },
+        {
+          "field_name": "pilot_lon",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: pilot_lon"
+        },
+        {
+          "field_name": "controller_lat",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: controller_lat"
+        },
+        {
+          "field_name": "controller_lon",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: controller_lon"
+        },
+        {
+          "field_name": "distance_nm",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: distance_nm"
+        },
+        {
+          "field_name": "match_timestamp",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: match_timestamp"
+        },
+        {
+          "field_name": "duration_seconds",
+          "source_type": "database",
+          "data_type": "INTEGER",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: duration_seconds"
+        },
+        {
+          "field_name": "is_active",
+          "source_type": "database",
+          "data_type": "BOOLEAN",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: is_active"
+        },
+        {
+          "field_name": "match_confidence",
+          "source_type": "database",
+          "data_type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: match_confidence"
+        },
+        {
+          "field_name": "communication_type",
+          "source_type": "database",
+          "data_type": "VARCHAR(20)",
+          "nullable": false,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: communication_type"
+        },
+        {
+          "field_name": "created_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: created_at"
+        },
+        {
+          "field_name": "updated_at",
+          "source_type": "database",
+          "data_type": "TIMESTAMP",
+          "nullable": true,
+          "default_value": null,
+          "constraints": null,
+          "description": "Database column: updated_at"
+        }
+      ],
+      "model_fields": [],
+      "api_fields": [],
+      "missing_fields": [],
+      "extra_fields": [
+        "distance_nm",
+        "created_at",
+        "controller_lon",
+        "id",
+        "frequency",
+        "pilot_lat",
+        "controller_lat",
+        "updated_at",
+        "controller_callsign",
+        "is_active",
+        "match_timestamp",
+        "pilot_lon",
+        "duration_seconds",
+        "match_confidence",
+        "communication_type",
+        "pilot_callsign"
+      ],
+      "type_mismatches": [],
+      "index_count": 12,
+      "constraint_count": 0,
+      "record_count": 0,
+      "status": "warn"
+    }
+  ],
+  "performance_metrics": {
+    "error": "(psycopg2.errors.UndefinedColumn) column \"tablename\" does not exist\nLINE 4:                 tablename,\n                        ^\n\n[SQL: \n            SELECT \n                schemaname,\n                tablename,\n                indexname,\n                idx_scan,\n                idx_tup_read,\n                idx_tup_fetch\n            FROM pg_stat_user_indexes\n            ORDER BY idx_scan DESC;\n            ]\n(Background on this error at: https://sqlalche.me/e/20/f405)",
+    "integrity_checks": {
+      "error": "(psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block\n\n[SQL: \n                SELECT COUNT(*) as count \n                FROM flights f \n                LEFT JOIN controllers c ON f.cid = c.controller_id \n                WHERE f.cid IS NOT NULL AND c.controller_id IS NULL\n                ]\n(Background on this error at: https://sqlalche.me/e/20/2j85)"
+    }
+  },
+  "recommendations": [
+    "Consider adding more indexes to movement_summaries (currently 0)",
+    "Fix type mismatches in controllers: 5 issues found",
+    "Consider adding more indexes to sectors (currently 0)",
+    "Consider adding more indexes to airport_config (currently 2)",
+    "Fix type mismatches in airports: 2 issues found",
+    "Consider adding more indexes to airports (currently 2)",
+    "Consider adding more indexes to flight_summaries (currently 0)",
+    "Consider adding more indexes to vatsim_status (currently 1)",
+    "Fix type mismatches in flights: 14 issues found",
+    "Fix type mismatches in transceivers: 6 issues found",
+    "Consider adding more indexes to transceivers (currently 2)",
+    "Consider adding more indexes to events (currently 0)",
+    "Consider adding more indexes to system_config (currently 1)",
+    "Consider adding more indexes to movement_detection_config (currently 1)"
+  ],
+  "overall_status": "warn"
+}

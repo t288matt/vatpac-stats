@@ -57,7 +57,6 @@ from ..models import Controller, Flight, Sector, TrafficMovement, FlightSummary
 from .vatsim_service import VATSIMService
 from .traffic_analysis_service import TrafficAnalysisService
 from .base_service import DatabaseService
-from .flight_completion_service import flight_completion_service
 from ..utils.error_handling import handle_service_errors, retry_on_failure, log_operation
 
 
@@ -118,10 +117,9 @@ class DataService(DatabaseService):
         self.vatsim_service = VATSIMService()
         self.traffic_analysis_service = None
         
-        # Get intervals from configuration system (with fallback to environment variables for cleanup)
+        # Get intervals from configuration system
         self.vatsim_polling_interval = self.config.vatsim.refresh_interval
         self.vatsim_write_interval = self.config.vatsim.write_interval  # Uses config with 10-minute fallback
-        self.vatsim_cleanup_interval = int(os.getenv('VATSIM_CLEANUP_INTERVAL', 3600))
         
         # Log the configured intervals
         self.logger.info(f"Data service configured with polling interval: {self.vatsim_polling_interval}s, write interval: {self.vatsim_write_interval}s")
@@ -136,7 +134,6 @@ class DataService(DatabaseService):
             'memory_buffer': defaultdict(list)
         }
         self.write_count = 0
-        self.last_cleanup = time.time()
     
     async def _initialize_service(self):
         """Initialize data service with dependencies."""
@@ -165,8 +162,7 @@ class DataService(DatabaseService):
                 'vatsim_service': vatsim_health,
                 'database': db_health,
                 'cache_status': cache_status,
-                'write_count': self.write_count,
-                'last_cleanup': self.last_cleanup
+                'write_count': self.write_count
             }
         except Exception as e:
             self.logger.error(f"Health check failed: {e}")
@@ -203,16 +199,8 @@ class DataService(DatabaseService):
                         self.cache['last_write'] = current_time
                         self.logger.info(f"Flushed memory cache to disk. Write count: {self.write_count}")
                     
-                    # Cleanup old data periodically
-                    if current_time - self.last_cleanup >= self.vatsim_cleanup_interval:
-                        await self._cleanup_old_data()
-                        self.last_cleanup = current_time
-                    
-                    # Update flight statuses (active ↔ stale) every API polling cycle
-                    await self._update_flight_statuses()
-                
-                # Wait before next cycle
-                await asyncio.sleep(self.vatsim_polling_interval)
+                    # Wait before next
+                    await asyncio.sleep(self.vatsim_polling_interval)
                 
             except Exception as e:
                 self.logger.error(f"Error in data ingestion: {e}")
@@ -257,58 +245,11 @@ class DataService(DatabaseService):
             # Process transceivers in memory
             transceivers_count = await self._process_transceivers_in_memory(transceivers_data)
             
-            # NEW: Detect landings using hybrid completion system
-            landing_count = await self._detect_landings_in_memory()
-            
-            # NEW: Detect pilot disconnects for landed flights
-            disconnect_count = await self._detect_pilot_disconnects()
-            
-            # Detect traffic movements in memory
-            # movements_count = await self._detect_movements_in_memory()
-            movements_count = 0  # Temporarily disabled
-            
-            self.logger.info("Data ingestion completed successfully", extra={
-                'atc_positions': atc_positions_count,
-                'flights': flights_count,
-                'sectors': sectors_count,
-                'transceivers': transceivers_count,
-                'landings_detected': landing_count,
-                'pilot_disconnects': disconnect_count,
-                'movements': movements_count
-            })
+            self.logger.info(f"Processed {len(flights_data)} flights, {len(atc_positions_data)} ATC positions, {len(sectors_data)} sectors, {len(transceivers_data)} transceivers")
             
         except Exception as e:
             self.logger.error(f"Error processing data in memory: {e}")
     
-    def _validate_controller_data(self, controller_data: Dict[str, Any]) -> bool:
-        """Validate controller data types before database insert"""
-        try:
-            # Convert controller_id to integer
-            if controller_data.get('controller_id'):
-                controller_data['controller_id'] = int(controller_data['controller_id'])
-            else:
-                controller_data['controller_id'] = None
-                
-            # Convert controller_rating to integer
-            if controller_data.get('controller_rating'):
-                controller_data['controller_rating'] = int(controller_data['controller_rating'])
-            else:
-                controller_data['controller_rating'] = None
-                
-            # Convert preferences to JSON string
-            if controller_data.get('preferences'):
-                if isinstance(controller_data['preferences'], dict):
-                    controller_data['preferences'] = json.dumps(controller_data['preferences'])
-                elif not isinstance(controller_data['preferences'], str):
-                    controller_data['preferences'] = None
-            else:
-                controller_data['preferences'] = None
-                
-            return True
-        except (ValueError, TypeError) as e:
-            self.logger.error(f"Controller data validation failed: {e}")
-            return False
-
     async def _process_atc_positions_in_memory(self, atc_positions_data: List[Dict[str, Any]]) -> int:
         """Process ATC positions in memory cache"""
         try:
@@ -324,12 +265,12 @@ class DataService(DatabaseService):
                     'position': atc_position_data.get('position', ''),
                     'status': 'online',
                     'frequency': atc_position_data.get('frequency', ''),
-                    'controller_id': int(atc_position_data.get('cid', 0)) if atc_position_data.get('cid') else None,  # API "cid" → DB "controller_id"
+                    'controller_id': atc_position_data.get('cid', None),  # API "cid" → DB "controller_id"
                     'controller_name': atc_position_data.get('name', ''),  # API "name" → DB "controller_name"
-                    'controller_rating': int(atc_position_data.get('rating', 0)) if atc_position_data.get('rating') else None,  # API "rating" → DB "controller_rating"
+                    'controller_rating': atc_position_data.get('rating', 0),  # API "rating" → DB "controller_rating"
                     'last_seen': datetime.now(timezone.utc),
                     'workload_score': 0.0,
-                    'preferences': json.dumps({}) if {} else None
+                    'preferences': {}
                 })
                 processed_count += 1
             
@@ -418,38 +359,13 @@ class DataService(DatabaseService):
                     'revision_id': flight_data.get('revision_id'),
                     'assigned_transponder': flight_data.get('assigned_transponder'),
         
-                    'last_updated_api': datetime.now(timezone.utc),
-                    'status': 'active'
+                    'last_updated_api': datetime.now(timezone.utc)
                 }
                 
                 # Store flight data with timestamp to create multiple records
                 timestamp_key = f"{callsign}_{int(time.time())}"
                 self.cache['flights'].set(timestamp_key, flight_record)
                 processed_count += 1
-                
-                # FIX: Update existing flight records to 'active' status when they appear in current VATSIM data
-                # This ensures flights that are currently flying are marked as active
-                db = SessionLocal()
-                try:
-                    existing_flights = db.query(Flight).filter(
-                        and_(
-                            Flight.callsign == callsign,
-                            Flight.status.in_(['stale', 'active'])
-                        )
-                    ).all()
-                    
-                    for existing_flight in existing_flights:
-                        existing_flight.status = 'active'
-                    
-                    if existing_flights:
-                        db.commit()
-                        self.logger.debug(f"Updated {len(existing_flights)} existing records for {callsign} to active status")
-                        
-                except Exception as e:
-                    db.rollback()
-                    self.logger.error(f"Error updating existing flight status for {callsign}: {e}")
-                finally:
-                    db.close()
             
             if config.flight_filter.enabled:
                 self.logger.info(f"Processed {processed_count} Australian flights out of {len(flights_data)} total flights")
@@ -504,340 +420,75 @@ class DataService(DatabaseService):
             self.logger.error(f"Error processing transceivers in memory: {e}")
             return 0
     
-    async def _detect_landings_in_memory(self) -> int:
-        """Detect landings and trigger flight completion"""
-        try:
-            import os
-            from ..models import Flight
-            
-            # Check if landing detection is enabled
-            landing_enabled = os.getenv('LANDING_DETECTION_ENABLED', 'true').lower() == 'true'
-            if not landing_enabled:
-                return 0
-            
-            # Get active flights from database for landing detection
-            db = SessionLocal()
-            try:
-                active_flights = db.query(Flight).filter(Flight.status.in_(['active', 'stale'])).all()
-                
-                if not active_flights:
-                    return 0
-                
-                # Use TrafficAnalysisService to detect landings
-                from .traffic_analysis_service import TrafficAnalysisService
-                traffic_service = TrafficAnalysisService(db)
-                landing_detections = traffic_service.detect_landings(active_flights)
-                
-                landing_count = 0
-                for landing in landing_detections:
-                    # Complete flight by landing
-                    success = await self._complete_flight_by_landing(landing)
-                    if success:
-                        landing_count += 1
-                
-                if landing_count > 0:
-                    self.logger.info(f"Detected and completed {landing_count} flights by landing")
-                
-                return landing_count
-                
-            except Exception as e:
-                self.logger.error(f"Error detecting landings: {e}")
-                return 0
-            finally:
-                db.close()
-                
-        except Exception as e:
-            self.logger.error(f"Error in landing detection process: {e}")
-            return 0
-    
-    async def _complete_flight_by_landing(self, landing_detection: Dict[str, Any]) -> bool:
-        """Complete a flight based on landing detection - now sets status to 'landed'"""
-        try:
-            db = SessionLocal()
-            try:
-                # Use the new flight completion service
-                success = flight_completion_service.complete_by_landing(
-                    landing_detection['callsign'], 
-                    landing_detection, 
-                    db
-                )
-                
-                if not success:
-                    return False
-                
-                # Create traffic movement record for landing
-                from ..models import TrafficMovement
-                movement = TrafficMovement(
-                    airport_code=landing_detection['airport_code'],
-                    movement_type='arrival',
-                    aircraft_callsign=landing_detection['callsign'],
-                    timestamp=landing_detection['timestamp'],
-                    flight_completion_triggered=True,
-                    completion_timestamp=landing_detection['timestamp'],
-                    completion_confidence=landing_detection['confidence']
-                )
-                db.add(movement)
-                
-                # Don't store flight summary yet - pilot still connected
-                # Summary will be stored when pilot disconnects
-                
-                db.commit()
-                
-                self.logger.info(f"Flight {landing_detection['callsign']} landed at {landing_detection['airport_code']}", extra={
-                    'distance_nm': landing_detection['distance_nm'],
-                    'altitude_above_airport': landing_detection['altitude_above_airport'],
-                    'groundspeed': landing_detection['groundspeed']
-                })
-                
-                return True
-                
-            except Exception as e:
-                db.rollback()
-                self.logger.error(f"Error marking flight as landed: {e}")
-                return False
-            finally:
-                db.close()
-                
-        except Exception as e:
-            self.logger.error(f"Error in flight landing process: {e}")
-            return False
-    
-    async def _detect_pilot_disconnects(self) -> int:
-        """Detect when pilots disconnect from VATSIM and complete landed flights"""
-        try:
-            import os
-            
-            # Check if pilot disconnect detection is enabled
-            disconnect_enabled = os.getenv('PILOT_DISCONNECT_DETECTION_ENABLED', 'true').lower() == 'true'
-            if not disconnect_enabled:
-                return 0
-            
-            db = SessionLocal()
-            try:
-                # Get all landed flights
-                landed_flights = db.query(Flight).filter(
-                    Flight.status == 'landed'
-                ).all()
-                
-                if not landed_flights:
-                    return 0
-                
-                # Get current VATSIM data to check for connected pilots
-                vatsim_data = await self.vatsim_service.get_current_data()
-                connected_callsigns = {flight.callsign for flight in vatsim_data.flights}
-                
-                # Check for disconnected pilots using the new service
-                disconnect_count = 0
-                for flight in landed_flights:
-                    if flight.callsign not in connected_callsigns:
-                        # Use the new flight completion service
-                        success = flight_completion_service.complete_by_disconnect(flight.callsign, db)
-                        if success:
-                            # Store flight summary
-                            await self._store_flight_summary(flight)
-                            disconnect_count += 1
-                
-                if disconnect_count > 0:
-                    self.logger.info(f"Detected and completed {disconnect_count} flights by pilot disconnect")
-                
-                return disconnect_count
-                
-            except Exception as e:
-                db.rollback()
-                self.logger.error(f"Error detecting pilot disconnects: {e}")
-                return 0
-            finally:
-                db.close()
-                
-        except Exception as e:
-            self.logger.error(f"Error in pilot disconnect detection process: {e}")
-            return 0
-    
-    async def _complete_flight_by_time(self, flight: Flight) -> bool:
-        """Complete a flight based on time-based fallback"""
-        try:
-            # Use the new flight completion service
-            success = flight_completion_service.complete_by_time(flight.callsign)
-            if success:
-                # Store flight summary
-                await self._store_flight_summary(flight)
-                self.logger.info(f"Flight {flight.callsign} completed by time-based fallback")
-                return True
-            return False
-            
-        except Exception as e:
-            self.logger.error(f"Error completing flight by time: {e}")
-            return False
-    
-    async def _detect_movements_in_memory(self) -> int:
-        """Detect traffic movements using memory data"""
-        try:
-            # Use memory cache for movement detection
-            movements_count = 0
-            
-            # Convert cached flight data to Flight objects for movement detection
-            db = SessionLocal()
-            try:
-                # Get all active flights from database for movement detection
-                active_flights = db.query(Flight).filter(Flight.status == 'active').all()
-                
-                if active_flights:
-                    # Use TrafficAnalysisService to detect movements
-                    traffic_service = TrafficAnalysisService(db)
-                    detected_movements = traffic_service.detect_movements(active_flights)
-                    
-                    # Store detected movements
-                    for movement in detected_movements:
-                        # Check if this movement already exists (avoid duplicates)
-                        existing = db.query(TrafficMovement).filter(
-                            and_(
-                                TrafficMovement.aircraft_callsign == movement.aircraft_callsign,
-                                TrafficMovement.airport_code == movement.airport_code,
-                                TrafficMovement.movement_type == movement.movement_type,
-                                TrafficMovement.timestamp >= datetime.now(timezone.utc) - timedelta(minutes=5)
-                            )
-                        ).first()
-                        
-                        if not existing:
-                            db.add(movement)
-                            movements_count += 1
-                    
-                    # Commit movements to database
-                    if movements_count > 0:
-                        db.commit()
-                        self.logger.info(f"Detected and stored {movements_count} new traffic movements")
-                
-            except Exception as e:
-                db.rollback()
-                self.logger.error(f"Error detecting movements: {e}")
-            finally:
-                db.close()
-            
-            return movements_count
-            
-        except Exception as e:
-            self.logger.error(f"Error detecting movements in memory: {e}")
-            return 0
-    
     async def _flush_memory_to_disk(self):
-        """Flush memory cache to disk with optimized bulk operations"""
+        """Flush memory cache to disk with SSD wear optimization"""
         try:
             db = SessionLocal()
             try:
-                # OPTIMIZED BATCH 1: ATC Positions with bulk upsert
+                # Process ATC positions from memory cache
                 atc_positions_data = list(self.cache['atc_positions'].items())
                 if atc_positions_data:
-                    # Prepare data for bulk upsert with validation
-                    atc_positions_values = []
-                    for _, data in atc_positions_data:
-                        # Validate and convert data types
-                        if self._validate_controller_data(data):
-                            atc_positions_values.append(data)
-                        else:
-                            self.logger.warning(f"Skipping invalid controller data for {data.get('callsign', 'unknown')}")
-                    
-                    # Use bulk upsert with conflict resolution
-                    if atc_positions_values:
-                        try:
-                            # Try PostgreSQL-specific upsert first
-                            stmt = insert(Controller).values(atc_positions_values)
+                    for callsign, atc_data in atc_positions_data:
+                        # Validate controller data before insert
+                        if self._validate_controller_data(atc_data):
+                            # Use upsert to handle existing records
+                            stmt = insert(Controller).values(**atc_data)
                             stmt = stmt.on_conflict_do_update(
                                 index_elements=['callsign'],
-                                set_=dict(
-                                    facility=stmt.excluded.facility,
-                                    position=stmt.excluded.position,
-                                    status=stmt.excluded.status,
-                                    frequency=stmt.excluded.frequency,
-                                    last_seen=stmt.excluded.last_seen,
-                                    workload_score=stmt.excluded.workload_score,
-                                    preferences=stmt.excluded.preferences
-                                )
+                                set_=atc_data
                             )
                             db.execute(stmt)
-                        except AttributeError:
-                            # Fallback to manual upsert for other databases
-                            for data in atc_positions_values:
-                                existing = db.query(Controller).filter(Controller.callsign == data['callsign']).first()
-                                if existing:
-                                    for key, value in data.items():
-                                        setattr(existing, key, value)
-                                else:
-                                    atc_position = Controller(**data)
-                                    db.add(atc_position)
                     
-                    self.logger.info(f"Bulk upserted {len(atc_positions_values)} ATC positions")
+                    self.logger.info(f"Flushed {len(atc_positions_data)} ATC positions to disk")
                 
-                # OPTIMIZED BATCH 2: Flights with bulk upsert
+                # Process flights from memory cache
                 flights_data = list(self.cache['flights'].items())
                 if flights_data:
-                    # Prepare data for bulk upsert
-                    flights_values = [data for _, data in flights_data]
-                    
-                    # Use bulk upsert to handle duplicates gracefully
-                    try:
-                        # Try PostgreSQL-specific upsert first
-                        stmt = insert(Flight).values(flights_values)
-                        stmt = stmt.on_conflict_do_nothing()  # Ignore duplicates
-                        db.execute(stmt)
-                    except AttributeError:
-                        # Fallback to manual upsert for other databases
-                        for data in flights_values:
-                            existing = db.query(Flight).filter(
-                                and_(
-                                    Flight.callsign == data['callsign'],
-                                    Flight.last_updated_api == data['last_updated_api']
-                                )
-                            ).first()
-                            if not existing:
-                                flight = Flight(**data)
-                                db.add(flight)
-                    
-                    self.logger.info(f"Bulk inserted {len(flights_values)} flight positions")
-                
-                # OPTIMIZED BATCH 3: Transceivers with bulk upsert
-                from ..models import Transceiver
-                transceivers_data = self.cache['memory_buffer'].get('transceivers', [])
-                if transceivers_data:
-                    # Use bulk upsert with conflict resolution
-                    try:
-                        # Try PostgreSQL-specific upsert first
-                        stmt = insert(Transceiver).values(transceivers_data)
+                    for timestamp_key, flight_data in flights_data:
+                        # Use upsert to handle existing records
+                        stmt = insert(Flight).values(**flight_data)
                         stmt = stmt.on_conflict_do_update(
-                            index_elements=['callsign', 'transceiver_id'],
-                            set_=dict(
-                                frequency=stmt.excluded.frequency,
-                                position_lat=stmt.excluded.position_lat,
-                                position_lng=stmt.excluded.position_lng,
-                                last_updated=stmt.excluded.last_updated
-                            )
+                            index_elements=['callsign', 'last_updated'],
+                            set_=flight_data
                         )
                         db.execute(stmt)
-                    except AttributeError:
-                        # Fallback to manual upsert for other databases
-                        for data in transceivers_data:
-                            existing = db.query(Transceiver).filter(
-                                Transceiver.callsign == data['callsign'],
-                                Transceiver.transceiver_id == data['transceiver_id']
-                            ).first()
-                            if existing:
-                                for key, value in data.items():
-                                    setattr(existing, key, value)
-                            else:
-                                transceiver = Transceiver(**data)
-                                db.add(transceiver)
                     
-                    self.logger.info(f"Bulk upserted {len(transceivers_data)} transceivers")
+                    self.logger.info(f"Flushed {len(flights_data)} flights to disk")
                 
-                # Single commit for all changes (reduces disk writes)
+                # Process transceivers from memory buffer
+                transceivers_data = self.cache['memory_buffer'].get('transceivers', [])
+                if transceivers_data:
+                    for transceiver_data in transceivers_data:
+                        stmt = insert(Transceiver).values(**transceiver_data)
+                        db.execute(stmt)
+                    
+                    self.logger.info(f"Flushed {len(transceivers_data)} transceivers to disk")
+                
+                # Process sectors from memory buffer
+                sectors_data = self.cache['memory_buffer'].get('sectors', [])
+                if sectors_data:
+                    for sector_data in sectors_data:
+                        stmt = insert(Sector).values(**sector_data)
+                        db.execute(stmt)
+                    
+                    self.logger.info(f"Flushed {len(sectors_data)} sectors to disk")
+                
+                # Process VATSIM status from memory buffer
+                vatsim_status_data = self.cache['memory_buffer'].get('vatsim_status', [])
+                if vatsim_status_data:
+                    for status_data in vatsim_status_data:
+                        stmt = insert(VatsimStatus).values(**status_data)
+                        db.execute(stmt)
+                    
+                    self.logger.info(f"Flushed {len(vatsim_status_data)} VATSIM status records to disk")
+                
                 db.commit()
                 self.write_count += 1
                 
-                # Clear memory cache after successful write
-                self.cache['atc_positions'].clear()
-                self.cache['flights'].clear()
+                # Clear memory buffers after successful write
                 self.cache['memory_buffer']['transceivers'].clear()
-                
-                self.logger.info(f"Flushed memory cache to disk. Total writes: {self.write_count}")
+                self.cache['memory_buffer']['sectors'].clear()
+                self.cache['memory_buffer']['vatsim_status'].clear()
                 
             except Exception as e:
                 db.rollback()
@@ -846,132 +497,10 @@ class DataService(DatabaseService):
                 db.close()
                 
         except Exception as e:
-            self.logger.error(f"Error in memory flush: {e}")
-    
-    async def _cleanup_old_data(self):
-        """Clean up old data to prevent database bloat with hybrid completion logic"""
-        try:
-            import os
-            db = SessionLocal()
-            try:
-                # Check if time-based fallback is enabled
-                time_based_enabled = os.getenv('TIME_BASED_FALLBACK_ENABLED', 'true').lower() == 'true'
-                if not time_based_enabled:
-                    return
-                
-                # Get timeout configuration
-                timeout_hours = float(os.getenv('TIME_BASED_TIMEOUT_HOURS', '1'))
-                cutoff_time = datetime.now(timezone.utc) - timedelta(hours=timeout_hours)
-                
-                # Find flights that should be completed by time
-                old_flights = db.query(Flight).filter(
-                    and_(
-                        Flight.last_updated < cutoff_time,
-                        Flight.status.in_(['active', 'stale', 'landed'])  # Include landed flights
-                    )
-                ).all()
-                
-                time_completed_count = 0
-                for flight in old_flights:
-                    # Check if flight has recent landing detection
-                    recent_landing = db.query(TrafficMovement).filter(
-                        and_(
-                            TrafficMovement.aircraft_callsign == flight.callsign,
-                            TrafficMovement.flight_completion_triggered == True,
-                            TrafficMovement.timestamp >= cutoff_time
-                        )
-                    ).first()
-                    
-                    # Only complete by time if no recent landing detection
-                    if not recent_landing:
-                        success = await self._complete_flight_by_time(flight)
-                        if success:
-                            time_completed_count += 1
-                
-                # Mark ATC positions as offline if not seen in 30 minutes
-                atc_position_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
-                offline_atc_positions = db.query(Controller).filter(
-                    and_(
-                        Controller.last_seen < atc_position_cutoff,
-                        Controller.status == 'online'
-                    )
-                ).all()
-                
-                for atc_position in offline_atc_positions:
-                    atc_position.status = 'offline'
-                
-                # Clean up old movements (older than 7 days)
-                movement_cutoff = datetime.now(timezone.utc) - timedelta(days=7)
-                old_movements = db.query(TrafficMovement).filter(
-                    TrafficMovement.timestamp < movement_cutoff
-                ).all()
-                
-                for movement in old_movements:
-                    db.delete(movement)
-                
-                db.commit()
-                self.logger.info(f"Time-based completion: {time_completed_count} flights, {len(offline_atc_positions)} offline ATC positions, {len(old_movements)} old movements")
-                
-            except Exception as e:
-                db.rollback()
-                self.logger.error(f"Error in cleanup: {e}")
-            finally:
-                db.close()
-                
-        except Exception as e:
-            self.logger.error(f"Error in cleanup process: {e}")
-    
-    async def _update_flight_statuses(self):
-        """Update flight statuses based on recent activity"""
-        try:
-            from ..config import get_config
-            config = get_config()
-            
-            # Calculate stale timeout based on API polling interval
-            stale_timeout_seconds = config.vatsim.refresh_interval * config.flight_status.stale_timeout_multiplier
-            stale_cutoff = datetime.now(timezone.utc) - timedelta(seconds=stale_timeout_seconds)
-            
-            db = SessionLocal()
-            try:
-                # Mark active flights as stale if not updated recently
-                stale_flights = db.query(Flight).filter(
-                    and_(
-                        Flight.last_updated < stale_cutoff,
-                        Flight.status == 'active'
-                    )
-                ).all()
-                
-                for flight in stale_flights:
-                    flight.status = 'stale'
-                
-                # Mark stale flights as active if they get updated
-                active_cutoff = datetime.now(timezone.utc) - timedelta(seconds=config.vatsim.refresh_interval)
-                recovered_flights = db.query(Flight).filter(
-                    and_(
-                        Flight.last_updated >= active_cutoff,
-                        Flight.status == 'stale'
-                    )
-                ).all()
-                
-                for flight in recovered_flights:
-                    flight.status = 'active'
-                
-                db.commit()
-                
-                if stale_flights or recovered_flights:
-                    self.logger.info(f"Updated {len(stale_flights)} flights to stale, {len(recovered_flights)} flights to active")
-                    
-            except Exception as e:
-                db.rollback()
-                self.logger.error(f"Error updating flight statuses: {e}")
-            finally:
-                db.close()
-                
-        except Exception as e:
-            self.logger.error(f"Error in flight status update process: {e}")
+            self.logger.error(f"Error in memory flush process: {e}")
     
     async def _store_flight_summary(self, flight: Flight):
-        """Store flight summary for analytics before deletion - PRESERVES DATA QUALITY"""
+        """Store flight summary for analytics"""
         try:
             db = SessionLocal()
             try:
@@ -980,7 +509,7 @@ class DataService(DatabaseService):
                 if hasattr(flight, 'created_at') and flight.created_at:
                     duration_minutes = int((flight.last_updated - flight.created_at).total_seconds() / 60)
                 
-                # Create flight summary with ALL critical data preserved
+                # Create flight summary with critical data preserved
                 summary = FlightSummary(
                     callsign=flight.callsign,
                     aircraft_type=flight.aircraft_type,
@@ -988,8 +517,7 @@ class DataService(DatabaseService):
                     arrival=flight.arrival,
                     route=flight.route,
                     max_altitude=flight.altitude,
-                    duration_minutes=duration_minutes,
-                    completed_at=datetime.now(timezone.utc)
+                    duration_minutes=duration_minutes
                 )
                 
                 db.add(summary)
@@ -1018,33 +546,25 @@ class DataService(DatabaseService):
                 Controller.status == "online"
             ).count()
             
-            # Count active flights
-            active_flights = db.query(Flight).filter(Flight.status == "active").count()
-            
-            # Count total flights (active + completed)
+            # Count all flights (no status filtering)
             total_flights = db.query(Flight).count()
             
-            # Count total sectors
-            total_sectors = db.query(Sector).count()
+            # Get recent activity
+            recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
+            recent_flights = db.query(Flight).filter(
+                Flight.last_updated >= recent_cutoff
+            ).count()
             
             return {
-                "active_atc_positions": active_atc_positions,
-                "active_flights": active_flights,
-                "total_sectors": total_sectors,
-                "last_updated": datetime.now(timezone.utc).isoformat()
+                'active_atc_positions': active_atc_positions,
+                'total_flights': total_flights,
+                'recent_flights': recent_flights,
+                'last_update': datetime.now(timezone.utc).isoformat()
             }
             
         except Exception as e:
-            self.logger.error("Failed to get network status", extra={
-                "error": str(e)
-            })
-            return {
-                "active_atc_positions": 0,
-                "active_flights": 0,
-                "total_sectors": 0,
-                "error": str(e),
-                "last_updated": datetime.now(timezone.utc).isoformat()
-            }
+            self.logger.error(f"Error getting network status: {e}")
+            return {'error': str(e)}
         finally:
             db.close()
 

@@ -232,19 +232,6 @@ class FlightFilterConfig:
         )
 
 
-@dataclass
-class FlightStatusConfig:
-    """Flight status configuration with no hardcoding."""
-    stale_timeout_multiplier: float = 2.5  # Multiplier for API polling interval
-    
-    @classmethod
-    def from_env(cls):
-        """Load flight status configuration from environment variables."""
-        return cls(
-            stale_timeout_multiplier=float(os.getenv("STALE_FLIGHT_TIMEOUT_MULTIPLIER", "2.5"))
-        )
-
-
 def get_australian_airports() -> list:
     """Get list of all Australian airports from the database"""
     try:
@@ -415,7 +402,6 @@ class AppConfig:
     airports: AirportConfig
     pilots: PilotConfig
     flight_filter: FlightFilterConfig
-    flight_status: FlightStatusConfig
     environment: str = "development"
     
     @classmethod
@@ -432,7 +418,6 @@ class AppConfig:
             airports=AirportConfig.from_env(),
             pilots=PilotConfig.from_env(),
             flight_filter=FlightFilterConfig.from_env(),
-            flight_status=FlightStatusConfig.from_env(),
             environment=os.getenv("ENVIRONMENT", "development")
         )
 

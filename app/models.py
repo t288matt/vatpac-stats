@@ -38,7 +38,7 @@ OPTIMIZATIONS:
 - Relationship mappings for efficient joins
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Text, Boolean, SmallInteger, Index, DECIMAL, JSON
+from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Text, Boolean, SmallInteger, Index, DECIMAL, JSON, TIMESTAMP
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from .database import Base
@@ -52,11 +52,11 @@ class Controller(Base):
     callsign = Column(String(50), unique=True, index=True, nullable=False)
     facility = Column(String(50), nullable=False)
     position = Column(String(50), nullable=True)
-    status = Column(String(20), default="offline")  # online, offline, busy
+    status = Column(String(20), default="offline", index=True)  # online, offline, busy
     frequency = Column(String(20), nullable=True)
-    last_seen = Column(DateTime, default=datetime.utcnow)
-    workload_score = Column(Float, default=0.0)
-    preferences = Column(JSON, nullable=True)  # JSON object for position preferences
+    last_seen = Column(TIMESTAMP, default=datetime.utcnow)
+    workload_score = Column(DECIMAL(10,2), default=0.0)
+    preferences = Column(Text, nullable=True)  # JSON object for position preferences
     # VATSIM API fields
     controller_id = Column(Integer, nullable=True, index=True)  # From API "cid"
     controller_name = Column(String(100), nullable=True)  # From API "name"
@@ -64,8 +64,8 @@ class Controller(Base):
     # Missing VATSIM API fields
     visual_range = Column(Integer, nullable=True)  # From API "visual_range"
     text_atis = Column(Text, nullable=True)  # From API "text_atis"
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
     sectors = relationship("Sector", back_populates="controller")
@@ -82,11 +82,20 @@ class Sector(Base):
     status = Column(String(20), default="unmanned")  # manned, unmanned, busy
     priority_level = Column(Integer, default=1)  # 1-5 priority scale
     boundaries = Column(Text, nullable=True)  # JSON string for sector boundaries
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
     controller = relationship("Controller", back_populates="sectors")
+    
+    # Indexes for efficient queries
+    __table_args__ = (
+        Index('idx_sectors_facility', 'facility'),
+        Index('idx_sectors_controller', 'controller_id'),
+        Index('idx_sectors_status', 'status'),
+        Index('idx_sectors_priority', 'priority_level'),
+        Index('idx_sectors_name', 'name'),
+    )
 
 class Flight(Base):
     """Flight model representing active flights - OPTIMIZED FOR STORAGE"""
@@ -95,8 +104,8 @@ class Flight(Base):
     id = Column(Integer, primary_key=True, index=True)
     callsign = Column(String(50), nullable=False, index=True)
     aircraft_type = Column(String(20), nullable=True)
-    position_lat = Column(Float, nullable=True)
-    position_lng = Column(Float, nullable=True)
+    position_lat = Column(DECIMAL(10,8), nullable=True)
+    position_lng = Column(DECIMAL(11,8), nullable=True)
     
     # Flight tracking fields
     altitude = Column(Integer, nullable=True)
@@ -109,21 +118,10 @@ class Flight(Base):
     arrival = Column(String(10), nullable=True)
     route = Column(Text, nullable=True)
     
-    # Status and timestamps
-    status = Column(String(20), default="active")  # active, stale, landed, completed, cancelled, unknown
-    last_updated = Column(DateTime, default=datetime.utcnow)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Flight Completion System fields
-    landed_at = Column(DateTime, nullable=True)  # When flight landed (VATSIM: pilot still connected)
-    completed_at = Column(DateTime, nullable=True)  # When flight was completed (VATSIM: pilot logged off)
-    completion_method = Column(String(20), nullable=True)  # 'landing', 'time', 'manual', 'logoff'
-    completion_confidence = Column(Float, nullable=True)  # Confidence score for completion
-    
-    # Pilot Disconnect Tracking fields
-    pilot_disconnected_at = Column(DateTime, nullable=True)  # When pilot disconnected from VATSIM
-    disconnect_method = Column(String(20), nullable=True)  # 'detected', 'timeout'
+    # Timestamps
+    last_updated = Column(TIMESTAMP, default=datetime.utcnow, index=True)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # VATSIM API fields - 1:1 mapping with API field names
     cid = Column(Integer, nullable=True, index=True)  # VATSIM user ID
@@ -136,8 +134,8 @@ class Flight(Base):
     transponder = Column(String(10), nullable=True)  # Transponder code
     qnh_i_hg = Column(DECIMAL(4,2), nullable=True)  # QNH in inches Hg
     qnh_mb = Column(Integer, nullable=True)  # QNH in millibars
-    logon_time = Column(DateTime, nullable=True)  # When pilot connected
-    last_updated_api = Column(DateTime, nullable=True)  # API last_updated timestamp
+    logon_time = Column(TIMESTAMP, nullable=True)  # When pilot connected
+    last_updated_api = Column(TIMESTAMP, nullable=True)  # API last_updated timestamp
     
     # Flight plan fields (nested object)
     flight_rules = Column(String(10), nullable=True)  # IFR/VFR
@@ -196,12 +194,7 @@ class TrafficMovement(Base):
     heading = Column(Integer, nullable=True)
     metadata_json = Column(Text, nullable=True)  # JSON string
     created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
-    
-    # Flight Completion System fields
-    flight_completion_triggered = Column(Boolean, default=False)  # Whether this movement triggered flight completion
-    completion_timestamp = Column(DateTime, nullable=True)  # When completion was triggered
-    completion_confidence = Column(Float, nullable=True)  # Confidence score for completion
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # No relationships for now
 
@@ -219,11 +212,19 @@ class FlightSummary(Base):
     duration_minutes = Column(SmallInteger, nullable=True)  # SMALLINT: max 65,535 minutes
     controller_id = Column(Integer, ForeignKey("controllers.id"), nullable=True)
     sector_id = Column(Integer, ForeignKey("sectors.id"), nullable=True)
-    completed_at = Column(DateTime, nullable=False)
     
     # Relationships
     controller = relationship("Controller")
     sector = relationship("Sector")
+    
+    # Indexes for efficient queries
+    __table_args__ = (
+        Index('idx_flight_summaries_callsign', 'callsign'),
+        Index('idx_flight_summaries_controller', 'controller_id'),
+        Index('idx_flight_summaries_departure', 'departure'),
+        Index('idx_flight_summaries_arrival', 'arrival'),
+        Index('idx_flight_summaries_sector', 'sector_id'),
+    )
 
 class MovementSummary(Base):
     """Movement summary for analytics - COMPRESSED HISTORICAL DATA"""
@@ -239,6 +240,10 @@ class MovementSummary(Base):
     
     # Composite index for efficient queries
     __table_args__ = (
+        Index('idx_movement_summaries_airport_date', 'airport_icao', 'date'),
+        Index('idx_movement_summaries_type_hour', 'movement_type', 'hour'),
+        Index('idx_movement_summaries_date_hour', 'date', 'hour'),
+        Index('idx_movement_summaries_aircraft', 'aircraft_type'),
         {'sqlite_autoincrement': True}
     )
 
@@ -260,6 +265,14 @@ class AirportConfig(Base):
     region = Column(String(50), nullable=True)  # 'Australia', 'Asia', etc.
     last_updated = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Indexes for efficient queries
+    __table_args__ = (
+        Index('idx_airport_config_active', 'is_active'),  # Active configs only
+        Index('idx_airport_config_region', 'region'),  # Regional filtering
+        Index('idx_airport_config_lat_lon', 'latitude', 'longitude'),  # Geographic queries
+        Index('idx_airport_config_icao_active', 'icao_code', 'is_active'),  # Active configs by ICAO
+    )
 
 class Airports(Base):
     """Global airports table - single source of truth for all airport data"""
@@ -280,6 +293,11 @@ class Airports(Base):
         Index('idx_airports_country', 'country'),
         Index('idx_airports_region', 'region'),
         Index('idx_airports_icao_prefix', 'icao_code'),
+        Index('idx_airports_lat_lon', 'latitude', 'longitude'),  # Geographic queries
+        Index('idx_airports_elevation', 'elevation'),  # Elevation-based queries
+        Index('idx_airports_country_region', 'country', 'region'),  # Geographic filtering
+        Index('idx_airports_name', 'name'),  # Name-based searches
+        Index('idx_airports_icao_country', 'icao_code', 'country'),  # Country-specific ICAO lookups
     )
 
 class MovementDetectionConfig(Base):
@@ -293,6 +311,13 @@ class MovementDetectionConfig(Base):
     is_active = Column(Boolean, default=True)
     last_updated = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Indexes for efficient queries
+    __table_args__ = (
+        Index('idx_movement_detection_config_active', 'is_active'),  # Active configs only
+        Index('idx_movement_detection_config_key', 'config_key'),  # Key-based lookups
+        Index('idx_movement_detection_config_updated', 'last_updated'),  # Time-based queries
+    )
 
 class SystemConfig(Base):
     """System configuration model"""
@@ -305,6 +330,13 @@ class SystemConfig(Base):
     last_updated = Column(DateTime, default=datetime.utcnow)
     environment = Column(String(20), default="development")
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Indexes for efficient queries
+    __table_args__ = (
+        Index('idx_system_config_environment', 'environment'),  # Environment-specific configs
+        Index('idx_system_config_key_env', 'key', 'environment'),  # Key + environment lookups
+        Index('idx_system_config_updated', 'last_updated'),  # Time-based queries
+    )
 
 class Event(Base):
     """Event model for special events and scheduling"""
@@ -318,6 +350,15 @@ class Event(Base):
     required_controllers = Column(Integer, default=0)
     status = Column(String(20), default="scheduled")  # scheduled, active, completed
     notes = Column(Text, nullable=True)
+    
+    # Indexes for efficient queries
+    __table_args__ = (
+        Index('idx_events_start_time', 'start_time'),
+        Index('idx_events_end_time', 'end_time'),
+        Index('idx_events_status', 'status'),
+        Index('idx_events_name', 'name'),
+        Index('idx_events_start_end', 'start_time', 'end_time'),
+    )
 
 class Transceiver(Base):
     """Transceiver model for storing radio frequency and position data from VATSIM transceivers API"""
@@ -333,8 +374,8 @@ class Transceiver(Base):
     height_agl = Column(Float, nullable=True)  # Height above ground level in meters
     entity_type = Column(String(20), nullable=False)  # 'flight' or 'atc'
     entity_id = Column(Integer, nullable=True)  # Foreign key to flights.id or controllers.id
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    timestamp = Column(TIMESTAMP, default=datetime.utcnow, nullable=False)
+    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Indexes for efficient queries
     __table_args__ = (
@@ -342,6 +383,11 @@ class Transceiver(Base):
         Index('idx_transceivers_entity_type', 'entity_type'),
         Index('idx_transceivers_frequency', 'frequency'),
         Index('idx_transceivers_timestamp', 'timestamp'),
+        Index('idx_transceivers_entity_id', 'entity_id'),  # Foreign key to flights/controllers
+        Index('idx_transceivers_entity_type_id', 'entity_type', 'entity_id'),  # Composite for entity lookups
+        Index('idx_transceivers_callsign_entity', 'callsign', 'entity_type'),  # Callsign + entity type
+        Index('idx_transceivers_position', 'position_lat', 'position_lon'),  # Geographic queries
+        Index('idx_transceivers_height', 'height_msl', 'height_agl'),  # Height-based queries
     )
 
 class VatsimStatus(Base):
@@ -373,7 +419,6 @@ class FrequencyMatch(Base):
     distance_nm = Column(Float, nullable=True)  # Distance between pilot and controller
     match_timestamp = Column(DateTime, nullable=False, index=True)
     duration_seconds = Column(Integer, nullable=True)  # Duration of the match
-    is_active = Column(Boolean, default=True, index=True)
     match_confidence = Column(Float, default=1.0)  # Confidence score (0.0 to 1.0)
     communication_type = Column(String(20), nullable=False, index=True)  # 'approach', 'departure', 'enroute', 'ground', 'tower', 'hf_enroute', 'unknown'
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -383,7 +428,6 @@ class FrequencyMatch(Base):
     __table_args__ = (
         Index('idx_frequency_matches_pilot_controller', 'pilot_callsign', 'controller_callsign'),
         Index('idx_frequency_matches_frequency_timestamp', 'frequency', 'match_timestamp'),
-        Index('idx_frequency_matches_active_timestamp', 'is_active', 'match_timestamp'),
         Index('idx_frequency_matches_communication_type', 'communication_type'),
         Index('idx_frequency_matches_distance', 'distance_nm'),
     ) 

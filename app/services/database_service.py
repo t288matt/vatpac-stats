@@ -500,7 +500,7 @@ class DatabaseService(BaseService, DatabaseServiceInterface):
             transceiver_count = session.query(Transceiver).count()
             
             # Get active counts
-            active_flights = session.query(Flight).filter(Flight.status == "active").count()
+            active_flights = session.query(Flight).count()
             active_controllers = session.query(Controller).filter(Controller.status == "online").count()
             
             # Get recent activity

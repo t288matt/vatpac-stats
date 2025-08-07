@@ -77,8 +77,7 @@ CREATE TABLE IF NOT EXISTS flights (
     route TEXT,
     flight_plan JSONB,  -- Changed to JSONB for better performance
     
-    -- Status and timestamps
-    status VARCHAR(20) DEFAULT 'active',
+    -- Timestamps
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -110,9 +109,6 @@ CREATE TABLE IF NOT EXISTS flights (
     revision_id INTEGER,  -- Flight plan revision
     assigned_transponder VARCHAR(10)  -- Assigned transponder
 );
-
--- Add is_active field for soft deletion and filtering
-ALTER TABLE flights ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
 
 -- VATSIM Status table for general/status data
 CREATE TABLE IF NOT EXISTS vatsim_status (
@@ -154,8 +150,7 @@ CREATE TABLE IF NOT EXISTS flight_summaries (
     max_altitude SMALLINT,
     duration_minutes SMALLINT,
     controller_id INTEGER REFERENCES controllers(id),
-    sector_id INTEGER REFERENCES sectors(id),
-    completed_at TIMESTAMP WITH TIME ZONE NOT NULL
+    sector_id INTEGER REFERENCES sectors(id)
 );
 
 -- Movement summaries table
