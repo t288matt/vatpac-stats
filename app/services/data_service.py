@@ -410,7 +410,6 @@ class DataService(DatabaseService):
                     
                     for existing_flight in existing_flights:
                         existing_flight.status = 'active'
-                        existing_flight.last_updated = datetime.now(timezone.utc)
                     
                     if existing_flights:
                         db.commit()
@@ -543,21 +542,8 @@ class DataService(DatabaseService):
                 flight.completion_method = 'landing'
                 flight.completion_confidence = landing_detection['confidence']
                 
-                # FIX: Update all existing position records for this flight to 'landed' status
-                # This ensures consistent status reporting across all records for the same flight
-                existing_flights = db.query(Flight).filter(
-                    and_(
-                        Flight.callsign == landing_detection['callsign'],
-                        Flight.status.in_(['active', 'stale'])
-                    )
-                ).all()
-                
-                for existing_flight in existing_flights:
-                    if existing_flight.id != flight.id:  # Don't update the main flight record twice
-                        existing_flight.status = 'landed'
-                        existing_flight.landed_at = landing_detection['timestamp']
-                        existing_flight.completion_method = 'landing'
-                        existing_flight.completion_confidence = landing_detection['confidence']
+                # Only update the main flight record - don't update existing records
+                # This preserves the original timestamps of existing records
                 
                 # Create traffic movement record for landing
                 from ..models import TrafficMovement
@@ -630,21 +616,8 @@ class DataService(DatabaseService):
                         flight.pilot_disconnected_at = datetime.now(timezone.utc)
                         flight.disconnect_method = 'detected'
                         
-                        # FIX: Update all existing landed records for this flight to 'completed' status
-                        # This ensures consistent status reporting across all records for the same flight
-                        existing_landed_flights = db.query(Flight).filter(
-                            and_(
-                                Flight.callsign == flight.callsign,
-                                Flight.status == 'landed'
-                            )
-                        ).all()
-                        
-                        for existing_flight in existing_landed_flights:
-                            if existing_flight.id != flight.id:  # Don't update the main flight record twice
-                                existing_flight.status = 'completed'
-                                existing_flight.completed_at = datetime.now(timezone.utc)
-                                existing_flight.pilot_disconnected_at = datetime.now(timezone.utc)
-                                existing_flight.disconnect_method = 'detected'
+                        # Only update the main flight record - don't update existing records
+                        # This preserves the original timestamps of existing records
                         
                         # Now store flight summary
                         await self._store_flight_summary(flight)
