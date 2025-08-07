@@ -46,8 +46,8 @@
                 "value": null
               },
               {
-                "color": "red",
-                "value": 80
+                "color": "blue",
+                "value": 1
               }
             ]
           }
@@ -55,8 +55,8 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 16,
-        "w": 24,
+        "h": 8,
+        "w": 12,
         "x": 0,
         "y": 0
       },
@@ -83,7 +83,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH latest_flights AS (\n  SELECT DISTINCT ON (callsign) \n    callsign,\n    aircraft_type,\n    departure,\n    arrival,\n    route,\n    altitude,\n    heading,\n    transponder,\n    status,\n    cid,\n    name as pilot_name,\n    server,\n    pilot_rating,\n    military_rating,\n    position_lat,\n    position_lng,\n    groundspeed,\n    qnh_i_hg,\n    qnh_mb,\n    remarks,\n    last_updated,\n    landed_at,\n    completed_at,\n    completion_method,\n    completion_confidence,\n    pilot_disconnected_at,\n    disconnect_method\n  FROM flights\n  WHERE status IN ('active', 'stale', 'landed')\n    AND position_lat IS NOT NULL\n    AND position_lng IS NOT NULL\n  ORDER BY callsign, last_updated DESC\n)\nSELECT * FROM latest_flights\nORDER BY last_updated DESC\nLIMIT 50",
+          "rawSql": "SELECT \n  completion_method as \"Completion Method\",\n  COUNT(*) as \"Total Completions\",\n  ROUND(AVG(EXTRACT(EPOCH FROM (completed_at - created_at))/60), 1) as \"Avg Duration (min)\",\n  ROUND(AVG(completion_confidence), 2) as \"Avg Confidence\",\n  COUNT(CASE WHEN completed_at >= NOW() - INTERVAL '1 hour' THEN 1 END) as \"Last Hour\",\n  COUNT(CASE WHEN completed_at >= NOW() - INTERVAL '24 hours' THEN 1 END) as \"Last 24h\"\nFROM flights \nWHERE status = 'completed' \n  AND completion_method IS NOT NULL\nGROUP BY completion_method\nORDER BY \"Total Completions\" DESC",
           "refId": "A",
           "sql": {
             "columns": [
@@ -104,7 +104,7 @@
           }
         }
       ],
-      "title": "Sydney Flights - Latest Positions (Enhanced with Landed Status)",
+      "title": "Flight Completion Statistics (All Time)",
       "type": "table"
     },
     {
@@ -131,12 +131,8 @@
                 "value": null
               },
               {
-                "color": "yellow",
-                "value": 60
-              },
-              {
-                "color": "red",
-                "value": 300
+                "color": "blue",
+                "value": 1
               }
             ]
           }
@@ -145,9 +141,9 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 16
+        "w": 12,
+        "x": 12,
+        "y": 0
       },
       "id": 2,
       "options": {
@@ -172,7 +168,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH latest_flights AS (\n  SELECT DISTINCT ON (callsign) \n    callsign,\n    status,\n    last_updated,\n    landed_at,\n    completed_at,\n    completion_method,\n    completion_confidence,\n    pilot_disconnected_at,\n    disconnect_method\n  FROM flights\n  WHERE status IN ('active', 'stale', 'landed')\n  ORDER BY callsign, last_updated DESC\n),\nstats AS (\n  SELECT \n    COUNT(*) as total_flights,\n    COUNT(CASE WHEN status = 'active' THEN 1 END) as active_flights,\n    COUNT(CASE WHEN status = 'stale' THEN 1 END) as stale_flights,\n    COUNT(CASE WHEN status = 'landed' THEN 1 END) as landed_flights,\n    MAX(last_updated) as latest_update,\n    EXTRACT(EPOCH FROM (NOW() - MAX(last_updated))) as seconds_since_update\n  FROM latest_flights\n)\nSELECT \n  total_flights as \"Total Flights\",\n  active_flights as \"Active Flights\",\n  stale_flights as \"Stale Flights\",\n  landed_flights as \"Landed Flights\",\n  latest_update as \"Latest Update\",\n  ROUND(seconds_since_update::numeric, 1) as \"Seconds Since Update\",\n  CASE \n    WHEN seconds_since_update < 60 THEN 'Fresh' \n    WHEN seconds_since_update < 300 THEN 'Stale' \n    ELSE 'Very Stale' \n  END as \"Data Status\"\nFROM stats",
+          "rawSql": "SELECT \n  status as \"Status\",\n  COUNT(*) as \"Count\",\n  ROUND(COUNT(*)::numeric / SUM(COUNT(*)) OVER() * 100, 1) as \"Percentage\",\n  CASE \n    WHEN status = 'active' THEN 'Currently flying'\n    WHEN status = 'stale' THEN 'No recent updates'\n    WHEN status = 'landed' THEN 'Landed but pilot connected'\n    WHEN status = 'completed' THEN 'Pilot disconnected'\n    WHEN status = 'cancelled' THEN 'Flight cancelled'\n    ELSE 'Unknown'\n  END as \"Description\"\nFROM flights \nGROUP BY status\nORDER BY \"Count\" DESC",
           "refId": "A",
           "sql": {
             "columns": [
@@ -193,7 +189,7 @@
           }
         }
       ],
-      "title": "Enhanced Flight Status Distribution & Data Freshness",
+      "title": "Flight Status Distribution",
       "type": "table"
     },
     {
@@ -232,7 +228,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 24
+        "y": 8
       },
       "id": 3,
       "options": {
@@ -257,7 +253,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT \n  completion_method as \"Completion Method\",\n  disconnect_method as \"Disconnect Method\",\n  COUNT(*) as \"Count\",\n  ROUND(AVG(EXTRACT(EPOCH FROM (completed_at - created_at))/60), 1) as \"Avg Duration (min)\",\n  ROUND(AVG(completion_confidence), 2) as \"Avg Confidence\"\nFROM flights \nWHERE status = 'completed' \n  AND completion_method IS NOT NULL\n  AND completed_at >= NOW() - INTERVAL '24 hours'\nGROUP BY completion_method, disconnect_method\nORDER BY \"Count\" DESC",
+          "rawSql": "SELECT \n  callsign as \"Callsign\",\n  departure as \"Departure\",\n  arrival as \"Arrival\",\n  landed_at as \"Landed At\",\n  ROUND(EXTRACT(EPOCH FROM (NOW() - landed_at))/60, 1) as \"Minutes Landed\",\n  completion_method as \"Completion Method\",\n  ROUND(completion_confidence, 2) as \"Confidence\"\nFROM flights \nWHERE status = 'landed' \n  AND landed_at IS NOT NULL\nORDER BY landed_at DESC\nLIMIT 15",
           "refId": "A",
           "sql": {
             "columns": [
@@ -274,11 +270,11 @@
                 "type": "groupBy"
               }
             ],
-            "limit": 50
+            "limit": 15
           }
         }
       ],
-      "title": "Enhanced Flight Completion Statistics (Last 24h)",
+      "title": "Landed Flights (Pilots Still Connected)",
       "type": "table"
     },
     {
@@ -317,7 +313,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 24
+        "y": 8
       },
       "id": 4,
       "options": {
@@ -342,7 +338,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT \n  callsign as \"Callsign\",\n  status as \"Status\",\n  landed_at as \"Landed At\",\n  completed_at as \"Completed At\",\n  completion_method as \"Method\",\n  disconnect_method as \"Disconnect Method\",\n  ROUND(completion_confidence, 2) as \"Confidence\",\n  ROUND(EXTRACT(EPOCH FROM (completed_at - created_at))/60, 1) as \"Duration (min)\"\nFROM flights \nWHERE status IN ('landed', 'completed')\n  AND (landed_at IS NOT NULL OR completed_at IS NOT NULL)\n  AND (landed_at >= NOW() - INTERVAL '6 hours' OR completed_at >= NOW() - INTERVAL '6 hours')\nORDER BY COALESCE(completed_at, landed_at) DESC\nLIMIT 10",
+          "rawSql": "SELECT \n  callsign as \"Callsign\",\n  completion_method as \"Method\",\n  completed_at as \"Completed At\",\n  pilot_disconnected_at as \"Pilot Disconnected At\",\n  disconnect_method as \"Disconnect Method\",\n  ROUND(completion_confidence, 2) as \"Confidence\",\n  ROUND(EXTRACT(EPOCH FROM (completed_at - created_at))/60, 1) as \"Duration (min)\",\n  departure as \"From\",\n  arrival as \"To\"\nFROM flights \nWHERE status = 'completed' \n  AND completed_at IS NOT NULL\n  AND completed_at >= NOW() - INTERVAL '24 hours'\nORDER BY completed_at DESC\nLIMIT 15",
           "refId": "A",
           "sql": {
             "columns": [
@@ -359,11 +355,11 @@
                 "type": "groupBy"
               }
             ],
-            "limit": 10
+            "limit": 15
           }
         }
       ],
-      "title": "Recent Landed & Completed Flights (Last 6h)",
+      "title": "Recent Completed Flights (Last 24h)",
       "type": "table"
     },
     {
@@ -402,7 +398,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 32
+        "y": 16
       },
       "id": 5,
       "options": {
@@ -427,7 +423,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT \n  airport_code as \"Airport\",\n  movement_type as \"Movement Type\",\n  COUNT(*) as \"Count\",\n  COUNT(CASE WHEN flight_completion_triggered THEN 1 END) as \"Completion Triggered\",\n  ROUND(AVG(completion_confidence), 2) as \"Avg Confidence\"\nFROM traffic_movements \nWHERE timestamp >= NOW() - INTERVAL '24 hours'\nGROUP BY airport_code, movement_type\nORDER BY \"Count\" DESC\nLIMIT 15",
+          "rawSql": "SELECT \n  airport_code as \"Airport\",\n  movement_type as \"Movement Type\",\n  COUNT(*) as \"Total Movements\",\n  COUNT(CASE WHEN flight_completion_triggered THEN 1 END) as \"Completion Triggered\",\n  ROUND(COUNT(CASE WHEN flight_completion_triggered THEN 1 END)::numeric / COUNT(*) * 100, 1) as \"Trigger Rate %\",\n  ROUND(AVG(completion_confidence), 2) as \"Avg Confidence\"\nFROM traffic_movements \nWHERE timestamp >= NOW() - INTERVAL '24 hours'\nGROUP BY airport_code, movement_type\nHAVING COUNT(*) > 0\nORDER BY \"Completion Triggered\" DESC\nLIMIT 20",
           "refId": "A",
           "sql": {
             "columns": [
@@ -444,11 +440,11 @@
                 "type": "groupBy"
               }
             ],
-            "limit": 15
+            "limit": 20
           }
         }
       ],
-      "title": "Traffic Movements with Completion Tracking (Last 24h)",
+      "title": "Landing Detection Performance (Last 24h)",
       "type": "table"
     },
     {
@@ -487,7 +483,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 32
+        "y": 16
       },
       "id": 6,
       "options": {
@@ -512,7 +508,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT \n  callsign as \"Callsign\",\n  departure as \"Departure\",\n  arrival as \"Arrival\",\n  status as \"Status\",\n  last_updated as \"Last Updated\",\n  landed_at as \"Landed At\",\n  completed_at as \"Completed At\",\n  completion_method as \"Completion Method\",\n  disconnect_method as \"Disconnect Method\",\n  ROUND(completion_confidence, 2) as \"Confidence\"\nFROM flights \nWHERE status IN ('active', 'stale', 'landed', 'completed')\n  AND (departure LIKE 'YS%' OR arrival LIKE 'YS%')\nORDER BY last_updated DESC\nLIMIT 20",
+          "rawSql": "SELECT \n  callsign as \"Callsign\",\n  departure as \"Departure\",\n  arrival as \"Arrival\",\n  status as \"Status\",\n  last_updated as \"Last Updated\",\n  CASE \n    WHEN status = 'landed' THEN 'Landed (Pilot Connected)'\n    WHEN status = 'completed' THEN 'Completed (Pilot Disconnected)'\n    WHEN status = 'active' THEN 'Active'\n    WHEN status = 'stale' THEN 'Stale'\n    ELSE status\n  END as \"Flight Status\",\n  completion_method as \"Completion Method\",\n  ROUND(completion_confidence, 2) as \"Confidence\",\n  ROUND(EXTRACT(EPOCH FROM (NOW() - last_updated))/60, 1) as \"Minutes Since Update\"\nFROM flights \nWHERE status IN ('active', 'stale', 'landed', 'completed')\n  AND (departure LIKE 'YS%' OR arrival LIKE 'YS%')\nORDER BY last_updated DESC\nLIMIT 25",
           "refId": "A",
           "sql": {
             "columns": [
@@ -529,11 +525,11 @@
                 "type": "groupBy"
               }
             ],
-            "limit": 20
+            "limit": 25
           }
         }
       ],
-      "title": "Sydney Airport Flights with Enhanced Status",
+      "title": "Sydney Airport Flights - Enhanced Status",
       "type": "table"
     },
     {
@@ -572,7 +568,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 40
+        "y": 24
       },
       "id": 7,
       "options": {
@@ -597,7 +593,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT \n  callsign as \"Callsign\",\n  aircraft_type as \"Aircraft\",\n  departure as \"Departure\",\n  arrival as \"Arrival\",\n  status as \"Status\",\n  landed_at as \"Landed At\",\n  pilot_disconnected_at as \"Pilot Disconnected At\",\n  disconnect_method as \"Disconnect Method\",\n  EXTRACT(EPOCH FROM (NOW() - landed_at))/60 as \"Minutes Since Landing\"\nFROM flights \nWHERE status = 'landed'\n  AND landed_at IS NOT NULL\nORDER BY landed_at ASC\nLIMIT 15",
+          "rawSql": "WITH completion_stats AS (\n  SELECT \n    DATE_TRUNC('hour', completed_at) as hour,\n    completion_method,\n    disconnect_method,\n    COUNT(*) as completions,\n    ROUND(AVG(completion_confidence), 2) as avg_confidence,\n    ROUND(AVG(EXTRACT(EPOCH FROM (completed_at - landed_at))/60), 1) as avg_time_landed_minutes\n  FROM flights \n  WHERE status = 'completed' \n    AND completed_at IS NOT NULL\n    AND completed_at >= NOW() - INTERVAL '7 days'\n  GROUP BY DATE_TRUNC('hour', completed_at), completion_method, disconnect_method\n)\nSELECT \n  hour as \"Hour\",\n  completion_method as \"Method\",\n  disconnect_method as \"Disconnect Method\",\n  completions as \"Completions\",\n  avg_confidence as \"Avg Confidence\",\n  avg_time_landed_minutes as \"Avg Time Landed (min)\"\nFROM completion_stats\nORDER BY hour DESC, completions DESC\nLIMIT 50",
           "refId": "A",
           "sql": {
             "columns": [
@@ -614,11 +610,181 @@
                 "type": "groupBy"
               }
             ],
-            "limit": 15
+            "limit": 50
           }
         }
       ],
-      "title": "Currently Landed Aircraft (Pilots Still Connected)",
+      "title": "Enhanced Hourly Completion Trends (Last 7 Days)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto",
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "blue",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "id": 8,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT \n  disconnect_method as \"Disconnect Method\",\n  COUNT(*) as \"Total Disconnects\",\n  ROUND(AVG(EXTRACT(EPOCH FROM (pilot_disconnected_at - landed_at))/60), 1) as \"Avg Time Landed (min)\",\n  COUNT(CASE WHEN pilot_disconnected_at >= NOW() - INTERVAL '1 hour' THEN 1 END) as \"Last Hour\",\n  COUNT(CASE WHEN pilot_disconnected_at >= NOW() - INTERVAL '24 hours' THEN 1 END) as \"Last 24h\"\nFROM flights \nWHERE status = 'completed' \n  AND pilot_disconnected_at IS NOT NULL\n  AND disconnect_method IS NOT NULL\nGROUP BY disconnect_method\nORDER BY \"Total Disconnects\" DESC",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Pilot Disconnect Statistics",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto",
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "blue",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "id": 9,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT \n  'Active' as \"Status\",\n  COUNT(*) as \"Count\",\n  'Currently flying' as \"Description\"\nFROM flights \nWHERE status = 'active'\nUNION ALL\nSELECT \n  'Landed' as \"Status\",\n  COUNT(*) as \"Count\",\n  'Landed but pilot connected' as \"Description\"\nFROM flights \nWHERE status = 'landed'\nUNION ALL\nSELECT \n  'Completed' as \"Status\",\n  COUNT(*) as \"Count\",\n  'Pilot disconnected' as \"Description\"\nFROM flights \nWHERE status = 'completed'\nUNION ALL\nSELECT \n  'Stale' as \"Status\",\n  COUNT(*) as \"Count\",\n  'No recent updates' as \"Description\"\nFROM flights \nWHERE status = 'stale'\nORDER BY \"Count\" DESC",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Current Flight Status Summary",
       "type": "table"
     }
   ],
@@ -627,10 +793,11 @@
   "style": "dark",
   "tags": [
     "vatsim",
-    "sydney",
-    "flights",
     "completion",
-    "landed-status"
+    "landing",
+    "landed",
+    "disconnect",
+    "monitoring"
   ],
   "templating": {
     "list": []
@@ -641,8 +808,8 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Sydney Flights Dashboard - Enhanced with Landed Status System",
-  "uid": "sydney-flights-fixed",
-  "version": 3,
+  "title": "Enhanced Flight Completion System Dashboard",
+  "uid": "flight-completion-system",
+  "version": 2,
   "weekStart": ""
 } 

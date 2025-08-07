@@ -1218,6 +1218,151 @@ async def get_flight_filter_status():
     flight_filter = FlightFilter()
     return flight_filter.get_filter_stats()
 
+@app.get("/api/completion/system/status")
+@handle_service_errors
+@log_operation("get_completion_system_status")
+async def get_completion_system_status():
+    """Get flight completion system status and configuration"""
+    import os
+    
+    return {
+        "system_enabled": os.getenv('COMPLETION_SYSTEM_ENABLED', 'true').lower() == 'true',
+        "landed_status_enabled": os.getenv('LANDED_STATUS_ENABLED', 'true').lower() == 'true',
+        "pilot_disconnect_detection_enabled": os.getenv('PILOT_DISCONNECT_DETECTION_ENABLED', 'true').lower() == 'true',
+        "disconnect_detection_interval_seconds": int(os.getenv('DISCONNECT_DETECTION_INTERVAL_SECONDS', '30')),
+        "completion_method": os.getenv('FLIGHT_COMPLETION_METHOD', 'hybrid'),
+        "completion_priority": os.getenv('COMPLETION_PRIORITY', 'landing_first'),
+        "landing_detection": {
+            "enabled": os.getenv('LANDING_DETECTION_ENABLED', 'true').lower() == 'true',
+            "radius_nm": float(os.getenv('LANDING_DETECTION_RADIUS_NM', '15.0')),
+            "altitude_threshold_ft": float(os.getenv('LANDING_ALTITUDE_THRESHOLD_FT_ABOVE_AIRPORT', '1000')),
+            "speed_threshold_kts": float(os.getenv('LANDING_SPEED_THRESHOLD_KTS', '20')),
+            "duplicate_prevention_minutes": int(os.getenv('LANDING_DUPLICATE_PREVENTION_MINUTES', '5')),
+            "completion_delay_minutes": int(os.getenv('LANDING_COMPLETION_DELAY_MINUTES', '2')),
+            "confidence_threshold": float(os.getenv('LANDING_CONFIDENCE_THRESHOLD', '0.8'))
+        },
+        "time_based_fallback": {
+            "enabled": os.getenv('TIME_BASED_FALLBACK_ENABLED', 'true').lower() == 'true',
+            "timeout_hours": float(os.getenv('TIME_BASED_TIMEOUT_HOURS', '1')),
+            "cleanup_interval_seconds": int(os.getenv('TIME_BASED_CLEANUP_INTERVAL_SECONDS', '3600')),
+            "minimum_flight_duration_minutes": int(os.getenv('TIME_BASED_MINIMUM_FLIGHT_DURATION_MINUTES', '10'))
+        },
+        "database": {
+            "batch_size": int(os.getenv('COMPLETION_BATCH_SIZE', '100')),
+            "transaction_timeout_seconds": int(os.getenv('COMPLETION_TRANSACTION_TIMEOUT_SECONDS', '30')),
+            "log_level": os.getenv('COMPLETION_LOG_LEVEL', 'INFO')
+        },
+        "status_lifecycle": {
+            "active": "Currently flying",
+            "stale": "Recently seen but not in latest update",
+            "landed": "Aircraft has landed but pilot still connected",
+            "completed": "Flight finished (pilot logged off or cleanup timeout)",
+            "cancelled": "Flight cancelled",
+            "unknown": "Status unclear"
+        },
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+@app.get("/api/completion/statistics")
+@handle_service_errors
+@log_operation("get_completion_statistics")
+async def get_completion_statistics(db: Session = Depends(get_db)):
+    """Get flight completion statistics"""
+    try:
+        # Get completion method statistics
+        completion_stats = db.execute(text("""
+            SELECT 
+                completion_method,
+                COUNT(*) as count,
+                AVG(EXTRACT(EPOCH FROM (completed_at - created_at))/60) as avg_duration_minutes
+            FROM flights 
+            WHERE status = 'completed' AND completion_method IS NOT NULL
+            GROUP BY completion_method
+        """)).fetchall()
+        
+        # Get status distribution
+        status_distribution = db.execute(text("""
+            SELECT 
+                status,
+                COUNT(*) as count
+            FROM flights 
+            GROUP BY status
+        """)).fetchall()
+        
+        # Get landed flights statistics
+        landed_stats = db.execute(text("""
+            SELECT 
+                COUNT(*) as total_landed,
+                AVG(EXTRACT(EPOCH FROM (NOW() - landed_at))/60) as avg_time_landed_minutes
+            FROM flights 
+            WHERE status = 'landed' AND landed_at IS NOT NULL
+        """)).fetchall()
+        
+        # Get recent completions
+        recent_completions = db.execute(text("""
+            SELECT 
+                callsign,
+                completion_method,
+                completed_at,
+                completion_confidence,
+                pilot_disconnected_at,
+                disconnect_method
+            FROM flights 
+            WHERE status = 'completed' AND completed_at IS NOT NULL
+            ORDER BY completed_at DESC
+            LIMIT 10
+        """)).fetchall()
+        
+        # Convert to dictionaries
+        stats = []
+        for row in completion_stats:
+            stats.append({
+                "completion_method": row[0],
+                "count": row[1],
+                "avg_duration_minutes": float(row[2]) if row[2] else 0
+            })
+        
+        status_dist = []
+        for row in status_distribution:
+            status_dist.append({
+                "status": row[0],
+                "count": row[1]
+            })
+        
+        landed_info = {}
+        if landed_stats and landed_stats[0]:
+            row = landed_stats[0]
+            landed_info = {
+                "total_landed": row[0],
+                "avg_time_landed_minutes": float(row[1]) if row[1] else 0
+            }
+        
+        recent = []
+        for row in recent_completions:
+            recent.append({
+                "callsign": row[0],
+                "completion_method": row[1],
+                "completed_at": row[2].isoformat() if row[2] else None,
+                "completion_confidence": float(row[3]) if row[3] else None,
+                "pilot_disconnected_at": row[4].isoformat() if row[4] else None,
+                "disconnect_method": row[5]
+            })
+        
+        return {
+            "completion_statistics": stats,
+            "status_distribution": status_dist,
+            "landed_flights": landed_info,
+            "recent_completions": recent,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting completion statistics: {e}")
+        return {
+            "error": str(e),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
 @app.get("/api/diagnostic/data-ingestion")
 @handle_service_errors
 @log_operation("get_data_ingestion_diagnostic")
@@ -1526,6 +1671,122 @@ async def get_ml_patterns():
         "status": "disabled",
         "message": "ML service disabled due to heavy dependencies"
     }
+
+@app.get("/api/flights/status/landed")
+@handle_service_errors
+@log_operation("get_landed_flights")
+async def get_landed_flights(db: Session = Depends(get_db)):
+    """Get all landed flights (pilots still connected)"""
+    try:
+        # Get landed flights from database
+        landed_flights = db.query(Flight).filter(Flight.status == 'landed').all()
+        
+        flights_data = []
+        for flight in landed_flights:
+            flight_data = {
+                "id": flight.id,
+                "callsign": flight.callsign,
+                "aircraft_type": flight.aircraft_type,
+                "departure": flight.departure,
+                "arrival": flight.arrival,
+                "route": flight.route,
+                "altitude": flight.altitude,
+                "heading": flight.heading,
+                "groundspeed": flight.groundspeed,
+                "position_lat": flight.position_lat,
+                "position_lng": flight.position_lng,
+                "landed_at": flight.landed_at.isoformat() if flight.landed_at else None,
+                "completion_method": flight.completion_method,
+                "completion_confidence": flight.completion_confidence,
+                "last_updated": flight.last_updated.isoformat() if flight.last_updated else None
+            }
+            flights_data.append(flight_data)
+        
+        return {
+            "flights": flights_data,
+            "total": len(flights_data),
+            "status": "landed",
+            "description": "Aircraft that have landed but pilots still connected to VATSIM"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting landed flights: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving landed flights")
+
+@app.get("/api/flights/status/completed")
+@handle_service_errors
+@log_operation("get_completed_flights")
+async def get_completed_flights(db: Session = Depends(get_db)):
+    """Get all completed flights (pilots disconnected)"""
+    try:
+        # Get completed flights from database
+        completed_flights = db.query(Flight).filter(Flight.status == 'completed').all()
+        
+        flights_data = []
+        for flight in completed_flights:
+            flight_data = {
+                "id": flight.id,
+                "callsign": flight.callsign,
+                "aircraft_type": flight.aircraft_type,
+                "departure": flight.departure,
+                "arrival": flight.arrival,
+                "route": flight.route,
+                "landed_at": flight.landed_at.isoformat() if flight.landed_at else None,
+                "completed_at": flight.completed_at.isoformat() if flight.completed_at else None,
+                "completion_method": flight.completion_method,
+                "completion_confidence": flight.completion_confidence,
+                "pilot_disconnected_at": flight.pilot_disconnected_at.isoformat() if flight.pilot_disconnected_at else None,
+                "disconnect_method": flight.disconnect_method
+            }
+            flights_data.append(flight_data)
+        
+        return {
+            "flights": flights_data,
+            "total": len(flights_data),
+            "status": "completed",
+            "description": "Aircraft where pilots have disconnected from VATSIM"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting completed flights: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving completed flights")
+
+@app.get("/api/flights/{callsign}/disconnect-status")
+@handle_service_errors
+@log_operation("get_flight_disconnect_status")
+async def get_flight_disconnect_status(callsign: str, db: Session = Depends(get_db)):
+    """Get disconnect status for a specific flight"""
+    try:
+        # Find the flight
+        flight = db.query(Flight).filter(Flight.callsign == callsign).first()
+        
+        if not flight:
+            raise HTTPException(status_code=404, detail="Flight not found")
+        
+        # Get current VATSIM data to check if pilot is still connected
+        vatsim_service = get_vatsim_service()
+        vatsim_data = await vatsim_service.get_current_data()
+        connected_callsigns = {flight.callsign for flight in vatsim_data.flights}
+        
+        is_connected = flight.callsign in connected_callsigns
+        
+        return {
+            "callsign": flight.callsign,
+            "status": flight.status,
+            "is_pilot_connected": is_connected,
+            "landed_at": flight.landed_at.isoformat() if flight.landed_at else None,
+            "completed_at": flight.completed_at.isoformat() if flight.completed_at else None,
+            "pilot_disconnected_at": flight.pilot_disconnected_at.isoformat() if flight.pilot_disconnected_at else None,
+            "disconnect_method": flight.disconnect_method,
+            "completion_method": flight.completion_method,
+            "last_updated": flight.last_updated.isoformat() if flight.last_updated else None
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting disconnect status for {callsign}: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving disconnect status")
 
 
 if __name__ == "__main__":

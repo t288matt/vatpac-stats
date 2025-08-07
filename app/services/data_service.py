@@ -256,6 +256,12 @@ class DataService(DatabaseService):
             # Process transceivers in memory
             transceivers_count = await self._process_transceivers_in_memory(transceivers_data)
             
+            # NEW: Detect landings using hybrid completion system
+            landing_count = await self._detect_landings_in_memory()
+            
+            # NEW: Detect pilot disconnects for landed flights
+            disconnect_count = await self._detect_pilot_disconnects()
+            
             # Detect traffic movements in memory
             # movements_count = await self._detect_movements_in_memory()
             movements_count = 0  # Temporarily disabled
@@ -265,6 +271,8 @@ class DataService(DatabaseService):
                 'flights': flights_count,
                 'sectors': sectors_count,
                 'transceivers': transceivers_count,
+                'landings_detected': landing_count,
+                'pilot_disconnects': disconnect_count,
                 'movements': movements_count
             })
             
@@ -415,6 +423,188 @@ class DataService(DatabaseService):
         except Exception as e:
             self.logger.error(f"Error processing transceivers in memory: {e}")
             return 0
+    
+    async def _detect_landings_in_memory(self) -> int:
+        """Detect landings and trigger flight completion"""
+        try:
+            import os
+            from ..models import Flight
+            
+            # Check if landing detection is enabled
+            landing_enabled = os.getenv('LANDING_DETECTION_ENABLED', 'true').lower() == 'true'
+            if not landing_enabled:
+                return 0
+            
+            # Get active flights from database for landing detection
+            db = SessionLocal()
+            try:
+                active_flights = db.query(Flight).filter(Flight.status.in_(['active', 'stale'])).all()
+                
+                if not active_flights:
+                    return 0
+                
+                # Use TrafficAnalysisService to detect landings
+                from .traffic_analysis_service import TrafficAnalysisService
+                traffic_service = TrafficAnalysisService(db)
+                landing_detections = traffic_service.detect_landings(active_flights)
+                
+                landing_count = 0
+                for landing in landing_detections:
+                    # Complete flight by landing
+                    success = await self._complete_flight_by_landing(landing)
+                    if success:
+                        landing_count += 1
+                
+                if landing_count > 0:
+                    self.logger.info(f"Detected and completed {landing_count} flights by landing")
+                
+                return landing_count
+                
+            except Exception as e:
+                self.logger.error(f"Error detecting landings: {e}")
+                return 0
+            finally:
+                db.close()
+                
+        except Exception as e:
+            self.logger.error(f"Error in landing detection process: {e}")
+            return 0
+    
+    async def _complete_flight_by_landing(self, landing_detection: Dict[str, Any]) -> bool:
+        """Complete a flight based on landing detection - now sets status to 'landed'"""
+        try:
+            db = SessionLocal()
+            try:
+                # Find the flight
+                flight = db.query(Flight).filter(
+                    and_(
+                        Flight.callsign == landing_detection['callsign'],
+                        Flight.status.in_(['active', 'stale'])
+                    )
+                ).first()
+                
+                if not flight:
+                    return False
+                
+                # Mark flight as landed (not completed - pilot still connected)
+                flight.status = 'landed'
+                flight.landed_at = landing_detection['timestamp']
+                flight.completion_method = 'landing'
+                flight.completion_confidence = landing_detection['confidence']
+                
+                # Create traffic movement record for landing
+                from ..models import TrafficMovement
+                movement = TrafficMovement(
+                    airport_code=landing_detection['airport_code'],
+                    movement_type='arrival',
+                    aircraft_callsign=landing_detection['callsign'],
+                    timestamp=landing_detection['timestamp'],
+                    flight_completion_triggered=True,
+                    completion_timestamp=landing_detection['timestamp'],
+                    completion_confidence=landing_detection['confidence']
+                )
+                db.add(movement)
+                
+                # Don't store flight summary yet - pilot still connected
+                # Summary will be stored when pilot disconnects
+                
+                db.commit()
+                
+                self.logger.info(f"Flight {flight.callsign} landed at {landing_detection['airport_code']}", extra={
+                    'distance_nm': landing_detection['distance_nm'],
+                    'altitude_above_airport': landing_detection['altitude_above_airport'],
+                    'groundspeed': landing_detection['groundspeed']
+                })
+                
+                return True
+                
+            except Exception as e:
+                db.rollback()
+                self.logger.error(f"Error marking flight as landed: {e}")
+                return False
+            finally:
+                db.close()
+                
+        except Exception as e:
+            self.logger.error(f"Error in flight landing process: {e}")
+            return False
+    
+    async def _detect_pilot_disconnects(self) -> int:
+        """Detect when pilots disconnect from VATSIM and complete landed flights"""
+        try:
+            import os
+            
+            # Check if pilot disconnect detection is enabled
+            disconnect_enabled = os.getenv('PILOT_DISCONNECT_DETECTION_ENABLED', 'true').lower() == 'true'
+            if not disconnect_enabled:
+                return 0
+            
+            db = SessionLocal()
+            try:
+                # Get all landed flights
+                landed_flights = db.query(Flight).filter(
+                    Flight.status == 'landed'
+                ).all()
+                
+                if not landed_flights:
+                    return 0
+                
+                # Get current VATSIM data to check for connected pilots
+                vatsim_data = await self.vatsim_service.get_current_data()
+                connected_callsigns = {flight.callsign for flight in vatsim_data.flights}
+                
+                # Check for disconnected pilots
+                disconnect_count = 0
+                for flight in landed_flights:
+                    if flight.callsign not in connected_callsigns:
+                        # Pilot has disconnected
+                        flight.status = 'completed'
+                        flight.completed_at = datetime.now(timezone.utc)
+                        flight.pilot_disconnected_at = datetime.now(timezone.utc)
+                        flight.disconnect_method = 'detected'
+                        
+                        # Now store flight summary
+                        await self._store_flight_summary(flight)
+                        
+                        disconnect_count += 1
+                        
+                        self.logger.info(f"Flight {flight.callsign} completed by pilot disconnect")
+                
+                if disconnect_count > 0:
+                    db.commit()
+                    self.logger.info(f"Detected and completed {disconnect_count} flights by pilot disconnect")
+                
+                return disconnect_count
+                
+            except Exception as e:
+                db.rollback()
+                self.logger.error(f"Error detecting pilot disconnects: {e}")
+                return 0
+            finally:
+                db.close()
+                
+        except Exception as e:
+            self.logger.error(f"Error in pilot disconnect detection process: {e}")
+            return 0
+    
+    async def _complete_flight_by_time(self, flight: Flight) -> bool:
+        """Complete a flight based on time-based fallback"""
+        try:
+            # Mark flight as completed
+            flight.status = 'completed'
+            flight.completed_at = datetime.now(timezone.utc)
+            flight.completion_method = 'time'
+            flight.completion_confidence = 1.0  # Binary confidence
+            
+            # Store flight summary
+            await self._store_flight_summary(flight)
+            
+            self.logger.info(f"Flight {flight.callsign} completed by time-based fallback")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error completing flight by time: {e}")
+            return False
     
     async def _detect_movements_in_memory(self) -> int:
         """Detect traffic movements using memory data"""
@@ -589,24 +779,44 @@ class DataService(DatabaseService):
             self.logger.error(f"Error in memory flush: {e}")
     
     async def _cleanup_old_data(self):
-        """Clean up old data to prevent database bloat"""
+        """Clean up old data to prevent database bloat with hybrid completion logic"""
         try:
+            import os
             db = SessionLocal()
             try:
-                # Mark old flights as completed (older than 1 hour) - preserve historical data
-                cutoff_time = datetime.now(timezone.utc) - timedelta(hours=1)
+                # Check if time-based fallback is enabled
+                time_based_enabled = os.getenv('TIME_BASED_FALLBACK_ENABLED', 'true').lower() == 'true'
+                if not time_based_enabled:
+                    return
+                
+                # Get timeout configuration
+                timeout_hours = float(os.getenv('TIME_BASED_TIMEOUT_HOURS', '1'))
+                cutoff_time = datetime.now(timezone.utc) - timedelta(hours=timeout_hours)
+                
+                # Find flights that should be completed by time
                 old_flights = db.query(Flight).filter(
                     and_(
                         Flight.last_updated < cutoff_time,
-                        Flight.status.in_(['active', 'stale'])
+                        Flight.status.in_(['active', 'stale', 'landed'])  # Include landed flights
                     )
                 ).all()
                 
+                time_completed_count = 0
                 for flight in old_flights:
-                    # Mark as completed instead of deleting
-                    flight.status = 'completed'
-                    # Store flight summary for analytics
-                    await self._store_flight_summary(flight)
+                    # Check if flight has recent landing detection
+                    recent_landing = db.query(TrafficMovement).filter(
+                        and_(
+                            TrafficMovement.aircraft_callsign == flight.callsign,
+                            TrafficMovement.flight_completion_triggered == True,
+                            TrafficMovement.timestamp >= cutoff_time
+                        )
+                    ).first()
+                    
+                    # Only complete by time if no recent landing detection
+                    if not recent_landing:
+                        success = await self._complete_flight_by_time(flight)
+                        if success:
+                            time_completed_count += 1
                 
                 # Mark ATC positions as offline if not seen in 30 minutes
                 atc_position_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
@@ -630,7 +840,7 @@ class DataService(DatabaseService):
                     db.delete(movement)
                 
                 db.commit()
-                self.logger.info(f"Marked {len(old_flights)} flights as completed, {len(offline_atc_positions)} offline ATC positions, {len(old_movements)} old movements")
+                self.logger.info(f"Time-based completion: {time_completed_count} flights, {len(offline_atc_positions)} offline ATC positions, {len(old_movements)} old movements")
                 
             except Exception as e:
                 db.rollback()

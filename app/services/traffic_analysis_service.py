@@ -176,39 +176,109 @@ class TrafficAnalysisService:
             return None
     
     def detect_movements(self, flights: List[Flight]) -> List[TrafficMovement]:
-        """Detect traffic movements from current flight data"""
+        """Detect traffic movements for a list of flights"""
         movements = []
         
-        try:
-            for flight in flights:
-                if not flight.position or not flight.departure or not flight.arrival:
-                    continue
+        for flight in flights:
+            if not flight.position_lat or not flight.position_lng:
+                continue
                 
-                # Parse position
-                try:
-                    position_data = json.loads(flight.position)
-                    flight_lat = position_data.get('latitude')
-                    flight_lon = position_data.get('longitude')
-                    
-                    if not flight_lat or not flight_lon:
-                        continue
-                except (json.JSONDecodeError, TypeError):
-                    continue
-                
-                # Check for departure
-                departure_movement = self._detect_departure(flight, flight_lat, flight_lon)
-                if departure_movement:
-                    movements.append(departure_movement)
-                
-                # Check for arrival
-                arrival_movement = self._detect_arrival(flight, flight_lat, flight_lon)
-                if arrival_movement:
-                    movements.append(arrival_movement)
-        
-        except Exception as e:
-            self.error_handler.logger.error(f"Error detecting movements: {e}")
+            # Detect departures
+            departure = self._detect_departure(flight, flight.position_lat, flight.position_lng)
+            if departure:
+                movements.append(departure)
+            
+            # Detect arrivals
+            arrival = self._detect_arrival(flight, flight.position_lat, flight.position_lng)
+            if arrival:
+                movements.append(arrival)
         
         return movements
+    
+    def detect_landings(self, flights: List[Flight]) -> List[Dict[str, Any]]:
+        """
+        Detect landings for a list of flights using elevation-aware criteria
+        
+        Args:
+            flights: List of flights to check for landings
+            
+        Returns:
+            List of landing detection events with confidence scores
+        """
+        import os
+        from ..models import Airports
+        
+        landing_detections = []
+        
+        # Get configuration from environment variables
+        landing_enabled = os.getenv('LANDING_DETECTION_ENABLED', 'true').lower() == 'true'
+        detection_radius_nm = float(os.getenv('LANDING_DETECTION_RADIUS_NM', '15.0'))
+        altitude_threshold_ft = float(os.getenv('LANDING_ALTITUDE_THRESHOLD_FT_ABOVE_AIRPORT', '1000'))
+        speed_threshold_kts = float(os.getenv('LANDING_SPEED_THRESHOLD_KTS', '20'))
+        
+        if not landing_enabled:
+            return landing_detections
+        
+        for flight in flights:
+            if not flight.position_lat or not flight.position_lng or not flight.arrival:
+                continue
+            
+            # Get airport data including elevation
+            airport = self.db.query(Airports).filter(Airports.icao_code == flight.arrival).first()
+            if not airport:
+                continue
+            
+            # Calculate distance to airport
+            distance_nm = self.calculate_distance(
+                flight.position_lat, flight.position_lng,
+                airport.latitude, airport.longitude
+            )
+            
+            # Calculate altitude above airport (elevation-aware)
+            airport_elevation = airport.elevation or 0  # Default to 0 if null
+            altitude_above_airport = (flight.altitude or 0) - airport_elevation
+            
+            # Check landing criteria
+            distance_ok = distance_nm <= detection_radius_nm
+            altitude_ok = altitude_above_airport <= altitude_threshold_ft
+            speed_ok = (flight.groundspeed or 0) <= speed_threshold_kts
+            
+            # All criteria must be met for landing detection
+            if distance_ok and altitude_ok and speed_ok:
+                # Check for duplicate detection (within last 5 minutes)
+                duplicate_prevention_minutes = int(os.getenv('LANDING_DUPLICATE_PREVENTION_MINUTES', '5'))
+                cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=duplicate_prevention_minutes)
+                
+                existing_detection = self.db.query(TrafficMovement).filter(
+                    and_(
+                        TrafficMovement.aircraft_callsign == flight.callsign,
+                        TrafficMovement.airport_code == flight.arrival,
+                        TrafficMovement.movement_type == 'arrival',
+                        TrafficMovement.flight_completion_triggered == True,
+                        TrafficMovement.timestamp >= cutoff_time
+                    )
+                ).first()
+                
+                if not existing_detection:
+                    # Create landing detection event
+                    landing_detection = {
+                        'callsign': flight.callsign,
+                        'airport_code': flight.arrival,
+                        'airport_elevation': airport_elevation,
+                        'distance_nm': distance_nm,
+                        'altitude_above_airport': altitude_above_airport,
+                        'groundspeed': flight.groundspeed or 0,
+                        'confidence': 1.0,  # Binary confidence scoring
+                        'timestamp': datetime.now(timezone.utc),
+                        'criteria_met': {
+                            'distance_ok': distance_ok,
+                            'altitude_ok': altitude_ok,
+                            'speed_ok': speed_ok
+                        }
+                    }
+                    landing_detections.append(landing_detection)
+        
+        return landing_detections
     
     def _detect_departure(self, flight: Flight, lat: float, lon: float) -> Optional[TrafficMovement]:
         """Detect departure movement for a flight"""

@@ -110,10 +110,20 @@ class Flight(Base):
     route = Column(Text, nullable=True)
     
     # Status and timestamps
-    status = Column(String(20), default="active")  # active, stale, completed, cancelled, unknown
+    status = Column(String(20), default="active")  # active, stale, landed, completed, cancelled, unknown
     last_updated = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Flight Completion System fields
+    landed_at = Column(DateTime, nullable=True)  # When flight landed (VATSIM: pilot still connected)
+    completed_at = Column(DateTime, nullable=True)  # When flight was completed (VATSIM: pilot logged off)
+    completion_method = Column(String(20), nullable=True)  # 'landing', 'time', 'manual', 'logoff'
+    completion_confidence = Column(Float, nullable=True)  # Confidence score for completion
+    
+    # Pilot Disconnect Tracking fields
+    pilot_disconnected_at = Column(DateTime, nullable=True)  # When pilot disconnected from VATSIM
+    disconnect_method = Column(String(20), nullable=True)  # 'detected', 'timeout'
     
     # VATSIM API fields - 1:1 mapping with API field names
     cid = Column(Integer, nullable=True, index=True)  # VATSIM user ID
@@ -187,6 +197,11 @@ class TrafficMovement(Base):
     metadata_json = Column(Text, nullable=True)  # JSON string
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Flight Completion System fields
+    flight_completion_triggered = Column(Boolean, default=False)  # Whether this movement triggered flight completion
+    completion_timestamp = Column(DateTime, nullable=True)  # When completion was triggered
+    completion_confidence = Column(Float, nullable=True)  # Confidence score for completion
     
     # No relationships for now
 
