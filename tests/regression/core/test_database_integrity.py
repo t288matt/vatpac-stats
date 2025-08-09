@@ -22,8 +22,8 @@ from typing import List, Dict, Any
 
 from app.database import SessionLocal, get_database_info
 from app.models import (
-    Flight, Controller, TrafficMovement, FlightSummary,
-    Transceiver, VatsimStatus, FrequencyMatch, Airports
+    Flight, Controller, Transceiver, FrequencyMatch, Airports
+    # REMOVED: TrafficMovement, FlightSummary, VatsimStatus - Phase 4
 )
 
 
@@ -40,8 +40,9 @@ class TestDatabaseSchemaIntegrity:
         existing_tables = set(inspector.get_table_names())
         
         expected_tables = {
-            "flights", "controllers", "traffic_movements",
-            "transceivers", "frequency_matches", "airports"
+            "flights", "controllers", "transceivers", 
+            "frequency_matches", "airports"
+            # "traffic_movements",  # REMOVED: Traffic Analysis Service - Phase 4
         }
         
         missing_tables = expected_tables - existing_tables

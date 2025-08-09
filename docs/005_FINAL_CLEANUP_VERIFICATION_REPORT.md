@@ -24,7 +24,7 @@
 - **`app/services/database_service.py`**: Removed `store_sectors` method and sector counts
 - **`app/services/data_service.py`**: Removed sector processing logic
 - **`app/services/traffic_analysis_service.py`**: Updated to use default configs (service disabled)
-- **`app/services/query_optimizer.py`**: Removed sector workload queries
+- **`app/services/query_optimizer.py`**: Removed (service was unused complexity)
 - **`app/services/cache_service.py`**: Removed sector status caching
 - **`app/services/interfaces/database_service_interface.py`**: Removed abstract `store_sectors` method
 - **`app/services/vatsim_service.py`**: Maintained sectors handling for API compatibility (returns empty list)

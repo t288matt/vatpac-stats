@@ -113,7 +113,9 @@ The database is **fully ready** for PostgreSQL migration with:
 All required tables are present and properly structured:
 - `atc_positions` - ATC position data
 - `flights` - Flight tracking data
+<!-- REMOVED: Traffic Analysis Service - Final Sweep
 - `traffic_movements` - Movement detection data
+-->
 - `sectors` - Airspace sector data
 - `airport_config` - Airport configuration
 - `movement_detection_config` - Movement detection settings

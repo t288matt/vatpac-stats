@@ -21,7 +21,7 @@ OUTPUTS:
 CONFIGURATION SECTIONS:
 - Database: PostgreSQL connection settings
 - VATSIM: API endpoints and authentication
-- Traffic Analysis: Thresholds and algorithms
+# - Traffic Analysis: Thresholds and algorithms  # REMOVED: Traffic Analysis Service - Final Sweep
 
 - API: FastAPI server configuration
 - Logging: Log levels and output settings

@@ -41,7 +41,7 @@ def analyze_database():
         logger.info("\n📈 RECORD COUNTS")
         logger.info("-" * 30)
         
-        for table in ['controllers', 'flights', 'traffic_movements', 'transceivers', 'frequency_matches', 'airports']:
+        for table in ['controllers', 'flights', 'transceivers', 'frequency_matches', 'airports']:  # 'traffic_movements' REMOVED - Final Sweep
             if table in tables:
                 cursor.execute(f"SELECT COUNT(*) FROM {table}")
                 count = cursor.fetchone()[0]
@@ -185,7 +185,7 @@ def analyze_database():
         logger.info(f"Database size: {db_size_mb:.2f} MB")
         
         # Table sizes
-        for table in ['atc_positions', 'flights', 'traffic_movements']:
+        for table in ['atc_positions', 'flights']:  # 'traffic_movements' REMOVED - Final Sweep
             cursor.execute(f"SELECT COUNT(*) FROM {table}")
             count = cursor.fetchone()[0]
             estimated_size_kb = count * 0.5  # Rough estimate

@@ -30,11 +30,8 @@ REQUIRED_TABLES = {
         'transponder', 'last_updated', 'created_at',
         'departure', 'arrival', 'route', 'status', 'updated_at'
     ],
-    'traffic_movements': [
-        'id', 'airport_code', 'movement_type', 'aircraft_callsign',
-        'aircraft_type', 'timestamp', 'runway', 'altitude',
-        'heading', 'metadata_json', 'created_at', 'updated_at'
-    ],
+    # REMOVED: Traffic Analysis Service - Phase 3
+    # 'traffic_movements': [...] -- REMOVED
     'airports': [
         'id', 'icao_code', 'name', 'latitude', 'longitude', 'elevation',
         'country', 'region'

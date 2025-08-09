@@ -98,22 +98,9 @@ CREATE TABLE IF NOT EXISTS flights (
     assigned_transponder VARCHAR(10)  -- Assigned transponder
 );
 
--- Traffic movements table
-CREATE TABLE IF NOT EXISTS traffic_movements (
-    id SERIAL PRIMARY KEY,
-    airport_code VARCHAR(10) NOT NULL,
-    movement_type VARCHAR(20) NOT NULL,
-    aircraft_callsign VARCHAR(50),
-    aircraft_type VARCHAR(20),
-    timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    runway VARCHAR(10),
-    altitude INTEGER,
-    speed INTEGER,
-    heading INTEGER,
-    metadata_json TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+-- REMOVED: Traffic Analysis Service - Phase 3
+-- Traffic movements table removed
+-- CREATE TABLE IF NOT EXISTS traffic_movements (...) -- REMOVED
 
 -- Airport config table removed - functionality merged with airports table
 -- CREATE TABLE IF NOT EXISTS airport_config (...) -- REMOVED
@@ -163,8 +150,9 @@ CREATE INDEX IF NOT EXISTS idx_flights_transponder ON flights(transponder);
 CREATE INDEX IF NOT EXISTS idx_flights_logon_time ON flights(logon_time);
 CREATE INDEX IF NOT EXISTS idx_flights_last_updated_api ON flights(last_updated_api);
 CREATE INDEX IF NOT EXISTS idx_controllers_visual_range ON controllers(visual_range);
-CREATE INDEX IF NOT EXISTS idx_traffic_movements_airport ON traffic_movements(airport_code);
-CREATE INDEX IF NOT EXISTS idx_traffic_movements_timestamp ON traffic_movements(timestamp);
+-- REMOVED: Traffic Analysis Service - Phase 3
+-- CREATE INDEX IF NOT EXISTS idx_traffic_movements_airport ON traffic_movements(airport_code); -- REMOVED
+-- CREATE INDEX IF NOT EXISTS idx_traffic_movements_timestamp ON traffic_movements(timestamp); -- REMOVED
 -- CREATE INDEX IF NOT EXISTS idx_airport_config_icao ON airport_config(icao_code); -- REMOVED - table removed
 CREATE INDEX IF NOT EXISTS idx_airports_icao ON airports(icao_code);
 CREATE INDEX IF NOT EXISTS idx_transceivers_callsign ON transceivers(callsign);
@@ -183,9 +171,8 @@ CREATE TRIGGER update_flights_updated_at
 
 
 
-CREATE TRIGGER update_traffic_movements_updated_at 
-    BEFORE UPDATE ON traffic_movements 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- REMOVED: Traffic Analysis Service - Phase 3
+-- CREATE TRIGGER update_traffic_movements_updated_at ON traffic_movements -- REMOVED
 
 -- CREATE TRIGGER update_airport_config_updated_at -- REMOVED - table removed
 
@@ -246,7 +233,8 @@ SELECT
 FROM information_schema.columns 
 WHERE table_schema = 'public' 
     AND table_name IN (
-        'controllers', 'sectors', 'flights', 'traffic_movements',
+        'controllers', 'sectors', 'flights',
+        -- 'traffic_movements', -- REMOVED: Traffic Analysis Service - Phase 3
         'airport_config', 'airports', 'movement_detection_config', 
         'system_config', 'transceivers'
     )

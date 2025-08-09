@@ -8,7 +8,7 @@ the airports table data. This is useful for testing or resetting the system.
 TABLES TO CLEAR:
 - flights
 - controllers  
-- traffic_movements
+# - traffic_movements  # REMOVED: Traffic Analysis Service - Phase 4
 - transceivers
 - frequency_matches
 - transceivers
@@ -57,7 +57,7 @@ def get_database_connection():
 def get_table_row_counts(session):
     """Get row counts for all tables to show before/after."""
     tables = [
-        'flights', 'controllers', 'traffic_movements',
+        'flights', 'controllers',  # 'traffic_movements',  # REMOVED: Traffic Analysis Service - Phase 4
         'transceivers', 'frequency_matches', 'airports'
     ]
     
@@ -91,7 +91,7 @@ def clear_flight_data():
         tables_to_clear = [
             'frequency_matches',      # No dependencies
             'transceivers',          # No dependencies  
-            'traffic_movements',     # No dependencies
+            # 'traffic_movements',   # REMOVED: Traffic Analysis Service - Phase 4
             'flights',               # No dependencies
             'controllers'            # No dependencies
         ]

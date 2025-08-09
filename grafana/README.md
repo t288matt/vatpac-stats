@@ -31,7 +31,9 @@ This directory contains the Grafana configuration for visualizing VATSIM data in
   - `/api/network/status` - Network statistics
   - `/api/atc-positions` - Active ATC positions
   - `/api/flights` - Active flights
+  <!-- REMOVED: Traffic Analysis Service - Final Sweep
   - `/api/traffic/summary/{region}` - Traffic summaries
+  -->
   - `/api/performance/metrics` - System performance
 
 ## 📈 Dashboard Features
@@ -92,7 +94,9 @@ You can create custom panels using the SimpleJSON datasource:
 - **Flights**: Active flights, aircraft types, routes
 - **Australian Flights**: Filtered Australian flight data only
 - **Australian Routes**: Route analysis and connectivity
+<!-- REMOVED: Traffic Analysis Service - Final Sweep
 - **Traffic**: Movements, density, trends
+-->
 - **Performance**: Response times, cache status, memory usage
 
 ## 🔍 Troubleshooting

@@ -1,6 +1,6 @@
 # VATSIM Data Collection System
 
-A real-time VATSIM data collection and traffic analysis system that processes flight data, ATC positions, and network statistics with focus on Australian airspace.
+A real-time VATSIM data collection system that processes flight data, ATC positions, and network statistics with focus on Australian airspace.
 
 ## 🚀 Quick Start
 
@@ -152,11 +152,13 @@ GRAFANA_ADMIN_PASSWORD: admin    # Change for production
 - `GET /api/filter/boundary/status` - Geographic boundary filter status
 - `GET /api/filter/boundary/info` - Boundary polygon information
 
-### Analytics & Traffic
-- `GET /api/analytics/traffic` - Traffic movement statistics
+### Analytics
 - `GET /api/analytics/flights` - Flight summary data
+<!-- REMOVED: Traffic Analysis Service - Final Sweep
+- `GET /api/analytics/traffic` - Traffic movement statistics
 - `GET /api/traffic/movements/{airport_icao}` - Airport traffic movements
 - `GET /api/traffic/summary/{region}` - Regional traffic summary
+-->
 
 ### Performance & Monitoring
 - `GET /api/performance/metrics` - System performance metrics
@@ -167,7 +169,9 @@ GRAFANA_ADMIN_PASSWORD: admin    # Change for production
 ### Grafana Dashboards
 - **Real-time Flight Tracking**: Live flight positions
 - **Network Statistics**: VATSIM network health and activity
+<!-- REMOVED: Traffic Analysis Service - Final Sweep
 - **Traffic Analysis**: Airport movement patterns
+-->
 - **System Performance**: Application metrics and database performance
 
 ### Health Checks

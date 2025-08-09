@@ -37,7 +37,7 @@ Successfully removed Redis from the VATSIM data collection system and replaced i
   - Added `CACHE_MAX_SIZE` configuration
 
 ### **5. Import Fixes**
-- **Files**: `app/services/traffic_analysis_service.py`, `app/services/query_optimizer.py`
+- **Files**: `app/services/traffic_analysis_service.py`
 - **Fixed**: Removed references to deprecated models (`AirportConfig`, `Sector`)
 - **Result**: Clean imports, no dependency errors
 

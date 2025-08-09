@@ -54,10 +54,9 @@ from collections import defaultdict
 import time
 
 from ..database import SessionLocal
-from ..models import Controller, Flight, TrafficMovement, Transceiver
+from ..models import Controller, Flight, Transceiver
 from .vatsim_service import VATSIMService
-# Traffic analysis service temporarily disabled during table cleanup
-# from .traffic_analysis_service import TrafficAnalysisService
+# REMOVED: Traffic Analysis Service - Phase 2
 from .base_service import DatabaseService
 from ..utils.error_handling import handle_service_errors, retry_on_failure, log_operation
 from ..filters.flight_filter import FlightFilter
@@ -119,7 +118,7 @@ class DataService(DatabaseService):
     def __init__(self):
         super().__init__("data_service")
         self.vatsim_service = VATSIMService()
-        self.traffic_analysis_service = None
+        # REMOVED: Traffic Analysis Service - Phase 2
         
         # Initialize both filters independently
         self.flight_filter = FlightFilter()

@@ -21,7 +21,7 @@ ENDPOINTS:
 - /api/status - System health and status
 - /api/atc-positions - ATC position data
 - /api/flights - Flight data
-- /api/traffic/* - Traffic analysis endpoints
+# REMOVED: /api/traffic/* - Traffic analysis endpoints
 
 DEPENDENCIES:
 - PostgreSQL database
@@ -42,15 +42,14 @@ from sqlalchemy import and_, desc, text
 
 # Config imports removed as they were unused
 from .database import get_db, init_db, get_database_info, SessionLocal
-from .models import Controller, Flight, TrafficMovement, Transceiver, Airports
+from .models import Controller, Flight, Transceiver, Airports
 from .utils.logging import get_logger_for_module
 from .utils.rating_utils import get_all_ratings, validate_rating
 from .services.vatsim_service import get_vatsim_service
 from .services.data_service import get_data_service
-# Traffic analysis service temporarily disabled during table cleanup
-# from .services.traffic_analysis_service import get_traffic_analysis_service
+# REMOVED: Traffic Analysis Service - Phase 2
 from .services.cache_service import get_cache_service
-from .services.query_optimizer import get_query_optimizer
+
 from .services.resource_manager import get_resource_manager
 from .utils.airport_utils import get_airports_by_region, get_region_statistics, get_airport_coordinates
 from .utils.error_monitoring import start_error_monitoring
@@ -143,8 +142,8 @@ async def lifespan(app: FastAPI):
             'cache_service': await get_cache_service(),
             'vatsim_service': get_vatsim_service(),
             'data_service': get_data_service(),
-            # 'traffic_analysis_service': get_traffic_analysis_service(service_db),  # Temporarily disabled
-            'query_optimizer': get_query_optimizer(),
+            # REMOVED: Traffic Analysis Service - Phase 2
+
             'resource_manager': get_resource_manager(),
             # Phase 3 services
             'monitoring_service': get_monitoring_service(),
@@ -213,7 +212,7 @@ async def lifespan(app: FastAPI):
 # Create FastAPI app
 app = FastAPI(
     title="VATSIM Data Collector",
-    description="Real-time VATSIM data collection and traffic analysis system",
+    description="Real-time VATSIM data collection system",
     version="2.0.0",
     lifespan=lifespan
 )
@@ -271,13 +270,15 @@ async def get_status(db: Session = Depends(get_db)):
             logger.error(f"Error querying airports: {e}")
             airports_count = 0
         
-        try:
-            movements_count = db.query(TrafficMovement).filter(
-                TrafficMovement.timestamp >= datetime.now(timezone.utc) - timedelta(hours=24)
-            ).count()
-        except Exception as e:
-            logger.error(f"Error querying movements: {e}")
-            movements_count = 0
+        # DISABLED: Traffic Analysis Service Removal - Phase 1
+        # try:
+        #     movements_count = db.query(TrafficMovement).filter(
+        #         TrafficMovement.timestamp >= datetime.now(timezone.utc) - timedelta(hours=24)
+        #     ).count()
+        # except Exception as e:
+        #     logger.error(f"Error querying movements: {e}")
+        #     movements_count = 0
+        movements_count = 0  # Temporarily disabled
         
         # Check if database is empty and provide diagnostic info
         total_flights = db.query(Flight).count()
@@ -797,156 +798,159 @@ async def get_flight_stats(callsign: str, db: Session = Depends(get_db)):
         logger.error(f"Error getting flight stats: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving flight statistics")
 
-@app.get("/api/traffic/movements/{airport_icao}")
-@handle_service_errors
-@log_operation("get_airport_movements")
-async def get_airport_movements(
-    airport_icao: str, 
-    hours: int = 24,
-    db: Session = Depends(get_db)
-):
-    """Get traffic movements for specific airport with caching"""
-    # Try to get from cache first
-    cache_service = await get_cache_service()
-    cached_movements = await cache_service.get_traffic_movements_cache(airport_icao)
-    
-    if cached_movements:
-        logger.info(f"Returning cached movements for {airport_icao}")
-        return {"movements": cached_movements, "cached": True}
-    
-    # If not cached, get from database
-    cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
-    
-    movements = db.query(TrafficMovement).filter(
-        and_(
-            TrafficMovement.airport_icao == airport_icao.upper(),
-            TrafficMovement.timestamp >= cutoff_time
-        )
-    ).order_by(desc(TrafficMovement.timestamp)).all()
-    
-    movements_data = []
-    for movement in movements:
-        movements_data.append({
-            "id": movement.id,
-            "airport_icao": movement.airport_icao,
-            "flight_callsign": movement.flight_callsign,
-            "movement_type": movement.movement_type,
-            "timestamp": movement.timestamp.isoformat(),
-            "confidence": movement.confidence,
-            "altitude": movement.altitude
-        })
-    
-    # Cache the result
-    await cache_service.set_traffic_movements_cache(airport_icao, movements_data)
-    
-    return {"movements": movements_data, "cached": False}
+# DISABLED: Traffic Analysis Service Removal - Phase 1
+# @app.get("/api/traffic/movements/{airport_icao}")
+# @handle_service_errors
+# @log_operation("get_airport_movements")
+# async def get_airport_movements(
+#     airport_icao: str, 
+#     hours: int = 24,
+#     db: Session = Depends(get_db)
+# ):
+#     """Get traffic movements for specific airport with caching"""
+#     # Try to get from cache first
+#     cache_service = await get_cache_service()
+#     cached_movements = await cache_service.get_traffic_movements_cache(airport_icao)
+#     
+#     if cached_movements:
+#         logger.info(f"Returning cached movements for {airport_icao}")
+#         return {"movements": cached_movements, "cached": True}
+#     
+#     # If not cached, get from database
+#     cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+#     
+#     movements = db.query(TrafficMovement).filter(
+#         and_(
+#             TrafficMovement.airport_icao == airport_icao.upper(),
+#             TrafficMovement.timestamp >= cutoff_time
+#         )
+#     ).order_by(desc(TrafficMovement.timestamp)).all()
+#     
+#     movements_data = []
+#     for movement in movements:
+#         movements_data.append({
+#             "id": movement.id,
+#             "airport_icao": movement.airport_icao,
+#             "flight_callsign": movement.flight_callsign,
+#             "movement_type": movement.movement_type,
+#             "timestamp": movement.timestamp.isoformat(),
+#             "confidence": movement.confidence,
+#             "altitude": movement.altitude
+#         })
+#     
+#     # Cache the result
+#     await cache_service.set_traffic_movements_cache(airport_icao, movements_data)
+#     
+#     return {"movements": movements_data, "cached": False}
 
-@app.get("/api/traffic/summary")
-@handle_service_errors
-@log_operation("get_traffic_summary")
-async def get_traffic_summary(
-    hours: int = 24,
-    db: Session = Depends(get_db)
-):
-    """Get traffic summary for all airports with caching"""
-    # Try to get from cache first
-    cache_service = await get_cache_service()
-    cache_key = f'traffic:summary:all:{hours}h'
-    cached_summary = await cache_service.get_cached_data(cache_key)
-    
-    if cached_summary:
-        return cached_summary
-    
-    # If not cached, calculate from database
-    cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
-    
-    # Get all movements in the time period
-    movements = db.query(TrafficMovement).filter(
-        TrafficMovement.timestamp >= cutoff_time
-    ).all()
-    
-    # Calculate summary statistics
-    total_movements = len(movements)
-    arrivals = len([m for m in movements if m.movement_type == "arrival"])
-    departures = len([m for m in movements if m.movement_type == "departure"])
-    
-    # Group by airport
-    airport_stats = {}
-    for movement in movements:
-        airport = movement.airport_code
-        if airport not in airport_stats:
-            airport_stats[airport] = {"arrivals": 0, "departures": 0}
-        
-        if movement.movement_type == "arrival":
-            airport_stats[airport]["arrivals"] += 1
-        else:
-            airport_stats[airport]["departures"] += 1
-    
-    summary = {
-        "period_hours": hours,
-        "total_movements": total_movements,
-        "arrivals": arrivals,
-        "departures": departures,
-        "airport_breakdown": airport_stats,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
-    
-    # Cache the result
-    await cache_service.set_cached_data(cache_key, summary, 300)
-    
-    return summary
+# DISABLED: Traffic Analysis Service Removal - Phase 1
+# @app.get("/api/traffic/summary")
+# @handle_service_errors
+# @log_operation("get_traffic_summary")
+# async def get_traffic_summary(
+#     hours: int = 24,
+#     db: Session = Depends(get_db)
+# ):
+#     """Get traffic summary for all airports with caching"""
+#     # Try to get from cache first
+#     cache_service = await get_cache_service()
+#     cache_key = f'traffic:summary:all:{hours}h'
+#     cached_summary = await cache_service.get_cached_data(cache_key)
+#     
+#     if cached_summary:
+#         return cached_summary
+#     
+#     # If not cached, calculate from database
+#     cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+#     
+#     # Get all movements in the time period
+#     movements = db.query(TrafficMovement).filter(
+#         TrafficMovement.timestamp >= cutoff_time
+#     ).all()
+#     
+#     # Calculate summary statistics
+#     total_movements = len(movements)
+#     arrivals = len([m for m in movements if m.movement_type == "arrival"])
+#     departures = len([m for m in movements if m.movement_type == "departure"])
+#     
+#     # Group by airport
+#     airport_stats = {}
+#     for movement in movements:
+#         airport = movement.airport_code
+#         if airport not in airport_stats:
+#             airport_stats[airport] = {"arrivals": 0, "departures": 0}
+#         
+#         if movement.movement_type == "arrival":
+#             airport_stats[airport]["arrivals"] += 1
+#         else:
+#             airport_stats[airport]["departures"] += 1
+#     
+#     summary = {
+#         "period_hours": hours,
+#         "total_movements": total_movements,
+#         "arrivals": arrivals,
+#         "departures": departures,
+#         "airport_breakdown": airport_stats,
+#         "timestamp": datetime.now(timezone.utc).isoformat()
+#     }
+#     
+#     # Cache the result
+#     await cache_service.set_cached_data(cache_key, summary, 300)
+#     
+#     return summary
 
-@app.get("/api/traffic/trends/{airport_icao}")
-@handle_service_errors
-@log_operation("get_traffic_trends")
-async def get_traffic_trends(
-    airport_icao: str,
-    days: int = 7,
-    db: Session = Depends(get_db)
-):
-    """Get traffic trends for airport with caching"""
-    # Try to get from cache first
-    cache_service = await get_cache_service()
-    cache_key = f'traffic:trends:{airport_icao}:{days}d'
-    cached_trends = await cache_service.get_cached_data(cache_key)
-    
-    if cached_trends:
-        return cached_trends
-    
-    # If not cached, calculate from database
-    cutoff_time = datetime.now(timezone.utc) - timedelta(days=days)
-    
-    movements = db.query(TrafficMovement).filter(
-        and_(
-            TrafficMovement.airport_icao == airport_icao.upper(),
-            TrafficMovement.timestamp >= cutoff_time
-        )
-    ).order_by(TrafficMovement.timestamp).all()
-    
-    # Group by day
-    daily_stats = {}
-    for movement in movements:
-        date_key = movement.timestamp.date().isoformat()
-        if date_key not in daily_stats:
-            daily_stats[date_key] = {"arrivals": 0, "departures": 0}
-        
-        if movement.movement_type == "arrival":
-            daily_stats[date_key]["arrivals"] += 1
-        else:
-            daily_stats[date_key]["departures"] += 1
-    
-    trends = {
-        "airport_icao": airport_icao,
-        "period_days": days,
-        "daily_stats": daily_stats,
-        "total_movements": len(movements),
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
-    
-    # Cache the result
-    await cache_service.set_cached_data(cache_key, trends, 3600)
-    
-    return trends
+# DISABLED: Traffic Analysis Service Removal - Phase 1
+# @app.get("/api/traffic/trends/{airport_icao}")
+# @handle_service_errors
+# @log_operation("get_traffic_trends")
+# async def get_traffic_trends(
+#     airport_icao: str,
+#     days: int = 7,
+#     db: Session = Depends(get_db)
+# ):
+#     """Get traffic trends for airport with caching"""
+#     # Try to get from cache first
+#     cache_service = await get_cache_service()
+#     cache_key = f'traffic:trends:{airport_icao}:{days}d'
+#     cached_trends = await cache_service.get_cached_data(cache_key)
+#     
+#     if cached_trends:
+#         return cached_trends
+#     
+#     # If not cached, calculate from database
+#     cutoff_time = datetime.now(timezone.utc) - timedelta(days=days)
+#     
+#     movements = db.query(TrafficMovement).filter(
+#         and_(
+#             TrafficMovement.airport_icao == airport_icao.upper(),
+#             TrafficMovement.timestamp >= cutoff_time
+#         )
+#     ).order_by(TrafficMovement.timestamp).all()
+#     
+#     # Group by day
+#     daily_stats = {}
+#     for movement in movements:
+#         date_key = movement.timestamp.date().isoformat()
+#         if date_key not in daily_stats:
+#             daily_stats[date_key] = {"arrivals": 0, "departures": 0}
+#         
+#         if movement.movement_type == "arrival":
+#             daily_stats[date_key]["arrivals"] += 1
+#         else:
+#             daily_stats[date_key]["departures"] += 1
+#     
+#     trends = {
+#         "airport_icao": airport_icao,
+#         "period_days": days,
+#         "daily_stats": daily_stats,
+#         "total_movements": len(movements),
+#         "timestamp": datetime.now(timezone.utc).isoformat()
+#     }
+#     
+#     # Cache the result
+#     await cache_service.set_cached_data(cache_key, trends, 3600)
+#     
+#     return trends
 
 @app.get("/api/database/status")
 @handle_service_errors
@@ -1018,31 +1022,55 @@ async def options_performance_metrics():
 async def optimize_performance(db: Session = Depends(get_db)):
     """Trigger performance optimization"""
     resource_manager = get_resource_manager()
-    query_optimizer = get_query_optimizer()
     
     # Optimize memory usage
     memory_optimization = await resource_manager.optimize_memory_usage()
     
-    # Optimize database queries
-    db_optimization = await query_optimizer.optimize_database_queries(db)
+    # Optimize database queries with direct ANALYZE commands
+    try:
+        # Analyze table statistics for better query planning
+        db.execute(text("ANALYZE"))
+        
+        # Update statistics for main tables
+        tables = ["atc_positions", "flights"]
+        for table in tables:
+            try:
+                db.execute(text(f"ANALYZE {table}"))
+            except Exception as e:
+                logger.warning(f"Could not analyze table {table}: {e}")
+        
+        db_optimization = {
+            "status": "optimized",
+            "tables_analyzed": len(tables),
+            "optimization_timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error optimizing database: {e}")
+        db_optimization = {
+            "status": "error",
+            "error": str(e),
+            "optimization_timestamp": datetime.now(timezone.utc).isoformat()
+        }
     
     return {
+        "status": "optimized",
         "memory_optimization": memory_optimization,
         "database_optimization": db_optimization,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
-@app.get("/traffic-dashboard")
-@handle_service_errors
-@log_operation("get_traffic_dashboard")
-async def get_traffic_dashboard():
-    """Get traffic dashboard HTML"""
-    # Traffic analysis service temporarily disabled
-    # traffic_service = get_traffic_analysis_service()
-    # dashboard_data = await traffic_service.generate_dashboard_data()
-    dashboard_data = {"message": "Traffic analysis temporarily disabled during database cleanup"}
-    
-    return dashboard_data
+# REMOVED: Traffic Analysis Service - Phase 2
+# @app.get("/traffic-dashboard")
+# @handle_service_errors
+# @log_operation("get_traffic_dashboard")
+# async def get_traffic_dashboard():
+#     """Get traffic dashboard HTML"""
+#     # Traffic analysis service temporarily disabled
+#     # traffic_service = get_traffic_analysis_service()
+#     # dashboard_data = await traffic_service.generate_dashboard_data()
+#     dashboard_data = {"message": "Traffic analysis temporarily disabled during database cleanup"}
+#     
+#     return dashboard_data
 
 from pydantic import BaseModel
 

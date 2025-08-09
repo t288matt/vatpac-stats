@@ -125,7 +125,7 @@ services = {
     'vatsim_service': get_vatsim_service(),
     'data_service': get_data_service(),
     'traffic_analysis_service': get_traffic_analysis_service(service_db),
-    'query_optimizer': get_query_optimizer(),
+
     'resource_manager': get_resource_manager(),
     # Phase 3 services
     'monitoring_service': get_monitoring_service(),

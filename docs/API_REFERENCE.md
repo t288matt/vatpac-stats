@@ -340,18 +340,15 @@ Get boundary polygon information and configuration.
 }
 ```
 
-## 📊 Analytics & Traffic Endpoints
+## 📊 Analytics Endpoints
 
-### **GET /api/analytics/traffic**
-Get traffic movement statistics.
+### **REMOVED: Traffic Analysis Endpoints**
+Traffic analysis endpoints have been removed in Phase 4:
+- `GET /api/analytics/traffic` - REMOVED
+- `GET /api/traffic/movements/{airport_icao}` - REMOVED  
+- `GET /api/traffic/summary/{region}` - REMOVED
 
-**Response Example:**
-```json
-{
-  "traffic_analytics": {
-    "period": "last_24_hours",
-    "total_movements": 1247,
-    "departures": 623,
+**Note**: These endpoints are no longer available as the Traffic Analysis Service has been removed.
     "arrivals": 624,
     "busiest_airports": [
       {
@@ -372,17 +369,12 @@ Get traffic movement statistics.
 ### **GET /api/analytics/flights**
 Get flight summary data and analytics.
 
-### **GET /api/traffic/movements/{airport_icao}**
-Get traffic movements for specific airport.
+### **REMOVED: Traffic Endpoints**
+The following traffic endpoints have been removed:
+- `GET /api/traffic/movements/{airport_icao}` - REMOVED
+- `GET /api/traffic/summary/{region}` - REMOVED
 
-**Parameters:**
-- `airport_icao` (string): Airport ICAO code (e.g., "YSSY")
-
-### **GET /api/traffic/summary/{region}**
-Get regional traffic summary.
-
-**Parameters:**
-- `region` (string): Region name (e.g., "Australia")
+These endpoints are no longer available.
 
 ## 🔧 Performance & Monitoring
 
@@ -474,7 +466,7 @@ Get database tables and record counts.
     "flights": 156789,
     "controllers": 45623,
     "transceivers": 78234,
-    "traffic_movements": 234567,
+    // "traffic_movements": 234567,  // REMOVED: Traffic Analysis Service - Phase 4
     "airports": 2720,
     "frequency_matches": 12456
   },

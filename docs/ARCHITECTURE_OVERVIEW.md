@@ -57,8 +57,8 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 │  │  Service    │  │  Analysis   │  │  Service    │          │
 │  └─────────────┘  └─────────────┘  └─────────────┘          │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
-│  │   Cache     │  │   Query     │  │  Resource   │          │
-│  │  Service    │  │ Optimizer   │  │  Manager    │          │
+│  │   Cache     │  │  Resource   │  │ Monitoring  │          │
+│  │  Service    │  │  Manager    │  │  Service    │          │
 │  └─────────────┘  └─────────────┘  └─────────────┘          │
 ├─────────────────────────────────────────────────────────────────┤
 │  API Layer (FastAPI)                                          │
@@ -104,24 +104,11 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - **Data Integrity**: All API fields preserved without data loss
 - **Flight Tracking**: Every flight position update stored and retrievable
 
-### 2. Traffic Analysis Service (`app/services/traffic_analysis_service.py`)
-**Purpose**: Advanced traffic pattern analysis and movement detection
-- **Real-time traffic movement detection**
-- **Pattern recognition algorithms**
-- **Predictive analytics for traffic flow**
-- **Airport-specific traffic analysis**
-
-**Key Features**:
-- Movement detection algorithms
-- Traffic pattern analysis
-- Predictive modeling
-- Airport traffic density calculations
-- Real-time traffic alerts
-
-### 3. Traffic Analysis Service (`app/services/traffic_analysis_service.py`)
-**Purpose**: Advanced traffic pattern analysis and movement detection
-- **Real-time traffic movement detection**
-- **Pattern recognition algorithms**
+### 2. REMOVED: Traffic Analysis Service
+**REMOVED in Phase 4**: Traffic Analysis Service has been removed from the system
+- Service provided real-time traffic movement detection
+- Included pattern recognition algorithms and predictive analytics
+- **Status**: Completely removed - no longer part of the architecture
 - **Predictive analytics for traffic flow**
 - **Airport-specific traffic analysis**
 
@@ -145,21 +132,7 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - Memory usage optimization
 - Cache warming strategies
 
-### 5. Query Optimizer (`app/services/query_optimizer.py`)
-**Purpose**: Database query optimization and performance tuning
-- **Query performance analysis**
-- **Index optimization**
-- **Query plan optimization**
-- **Database performance monitoring**
-
-**Key Features**:
-- Query performance profiling
-- Index recommendation engine
-- Query plan analysis
-- Database optimization strategies
-- Performance metrics collection
-
-### 6. Resource Manager (`app/services/resource_manager.py`)
+### 5. Resource Manager (`app/services/resource_manager.py`)
 **Purpose**: System resource monitoring and optimization
 - **Memory usage monitoring**
 - **CPU utilization tracking**
@@ -173,7 +146,7 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - Resource allocation strategies
 - System health monitoring
 
-### 7. Flight Filter (`app/filters/flight_filter.py`)
+### 6. Flight Filter (`app/filters/flight_filter.py`)
 **Purpose**: Australian flight filtering for data optimization
 - **Simple airport code validation** (starts with 'Y')
 - **Performance-optimized filtering**
@@ -189,7 +162,7 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - API endpoint: `/api/filter/flight/status` for filter status
 - Performance optimized: no database queries, simple string matching
 
-### 8. Geographic Boundary Filter (`app/filters/geographic_boundary_filter.py`) ✅ **IMPLEMENTED**
+### 7. Geographic Boundary Filter (`app/filters/geographic_boundary_filter.py`) ✅ **IMPLEMENTED**
 **Purpose**: Geographic airspace boundary filtering using polygon-based calculations
 
 **Current Status**: ✅ **FULLY OPERATIONAL** (August 2025)
@@ -369,7 +342,7 @@ VATSIM API → Flight Data → Database Storage → Analytics
 ### Data Models
 - **ATCPosition**: Controller positions and status
 - **Flight**: Aircraft tracking and position data (every position update preserved)
-- **TrafficMovement**: Airport arrival/departure tracking
+- **REMOVED: TrafficMovement**: Airport arrival/departure tracking (removed in Phase 4)
 - **Sector**: Airspace definitions and traffic density
 - **AirportConfig**: Airport configuration and metadata
 

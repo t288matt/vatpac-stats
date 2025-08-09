@@ -75,11 +75,12 @@ class TestCompleteWorkflow:
         controllers = response.json()
         assert isinstance(controllers, list)
 
-        # 8. Check traffic analysis
-        response = await async_client.get("/traffic-analysis")
-        assert response.status_code == 200
-        traffic = response.json()
-        assert isinstance(traffic, dict)
+        # REMOVED: Traffic Analysis Service - Phase 4
+        # 8. Check traffic analysis - REMOVED
+        # response = await async_client.get("/traffic-analysis")
+        # assert response.status_code == 200
+        # traffic = response.json()
+        # assert isinstance(traffic, dict)
 
         # 9. Verify data consistency
         if flights:
@@ -180,17 +181,18 @@ class TestCompleteWorkflow:
         controllers = response.json()
         assert isinstance(controllers, list)
 
-        # 3. Get traffic analysis
-        response = await async_client.get("/traffic-analysis")
-        assert response.status_code == 200
-        traffic = response.json()
-        assert isinstance(traffic, dict)
+        # REMOVED: Traffic Analysis Service - Phase 4
+        # 3. Get traffic analysis - REMOVED
+        # response = await async_client.get("/traffic-analysis")
+        # assert response.status_code == 200
+        # traffic = response.json()
+        # assert isinstance(traffic, dict)
 
-        # 4. Get traffic summary
-        response = await async_client.get("/traffic-summary")
-        assert response.status_code == 200
-        summary = response.json()
-        assert isinstance(summary, dict)
+        # 4. Get traffic summary - REMOVED
+        # response = await async_client.get("/traffic-summary")
+        # assert response.status_code == 200
+        # summary = response.json()
+        # assert isinstance(summary, dict)
 
         # 5. Verify data consistency
         # Check that flight counts are consistent
@@ -276,7 +278,7 @@ class TestCompleteWorkflow:
             "/health",
             "/flights",
             "/controllers",
-            "/traffic-analysis",
+            # "/traffic-analysis",  # REMOVED: Traffic Analysis Service - Phase 4
             "/api/monitoring/metrics",
             "/api/performance/metrics/data_ingestion",
             "/api/services/status"

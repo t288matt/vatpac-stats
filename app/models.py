@@ -21,10 +21,10 @@ OUTPUTS:
 MODELS INCLUDED:
 - Controller: ATC controller positions and status
 - Flight: Real-time flight data with position tracking
-- TrafficMovement: Airport arrival/departure tracking
 - Airports: Global airport database
 - Transceiver: Radio frequency and position data
 - FrequencyMatch: Frequency matching events between pilots and controllers
+# REMOVED: TrafficMovement - Traffic Analysis Service removed in Phase 3
 
 OPTIMIZATIONS:
 - Storage-efficient data types (SMALLINT for durations)
@@ -147,26 +147,8 @@ class Flight(Base):
             self.position_lat = None
             self.position_lng = None
 
-class TrafficMovement(Base):
-    """Traffic movement model for tracking arrivals/departures"""
-    __tablename__ = "traffic_movements"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    airport_code = Column(String(10), nullable=False, index=True)
-    movement_type = Column(String(20), nullable=False)  # 'arrival' or 'departure'
-    aircraft_callsign = Column(String(50), nullable=True)
-    aircraft_type = Column(String(20), nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
-    runway = Column(String(10), nullable=True)
-    altitude = Column(Integer, nullable=True)
-    speed = Column(Integer, nullable=True)
-    heading = Column(Integer, nullable=True)
-    metadata_json = Column(Text, nullable=True)  # JSON string
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # No relationships for now
-
+# REMOVED: Traffic Analysis Service - Phase 3
+# TrafficMovement model removed
 
 
 # AirportConfig model removed - functionality merged with airports table

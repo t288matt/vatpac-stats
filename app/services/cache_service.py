@@ -141,7 +141,7 @@ class CacheService(BaseCacheService):
             'active_flights': 30,          # 30 seconds
             'network_status': 300,         # 5 minutes
             'network_stats': 60,           # 1 minute
-            'traffic_movements': 300,      # 5 minutes
+            # 'traffic_movements': 300,    # REMOVED: Traffic Analysis Service - Phase 2
             'airport_data': 600,           # 10 minutes
             'analytics_data': 3600,        # 1 hour
             'atc_positions:active': 30,     # 30 seconds
@@ -287,13 +287,14 @@ class CacheService(BaseCacheService):
         """Set cached network statistics"""
         return await self.set_cached_data('network:stats', stats)
     
-    async def get_traffic_movements_cache(self, airport_icao: str) -> Optional[List[Dict[str, Any]]]:
-        """Get cached traffic movements for airport"""
-        return await self.get_cached_data(f'traffic:movements:{airport_icao}')
-    
-    async def set_traffic_movements_cache(self, airport_icao: str, movements: List[Dict[str, Any]]) -> bool:
-        """Set cached traffic movements for airport"""
-        return await self.set_cached_data(f'traffic:movements:{airport_icao}', movements)
+    # REMOVED: Traffic Analysis Service - Phase 2
+    # async def get_traffic_movements_cache(self, airport_icao: str) -> Optional[List[Dict[str, Any]]]:
+    #     """Get cached traffic movements for airport"""
+    #     return await self.get_cached_data(f'traffic:movements:{airport_icao}')
+    # 
+    # async def set_traffic_movements_cache(self, airport_icao: str, movements: List[Dict[str, Any]]) -> bool:
+    #     """Set cached traffic movements for airport"""
+    #     return await self.set_cached_data(f'traffic:movements:{airport_icao}', movements)
     
     async def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache statistics"""

@@ -61,7 +61,7 @@ The following files were found to already be using the correct `datetime.now(tim
 - `app/services/vatsim_service.py` - VATSIM data handling
 - `app/services/traffic_analysis_service.py` - Traffic analysis
 - `app/services/cache_service.py` - Cache management
-- `app/services/query_optimizer.py` - Query optimization
+
 - `app/services/resource_manager.py` - Resource management
 
 ## Testing Results

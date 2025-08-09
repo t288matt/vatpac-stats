@@ -8,7 +8,7 @@ This guide will help you deploy the VATSIM Data Collection System to production 
 
 - **Production API** accessible via server IP
 - **Real-time VATSIM data collection** every 10 seconds
-- **Grafana monitoring dashboards** with traffic analytics
+- **Grafana monitoring dashboards** <!-- REMOVED: with traffic analytics - Final Sweep -->
 - **Automatic database backups** capability
 - **Geographic filtering** for Australian airspace
 - **Production-optimized performance** settings
@@ -176,7 +176,9 @@ http://YOUR_SERVER_IP:8001/api/filter/flight/status
 
 1. **Flight Tracking Dashboard**
    - Real-time flight positions
+   <!-- REMOVED: Traffic Analysis Service - Final Sweep
    - Traffic density maps
+   -->
    - Route analysis
 
 2. **Network Statistics**

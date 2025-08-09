@@ -42,7 +42,7 @@ from sqlalchemy import and_, desc, func, text
 import logging
 
 from ..database import SessionLocal, get_db
-from ..models import Flight, Controller, TrafficMovement, Transceiver
+from ..models import Flight, Controller, Transceiver
 from .interfaces.database_service_interface import DatabaseServiceInterface
 from .base_service import BaseService
 from ..utils.logging import get_logger_for_module

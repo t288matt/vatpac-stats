@@ -16,7 +16,7 @@ SELECT 'controllers', COUNT(*) FROM controllers
 UNION ALL
 -- SELECT 'sectors', COUNT(*) FROM sectors  -- Table removed
 UNION ALL
-SELECT 'traffic_movements', COUNT(*) FROM traffic_movements
+-- SELECT 'traffic_movements', COUNT(*) FROM traffic_movements  -- REMOVED: Traffic Analysis Service - Phase 4
 UNION ALL
 -- SELECT 'airport_config', COUNT(*) FROM airport_config  -- Table removed
 UNION ALL
@@ -45,9 +45,10 @@ SELECT 'Cleared frequency_matches' as status;
 DELETE FROM transceivers;
 SELECT 'Cleared transceivers' as status;
 
--- 3. Clear traffic_movements (no dependencies)
-DELETE FROM traffic_movements;
-SELECT 'Cleared traffic_movements' as status;
+-- REMOVED: Traffic Analysis Service - Phase 4
+-- 3. Clear traffic_movements (no dependencies) - REMOVED
+-- DELETE FROM traffic_movements;
+-- SELECT 'Cleared traffic_movements' as status;
 
 -- 4. Clear flights (no dependencies)
 DELETE FROM flights;
@@ -84,7 +85,7 @@ SELECT 'controllers', COUNT(*) FROM controllers
 UNION ALL
 -- SELECT 'sectors', COUNT(*) FROM sectors  -- Table removed
 UNION ALL
-SELECT 'traffic_movements', COUNT(*) FROM traffic_movements
+-- SELECT 'traffic_movements', COUNT(*) FROM traffic_movements  -- REMOVED: Traffic Analysis Service - Phase 4
 UNION ALL
 -- SELECT 'airport_config', COUNT(*) FROM airport_config  -- Table removed
 UNION ALL

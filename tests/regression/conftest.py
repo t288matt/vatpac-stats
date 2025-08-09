@@ -18,7 +18,7 @@ from httpx import AsyncClient
 # Import application components
 from app.main import app
 from app.database import SessionLocal, get_db
-from app.models import Flight, Controller, Transceiver, VatsimStatus
+from app.models import Flight, Controller, Transceiver
 from app.services.vatsim_service import VATSIMService
 from app.services.data_service import DataService
 from app.services.cache_service import CacheService

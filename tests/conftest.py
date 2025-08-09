@@ -18,8 +18,8 @@ from app.services.cache_service import CacheService
 from app.services.monitoring_service import MonitoringService
 from app.services.performance_monitor import PerformanceMonitor
 from app.services.database_service import DatabaseService
-from app.services.traffic_analysis_service import TrafficAnalysisService
-from app.services.query_optimizer import QueryOptimizer
+# REMOVED: Traffic Analysis Service - Phase 2
+
 from app.services.resource_manager import ResourceManager
 from app.services.event_bus import EventBus
 from app.services.service_manager import ServiceManager
@@ -274,26 +274,19 @@ def mock_database_service() -> Mock:
     return mock_service
 
 
-@pytest.fixture
-def mock_traffic_analysis_service() -> Mock:
-    """Mock traffic analysis service for testing."""
-    mock_service = Mock(spec=TrafficAnalysisService)
-    mock_service.analyze_traffic = AsyncMock(return_value={})
-    mock_service.get_traffic_summary = AsyncMock(return_value={})
-    mock_service.is_healthy = Mock(return_value=True)
-    mock_service.get_service_info = Mock(return_value={"status": "healthy"})
-    return mock_service
+# REMOVED: Traffic Analysis Service - Phase 2
+# @pytest.fixture
+# def mock_traffic_analysis_service() -> Mock:
+#     """Mock traffic analysis service for testing."""
+#     mock_service = Mock(spec=TrafficAnalysisService)
+#     mock_service.analyze_traffic = AsyncMock(return_value={})
+#     mock_service.get_traffic_summary = AsyncMock(return_value={})
+#     mock_service.is_healthy = Mock(return_value=True)
+#     mock_service.get_service_info = Mock(return_value={"status": "healthy"})
+#     return mock_service
 
 
-@pytest.fixture
-def mock_query_optimizer() -> Mock:
-    """Mock query optimizer for testing."""
-    mock_service = Mock(spec=QueryOptimizer)
-    mock_service.optimize_query = Mock(return_value="optimized_query")
-    mock_service.get_optimization_stats = Mock(return_value={})
-    mock_service.is_healthy = Mock(return_value=True)
-    mock_service.get_service_info = Mock(return_value={"status": "healthy"})
-    return mock_service
+
 
 
 @pytest.fixture
