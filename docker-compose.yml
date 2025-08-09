@@ -48,6 +48,8 @@ services:
       # Database and Cache
       DATABASE_URL: postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data
       REDIS_URL: redis://redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       
       # API Configuration
       API_HOST: 0.0.0.0
@@ -120,11 +122,11 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/api/status"]
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health/comprehensive"]
       interval: 300s  # 5 minutes
-      timeout: 10s
+      timeout: 60s    # Increased timeout for comprehensive health checks
       retries: 3
-      start_period: 60s
+      start_period: 120s  # Increased start period to allow all services to initialize
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
