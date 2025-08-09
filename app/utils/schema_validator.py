@@ -31,7 +31,7 @@ REQUIRED_TABLES = {
     'flights': [
         'id', 'callsign', 'aircraft_type', 'position_lat', 'position_lng',
         'altitude', 'heading',
-        'transponder', 'flight_plan', 'last_updated', 'created_at',
+        'transponder', 'last_updated', 'created_at',
         'departure', 'arrival', 'route', 'status', 'updated_at'
     ],
     'traffic_movements': [

@@ -75,7 +75,6 @@ CREATE TABLE IF NOT EXISTS flights (
     departure VARCHAR(10),
     arrival VARCHAR(10),
     route TEXT,
-    flight_plan JSONB,  -- Changed to JSONB for better performance
     
     -- Timestamps
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

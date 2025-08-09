@@ -89,7 +89,6 @@
         "departure",
         "arrival",
         "route",
-        "flight_plan",
         "status",
         "last_updated",
         "created_at",

@@ -11,7 +11,7 @@ Updated the Flight model and database schema to remove vertical speed references
   - Removed duplicate `cruise_tas` field
   - Organized fields into logical groups:
     - Flight tracking fields (altitude, heading, groundspeed, cruise_tas, squawk)
-    - Flight plan fields (departure, arrival, route, flight_plan)
+    - Flight plan fields (departure, arrival, route)
     - Status and timestamps (status, last_updated, created_at, updated_at)
     - VATSIM API fields (cid, name, server, pilot_rating, etc.)
     - Flight plan fields (flight_rules, aircraft_faa, etc.)
@@ -43,7 +43,7 @@ The Flight model now has clear field organization:
 altitude, heading, groundspeed, cruise_tas, squawk
 
 # Flight plan fields  
-departure, arrival, route, flight_plan
+departure, arrival, route
 
 # Status and timestamps
 status, last_updated, created_at, updated_at

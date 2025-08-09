@@ -54,7 +54,7 @@ This audit was conducted to verify the current database schema against the appli
 - `position_lat`, `position_lng` (DOUBLE PRECISION)
 - `altitude`, `heading`, `groundspeed`, `cruise_tas` (INTEGER)
 - `squawk` (VARCHAR(10))
-- `flight_plan` (JSONB)
+- Individual flight plan fields (departure, arrival, route, flight_rules, etc.)
 
 **VATSIM API Fields (1:1 mapping):**
 - `cid` (INTEGER) - VATSIM user ID
@@ -154,7 +154,7 @@ This audit was conducted to verify the current database schema against the appli
 - **Status:** ✅ Fixed
 
 ### **2. Data Type Inconsistencies:**
-- **Issue:** `flight_plan` field type mismatch
+- **Resolved:** Removed unused `flight_plan` field
 - **Resolution:** Updated to JSONB for better performance
 - **Status:** ✅ Fixed
 
