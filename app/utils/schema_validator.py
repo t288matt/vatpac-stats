@@ -24,10 +24,6 @@ REQUIRED_TABLES = {
         'id', 'callsign', 'facility', 'position', 'status', 'frequency',
         'last_seen', 'workload_score', 'preferences', 'created_at', 'updated_at'
     ],
-    'sectors': [
-        'id', 'name', 'facility', 'controller_id', 'traffic_density',
-        'status', 'priority_level', 'boundaries', 'created_at', 'updated_at'
-    ],
     'flights': [
         'id', 'callsign', 'aircraft_type', 'position_lat', 'position_lng',
         'altitude', 'heading',
@@ -39,28 +35,10 @@ REQUIRED_TABLES = {
         'aircraft_type', 'timestamp', 'runway', 'altitude',
         'heading', 'metadata_json', 'created_at', 'updated_at'
     ],
-
-    'airport_config': [
-        'id', 'icao_code', 'name', 'latitude', 'longitude',
-        'detection_radius_nm', 'departure_altitude_threshold',
-        'arrival_altitude_threshold', 'departure_speed_threshold',
-        'arrival_speed_threshold', 'is_active', 'region',
-        'last_updated', 'updated_at'
-    ],
     'airports': [
         'id', 'icao_code', 'name', 'latitude', 'longitude', 'elevation',
-        'country', 'region', 'timezone', 'facility_type', 'runways',
-        'frequencies', 'is_active', 'created_at', 'updated_at'
+        'country', 'region'
     ],
-    'movement_detection_config': [
-        'id', 'config_key', 'config_value', 'description', 'is_active',
-        'last_updated', 'updated_at'
-    ],
-    'system_config': [
-        'id', 'key', 'value', 'description', 'last_updated',
-        'environment', 'updated_at'
-    ],
-
     'transceivers': [
         'id', 'callsign', 'transceiver_id', 'frequency', 'position_lat',
         'position_lon', 'height_msl', 'height_agl', 'entity_type',

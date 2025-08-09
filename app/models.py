@@ -21,11 +21,8 @@ OUTPUTS:
 MODELS INCLUDED:
 - Controller: ATC controller positions and status
 - Flight: Real-time flight data with position tracking
-- Sector: Airspace sector definitions and traffic density
 - TrafficMovement: Airport arrival/departure tracking
 - Airports: Global airport database
-- AirportConfig: Movement detection settings
-- SystemConfig: Application configuration storage
 - Transceiver: Radio frequency and position data
 - FrequencyMatch: Frequency matching events between pilots and controllers
 
@@ -65,35 +62,9 @@ class Controller(Base):
     created_at = Column(TIMESTAMP, default=datetime.utcnow)
     updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Relationships
-    sectors = relationship("Sector", back_populates="controller")
+    # Relationships removed - sectors table no longer exists
 
-class Sector(Base):
-    """Airspace sector model"""
-    __tablename__ = "sectors"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False)
-    facility = Column(String(50), nullable=False)
-    controller_id = Column(Integer, ForeignKey("controllers.id"), nullable=True)
-    traffic_density = Column(Integer, default=0)
-    status = Column(String(20), default="unmanned")  # manned, unmanned, busy
-    priority_level = Column(Integer, default=1)  # 1-5 priority scale
-    boundaries = Column(Text, nullable=True)  # JSON string for sector boundaries
-    created_at = Column(TIMESTAMP, default=datetime.utcnow)
-    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relationships
-    controller = relationship("Controller", back_populates="sectors")
-    
-    # Indexes for efficient queries
-    __table_args__ = (
-        Index('idx_sectors_facility', 'facility'),
-        Index('idx_sectors_controller', 'controller_id'),
-        Index('idx_sectors_status', 'status'),
-        Index('idx_sectors_priority', 'priority_level'),
-        Index('idx_sectors_name', 'name'),
-    )
+# Sector model removed - VATSIM API v3 does not provide sectors data
 
 class Flight(Base):
     """Flight model representing active flights - OPTIMIZED FOR STORAGE"""
@@ -198,32 +169,7 @@ class TrafficMovement(Base):
 
 
 
-class AirportConfig(Base):
-    """Airport configuration for movement detection"""
-    __tablename__ = "airport_config"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    icao_code = Column(String(10), unique=True, nullable=False, index=True)
-    name = Column(String(200), nullable=False)
-    latitude = Column(Float, nullable=False)
-    longitude = Column(Float, nullable=False)
-    detection_radius_nm = Column(Float, default=10.0)  # Detection radius in nautical miles
-    departure_altitude_threshold = Column(Integer, default=1000)  # Feet
-    arrival_altitude_threshold = Column(Integer, default=3000)  # Feet
-    departure_speed_threshold = Column(Integer, default=50)  # Knots
-    arrival_speed_threshold = Column(Integer, default=150)  # Knots
-    is_active = Column(Boolean, default=True)
-    region = Column(String(50), nullable=True)  # 'Australia', 'Asia', etc.
-    last_updated = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Indexes for efficient queries
-    __table_args__ = (
-        Index('idx_airport_config_active', 'is_active'),  # Active configs only
-        Index('idx_airport_config_region', 'region'),  # Regional filtering
-        Index('idx_airport_config_lat_lon', 'latitude', 'longitude'),  # Geographic queries
-        Index('idx_airport_config_icao_active', 'icao_code', 'is_active'),  # Active configs by ICAO
-    )
+# AirportConfig model removed - functionality merged with airports table
 
 class Airports(Base):
     """Global airports table - single source of truth for all airport data"""
@@ -251,43 +197,9 @@ class Airports(Base):
         Index('idx_airports_icao_country', 'icao_code', 'country'),  # Country-specific ICAO lookups
     )
 
-class MovementDetectionConfig(Base):
-    """Configuration for movement detection algorithms"""
-    __tablename__ = "movement_detection_config"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    config_key = Column(String(100), unique=True, nullable=False)
-    config_value = Column(Text, nullable=False)
-    description = Column(Text, nullable=True)
-    is_active = Column(Boolean, default=True)
-    last_updated = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Indexes for efficient queries
-    __table_args__ = (
-        Index('idx_movement_detection_config_active', 'is_active'),  # Active configs only
-        Index('idx_movement_detection_config_key', 'config_key'),  # Key-based lookups
-        Index('idx_movement_detection_config_updated', 'last_updated'),  # Time-based queries
-    )
+# MovementDetectionConfig model removed - configuration handled via environment variables
 
-class SystemConfig(Base):
-    """System configuration model"""
-    __tablename__ = "system_config"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    key = Column(String(100), unique=True, nullable=False)
-    value = Column(Text, nullable=False)
-    description = Column(Text, nullable=True)
-    last_updated = Column(DateTime, default=datetime.utcnow)
-    environment = Column(String(20), default="development")
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Indexes for efficient queries
-    __table_args__ = (
-        Index('idx_system_config_environment', 'environment'),  # Environment-specific configs
-        Index('idx_system_config_key_env', 'key', 'environment'),  # Key + environment lookups
-        Index('idx_system_config_updated', 'last_updated'),  # Time-based queries
-    )
+
 
 
 

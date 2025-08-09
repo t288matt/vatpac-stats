@@ -42,7 +42,7 @@ from sqlalchemy import and_, desc, text
 
 # Config imports removed as they were unused
 from .database import get_db, init_db, get_database_info, SessionLocal
-from .models import Controller, Sector, Flight, TrafficMovement, AirportConfig, Transceiver
+from .models import Controller, Flight, TrafficMovement, Transceiver
 from .utils.logging import get_logger_for_module
 from .utils.rating_utils import get_all_ratings, validate_rating
 from .services.vatsim_service import get_vatsim_service

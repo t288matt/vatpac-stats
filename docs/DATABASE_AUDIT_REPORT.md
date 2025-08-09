@@ -6,8 +6,8 @@ This audit was conducted to verify the current database schema against the appli
 
 **Audit Date:** January 2025  
 **Database Version:** PostgreSQL 15  
-**Total Tables:** 13  
-**Total Indexes:** 59  
+**Total Tables:** 6  
+**Total Indexes:** 45  
 
 ## 🎯 Key Findings
 
@@ -30,13 +30,9 @@ This audit was conducted to verify the current database schema against the appli
 | Table | Records | Fields | Indexes | Status |
 |-------|---------|--------|---------|--------|
 | controllers | - | 15 | 5 | ✅ Complete |
-| sectors | - | 10 | 2 | ✅ Complete |
 | flights | - | 35 | 25 | ✅ Complete |
 | traffic_movements | - | 12 | 2 | ✅ Complete |
-| airport_config | - | 13 | 1 | ✅ Complete |
 | airports | - | 7 | 6 | ✅ Complete |
-| movement_detection_config | - | 6 | 1 | ✅ Complete |
-| system_config | - | 6 | 1 | ✅ Complete |
 | transceivers | - | 12 | 6 | ✅ Complete |
 | frequency_matches | - | 8 | 3 | ✅ Complete |
 

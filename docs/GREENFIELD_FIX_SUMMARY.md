@@ -70,8 +70,6 @@ curl http://localhost:8001/api/status
 - ✅ `airport_config` - Configuration
 - ✅ `airports` - Global airport database
 - ✅ `movement_detection_config` - Algorithm settings
-- ✅ `system_config` - Application config
-- ✅ `events` - Special events
 - ✅ `transceivers` - Radio frequency data
 
 ### **Features Included:**

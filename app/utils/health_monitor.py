@@ -258,20 +258,99 @@ class HealthMonitor:
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
     
+    async def check_cache_health(self) -> Dict[str, Any]:
+        """Check Redis cache health"""
+        try:
+            from app.services.cache_service import get_cache_service
+            cache_service = await get_cache_service()
+            return await cache_service._perform_health_check()
+        except Exception as e:
+            logger.error(f"Cache health check failed: {e}")
+            return {"status": "error", "error": str(e)}
+
+    async def check_services_health(self) -> Dict[str, Any]:
+        """Check all registered services health"""
+        try:
+            from app.main import service_manager
+            if service_manager is None:
+                return {"status": "error", "message": "Service manager not initialized"}
+            
+            return await service_manager.health_check_all()
+        except Exception as e:
+            logger.error(f"Services health check failed: {e}")
+            return {"status": "error", "error": str(e)}
+
+    async def check_error_monitoring_health(self) -> Dict[str, Any]:
+        """Check error monitoring system health"""
+        try:
+            from app.api.error_monitoring import get_error_monitoring_health
+            return await get_error_monitoring_health()
+        except Exception as e:
+            logger.error(f"Error monitoring health check failed: {e}")
+            return {"status": "error", "error": str(e)}
+
+    async def check_data_service_health(self) -> Dict[str, Any]:
+        """Check data service health"""
+        try:
+            from app.services.data_service import get_data_service
+            data_service = get_data_service()
+            return await data_service._perform_health_check()
+        except Exception as e:
+            logger.error(f"Data service health check failed: {e}")
+            return {"status": "error", "error": str(e)}
+
+    async def check_monitoring_service_health(self) -> Dict[str, Any]:
+        """Check monitoring service health"""
+        try:
+            from app.services.monitoring_service import get_monitoring_service
+            monitoring_service = get_monitoring_service()
+            if hasattr(monitoring_service, 'health_check'):
+                return await monitoring_service.health_check()
+            else:
+                return {"status": "healthy", "message": "Monitoring service running"}
+        except Exception as e:
+            logger.error(f"Monitoring service health check failed: {e}")
+            return {"status": "error", "error": str(e)}
+
+    async def check_frequency_matching_health(self) -> Dict[str, Any]:
+        """Check frequency matching service health"""
+        try:
+            from app.services.frequency_matching_service import get_frequency_matching_service
+            freq_service = get_frequency_matching_service()
+            if hasattr(freq_service, 'health_check'):
+                return await freq_service.health_check()
+            else:
+                return {"status": "healthy", "message": "Frequency matching service running"}
+        except Exception as e:
+            logger.error(f"Frequency matching service health check failed: {e}")
+            return {"status": "error", "error": str(e)}
+
     async def get_comprehensive_health_report(self) -> Dict[str, Any]:
         """Get comprehensive health report for all components"""
         try:
             # Run all health checks concurrently
-            api_health, db_health, system_health, data_freshness = await asyncio.gather(
+            (api_health, db_health, system_health, data_freshness, 
+             cache_health, services_health, error_monitoring_health, 
+             data_service_health, monitoring_service_health, frequency_matching_health) = await asyncio.gather(
                 self.check_api_endpoints(),
                 self.check_database_health(),
                 self.check_system_resources(),
                 self.check_data_freshness(),
+                self.check_cache_health(),
+                self.check_services_health(),
+                self.check_error_monitoring_health(),
+                self.check_data_service_health(),
+                self.check_monitoring_service_health(),
+                self.check_frequency_matching_health(),
                 return_exceptions=True
             )
             
             # Calculate overall health score
-            health_score = self._calculate_health_score(api_health, db_health, system_health, data_freshness)
+            health_score = self._calculate_health_score(
+                api_health, db_health, system_health, data_freshness,
+                cache_health, services_health, error_monitoring_health,
+                data_service_health, monitoring_service_health, frequency_matching_health
+            )
             
             # Calculate average response times
             avg_response_times = {}
@@ -292,6 +371,12 @@ class HealthMonitor:
                 "database": db_health,
                 "system_resources": system_health,
                 "data_freshness": data_freshness,
+                "cache_service": cache_health,
+                "services": services_health,
+                "error_monitoring": error_monitoring_health,
+                "data_service": data_service_health,
+                "monitoring_service": monitoring_service_health,
+                "frequency_matching_service": frequency_matching_health,
                 "average_response_times": avg_response_times,
                 "error_rates": error_rates,
                 "timestamp": datetime.now(timezone.utc).isoformat()
@@ -304,32 +389,34 @@ class HealthMonitor:
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
     
-    def _calculate_health_score(self, api_health, db_health, system_health, data_freshness) -> float:
+    def _calculate_health_score(self, api_health, db_health, system_health, data_freshness,
+                               cache_health, services_health, error_monitoring_health,
+                               data_service_health, monitoring_service_health, frequency_matching_health) -> float:
         """Calculate overall health score (0-100)"""
         score = 100.0
         
-        # API health (40% weight)
+        # API health (25% weight)
         if isinstance(api_health, dict):
             healthy_endpoints = sum(1 for endpoint in api_health.values() 
                                   if isinstance(endpoint, dict) and endpoint.get('healthy', False))
             total_endpoints = len(api_health)
             if total_endpoints > 0:
                 api_score = (healthy_endpoints / total_endpoints) * 100
-                score -= (100 - api_score) * 0.4
+                score -= (100 - api_score) * 0.25
         
-        # Database health (30% weight)
+        # Database health (20% weight)
         if isinstance(db_health, dict) and db_health.get('connected', False):
             db_score = 100
         else:
             db_score = 0
-        score -= (100 - db_score) * 0.3
+        score -= (100 - db_score) * 0.2
         
-        # System resources (20% weight)
+        # System resources (15% weight)
         if isinstance(system_health, dict) and 'error' not in system_health:
             cpu_score = max(0, 100 - system_health.get('cpu_percent', 0))
             memory_score = max(0, 100 - system_health.get('memory_percent', 0))
             system_score = (cpu_score + memory_score) / 2
-            score -= (100 - system_score) * 0.2
+            score -= (100 - system_score) * 0.15
         
         # Data freshness (10% weight)
         if isinstance(data_freshness, dict) and not data_freshness.get('data_stale', True):
@@ -337,6 +424,48 @@ class HealthMonitor:
         else:
             freshness_score = 0
         score -= (100 - freshness_score) * 0.1
+        
+        # Cache health (10% weight)
+        if isinstance(cache_health, dict) and cache_health.get('status') in ['healthy', 'no_redis']:
+            cache_score = 100
+        else:
+            cache_score = 0
+        score -= (100 - cache_score) * 0.1
+        
+        # Services health (10% weight)
+        if isinstance(services_health, dict) and services_health.get('status') != 'error':
+            services_score = 100
+        else:
+            services_score = 0
+        score -= (100 - services_score) * 0.1
+        
+        # Error monitoring health (5% weight)
+        if isinstance(error_monitoring_health, dict) and error_monitoring_health.get('status') != 'error':
+            error_monitoring_score = 100
+        else:
+            error_monitoring_score = 0
+        score -= (100 - error_monitoring_score) * 0.05
+        
+        # Data service health (2.5% weight)
+        if isinstance(data_service_health, dict) and 'error' not in data_service_health:
+            data_service_score = 100
+        else:
+            data_service_score = 0
+        score -= (100 - data_service_score) * 0.025
+        
+        # Monitoring service health (1.25% weight)
+        if isinstance(monitoring_service_health, dict) and monitoring_service_health.get('status') != 'error':
+            monitoring_service_score = 100
+        else:
+            monitoring_service_score = 0
+        score -= (100 - monitoring_service_score) * 0.0125
+        
+        # Frequency matching service health (1.25% weight)
+        if isinstance(frequency_matching_health, dict) and frequency_matching_health.get('status') != 'error':
+            frequency_matching_score = 100
+        else:
+            frequency_matching_score = 0
+        score -= (100 - frequency_matching_score) * 0.0125
         
         return max(0, min(100, score))
 

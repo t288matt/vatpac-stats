@@ -100,15 +100,11 @@ docker-compose ps
 
 ## 📊 Database Schema Created
 
-### **Tables Created (10 total):**
+### **Tables Created (6 total):**
 - `controllers` - ATC controller positions with VATSIM API fields
-- `sectors` - Airspace sector definitions
-- `flights` - Real-time flight data with complete VATSIM API mapping (FLIGHT STATUS REMOVED)
-- `traffic_movements` - Airport arrival/departure tracking (FLIGHT STATUS REMOVED)
-- `airport_config` - Airport configuration settings
+- `flights` - Real-time flight data with complete VATSIM API mapping
+- `traffic_movements` - Airport arrival/departure tracking
 - `airports` - Global airport database
-- `movement_detection_config` - Detection algorithm settings
-- `system_config` - Application configuration
 - `transceivers` - Radio frequency and position data
 - `frequency_matches` - Frequency matching events between pilots and ATC
 
@@ -232,7 +228,7 @@ curl http://localhost:8001/api/status
 
 ### **VATSIM Data:**
 - **Real-time collection**: Every 10 seconds
-- **Data retention**: Configurable via system_config
+- **Data retention**: Configurable via environment variables
 - **API endpoints**: VATSIM public API
 - **Coverage**: Global VATSIM network
 

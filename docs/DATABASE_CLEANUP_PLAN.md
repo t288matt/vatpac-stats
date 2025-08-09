@@ -429,7 +429,7 @@ ORDER BY table_name;
 
 -- Expected tables (9 total):
 -- airports, airport_config, controllers, flights, frequency_matches, 
--- movement_detection_config, sectors, system_config, traffic_movements, transceivers
+-- movement_detection_config, sectors, traffic_movements, transceivers
 
 -- Verify no orphaned foreign keys
 SELECT tc.constraint_name, tc.table_name, kcu.column_name 

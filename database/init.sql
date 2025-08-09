@@ -167,16 +167,7 @@ CREATE TABLE IF NOT EXISTS movement_detection_config (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- System config table
-CREATE TABLE IF NOT EXISTS system_config (
-    id SERIAL PRIMARY KEY,
-    key VARCHAR(100) UNIQUE NOT NULL,
-    value TEXT NOT NULL,
-    description TEXT,
-    last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    environment VARCHAR(20) DEFAULT 'development',
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+
 
 -- Transceivers table
 CREATE TABLE IF NOT EXISTS transceivers (
@@ -244,22 +235,13 @@ CREATE TRIGGER update_movement_detection_config_updated_at
     BEFORE UPDATE ON movement_detection_config 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_system_config_updated_at 
-    BEFORE UPDATE ON system_config 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 
 CREATE TRIGGER update_transceivers_updated_at 
     BEFORE UPDATE ON transceivers 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Insert default system configuration
-INSERT INTO system_config (key, value, description) VALUES
-('vatsim_polling_interval', '30', 'VATSIM data polling interval in seconds'),
-('vatsim_write_interval', '300', 'Data write interval in seconds'),
 
-('memory_limit_mb', '2048', 'Memory limit in MB'),
-('batch_size_threshold', '10000', 'Batch size threshold for processing')
-ON CONFLICT (key) DO NOTHING;
 
 -- Insert default movement detection configuration
 INSERT INTO movement_detection_config (config_key, config_value, description) VALUES

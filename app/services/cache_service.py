@@ -46,6 +46,7 @@ OPTIMIZATIONS:
 
 import redis
 import json
+import os
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone, timedelta, timezone
 import asyncio
@@ -78,8 +79,8 @@ class CacheService(BaseCacheService):
         """Initialize Redis connection"""
         try:
             self.redis_client = redis.Redis(
-                host=self.config.get('REDIS_HOST', 'localhost'),
-                port=self.config.get('REDIS_PORT', 6379),
+                host=os.getenv('REDIS_HOST', 'localhost'),
+                port=int(os.getenv('REDIS_PORT', 6379)),
                 db=0,
                 decode_responses=True,
                 socket_connect_timeout=5,
