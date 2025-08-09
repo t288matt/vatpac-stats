@@ -266,12 +266,9 @@ Phase 3 of the VATSIM Data Collection System refactoring focused on implementing
 
 ### ML Service Endpoints
 
-1. **ML Predictions**
-   ```
-   GET /api/ml/predictions
-   Response: {
-     "sector_name": "YSSY_CTR",
-     "current_demand": 15,
+1. **ML Service Removed**
+   - ML endpoints no longer available
+   - ML configuration removed from environment
      "predicted_demand_1h": 18,
      "predicted_demand_2h": 22,
      "predicted_demand_4h": 25,
@@ -281,10 +278,7 @@ Phase 3 of the VATSIM Data Collection System refactoring focused on implementing
    }
    ```
 
-2. **ML Anomalies**
-   ```
-   GET /api/ml/anomalies
-   Response: [
+
      {
        "sector_name": "YSSY_CTR",
        "anomaly_score": 0.85,
@@ -295,10 +289,7 @@ Phase 3 of the VATSIM Data Collection System refactoring focused on implementing
    ]
    ```
 
-3. **ML Patterns**
-   ```
-   GET /api/ml/patterns
-   Response: [
+
      {
        "pattern_type": "peak_traffic",
        "sector_name": "YSSY_CTR",

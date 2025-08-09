@@ -143,10 +143,10 @@ services = {
 - ✅ Updated ML endpoints to return stub responses
 - ✅ Removed ML-related system dependencies from Dockerfile
 
-**ML Endpoints (Disabled):**
-- `GET /api/ml/predictions` - Returns disabled status
-- `GET /api/ml/anomalies` - Returns empty results
-- `GET /api/ml/patterns` - Returns empty results
+**ML Service Removed:**
+- ML service and endpoints completely removed from codebase
+- ML configuration variables removed from docker-compose.yml
+- ML-related tests removed
 
 ### **Code Cleanup**
 

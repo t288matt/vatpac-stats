@@ -61,10 +61,7 @@
 ### **Logging Analytics**
 - `GET /api/logging/analytics` - Log analytics
 
-### **ML Endpoints (Disabled)**
-- `GET /api/ml/predictions` - Returns disabled status
-- `GET /api/ml/anomalies` - Returns empty results
-- `GET /api/ml/patterns` - Returns empty results
+
 
 ---
 

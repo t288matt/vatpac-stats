@@ -265,28 +265,7 @@ class TestCompleteWorkflow:
         assert isinstance(analytics, dict)
 
     @pytest.mark.asyncio
-    async def test_ml_service_disabled_workflow(self, async_client):
-        """Test ML service disabled workflow."""
-        # 1. Check ML predictions endpoint (disabled)
-        response = await async_client.get("/api/ml/predictions")
-        assert response.status_code == 200
-        predictions = response.json()
-        assert "status" in predictions
-        assert predictions["status"] == "disabled"
 
-        # 2. Check ML anomalies endpoint (disabled)
-        response = await async_client.get("/api/ml/anomalies")
-        assert response.status_code == 200
-        anomalies = response.json()
-        assert "status" in anomalies
-        assert anomalies["status"] == "disabled"
-
-        # 3. Check ML patterns endpoint (disabled)
-        response = await async_client.get("/api/ml/patterns")
-        assert response.status_code == 200
-        patterns = response.json()
-        assert "status" in patterns
-        assert patterns["status"] == "disabled"
 
     @pytest.mark.asyncio
     async def test_concurrent_requests_workflow(self, async_client):

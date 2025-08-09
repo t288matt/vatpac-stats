@@ -1483,47 +1483,13 @@ async def get_logging_analytics(service_name: str = "global", hours: int = 24):
     }
 
 
-@app.get("/api/ml/predictions")
-@handle_service_errors
-@log_operation("get_ml_predictions")
-async def get_ml_predictions(sector_name: str = "YSSY_CTR", hours_ahead: int = 4):
-    """Get ML traffic predictions for a sector (DISABLED)."""
-    return {
-        "sector_name": sector_name,
-        "current_demand": 0,
-        "predicted_demand_1h": 0,
-        "predicted_demand_2h": 0,
-        "predicted_demand_4h": 0,
-        "confidence_score": 0.0,
-        "trend_direction": "stable",
-        "anomaly_score": 0.0,
-        "status": "disabled",
-        "message": "ML service disabled due to heavy dependencies"
-    }
 
 
-@app.get("/api/ml/anomalies")
-@handle_service_errors
-@log_operation("get_ml_anomalies")
-async def get_ml_anomalies():
-    """Get ML anomaly detection results (DISABLED)."""
-    return {
-        "anomalies": [],
-        "status": "disabled",
-        "message": "ML service disabled due to heavy dependencies"
-    }
 
 
-@app.get("/api/ml/patterns")
-@handle_service_errors
-@log_operation("get_ml_patterns")
-async def get_ml_patterns():
-    """Get ML pattern recognition results (DISABLED)."""
-    return {
-        "patterns": [],
-        "status": "disabled",
-        "message": "ML service disabled due to heavy dependencies"
-    }
+
+
+
 
 
 

@@ -22,7 +22,7 @@ CONFIGURATION SECTIONS:
 - Database: PostgreSQL connection settings
 - VATSIM: API endpoints and authentication
 - Traffic Analysis: Thresholds and algorithms
-- ML: Machine learning model settings
+
 - API: FastAPI server configuration
 - Logging: Log levels and output settings
 - Features: Feature flags for system components
@@ -89,68 +89,10 @@ class VATSIMConfig:
         )
 
 
-@dataclass
-class TrafficAnalysisConfig:
-    """Traffic analysis configuration with no hardcoding."""
-    density_threshold_high: float = 80.0
-    density_threshold_medium: float = 50.0
-    density_threshold_low: float = 20.0
-    position_priority_weight_flights: float = 0.7
-    position_priority_weight_sectors: float = 0.3
-    traffic_prediction_confidence_base: float = 0.7
-    flight_normalization_factor: float = 10.0
-    sector_normalization_factor: float = 5.0
-    workload_normalization_factor: float = 15.0
-    impact_normalization_factor: float = 20.0
-    
-    @classmethod
-    def from_env(cls):
-        """Load traffic analysis configuration from environment variables."""
-        return cls(
-            density_threshold_high=float(os.getenv("TRAFFIC_DENSITY_THRESHOLD_HIGH", "80")),
-            density_threshold_medium=float(os.getenv("TRAFFIC_DENSITY_THRESHOLD_MEDIUM", "50")),
-            density_threshold_low=float(os.getenv("TRAFFIC_DENSITY_THRESHOLD_LOW", "20")),
-            position_priority_weight_flights=float(os.getenv("POSITION_PRIORITY_WEIGHT_FLIGHTS", "0.7")),
-            position_priority_weight_sectors=float(os.getenv("POSITION_PRIORITY_WEIGHT_SECTORS", "0.3")),
-            traffic_prediction_confidence_base=float(os.getenv("TRAFFIC_PREDICTION_CONFIDENCE_BASE", "0.7")),
-            flight_normalization_factor=float(os.getenv("FLIGHT_NORMALIZATION_FACTOR", "10.0")),
-            sector_normalization_factor=float(os.getenv("SECTOR_NORMALIZATION_FACTOR", "5.0")),
-            workload_normalization_factor=float(os.getenv("WORKLOAD_NORMALIZATION_FACTOR", "15.0")),
-            impact_normalization_factor=float(os.getenv("IMPACT_NORMALIZATION_FACTOR", "20.0"))
-        )
 
 
-@dataclass
-class MLConfig:
-    """Machine Learning configuration with no hardcoding."""
-    model_dir: str = "./models"
-    min_training_data: int = 100
-    min_historical_data: int = 24
-    rf_n_estimators: int = 100
-    rf_max_depth: int = 10
-    anomaly_contamination: float = 0.1
-    pattern_n_estimators: int = 50
-    pattern_max_depth: int = 8
-    prediction_horizon_hours: int = 4
-    confidence_threshold: float = 0.7
-    anomaly_threshold: float = 0.8
-    
-    @classmethod
-    def from_env(cls):
-        """Load ML configuration from environment variables."""
-        return cls(
-            model_dir=os.getenv("ML_MODEL_DIR", "./models"),
-            min_training_data=int(os.getenv("ML_MIN_TRAINING_DATA", "100")),
-            min_historical_data=int(os.getenv("ML_MIN_HISTORICAL_DATA", "24")),
-            rf_n_estimators=int(os.getenv("ML_RF_N_ESTIMATORS", "100")),
-            rf_max_depth=int(os.getenv("ML_RF_MAX_DEPTH", "10")),
-            anomaly_contamination=float(os.getenv("ML_ANOMALY_CONTAMINATION", "0.1")),
-            pattern_n_estimators=int(os.getenv("ML_PATTERN_N_ESTIMATORS", "50")),
-            pattern_max_depth=int(os.getenv("ML_PATTERN_MAX_DEPTH", "8")),
-            prediction_horizon_hours=int(os.getenv("ML_PREDICTION_HORIZON_HOURS", "4")),
-            confidence_threshold=float(os.getenv("ML_CONFIDENCE_THRESHOLD", "0.7")),
-            anomaly_threshold=float(os.getenv("ML_ANOMALY_THRESHOLD", "0.8"))
-        )
+
+
 
 
 @dataclass
@@ -370,7 +312,7 @@ class FeatureFlags:
     traffic_analysis: bool = True
     heat_map: bool = True
     position_recommendations: bool = True
-    traffic_prediction: bool = True
+
     alerts: bool = True
     real_time_updates: bool = True
     background_processing: bool = True
@@ -382,7 +324,7 @@ class FeatureFlags:
             traffic_analysis=os.getenv("FEATURE_TRAFFIC_ANALYSIS", "true").lower() == "true",
             heat_map=os.getenv("FEATURE_HEAT_MAP", "true").lower() == "true",
             position_recommendations=os.getenv("FEATURE_POSITION_RECOMMENDATIONS", "true").lower() == "true",
-            traffic_prediction=os.getenv("FEATURE_TRAFFIC_PREDICTION", "true").lower() == "true",
+
             alerts=os.getenv("FEATURE_ALERTS", "true").lower() == "true",
             real_time_updates=os.getenv("FEATURE_REAL_TIME_UPDATES", "true").lower() == "true",
             background_processing=os.getenv("FEATURE_BACKGROUND_PROCESSING", "true").lower() == "true"
@@ -394,8 +336,7 @@ class AppConfig:
     """Main application configuration with no hardcoding."""
     database: DatabaseConfig
     vatsim: VATSIMConfig
-    traffic_analysis: TrafficAnalysisConfig
-    ml: MLConfig
+
     api: APIConfig
     logging: LoggingConfig
     features: FeatureFlags
@@ -410,8 +351,7 @@ class AppConfig:
         return cls(
             database=DatabaseConfig.from_env(),
             vatsim=VATSIMConfig.from_env(),
-            traffic_analysis=TrafficAnalysisConfig.from_env(),
-            ml=MLConfig.from_env(),
+
             api=APIConfig.from_env(),
             logging=LoggingConfig.from_env(),
             features=FeatureFlags.from_env(),
@@ -442,16 +382,7 @@ def validate_config(config: AppConfig) -> None:
     if config.vatsim.polling_interval <= 0:
         raise ValueError("VATSIM polling interval must be positive")
     
-    # Validate traffic analysis configuration
-    if not (0 <= config.traffic_analysis.position_priority_weight_flights <= 1):
-        raise ValueError("Position priority weight for flights must be between 0 and 1")
-    
-    if not (0 <= config.traffic_analysis.position_priority_weight_sectors <= 1):
-        raise ValueError("Position priority weight for sectors must be between 0 and 1")
-    
-    if not (0 <= config.traffic_analysis.traffic_prediction_confidence_base <= 1):
-        raise ValueError("Traffic prediction confidence base must be between 0 and 1")
-    
+
     # Validate database configuration
     if config.database.pool_size <= 0:
         raise ValueError("Database pool size must be positive")
@@ -541,18 +472,12 @@ def get_config_summary() -> dict:
             "retry_attempts": config.vatsim.retry_attempts,
             "polling_interval": config.vatsim.polling_interval
         },
-        "traffic_analysis": {
-            "density_threshold_high": config.traffic_analysis.density_threshold_high,
-            "density_threshold_medium": config.traffic_analysis.density_threshold_medium,
-            "density_threshold_low": config.traffic_analysis.density_threshold_low,
-            "position_priority_weight_flights": config.traffic_analysis.position_priority_weight_flights,
-            "position_priority_weight_sectors": config.traffic_analysis.position_priority_weight_sectors
-        },
+
         "features": {
             "traffic_analysis": config.features.traffic_analysis,
             "heat_map": config.features.heat_map,
             "position_recommendations": config.features.position_recommendations,
-            "traffic_prediction": config.features.traffic_prediction,
+
             "alerts": config.features.alerts
         },
         "logging": {

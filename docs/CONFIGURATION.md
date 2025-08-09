@@ -43,21 +43,13 @@ This document provides a centralized reference for all configuration options use
 - `POSITION_PRIORITY_WEIGHT_SECTORS`: Sector weight for position priority (default: 0.3)
 - `TRAFFIC_PREDICTION_CONFIDENCE_BASE`: Base confidence for predictions (default: 0.7)
 
-### Machine Learning Configuration
-- `ML_MODEL_DIR`: Model storage directory (default: ./models)
-- `ML_MIN_TRAINING_DATA`: Minimum training data points (default: 100)
-- `ML_MIN_HISTORICAL_DATA`: Minimum historical data hours (default: 24)
-- `ML_RF_N_ESTIMATORS`: Random forest estimators (default: 100)
-- `ML_RF_MAX_DEPTH`: Random forest max depth (default: 10)
-- `ML_ANOMALY_CONTAMINATION`: Anomaly detection contamination (default: 0.1)
-- `ML_PREDICTION_HORIZON_HOURS`: Prediction horizon in hours (default: 4)
-- `ML_CONFIDENCE_THRESHOLD`: Confidence threshold (default: 0.7)
+
 
 ### Feature Flags
 - `FEATURE_TRAFFIC_ANALYSIS`: Enable traffic analysis (default: true)
 - `FEATURE_HEAT_MAP`: Enable heat map generation (default: true)
 - `FEATURE_POSITION_RECOMMENDATIONS`: Enable position recommendations (default: true)
-- `FEATURE_TRAFFIC_PREDICTION`: Enable traffic prediction (default: true)
+
 - `FEATURE_ALERTS`: Enable alerts (default: true)
 - `FEATURE_REAL_TIME_UPDATES`: Enable real-time updates (default: true)
 - `FEATURE_BACKGROUND_PROCESSING`: Enable background processing (default: true)
@@ -98,10 +90,7 @@ All configuration is loaded through the `get_config()` function in `app/config.p
 - TTL settings for different data types
 - Fallback to memory cache when Redis unavailable
 
-### ML Service
-- Model training parameters
-- Prediction confidence thresholds
-- Anomaly detection sensitivity
+
 
 ### Traffic Analysis Service
 - Movement detection thresholds

@@ -66,8 +66,7 @@ class ServiceManager:
                 'vatsim_service',
                 'flight_processing_service',
                 'data_service',
-                'traffic_analysis_service',
-                'ml_service'
+                'traffic_analysis_service'
             ]
             
             results = {}
@@ -115,7 +114,6 @@ class ServiceManager:
             
             # Stop services in reverse dependency order
             stop_order = [
-                'ml_service',
                 'traffic_analysis_service',
                 'data_service',
                 'flight_processing_service',

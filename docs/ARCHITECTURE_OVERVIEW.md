@@ -118,19 +118,18 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - Airport traffic density calculations
 - Real-time traffic alerts
 
-### 3. Machine Learning Service (`app/services/ml_service.py`)
-**Purpose**: AI-powered analysis and predictions
-- **Controller workload prediction**
-- **Traffic flow optimization**
-- **Anomaly detection**
-- **Predictive analytics**
+### 3. Traffic Analysis Service (`app/services/traffic_analysis_service.py`)
+**Purpose**: Advanced traffic pattern analysis and movement detection
+- **Real-time traffic movement detection**
+- **Pattern recognition algorithms**
+- **Predictive analytics for traffic flow**
+- **Airport-specific traffic analysis**
 
 **Key Features**:
-- ML model training and inference
-- Workload prediction algorithms
-- Anomaly detection systems
-- Model performance monitoring
-- Automated model updates
+- Real-time traffic movement detection
+- Pattern recognition algorithms
+- Predictive analytics for traffic flow
+- Airport-specific traffic analysis
 
 ### 4. Cache Service (`app/services/cache_service.py`)
 **Purpose**: High-performance caching layer

@@ -206,29 +206,7 @@ class TestAPIEndpoints:
         data = response.json()
         assert isinstance(data, dict)
 
-    def test_ml_predictions_endpoint(self, test_client):
-        """Test the ML predictions endpoint (disabled)."""
-        response = test_client.get("/api/ml/predictions")
-        assert response.status_code == 200
-        data = response.json()
-        assert "status" in data
-        assert data["status"] == "disabled"
 
-    def test_ml_anomalies_endpoint(self, test_client):
-        """Test the ML anomalies endpoint (disabled)."""
-        response = test_client.get("/api/ml/anomalies")
-        assert response.status_code == 200
-        data = response.json()
-        assert "status" in data
-        assert data["status"] == "disabled"
-
-    def test_ml_patterns_endpoint(self, test_client):
-        """Test the ML patterns endpoint (disabled)."""
-        response = test_client.get("/api/ml/patterns")
-        assert response.status_code == 200
-        data = response.json()
-        assert "status" in data
-        assert data["status"] == "disabled"
 
     def test_invalid_endpoint(self, test_client):
         """Test invalid endpoint returns 404."""
@@ -362,25 +340,4 @@ class TestAPIEndpoints:
         assert isinstance(data, dict)
 
     @pytest.mark.asyncio
-    async def test_async_ml_endpoints(self, async_client):
-        """Test ML endpoints asynchronously (disabled)."""
-        # Test predictions endpoint
-        response = await async_client.get("/api/ml/predictions")
-        assert response.status_code == 200
-        data = response.json()
-        assert "status" in data
-        assert data["status"] == "disabled"
-
-        # Test anomalies endpoint
-        response = await async_client.get("/api/ml/anomalies")
-        assert response.status_code == 200
-        data = response.json()
-        assert "status" in data
-        assert data["status"] == "disabled"
-
-        # Test patterns endpoint
-        response = await async_client.get("/api/ml/patterns")
-        assert response.status_code == 200
-        data = response.json()
-        assert "status" in data
-        assert data["status"] == "disabled" 
+ 
