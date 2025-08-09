@@ -109,7 +109,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  (date_trunc('minute', created_at AT TIME ZONE 'UTC'))::timestamp as time,\n  COUNT(*) as \"Flights Added Per Minute\"\nFROM flights\nWHERE created_at >= NOW() - INTERVAL '1 hour'\nGROUP BY time\nORDER BY time;",
+          "rawSql": "SELECT\n  (date_trunc('minute', last_updated AT TIME ZONE 'UTC'))::timestamp as time,\n  COUNT(DISTINCT callsign) as \"Flights Added Per Minute\"\nFROM flights\nWHERE last_updated >= NOW() - INTERVAL '1 hour'\nGROUP BY time\nORDER BY time;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -279,7 +279,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) as \"New Flights (Last 5 min)\"\nFROM flights\nWHERE created_at >= NOW() - INTERVAL '5 minutes';",
+          "rawSql": "SELECT COUNT(DISTINCT callsign) as \"New Flights (Last 5 min)\"\nFROM flights\nWHERE last_updated >= NOW() - INTERVAL '5 minutes';",
           "refId": "A",
           "sql": {
             "columns": [
@@ -362,7 +362,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT ROUND(COUNT(*)::numeric / 60, 1) as \"Avg Flights/Min (Last Hour)\"\nFROM flights\nWHERE created_at >= NOW() - INTERVAL '1 hour';",
+          "rawSql": "SELECT ROUND(COUNT(DISTINCT callsign)::numeric / 60, 1) as \"Avg Flights/Min (Last Hour)\"\nFROM flights\nWHERE last_updated >= NOW() - INTERVAL '1 hour';",
           "refId": "A",
           "sql": {
             "columns": [
@@ -502,7 +502,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "created_at"
+              "options": "last_updated"
             },
             "properties": [
               {
@@ -554,7 +554,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT \n  (created_at AT TIME ZONE 'UTC')::timestamp as created_at,\n  callsign,\n  departure,\n  arrival,\n  aircraft_type,\n  CASE \n    WHEN LENGTH(route) > 50 THEN LEFT(route, 50) || '...'\n    ELSE route\n  END as route_short,\n  flight_rules\nFROM flights\nWHERE created_at >= NOW() - INTERVAL '10 minutes'\nORDER BY created_at DESC\nLIMIT 50;",
+          "rawSql": "SELECT \n  (last_updated AT TIME ZONE 'UTC')::timestamp as last_updated,\n  callsign,\n  departure,\n  arrival,\n  aircraft_type,\n  CASE \n    WHEN LENGTH(route) > 50 THEN LEFT(route, 50) || '...'\n    ELSE route\n  END as route_short,\n  flight_rules\nFROM flights\nWHERE last_updated >= NOW() - INTERVAL '10 minutes'\nORDER BY last_updated DESC\nLIMIT 50;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -575,7 +575,7 @@
           }
         }
       ],
-      "title": "Recent Flight Additions (Last 10 minutes) - UTC",
+      "title": "Recent Flight Updates (Last 10 minutes) - UTC",
       "type": "table"
     },
     {
@@ -827,7 +827,9 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "percent",
+          "min": 0,
+          "max": 100
         },
         "overrides": []
       },
@@ -859,7 +861,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  (date_trunc('minute', created_at AT TIME ZONE 'UTC'))::timestamp as time,\n  COUNT(*) FILTER (WHERE flight_rules = 'I') as \"IFR Flights\",\n  COUNT(*) FILTER (WHERE flight_rules = 'V') as \"VFR Flights\",\n  COUNT(*) FILTER (WHERE flight_rules IS NULL OR flight_rules = '') as \"Unknown Rules\"\nFROM flights\nWHERE created_at >= NOW() - INTERVAL '2 hours'\nGROUP BY time\nORDER BY time;",
+          "rawSql": "SELECT\n  (date_trunc('minute', last_updated AT TIME ZONE 'UTC'))::timestamp as time,\n  CASE WHEN COUNT(DISTINCT callsign) > 0 THEN \n    ROUND(COUNT(DISTINCT CASE WHEN flight_rules = 'I' THEN callsign END) * 100.0 / COUNT(DISTINCT callsign), 1)\n    ELSE 0 END as \"IFR %\",\n  CASE WHEN COUNT(DISTINCT callsign) > 0 THEN \n    ROUND(COUNT(DISTINCT CASE WHEN flight_rules = 'V' THEN callsign END) * 100.0 / COUNT(DISTINCT callsign), 1)\n    ELSE 0 END as \"VFR %\",\n  CASE WHEN COUNT(DISTINCT callsign) > 0 THEN \n    ROUND(COUNT(DISTINCT CASE WHEN flight_rules IS NULL OR flight_rules = '' THEN callsign END) * 100.0 / COUNT(DISTINCT callsign), 1)\n    ELSE 0 END as \"Unknown %\"\nFROM flights\nWHERE last_updated >= NOW() - INTERVAL '2 hours'\nGROUP BY time\nORDER BY time;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -880,7 +882,7 @@
           }
         }
       ],
-      "title": "Flight Rules Distribution Over Time (Last 2 Hours) - UTC",
+      "title": "Flight Rules Distribution (% over Time) - Last 2 Hours - UTC",
       "type": "timeseries"
     }
   ],
