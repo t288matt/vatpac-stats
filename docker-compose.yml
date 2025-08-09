@@ -197,7 +197,9 @@ services:
       GF_AUTH_ANONYMOUS_ORG_NAME: Main Org.
       GF_DEFAULT_LOCALE: en-GB
       GF_USERS_DEFAULT_THEME: dark
-      GF_USERS_DEFAULT_TIMEZONE: Europe/London
+      # Set to UTC to ensure dashboard displays database timestamps as UTC times
+      # Database stores all timestamps in UTC, this prevents timezone conversion
+      GF_USERS_DEFAULT_TIMEZONE: UTC
       # Error monitoring and observability
       GF_FEATURE_TOGGLES_ENABLE: "publicDashboards"
       GF_ANALYTICS_REPORTING_ENABLED: "false"

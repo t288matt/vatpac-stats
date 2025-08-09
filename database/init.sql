@@ -232,7 +232,7 @@ CREATE TABLE IF NOT EXISTS transceivers (
     id SERIAL PRIMARY KEY,
     callsign VARCHAR(50) NOT NULL,
     transceiver_id INTEGER NOT NULL,
-    frequency INTEGER NOT NULL,
+    frequency BIGINT NOT NULL,
     position_lat DOUBLE PRECISION,
     position_lon DOUBLE PRECISION,
     height_msl DOUBLE PRECISION,
