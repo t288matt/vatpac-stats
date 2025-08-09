@@ -161,7 +161,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  date_trunc('minute', created_at) as time,\n  COUNT(*) FILTER (WHERE flight_rules = 'I') as \"IFR Flights\",\n  COUNT(*) FILTER (WHERE flight_rules = 'V') as \"VFR Flights\",\n  COUNT(*) FILTER (WHERE flight_rules IS NULL OR flight_rules = '' OR flight_rules NOT IN ('I', 'V')) as \"Unknown Rules\"\nFROM (\n  SELECT DISTINCT cid, deptime, callsign, departure, arrival, flight_rules, created_at\n  FROM flights\n  WHERE created_at >= NOW() - INTERVAL '2 hours'\n) unique_flights\nGROUP BY time\nORDER BY time;",
+          "rawSql": "SELECT\n  date_trunc('${time_granularity}', created_at) as time,\n  COUNT(*) FILTER (WHERE flight_rules = 'I') as \"IFR Flights\",\n  COUNT(*) FILTER (WHERE flight_rules = 'V') as \"VFR Flights\",\n  COUNT(*) FILTER (WHERE flight_rules IS NULL OR flight_rules = '' OR flight_rules NOT IN ('I', 'V')) as \"Unknown Rules\",\n  ROUND(COUNT(*) FILTER (WHERE flight_rules = 'I') * 100.0 / NULLIF(COUNT(*), 0), 1) as \"IFR Percentage\"\nFROM (\n  SELECT DISTINCT cid, deptime, callsign, departure, arrival, flight_rules, created_at\n  FROM flights\n  WHERE created_at >= NOW() - INTERVAL '${time_range}'\n) unique_flights\nGROUP BY time\nORDER BY time;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -182,7 +182,7 @@
           }
         }
       ],
-      "title": "Flight Rules Distribution Over Time (Last 2 Hours)",
+      "title": "Flight Rules Distribution Over Time (${time_range}) - IFR Percentage Shown",
       "type": "timeseries"
     },
     {
@@ -324,7 +324,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  date_trunc('hour', created_at) as time,\n  COUNT(*) FILTER (WHERE flight_rules = 'I') as \"IFR Flights\",\n  COUNT(*) FILTER (WHERE flight_rules = 'V') as \"VFR Flights\",\n  COUNT(*) FILTER (WHERE flight_rules IS NULL OR flight_rules = '' OR flight_rules NOT IN ('I', 'V')) as \"Unknown Rules\"\nFROM (\n  SELECT DISTINCT cid, deptime, callsign, departure, arrival, flight_rules, created_at\n  FROM flights\n  WHERE created_at >= NOW() - INTERVAL '24 hours'\n) unique_flights\nGROUP BY time\nORDER BY time;",
+          "rawSql": "SELECT\n  date_trunc('${time_granularity}', created_at) as time,\n  COUNT(*) FILTER (WHERE flight_rules = 'I') as \"IFR Flights\",\n  COUNT(*) FILTER (WHERE flight_rules = 'V') as \"VFR Flights\",\n  COUNT(*) FILTER (WHERE flight_rules IS NULL OR flight_rules = '' OR flight_rules NOT IN ('I', 'V')) as \"Unknown Rules\",\n  ROUND(COUNT(*) FILTER (WHERE flight_rules = 'I') * 100.0 / NULLIF(COUNT(*), 0), 1) as \"IFR Percentage\"\nFROM (\n  SELECT DISTINCT cid, deptime, callsign, departure, arrival, flight_rules, created_at\n  FROM flights\n  WHERE created_at >= NOW() - INTERVAL '${time_range}'\n) unique_flights\nGROUP BY time\nORDER BY time;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -345,7 +345,7 @@
           }
         }
       ],
-      "title": "Flight Rules Distribution Over Time (Last 24 Hours)",
+      "title": "Flight Rules Distribution Over Time (${time_range}) - Detailed View with IFR Percentage",
       "type": "timeseries"
     },
     {
@@ -454,7 +454,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT \n  CASE \n    WHEN flight_rules = 'I' THEN 'IFR'\n    WHEN flight_rules = 'V' THEN 'VFR'\n    ELSE 'Unknown'\n  END as flight_type,\n  COUNT(*) as count\nFROM (\n  SELECT DISTINCT cid, deptime, callsign, departure, arrival, flight_rules\n  FROM flights\n  WHERE created_at >= NOW() - INTERVAL '24 hours'\n) unique_flights\nGROUP BY flight_type\nORDER BY count DESC;",
+          "rawSql": "SELECT \n  CASE \n    WHEN flight_rules = 'I' THEN 'IFR'\n    WHEN flight_rules = 'V' THEN 'VFR'\n    ELSE 'Unknown'\n  END as flight_type,\n  COUNT(*) as count,\n  ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) as percentage\nFROM (\n  SELECT DISTINCT cid, deptime, callsign, departure, arrival, flight_rules\n  FROM flights\n  WHERE created_at >= NOW() - INTERVAL '${time_range}'\n) unique_flights\nGROUP BY flight_type\nORDER BY count DESC;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -475,7 +475,7 @@
           }
         }
       ],
-      "title": "Flight Rules Distribution (Last 24 Hours)",
+      "title": "Flight Rules Distribution (${time_range}) - IFR Percentage: ${__field.labels.percentage}%",
       "type": "piechart"
     },
     {
@@ -537,7 +537,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) as \"Total IFR Flights (24h)\"\nFROM (\n  SELECT DISTINCT cid, deptime, callsign, departure, arrival\n  FROM flights\n  WHERE created_at >= NOW() - INTERVAL '24 hours'\n  AND flight_rules = 'I'\n) unique_flights;",
+          "rawSql": "SELECT \n  COUNT(*) as \"Total IFR Flights\",\n  ROUND(COUNT(*) * 100.0 / (\n    SELECT COUNT(*) FROM (\n      SELECT DISTINCT cid, deptime, callsign, departure, arrival\n      FROM flights\n      WHERE created_at >= NOW() - INTERVAL '${time_range}'\n    ) all_flights\n  ), 1) as \"IFR Percentage\"\nFROM (\n  SELECT DISTINCT cid, deptime, callsign, departure, arrival\n  FROM flights\n  WHERE created_at >= NOW() - INTERVAL '${time_range}'\n  AND flight_rules = 'I'\n) unique_flights;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -558,7 +558,7 @@
           }
         }
       ],
-      "title": "Total IFR Flights (24h)",
+      "title": "Total IFR Flights (${time_range}) - Percentage of All Flights",
       "type": "stat"
     },
     {
@@ -620,7 +620,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) as \"Total VFR Flights (24h)\"\nFROM (\n  SELECT DISTINCT cid, deptime, callsign, departure, arrival\n  FROM flights\n  WHERE created_at >= NOW() - INTERVAL '24 hours'\n  AND flight_rules = 'V'\n) unique_flights;",
+          "rawSql": "SELECT \n  COUNT(*) as \"Total VFR Flights\",\n  ROUND(COUNT(*) * 100.0 / (\n    SELECT COUNT(*) FROM (\n      SELECT DISTINCT cid, deptime, callsign, departure, arrival\n      FROM flights\n      WHERE created_at >= NOW() - INTERVAL '${time_range}'\n    ) all_flights\n  ), 1) as \"VFR Percentage\"\nFROM (\n  SELECT DISTINCT cid, deptime, callsign, departure, arrival\n  FROM flights\n  WHERE created_at >= NOW() - INTERVAL '${time_range}'\n  AND flight_rules = 'V'\n) unique_flights;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -641,11 +641,11 @@
           }
         }
       ],
-      "title": "Total VFR Flights (24h)",
+      "title": "Total VFR Flights (${time_range}) - Percentage of All Flights",
       "type": "stat"
     }
   ],
-  "refresh": "30s",
+  "refresh": "1m",
   "schemaVersion": 38,
   "style": "dark",
   "tags": [
@@ -656,7 +656,97 @@
     "distribution"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "Last 24 hours",
+          "value": "24h"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "time_range",
+        "options": [
+          {
+            "selected": false,
+            "text": "Last 2 hours",
+            "value": "2h"
+          },
+          {
+            "selected": false,
+            "text": "Last 6 hours",
+            "value": "6h"
+          },
+          {
+            "selected": false,
+            "text": "Last 12 hours",
+            "value": "12h"
+          },
+          {
+            "selected": true,
+            "text": "Last 24 hours",
+            "value": "24h"
+          },
+          {
+            "selected": false,
+            "text": "Last 2 days",
+            "value": "2d"
+          },
+          {
+            "selected": false,
+            "text": "Last 7 days",
+            "value": "7d"
+          }
+        ],
+        "query": "2h,6h,12h,24h,2d,7d",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "1 hour",
+          "value": "hour"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "time_granularity",
+        "options": [
+          {
+            "selected": false,
+            "text": "1 minute",
+            "value": "minute"
+          },
+          {
+            "selected": false,
+            "text": "15 minutes",
+            "value": "15 minutes"
+          },
+          {
+            "selected": true,
+            "text": "1 hour",
+            "value": "hour"
+          },
+          {
+            "selected": false,
+            "text": "6 hours",
+            "value": "6 hours"
+          },
+          {
+            "selected": false,
+            "text": "1 day",
+            "value": "day"
+          }
+        ],
+        "query": "minute,15 minutes,hour,6 hours,day",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      }
+    ]
   },
   "time": {
     "from": "now-24h",
