@@ -128,7 +128,7 @@ services:
       FLIGHT_FILTER_LOG_LEVEL: "INFO"
       
       # Geographic Boundary Filter Configuration (Polygon-based)
-      ENABLE_BOUNDARY_FILTER: "false"
+      ENABLE_BOUNDARY_FILTER: "true"
       BOUNDARY_DATA_PATH: "australian_airspace_polygon.json"
       BOUNDARY_FILTER_LOG_LEVEL: "INFO"
       BOUNDARY_FILTER_PERFORMANCE_THRESHOLD: "10.0"

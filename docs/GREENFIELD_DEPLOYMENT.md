@@ -14,6 +14,11 @@
 - Port 6379 available for Redis (optional)
 - Port 3050 available for Grafana (optional)
 
+### **System Dependencies:**
+- GEOS library for geographic calculations (included in Docker)
+- Shapely library for polygon operations (included in requirements.txt)
+- PostGIS extensions (optional, for advanced geographic features)
+
 ## 🎯 One-Command Deployment
 
 ### **Step 1: Clone the Repository**
@@ -34,6 +39,12 @@ docker-compose ps
 
 # Test the API
 curl http://localhost:8001/api/status
+
+# Test geographic boundary filter (if enabled)
+curl http://localhost:8001/api/filter/boundary/status
+
+# Test flight filter
+curl http://localhost:8001/api/filter/flight/status
 ```
 
 ## ✅ Expected Results
@@ -76,6 +87,7 @@ docker-compose ps
 4. **Indexes Created**: Performance indexes for queries
 5. **Triggers Created**: Automatic `updated_at` field updates
 6. **Default Data**: System configuration inserted
+7. **GEOS Support**: Geographic calculation libraries loaded
 
 ### **Application Setup:**
 1. **Schema Validation**: App checks database on startup
@@ -83,6 +95,8 @@ docker-compose ps
 3. **Health Checks**: All services verified
 4. **Background Services**: Data ingestion starts automatically
 5. **VATSIM Integration**: Real-time data collection begins
+6. **Filter Initialization**: Flight and geographic filters configured
+7. **Cache Warming**: Redis cache populated with initial data
 
 ## 📊 Database Schema Created
 
@@ -136,6 +150,10 @@ docker-compose ps
 - **Health Check**: http://localhost:8001/api/health/comprehensive
 - **Flight Data**: http://localhost:8001/api/flights
 - **ATC Data**: http://localhost:8001/api/controllers
+- **Filter Status**: http://localhost:8001/api/filter/flight/status
+- **Geographic Filter**: http://localhost:8001/api/filter/boundary/status
+- **Network Status**: http://localhost:8001/api/network/status
+- **Database Status**: http://localhost:8001/api/database/status
 
 ### **Monitoring:**
 - **Grafana Dashboard**: http://localhost:3050
@@ -265,26 +283,199 @@ docker-compose up -d --build
 - Verify system resources are sufficient
 - Check internet connectivity for VATSIM API
 
-## 🗺️ Geographic Functionality (Future)
+## ⚙️ Environment Configuration
 
-### **Planned Features:**
-- **Polygon Detection**: Airspace boundary detection
-- **Geographic Filtering**: Region-based flight filtering
-- **Airspace Monitoring**: Real-time airspace utilization
-- **Geographic Analytics**: Traffic pattern analysis
-- **API Endpoints**: Geographic-based queries
+### **Core Environment Variables:**
+```bash
+# Database Configuration
+DATABASE_URL=postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data
+DATABASE_POOL_SIZE=10
+DATABASE_MAX_OVERFLOW=20
+REDIS_URL=redis://redis:6379
 
-### **Implementation Roadmap:**
-- **Phase 1**: Core polygon detection (GEO_TODO.md)
-- **Phase 2**: Database schema extensions
-- **Phase 3**: Geographic services
-- **Phase 4**: API integration
-- **Phase 5**: Monitoring and analytics
+# API Configuration
+API_HOST=0.0.0.0
+API_PORT=8001
+API_WORKERS=4
+CORS_ORIGINS=*
+
+# VATSIM Data Collection
+VATSIM_POLLING_INTERVAL=10
+VATSIM_DATA_REFRESH_INTERVAL=10
+WRITE_TO_DISK_INTERVAL=15
+VATSIM_API_TIMEOUT=30
+VATSIM_API_RETRY_ATTEMPTS=3
+
+# Flight Filtering
+FLIGHT_FILTER_ENABLED=true
+FLIGHT_FILTER_LOG_LEVEL=INFO
+
+# Geographic Boundary Filtering (NEW)
+ENABLE_BOUNDARY_FILTER=false
+BOUNDARY_DATA_PATH=australian_airspace_polygon.json
+BOUNDARY_FILTER_LOG_LEVEL=INFO
+BOUNDARY_FILTER_PERFORMANCE_THRESHOLD=10.0
+
+# Performance Settings
+MEMORY_LIMIT_MB=2048
+BATCH_SIZE_THRESHOLD=10000
+LOG_LEVEL=INFO
+PRODUCTION_MODE=true
+
+# Feature Flags
+FEATURE_TRAFFIC_ANALYSIS=true
+FEATURE_HEAT_MAP=true
+FEATURE_POSITION_RECOMMENDATIONS=true
+FEATURE_REAL_TIME_UPDATES=true
+```
+
+### **Production Environment Variables:**
+```bash
+# Security (Production Only)
+API_KEY_REQUIRED=true
+API_RATE_LIMIT_ENABLED=true
+SSL_ENABLED=true
+SSL_CERT_PATH=/certs/cert.pem
+SSL_KEY_PATH=/certs/key.pem
+
+# Monitoring (Production Only)
+ERROR_MONITORING_ENABLED=true
+PERFORMANCE_MONITORING_ENABLED=true
+GRAFANA_ADMIN_PASSWORD=your_secure_password_here
+POSTGRES_PASSWORD=your_secure_db_password_here
+
+# Backup Configuration (Production Only)
+BACKUP_ENABLED=true
+BACKUP_SCHEDULE=0 2 * * *
+BACKUP_RETENTION_DAYS=30
+BACKUP_S3_BUCKET=your-backup-bucket
+```
+
+## 🗺️ Geographic Functionality (IMPLEMENTED)
+
+### **Current Features:**
+- ✅ **Polygon Detection**: Australian airspace boundary detection
+- ✅ **Geographic Filtering**: Shapely-based point-in-polygon filtering
+- ✅ **Dual Filter System**: Airport + Geographic filtering
+- ✅ **Performance Monitoring**: <10ms filtering performance
+- ✅ **GeoJSON Support**: Standard GeoJSON polygon format
+
+### **Geographic Filter Configuration:**
+```bash
+# Enable geographic boundary filtering
+ENABLE_BOUNDARY_FILTER=true
+BOUNDARY_DATA_PATH=australian_airspace_polygon.json
+BOUNDARY_FILTER_LOG_LEVEL=INFO
+BOUNDARY_FILTER_PERFORMANCE_THRESHOLD=10.0
+```
+
+### **Filter Combinations:**
+1. **Both OFF**: All flights pass through (no filtering)
+2. **Airport ON, Geographic OFF**: Only flights to/from Australian airports  
+3. **Airport OFF, Geographic ON**: Only flights physically in Australian airspace
+4. **Both ON**: Flights to/from Australian airports AND physically in Australian airspace
+
+## 🔒 Production Security Considerations
+
+### **SSL/TLS Configuration:**
+```bash
+# 1. Generate SSL certificates
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout /certs/key.pem -out /certs/cert.pem
+
+# 2. Update docker-compose.yml
+# Add volume mount: - /path/to/certs:/certs:ro
+
+# 3. Configure reverse proxy (recommended)
+# Use Traefik or Nginx for SSL termination
+```
+
+### **API Security:**
+```bash
+# Environment variables for production
+API_KEY_REQUIRED=true
+API_RATE_LIMIT_PER_MINUTE=60
+API_CORS_ORIGINS=https://yourdomain.com
+JWT_SECRET_KEY=your_jwt_secret_key_here
+```
+
+### **Database Security:**
+```bash
+# Change default passwords
+POSTGRES_PASSWORD=your_secure_password_here
+POSTGRES_USER=vatsim_prod_user
+
+# Enable SSL for database connections
+DATABASE_URL=postgresql://user:pass@host:5432/db?sslmode=require
+```
+
+## 🚀 Production Deployment Checklist
+
+### **Pre-Deployment:**
+- [ ] Change all default passwords
+- [ ] Configure SSL certificates
+- [ ] Set up reverse proxy (Traefik/Nginx)
+- [ ] Configure firewall rules
+- [ ] Set up monitoring alerts
+- [ ] Configure backup strategy
+- [ ] Test disaster recovery procedures
+
+### **Post-Deployment:**
+- [ ] Verify all services are healthy
+- [ ] Test API endpoints with authentication
+- [ ] Confirm data ingestion is working
+- [ ] Set up log aggregation
+- [ ] Configure performance monitoring
+- [ ] Test backup and restore procedures
+
+## 📊 Production Monitoring
+
+### **Health Checks:**
+```bash
+# API Health
+curl -H "Authorization: Bearer $API_KEY" https://api.yourdomain.com/api/status
+
+# Database Health  
+docker exec postgres pg_isready -U vatsim_user
+
+# Redis Health
+docker exec redis redis-cli ping
+
+# Application Logs
+docker logs vatsim_app --tail 100
+```
+
+### **Performance Monitoring:**
+- **CPU Usage**: Monitor container CPU usage
+- **Memory Usage**: Track memory consumption patterns
+- **Database Performance**: Monitor query response times
+- **API Response Times**: Track endpoint performance
+- **Data Ingestion Rate**: Monitor VATSIM data processing
+
+## 💾 Backup & Recovery
+
+### **Database Backup:**
+```bash
+# Daily automated backup
+docker exec postgres pg_dump -U vatsim_user vatsim_data | gzip > backup_$(date +%Y%m%d).sql.gz
+
+# Restore from backup
+gunzip -c backup_20250809.sql.gz | docker exec -i postgres psql -U vatsim_user vatsim_data
+```
+
+### **Configuration Backup:**
+```bash
+# Backup configuration files
+tar -czf config_backup_$(date +%Y%m%d).tar.gz \
+  docker-compose.yml \
+  grafana/ \
+  australian_airspace_polygon.json
+```
 
 ---
 
-**🎯 Result**: A fully functional VATSIM data collection system with simplified architecture, ready for production use and future geographic enhancements!
+**🎯 Result**: A fully functional, production-ready VATSIM data collection system with comprehensive security, monitoring, and geographic filtering capabilities!
 
-**📅 Last Updated**: 2025-08-07  
-**🔄 Status**: Flight status removal complete, geographic roadmap ready  
-**🚀 Ready for Deployment**: Yes 
+**📅 Last Updated**: 2025-08-09  
+**🔄 Status**: Production-ready with geographic boundary filtering, comprehensive security, and monitoring  
+**🚀 Ready for Production Deployment**: Yes (with security checklist completed) 
