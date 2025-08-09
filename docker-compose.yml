@@ -105,30 +105,10 @@ services:
       BOUNDARY_FILTER_LOG_LEVEL: "INFO"
       BOUNDARY_FILTER_PERFORMANCE_THRESHOLD: "10.0"
       
-      # Flight Completion System Configuration
-      FLIGHT_COMPLETION_METHOD: "hybrid"
-      COMPLETION_SYSTEM_ENABLED: "true"
-      COMPLETION_PRIORITY: "landing_first"
-      
-      # Landing Detection Configuration
-      LANDING_DETECTION_ENABLED: "true"
-      LANDING_DETECTION_RADIUS_NM: 15.0
-      LANDING_ALTITUDE_THRESHOLD_FT_ABOVE_AIRPORT: 1000
-      LANDING_SPEED_THRESHOLD_KTS: 20
-      LANDING_DUPLICATE_PREVENTION_MINUTES: 5
-      LANDING_COMPLETION_DELAY_MINUTES: 2
-      LANDING_CONFIDENCE_THRESHOLD: 0.8
-      
-      # Time-Based Fallback Configuration
-      TIME_BASED_FALLBACK_ENABLED: "true"
-      TIME_BASED_TIMEOUT_HOURS: 1
-      TIME_BASED_CLEANUP_INTERVAL_SECONDS: 3600
-      TIME_BASED_MINIMUM_FLIGHT_DURATION_MINUTES: 10
-      
-      # Database Configuration for Completion System
-      COMPLETION_BATCH_SIZE: 100
-      COMPLETION_TRANSACTION_TIMEOUT_SECONDS: 30
-      COMPLETION_LOG_LEVEL: "INFO"
+
+
+
+
     volumes:
       - ./logs:/app/logs:rw
       - ./australian_airspace_polygon.json:/app/australian_airspace_polygon.json:ro

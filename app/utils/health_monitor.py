@@ -62,11 +62,6 @@ class HealthMonitor:
             "/api/database/tables",
             "/api/performance/metrics",
             "/api/performance/optimize",
-            "/api/health/comprehensive",
-            "/api/health/endpoints",
-            "/api/health/database",
-            "/api/health/system",
-            "/api/health/data-freshness",
             "/api/airports/region/Australia",
             "/api/airports/YSSY/coordinates"
         ]
@@ -218,7 +213,9 @@ class HealthMonitor:
                 "last_flight_update": last_flight_update.isoformat() if last_flight_update else None,
                 "atc_freshness_seconds": (now - last_atc_update).total_seconds() if last_atc_update else None,
                 "flight_freshness_seconds": (now - last_flight_update).total_seconds() if last_flight_update else None,
-                "data_stale": (last_atc_update is None or last_flight_update is None),
+                "data_stale": (last_atc_update is None or last_flight_update is None or 
+                              (last_atc_update and (now - last_atc_update).total_seconds() > 120) or
+                              (last_flight_update and (now - last_flight_update).total_seconds() > 120)),
                 "timestamp": now.isoformat()
             }
             
