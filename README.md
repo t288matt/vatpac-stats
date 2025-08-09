@@ -90,7 +90,6 @@ CORS_ORIGINS: "*"
 
 # VATSIM Data Collection
 VATSIM_POLLING_INTERVAL: 10      # API polling (seconds)
-VATSIM_DATA_REFRESH_INTERVAL: 10 # Data refresh (seconds)
 WRITE_TO_DISK_INTERVAL: 15       # Database writes (seconds)
 VATSIM_API_TIMEOUT: 30           # API timeout (seconds)
 VATSIM_API_RETRY_ATTEMPTS: 3     # Retry attempts

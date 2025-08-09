@@ -445,7 +445,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(DISTINCT departure) as \"Active Airports\"\nFROM flights\nWHERE created_at >= NOW() - INTERVAL '1 hour'\nAND departure IS NOT NULL\nAND departure != '';"
+          "rawSql": "SELECT COUNT(DISTINCT departure) as \"Active Airports\"\nFROM flights\nWHERE created_at >= NOW() - INTERVAL '1 hour'\nAND departure IS NOT NULL\nAND departure != '';",
           "refId": "A",
           "sql": {
             "columns": [
@@ -554,7 +554,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT \n  (created_at AT TIME ZONE 'UTC')::timestamp as created_at,\n  callsign,\n  departure,\n  arrival,\n  aircraft_type,\n  CASE \n    WHEN LENGTH(route) > 50 THEN LEFT(route, 50) || '...'\n    ELSE route\n  END as route_short,\n  flight_rules\nFROM flights\nWHERE created_at >= NOW() - INTERVAL '10 minutes'\nORDER BY created_at DESC\nLIMIT 50;"
+          "rawSql": "SELECT \n  (created_at AT TIME ZONE 'UTC')::timestamp as created_at,\n  callsign,\n  departure,\n  arrival,\n  aircraft_type,\n  CASE \n    WHEN LENGTH(route) > 50 THEN LEFT(route, 50) || '...'\n    ELSE route\n  END as route_short,\n  flight_rules\nFROM flights\nWHERE created_at >= NOW() - INTERVAL '10 minutes'\nORDER BY created_at DESC\nLIMIT 50;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -637,7 +637,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT \n  COALESCE(aircraft_type, 'Unknown') as aircraft_type,\n  COUNT(*) as count\nFROM flights\nWHERE created_at >= NOW() - INTERVAL '1 hour'\nGROUP BY aircraft_type\nORDER BY count DESC\nLIMIT 10;"
+          "rawSql": "SELECT \n  COALESCE(aircraft_type, 'Unknown') as aircraft_type,\n  COUNT(*) as count\nFROM flights\nWHERE created_at >= NOW() - INTERVAL '1 hour'\nGROUP BY aircraft_type\nORDER BY count DESC\nLIMIT 10;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -748,7 +748,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT \n  departure as airport,\n  COUNT(*) as departures\nFROM flights\nWHERE created_at >= NOW() - INTERVAL '1 hour'\nAND departure IS NOT NULL\nAND departure != ''\nGROUP BY departure\nORDER BY departures DESC\nLIMIT 15;"
+          "rawSql": "SELECT \n  departure as airport,\n  COUNT(*) as departures\nFROM flights\nWHERE created_at >= NOW() - INTERVAL '1 hour'\nAND departure IS NOT NULL\nAND departure != ''\nGROUP BY departure\nORDER BY departures DESC\nLIMIT 15;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -859,7 +859,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  (date_trunc('minute', created_at AT TIME ZONE 'UTC'))::timestamp as time,\n  COUNT(*) FILTER (WHERE flight_rules = 'I') as \"IFR Flights\",\n  COUNT(*) FILTER (WHERE flight_rules = 'V') as \"VFR Flights\",\n  COUNT(*) FILTER (WHERE flight_rules IS NULL OR flight_rules = '') as \"Unknown Rules\"\nFROM flights\nWHERE created_at >= NOW() - INTERVAL '2 hours'\nGROUP BY time\nORDER BY time;"
+          "rawSql": "SELECT\n  (date_trunc('minute', created_at AT TIME ZONE 'UTC'))::timestamp as time,\n  COUNT(*) FILTER (WHERE flight_rules = 'I') as \"IFR Flights\",\n  COUNT(*) FILTER (WHERE flight_rules = 'V') as \"VFR Flights\",\n  COUNT(*) FILTER (WHERE flight_rules IS NULL OR flight_rules = '') as \"Unknown Rules\"\nFROM flights\nWHERE created_at >= NOW() - INTERVAL '2 hours'\nGROUP BY time\nORDER BY time;",
           "refId": "A",
           "sql": {
             "columns": [

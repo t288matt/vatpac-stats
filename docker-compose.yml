@@ -66,11 +66,11 @@ services:
       BATCH_SIZE_THRESHOLD: 10000
       
       # VATSIM Data Collection Intervals (seconds)
-      VATSIM_POLLING_INTERVAL: 10    # How often to fetch VATSIM data (10 seconds)
-      VATSIM_DATA_REFRESH_INTERVAL: 10  # How often to refresh VATSIM data (10 seconds)
-      WRITE_TO_DISK_INTERVAL: 15     # How often to write data to disk (15 seconds)
-      VATSIM_API_TIMEOUT: 30         # VATSIM API timeout in seconds
-      VATSIM_API_RETRY_ATTEMPTS: 3   # Number of retry attempts for VATSIM API
+      VATSIM_POLLING_INTERVAL: 30    # How often to fetch VATSIM data (10 seconds)
+
+      WRITE_TO_DISK_INTERVAL: 60     # How often to write data to disk (15 seconds)
+      VATSIM_API_TIMEOUT: 60         # VATSIM API timeout in seconds
+      VATSIM_API_RETRY_ATTEMPTS: 20   # Number of retry attempts for VATSIM API
 
       
       # Database Configuration

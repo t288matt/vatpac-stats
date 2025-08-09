@@ -69,7 +69,7 @@ class VATSIMConfig:
     transceivers_api_url: str
     timeout: int = 30
     retry_attempts: int = 3
-    refresh_interval: int = 10
+    polling_interval: int = 10
     user_agent: str = "ATC-Position-Engine/1.0"
     write_interval: int = 600  # 10 minutes - fallback if docker-compose doesn't set WRITE_TO_DISK_INTERVAL
     
@@ -81,7 +81,7 @@ class VATSIMConfig:
             transceivers_api_url=os.getenv("VATSIM_TRANSCEIVERS_API_URL", "https://data.vatsim.net/v3/transceivers-data.json"),
             timeout=int(os.getenv("VATSIM_API_TIMEOUT", "30")),
             retry_attempts=int(os.getenv("VATSIM_API_RETRY_ATTEMPTS", "3")),
-            refresh_interval=int(os.getenv("VATSIM_DATA_REFRESH_INTERVAL", "10")),
+            polling_interval=int(os.getenv("VATSIM_POLLING_INTERVAL", "10")),
             user_agent=os.getenv("VATSIM_USER_AGENT", "ATC-Position-Engine/1.0"),
             # WRITE_TO_DISK_INTERVAL: Fallback to 10 minutes (600 seconds) if docker-compose doesn't set it
             # Docker environment typically sets this to 15 seconds for optimized performance
@@ -439,8 +439,8 @@ def validate_config(config: AppConfig) -> None:
     if config.vatsim.retry_attempts < 0:
         raise ValueError("VATSIM retry attempts must be non-negative")
     
-    if config.vatsim.refresh_interval <= 0:
-        raise ValueError("VATSIM refresh interval must be positive")
+    if config.vatsim.polling_interval <= 0:
+        raise ValueError("VATSIM polling interval must be positive")
     
     # Validate traffic analysis configuration
     if not (0 <= config.traffic_analysis.position_priority_weight_flights <= 1):
@@ -539,7 +539,7 @@ def get_config_summary() -> dict:
             "api_url": config.vatsim.api_url,
             "timeout": config.vatsim.timeout,
             "retry_attempts": config.vatsim.retry_attempts,
-            "refresh_interval": config.vatsim.refresh_interval
+            "polling_interval": config.vatsim.polling_interval
         },
         "traffic_analysis": {
             "density_threshold_high": config.traffic_analysis.density_threshold_high,

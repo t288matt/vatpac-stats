@@ -17,7 +17,7 @@ This document provides a centralized reference for all configuration options use
 - `VATSIM_TRANSCEIVERS_API_URL`: VATSIM transceivers API endpoint
 - `VATSIM_API_TIMEOUT`: API request timeout in seconds (default: 30)
 - `VATSIM_API_RETRY_ATTEMPTS`: Number of retry attempts (default: 3)
-- `VATSIM_DATA_REFRESH_INTERVAL`: Data refresh interval in seconds (default: 30)
+
 - `VATSIM_USER_AGENT`: User agent string for API requests
 
 ### API Server Configuration

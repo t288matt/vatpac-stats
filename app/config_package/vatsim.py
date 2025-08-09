@@ -19,7 +19,6 @@ class VATSIMConfig:
     status_api_url: str
     timeout: int = 30
     retry_attempts: int = 3
-    refresh_interval: int = 30
     user_agent: str = "ATC-Position-Engine/1.0"
     polling_interval: int = 30
     write_interval: int = 30
@@ -38,7 +37,6 @@ class VATSIMConfig:
             status_api_url=os.getenv("VATSIM_STATUS_API_URL", "https://data.vatsim.net/v3/status.json"),
             timeout=int(os.getenv("VATSIM_API_TIMEOUT", "30")),
             retry_attempts=int(os.getenv("VATSIM_API_RETRY_ATTEMPTS", "3")),
-            refresh_interval=int(os.getenv("VATSIM_DATA_REFRESH_INTERVAL", "30")),
             user_agent=os.getenv("VATSIM_USER_AGENT", "ATC-Position-Engine/1.0"),
             polling_interval=int(os.getenv("VATSIM_POLLING_INTERVAL", "30")),
             write_interval=int(os.getenv("WRITE_TO_DISK_INTERVAL", "30")),
@@ -62,9 +60,6 @@ class VATSIMConfig:
         if self.retry_attempts < 0:
             raise ValueError("VATSIM_API_RETRY_ATTEMPTS must be non-negative")
         
-        if self.refresh_interval < 1:
-            raise ValueError("VATSIM_DATA_REFRESH_INTERVAL must be at least 1")
-        
         if self.polling_interval < 1:
             raise ValueError("VATSIM_POLLING_INTERVAL must be at least 1")
         
@@ -81,7 +76,6 @@ class VATSIMConfig:
             "status_api_url": self.status_api_url,
             "timeout": self.timeout,
             "retry_attempts": self.retry_attempts,
-            "refresh_interval": self.refresh_interval,
             "user_agent": self.user_agent,
             "polling_interval": self.polling_interval,
             "write_interval": self.write_interval,

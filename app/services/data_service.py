@@ -125,7 +125,7 @@ class DataService(DatabaseService):
         self.geographic_boundary_filter = GeographicBoundaryFilter()
         
         # Get intervals from configuration system
-        self.vatsim_polling_interval = self.config.vatsim.refresh_interval
+        self.vatsim_polling_interval = self.config.vatsim.polling_interval
         self.vatsim_write_interval = self.config.vatsim.write_interval  # Uses config with 10-minute fallback
         
         # Log the configured intervals and filter status
