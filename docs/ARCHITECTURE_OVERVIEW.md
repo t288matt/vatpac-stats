@@ -670,7 +670,7 @@ def parse_sectors(self, data: Dict) -> List[Dict]:
 - **API Monitoring**: Watch for sectors field return in future API versions
 - **Alternative Sources**: Consider external sector definition sources
 - **Manual Population**: Option to manually define critical sectors
-- **Feature Flags**: Enable/disable sector features based on data availability
+
 
 ### Integration Benefits
 - **Real-time Data**: Live VATSIM network data collection

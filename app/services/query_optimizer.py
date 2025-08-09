@@ -118,15 +118,12 @@ class QueryOptimizer:
     async def get_active_flights_optimized(self, db: Session) -> List[Dict[str, Any]]:
         """Get active flights with optimized query"""
         try:
-            # Use eager loading and filtering
+            # Use eager loading and filtering (status column removed)
             flights = db.query(Flight).options(
                 joinedload(Flight.atc_position),
                 joinedload(Flight.sector)
             ).filter(
-                and_(
-                    Flight.status == "active",
-                    Flight.last_updated >= datetime.now(timezone.utc) - timedelta(minutes=5)
-                )
+                Flight.last_updated >= datetime.now(timezone.utc) - timedelta(minutes=5)
             ).order_by(desc(Flight.last_updated)).limit(1000).all()
             
             flights_data = []
@@ -215,7 +212,6 @@ class QueryOptimizer:
             ).filter(
                 and_(
                     Controller.status == "online",
-                    Flight.status == "active",
                     TrafficMovement.timestamp >= datetime.now(timezone.utc) - timedelta(hours=24)
                 )
             ).first()
@@ -323,8 +319,6 @@ class QueryOptimizer:
                 func.max(Flight.altitude).label('max_altitude')
             ).outerjoin(
                 Flight, Flight.sector_id == Sector.id
-            ).filter(
-                Flight.status == "active"
             ).group_by(
                 Sector.id,
                 Sector.name,

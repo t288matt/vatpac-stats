@@ -657,8 +657,8 @@ async def get_flights(db: Session = Depends(get_db)):
     
     if cached_flights:
         logger.info("Returning cached flights data")
-        # Count active flights from cached data
-        active_count = len([flight for flight in cached_flights['data'] if flight.get("status") == "active"])
+        # Count all flights (no status column exists)
+        active_count = len(cached_flights['data'])
         return {
             "flights": cached_flights['data'],
             "total": len(cached_flights['data']),
@@ -667,7 +667,8 @@ async def get_flights(db: Session = Depends(get_db)):
         }
     
     # If not cached, get from database using direct SQL to avoid session isolation issues
-    result = db.execute(text("SELECT id, callsign, aircraft_type, departure, arrival, route, altitude, heading, groundspeed, cruise_tas, transponder, position_lat, position_lng, latitude, longitude, cid, name, pilot_rating, military_rating, server, last_updated FROM flights WHERE status = 'active'"))
+    # Limit to recent flights to avoid performance issues
+    result = db.execute(text("SELECT id, callsign, aircraft_type, departure, arrival, route, altitude, heading, groundspeed, cruise_tas, transponder, position_lat, position_lng, latitude, longitude, cid, name, pilot_rating, military_rating, server, last_updated FROM flights ORDER BY last_updated DESC LIMIT 1000"))
     flights_data = []
     
     for row in result:
@@ -700,8 +701,8 @@ async def get_flights(db: Session = Depends(get_db)):
     # Cache the result
     await cache_service.set_flights_cache(flights_data)
     
-    # Count active flights
-    active_count = len([flight for flight in flights_data if flight.get("status") == "active"])
+    # Count all flights (no status column exists)
+    active_count = len(flights_data)
     
     return {
         "flights": flights_data,

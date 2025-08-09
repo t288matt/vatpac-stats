@@ -204,18 +204,7 @@ sectors = parsed_data.get("sectors", [])
 - **Community Data**: Potential community-maintained sector definitions
 - **Historical Data**: Previous API versions had sectors data
 
-### Feature Flags
-```python
-# Potential implementation
-SECTOR_FEATURES_ENABLED = os.getenv("SECTOR_FEATURES_ENABLED", "false").lower() == "true"
 
-if SECTOR_FEATURES_ENABLED and sectors_data:
-    # Enable sector-based features
-    pass
-else:
-    # Disable sector-based features
-    pass
-```
 
 ### Manual Sector Definition
 ```python

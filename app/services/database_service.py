@@ -371,10 +371,8 @@ class DatabaseService(BaseService, DatabaseServiceInterface):
         try:
             session = SessionLocal()
             
-            # Get active flights (status = 'active')
-            active_flights = session.query(Flight).filter(
-                Flight.status == "active"
-            ).all()
+            # Get all flights (status column removed)
+            active_flights = session.query(Flight).all()
             
             # Convert to dictionaries
             flights_data = []

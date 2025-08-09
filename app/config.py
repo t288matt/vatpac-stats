@@ -25,7 +25,7 @@ CONFIGURATION SECTIONS:
 
 - API: FastAPI server configuration
 - Logging: Log levels and output settings
-- Features: Feature flags for system components
+
 - Airports: Airport data configuration
 - Pilots: Pilot data configuration
 
@@ -34,7 +34,7 @@ ENVIRONMENT VARIABLES:
 - VATSIM_API_URL: VATSIM data API endpoint
 - API_HOST/PORT: Server binding settings
 - LOG_LEVEL: Logging verbosity
-- FEATURE_*: Feature toggle flags
+
 """
 
 import os
@@ -306,29 +306,7 @@ class PilotConfig:
         )
 
 
-@dataclass
-class FeatureFlags:
-    """Feature flags with no hardcoding."""
-    traffic_analysis: bool = True
-    heat_map: bool = True
-    position_recommendations: bool = True
 
-    alerts: bool = True
-    real_time_updates: bool = True
-    background_processing: bool = True
-    
-    @classmethod
-    def from_env(cls):
-        """Load feature flags from environment variables."""
-        return cls(
-            traffic_analysis=os.getenv("FEATURE_TRAFFIC_ANALYSIS", "true").lower() == "true",
-            heat_map=os.getenv("FEATURE_HEAT_MAP", "true").lower() == "true",
-            position_recommendations=os.getenv("FEATURE_POSITION_RECOMMENDATIONS", "true").lower() == "true",
-
-            alerts=os.getenv("FEATURE_ALERTS", "true").lower() == "true",
-            real_time_updates=os.getenv("FEATURE_REAL_TIME_UPDATES", "true").lower() == "true",
-            background_processing=os.getenv("FEATURE_BACKGROUND_PROCESSING", "true").lower() == "true"
-        )
 
 
 @dataclass
@@ -339,7 +317,7 @@ class AppConfig:
 
     api: APIConfig
     logging: LoggingConfig
-    features: FeatureFlags
+
     airports: AirportConfig
     pilots: PilotConfig
     flight_filter: FlightFilterConfig
@@ -354,7 +332,7 @@ class AppConfig:
 
             api=APIConfig.from_env(),
             logging=LoggingConfig.from_env(),
-            features=FeatureFlags.from_env(),
+
             airports=AirportConfig.from_env(),
             pilots=PilotConfig.from_env(),
             flight_filter=FlightFilterConfig.from_env(),
@@ -473,13 +451,7 @@ def get_config_summary() -> dict:
             "polling_interval": config.vatsim.polling_interval
         },
 
-        "features": {
-            "traffic_analysis": config.features.traffic_analysis,
-            "heat_map": config.features.heat_map,
-            "position_recommendations": config.features.position_recommendations,
 
-            "alerts": config.features.alerts
-        },
         "logging": {
             "level": config.logging.level,
             "format": config.logging.format,

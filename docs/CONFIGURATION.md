@@ -45,14 +45,7 @@ This document provides a centralized reference for all configuration options use
 
 
 
-### Feature Flags
-- `FEATURE_TRAFFIC_ANALYSIS`: Enable traffic analysis (default: true)
-- `FEATURE_HEAT_MAP`: Enable heat map generation (default: true)
-- `FEATURE_POSITION_RECOMMENDATIONS`: Enable position recommendations (default: true)
 
-- `FEATURE_ALERTS`: Enable alerts (default: true)
-- `FEATURE_REAL_TIME_UPDATES`: Enable real-time updates (default: true)
-- `FEATURE_BACKGROUND_PROCESSING`: Enable background processing (default: true)
 
 ### Airport Configuration
 - `AIRPORT_COORDINATES_FILE`: Airport coordinates file path (optional)
