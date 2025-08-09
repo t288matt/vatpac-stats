@@ -178,13 +178,42 @@ class ServiceManager:
     async def health_check_all(self) -> Dict[str, Any]:
         """Perform health check on all services."""
         try:
-            return await self.lifecycle_manager.health_check_all_services()
+            # Get both health check results and service status
+            health_results = await self.lifecycle_manager.health_check_all_services()
+            service_status = self.lifecycle_manager.get_all_service_status()
+            
+            # Map service statuses to a more user-friendly format
+            mapped_status = {}
+            for service_name, status_info in service_status.items():
+                if status_info:
+                    status_value = status_info.get('status', 'unknown')
+                    # Map status values to expected format
+                    if status_value in ['stopped', 'stopping']:
+                        mapped_status[service_name] = 'not_running'
+                    elif status_value in ['starting']:
+                        mapped_status[service_name] = 'starting'
+                    elif status_value in ['running', 'healthy']:
+                        mapped_status[service_name] = 'running'
+                    elif status_value in ['error', 'unhealthy']:
+                        mapped_status[service_name] = 'error'
+                    else:
+                        mapped_status[service_name] = status_value
+                else:
+                    mapped_status[service_name] = 'unknown'
+            
+            return {
+                "timestamp": health_results.get('timestamp'),
+                "total_services": health_results.get('total_services', 0),
+                "results": health_results.get('results', {}),
+                "service_status": mapped_status
+            }
         except Exception as e:
             self.logger.error(f"Failed to perform health check: {e}")
             return {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "error": str(e),
-                "results": {}
+                "results": {},
+                "service_status": {}
             }
     
     @handle_service_errors
@@ -208,6 +237,10 @@ class ServiceManager:
     def get_all_service_status(self) -> Dict[str, Dict[str, Any]]:
         """Get status information for all services."""
         return self.lifecycle_manager.get_all_service_status()
+    
+    def get_service(self, service_name: str) -> Optional[Any]:
+        """Get a specific service instance by name."""
+        return self.services.get(service_name)
     
     def get_manager_status(self) -> Dict[str, Any]:
         """Get service manager status information."""

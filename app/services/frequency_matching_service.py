@@ -724,3 +724,13 @@ class FrequencyMatchingService:
                 "status": "unhealthy",
                 "error": str(e)
             }
+
+def get_frequency_matching_service() -> FrequencyMatchingService:
+    """
+    Get the frequency matching service instance.
+    
+    Returns:
+        FrequencyMatchingService: The frequency matching service instance
+    """
+    from app.services.service_manager import ServiceManager
+    return ServiceManager().get_service('frequency_matching_service')

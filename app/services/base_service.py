@@ -120,7 +120,8 @@ class DatabaseService(BaseService):
         try:
             if self.db_session:
                 # Simple query to test connection
-                result = self.db_session.execute("SELECT 1")
+                from sqlalchemy import text
+                result = self.db_session.execute(text("SELECT 1 as health_check"))
                 return {"database": "connected", "test_query": "success"}
             return {"database": "no_session"}
         except Exception as e:
