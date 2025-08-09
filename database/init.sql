@@ -308,7 +308,7 @@ CREATE TRIGGER update_transceivers_updated_at
 INSERT INTO system_config (key, value, description) VALUES
 ('vatsim_polling_interval', '30', 'VATSIM data polling interval in seconds'),
 ('vatsim_write_interval', '300', 'Data write interval in seconds'),
-('vatsim_cleanup_interval', '3600', 'Data cleanup interval in seconds'),
+
 ('memory_limit_mb', '2048', 'Memory limit in MB'),
 ('batch_size_threshold', '10000', 'Batch size threshold for processing')
 ON CONFLICT (key) DO NOTHING;

@@ -9,7 +9,7 @@ The flight status system is being completely removed from the VATSIM data collec
 - **Status Lifecycle Management**: The system had complex status transitions (active → stale → completed) that added unnecessary complexity
 - **Multiple Completion Methods**: Landing detection, time-based fallback, pilot disconnect detection created multiple code paths
 - **Status-Based Filtering**: Most queries required status filtering, adding overhead to every operation
-- **Cleanup Processes**: Automatic cleanup processes for old data added background complexity
+
 
 ### **Performance Benefits**
 - **Simplified Queries**: No more status-based filtering in every query
@@ -29,7 +29,7 @@ The flight status system is being completely removed from the VATSIM data collec
 1. **Existing Flight Data**: Keep all existing flight records, just remove status fields ✅
 2. **Status Fields to Remove**: All status-related fields (status, landed_at, completed_at, completion_method, completion_confidence, pilot_disconnected_at, disconnect_method) ✅
 3. **Flight Completion Service**: Remove entire `flight_completion_service.py` file ✅
-4. **Cleanup Process**: Remove entire `_cleanup_old_data()` method ✅
+
 5. **Status Update Logic**: Remove entire `_update_flight_statuses()` method ✅
 
 ### **Configuration Changes**
@@ -148,7 +148,7 @@ is_active BOOLEAN
 
 ### **Removed Methods**
 - `FlightCompletionService` (entire file)
-- `_cleanup_old_data()` in DataService
+
 - `_update_flight_statuses()` in DataService
 - `_detect_landings_in_memory()` in DataService
 - `_complete_flight_by_landing()` in DataService
@@ -158,7 +158,7 @@ is_active BOOLEAN
 ### **Removed Configuration**
 - `FlightStatusConfig` class
 - `STALE_FLIGHT_TIMEOUT_MULTIPLIER` environment variable
-- `VATSIM_CLEANUP_INTERVAL` environment variable
+
 - `FLIGHT_COMPLETION_TIMEOUT` environment variable
 
 ### **Removed Indexes**

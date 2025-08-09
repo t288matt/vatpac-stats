@@ -39,7 +39,7 @@ OPTIMIZATIONS:
 - Batch database operations
 - SSD wear optimization (periodic writes)
 - Connection pooling
-- Automatic cleanup of old data
+
 """
 
 import asyncio

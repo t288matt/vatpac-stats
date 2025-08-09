@@ -23,7 +23,7 @@ class VATSIMConfig:
     user_agent: str = "ATC-Position-Engine/1.0"
     polling_interval: int = 30
     write_interval: int = 30
-    cleanup_interval: int = 3600
+
     
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -42,7 +42,7 @@ class VATSIMConfig:
             user_agent=os.getenv("VATSIM_USER_AGENT", "ATC-Position-Engine/1.0"),
             polling_interval=int(os.getenv("VATSIM_POLLING_INTERVAL", "30")),
             write_interval=int(os.getenv("WRITE_TO_DISK_INTERVAL", "30")),
-            cleanup_interval=int(os.getenv("VATSIM_CLEANUP_INTERVAL", "3600"))
+
         )
     
     def validate(self) -> None:
@@ -71,8 +71,7 @@ class VATSIMConfig:
         if self.write_interval < 1:
             raise ValueError("WRITE_TO_DISK_INTERVAL must be at least 1")
         
-        if self.cleanup_interval < 1:
-            raise ValueError("VATSIM_CLEANUP_INTERVAL must be at least 1")
+
     
     def to_dict(self) -> dict:
         """Convert configuration to dictionary."""
@@ -86,5 +85,5 @@ class VATSIMConfig:
             "user_agent": self.user_agent,
             "polling_interval": self.polling_interval,
             "write_interval": self.write_interval,
-            "cleanup_interval": self.cleanup_interval
+
         } 

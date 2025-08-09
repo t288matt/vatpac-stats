@@ -75,7 +75,7 @@ This document provides a centralized reference for all configuration options use
 ### Data Processing Intervals
 - `VATSIM_POLLING_INTERVAL`: Data polling interval in seconds (default: 30)
 - `VATSIM_WRITE_INTERVAL`: Data write interval in seconds (default: 300)
-- `VATSIM_CLEANUP_INTERVAL`: Data cleanup interval in seconds (default: 3600)
+
 
 ## Configuration Loading
 

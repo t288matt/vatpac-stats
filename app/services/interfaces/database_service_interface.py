@@ -56,10 +56,7 @@ class DatabaseServiceInterface(ABC):
         """Get active controllers using existing Controller model."""
         pass
     
-    @abstractmethod
-    async def cleanup_old_data(self, hours: int = 24) -> int:
-        """Clean up old data using existing models."""
-        pass
+
     
     @abstractmethod
     async def get_database_stats(self) -> Dict[str, Any]:

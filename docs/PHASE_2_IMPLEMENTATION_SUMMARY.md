@@ -169,7 +169,7 @@ Phase 2 of the VATSIM Data Collection System refactoring focused on implementing
    - `get_active_controllers()`: Active controller listing
 
 3. **Maintenance**
-   - `cleanup_old_data()`: Data cleanup operations
+
    - `get_database_stats()`: Database statistics
    - `health_check()`: Service health monitoring
 

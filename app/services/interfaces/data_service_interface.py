@@ -38,10 +38,7 @@ class DataServiceInterface(ABC):
         """Flush memory cache to database."""
         pass
     
-    @abstractmethod
-    async def cleanup_old_data(self) -> bool:
-        """Clean up old data based on retention policies."""
-        pass
+
     
     @abstractmethod
     async def get_network_status(self) -> Dict[str, Any]:

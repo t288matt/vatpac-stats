@@ -71,7 +71,7 @@ services:
       WRITE_TO_DISK_INTERVAL: 15     # How often to write data to disk (15 seconds)
       VATSIM_API_TIMEOUT: 30         # VATSIM API timeout in seconds
       VATSIM_API_RETRY_ATTEMPTS: 3   # Number of retry attempts for VATSIM API
-      VATSIM_CLEANUP_INTERVAL: 3600  # How often to cleanup old data (1 hour)
+
       
       # Database Configuration
       DATABASE_POOL_SIZE: 10         # Database connection pool size

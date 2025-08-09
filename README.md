@@ -41,7 +41,7 @@ A real-time VATSIM data collection and traffic analysis system that processes fl
 1. **VATSIM API** → Data Service → Memory Cache → Database
 2. **10-second polling** interval for real-time updates
 3. **15-second disk write** interval for SSD optimization
-4. **Automatic cleanup** of old data every hour
+
 
 ## 🗄️ Database Schema
 

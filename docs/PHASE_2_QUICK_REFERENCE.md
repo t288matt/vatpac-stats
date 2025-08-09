@@ -244,7 +244,7 @@ EVENT_BUS_HANDLER_TIMEOUT = 30.0
 
 # Database service configuration
 DATABASE_SERVICE_MAX_POOL_SIZE = 10
-DATABASE_SERVICE_CLEANUP_HOURS = 24
+
 ```
 
 ## Troubleshooting

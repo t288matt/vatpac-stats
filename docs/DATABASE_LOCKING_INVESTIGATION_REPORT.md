@@ -110,7 +110,7 @@ Concurrent Operations:
 - Background data ingestion (every 30s)
 - Health check queries (every 30s)
 - API endpoint queries (continuous)
-- Data cleanup (every hour)
+
 ```
 
 ## 🔧 Technical Root Causes

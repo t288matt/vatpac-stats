@@ -445,46 +445,7 @@ class DatabaseService(BaseService, DatabaseServiceInterface):
             await error_manager.handle_error(e, context)
             raise
     
-    @handle_service_errors
-    @log_operation("cleanup_old_data")
-    async def cleanup_old_data(self, hours: int = 24) -> int:
-        """Clean up old data using existing models."""
-        try:
-            session = SessionLocal()
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
-            
-            # Clean up old flights
-            old_flights = session.query(Flight).filter(
-                Flight.last_updated < cutoff_time
-            ).delete()
-            
-            # Clean up old controllers
-            old_controllers = session.query(Controller).filter(
-                Controller.last_seen < cutoff_time
-            ).delete()
-            
-            # Clean up old transceivers
-            old_transceivers = session.query(Transceiver).filter(
-                Transceiver.timestamp < cutoff_time
-            ).delete()
-            
-            session.commit()
-            session.close()
-            
-            total_cleaned = old_flights + old_controllers + old_transceivers
-            self.logger.info(f"Cleaned up {total_cleaned} old records")
-            
-            return total_cleaned
-            
-        except Exception as e:
-            self.logger.error(f"Failed to cleanup old data: {e}")
-            context = ErrorContext(
-                service_name="database_service",
-                operation="cleanup_old_data",
-                metadata={"hours": hours}
-            )
-            await error_manager.handle_error(e, context)
-            raise
+
     
     @handle_service_errors
     @log_operation("get_database_stats")

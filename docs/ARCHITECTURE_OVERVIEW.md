@@ -335,7 +335,7 @@ Flight Position Update → Memory Cache → Database (Unique Constraint) → Fli
 - **Connection Pooling**: 20 connections + 30 overflow
 - **SSD Optimization**: Asynchronous commits
 - **Performance Tuning**: Query optimization and indexing
-- **Data Retention**: Automatic cleanup of old data
+
 - **Flight Tracking**: Unique constraints prevent duplicate position records
 - **Flight Tracking**: All flights tracked equally without status complexity
 - **Data Preservation**: All flight data preserved for analytics
