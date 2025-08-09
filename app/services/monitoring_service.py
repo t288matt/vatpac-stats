@@ -383,13 +383,13 @@ class MonitoringService(BaseService):
         return self.metrics_collector.get_metric_summary(name, hours)
     
     @handle_service_errors
-    @log_operation
+    @log_operation("get_health_status")
     async def get_health_status(self, service_name: str) -> Optional[HealthStatus]:
         """Get health status for a service."""
         return self.health_checker.get_service_health(service_name)
     
     @handle_service_errors
-    @log_operation
+    @log_operation("get_all_health_status")
     async def get_all_health_status(self) -> Dict[str, HealthStatus]:
         """Get health status for all services."""
         return self.health_checker.get_all_health_status()

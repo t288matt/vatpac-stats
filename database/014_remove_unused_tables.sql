@@ -97,7 +97,7 @@ DECLARE
     row_count integer;
     total_rows_to_delete integer := 0;
 BEGIN
-    SELECT 'ROW COUNT ASSESSMENT' as assessment_step;
+    RAISE NOTICE 'ROW COUNT ASSESSMENT';
     
     FOR table_name IN SELECT unnest(ARRAY['events', 'flight_summaries', 'movement_summaries', 'vatsim_status'])
     LOOP
