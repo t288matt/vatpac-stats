@@ -190,6 +190,40 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - API endpoint: `/api/filter/flight/status` for filter status
 - Performance optimized: no database queries, simple string matching
 
+### 8. Geographic Boundary Filter (`app/filters/geographic_boundary_filter.py`)
+**Purpose**: Geographic airspace boundary filtering using polygon-based calculations
+
+**Key Features**:
+- **Shapely-based point-in-polygon calculations** for precise geographic filtering
+- **GeoJSON polygon support** with automatic format detection
+- **Independent operation** alongside airport filter (can be enabled/disabled separately)
+- **Performance monitoring** with configurable thresholds (<10ms default)
+- **Conservative approach**: allows flights with missing/invalid position data through
+- **Comprehensive error handling** and logging for production reliability
+- **Real-time filtering statistics** and boundary information
+- **Polygon caching** for optimal performance with repeated calculations
+
+**Configuration**:
+- `ENABLE_BOUNDARY_FILTER`: Enable/disable geographic filtering (default: false)
+- `BOUNDARY_DATA_PATH`: Path to GeoJSON polygon file (e.g., australian_airspace_polygon.json)
+- `BOUNDARY_FILTER_LOG_LEVEL`: Logging verbosity (default: INFO)
+- `BOUNDARY_FILTER_PERFORMANCE_THRESHOLD`: Performance threshold in ms (default: 10.0)
+
+**Filter Pipeline**:
+```
+VATSIM Raw Data
+      ↓
+   Airport Filter (if enabled)
+      ↓
+   Geographic Filter (if enabled)
+      ↓
+   Processed Data
+```
+
+**Supported Formats**:
+- Standard GeoJSON: `{"type": "Polygon", "coordinates": [[[lon, lat], ...]]}`
+- Simple format: `{"coordinates": [[lat, lon], [lat, lon], ...]}`
+
 ## 🛠️ API Layer
 
 ### REST API Endpoints

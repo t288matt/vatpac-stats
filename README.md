@@ -196,6 +196,7 @@ If data loss occurs:
 
 - **Real-time Data Collection**: Fetches VATSIM API data every 10 seconds
 - **Australian Flight Filtering**: Focuses on flights to/from Australian airports
+- **Geographic Boundary Filtering**: Polygon-based airspace filtering using Shapely
 - **Database Storage**: PostgreSQL with optimized schema for flight data
 - **Caching**: Redis for high-performance data access
 - **Monitoring**: Grafana dashboards for data visualization
@@ -205,6 +206,76 @@ If data loss occurs:
 - **Data Integrity**: Check constraints and validation
 - **Performance Optimized**: Indexed queries and bulk operations
 - **Data Type Validation**: Automatic conversion of VATSIM API data types for database compatibility
+
+## 🌍 Geographic Boundary Filtering
+
+The system supports advanced geographic boundary filtering using polygon-based airspace definitions.
+
+### GeoJSON Format Requirement
+
+**Important**: All geographic boundary files must be in valid GeoJSON format for proper integration with the Shapely library.
+
+**Supported Format:**
+```json
+{
+  "type": "Polygon",
+  "coordinates": [[
+    [longitude, latitude],
+    [longitude, latitude],
+    ...
+  ]]
+}
+```
+
+**Key Requirements:**
+- Coordinates must be in `[longitude, latitude]` order (GeoJSON standard)
+- Polygon must be closed (first and last coordinates identical)
+- Use decimal degrees for coordinate values
+- File must be valid JSON with proper GeoJSON structure
+
+**Example Usage:**
+```python
+# Load and use geographic boundary
+from shapely.geometry import shape
+import json
+
+with open('australian_airspace_polygon.json', 'r') as f:
+    polygon_data = json.load(f)
+    
+australian_airspace = shape(polygon_data)
+```
+
+**Available Tools:**
+- `test_polygon_with_live_vatsim_data.py` - Test individual flights against polygon boundaries
+- Geographic utility functions in `app/utils/geographic_utils.py` ✅ **IMPLEMENTED**
+- GeographicBoundaryFilter class in `app/filters/geographic_boundary_filter.py` ✅ **IMPLEMENTED**
+
+### Filter Pipeline Configuration
+
+The system now supports **dual independent filtering**:
+
+```bash
+# Filter 1: Airport-based (existing)
+FLIGHT_FILTER_ENABLED=true              # Enable airport filter
+FLIGHT_FILTER_LOG_LEVEL=INFO            # Airport filter logging
+
+# Filter 2: Geographic boundary-based (new)
+ENABLE_BOUNDARY_FILTER=false            # Enable geographic filter  
+BOUNDARY_DATA_PATH=australian_airspace_polygon.json
+BOUNDARY_FILTER_LOG_LEVEL=INFO
+BOUNDARY_FILTER_PERFORMANCE_THRESHOLD=10.0
+```
+
+**Filter Combinations:**
+1. **Both OFF**: All flights pass through (no filtering)
+2. **Airport ON, Geographic OFF**: Only flights to/from Australian airports
+3. **Airport OFF, Geographic ON**: Only flights physically in Australian airspace
+4. **Both ON**: Flights to/from Australian airports AND physically in Australian airspace
+
+**Processing Pipeline:**
+```
+VATSIM Raw Data → Airport Filter → Geographic Filter → Database Storage
+```
 
 ## 🤝 Contributing
 

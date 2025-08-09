@@ -48,16 +48,19 @@ from datetime import datetime, timezone, timedelta, timezone, timezone
 from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc, insert, cast, JSON
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 import json
 from collections import defaultdict
 import time
 
 from ..database import SessionLocal
-from ..models import Controller, Flight, Sector, TrafficMovement, FlightSummary
+from ..models import Controller, Flight, Sector, TrafficMovement, FlightSummary, Transceiver, VatsimStatus
 from .vatsim_service import VATSIMService
 from .traffic_analysis_service import TrafficAnalysisService
 from .base_service import DatabaseService
 from ..utils.error_handling import handle_service_errors, retry_on_failure, log_operation
+from ..filters.flight_filter import FlightFilter
+from ..filters.geographic_boundary_filter import GeographicBoundaryFilter
 
 
 class BoundedCache:
@@ -117,12 +120,17 @@ class DataService(DatabaseService):
         self.vatsim_service = VATSIMService()
         self.traffic_analysis_service = None
         
+        # Initialize both filters independently
+        self.flight_filter = FlightFilter()
+        self.geographic_boundary_filter = GeographicBoundaryFilter()
+        
         # Get intervals from configuration system
         self.vatsim_polling_interval = self.config.vatsim.refresh_interval
         self.vatsim_write_interval = self.config.vatsim.write_interval  # Uses config with 10-minute fallback
         
-        # Log the configured intervals
+        # Log the configured intervals and filter status
         self.logger.info(f"Data service configured with polling interval: {self.vatsim_polling_interval}s, write interval: {self.vatsim_write_interval}s")
+        self.logger.info(f"Flight filters initialized - Airport filter: {self.flight_filter.config.enabled}, Geographic filter: {self.geographic_boundary_filter.config.enabled}")
         
         # Use bounded caches to prevent memory leaks
         max_cache_size = int(os.getenv('CACHE_MAX_SIZE', 10000))
@@ -281,6 +289,36 @@ class DataService(DatabaseService):
             self.logger.error(f"Error processing ATC positions in memory: {e}")
             return 0
     
+    def _validate_controller_data(self, controller_data: Dict[str, Any]) -> bool:
+        """Validate controller data types before database insert"""
+        try:
+            # Convert controller_id to integer
+            if controller_data.get('controller_id'):
+                controller_data['controller_id'] = int(controller_data['controller_id'])
+            else:
+                controller_data['controller_id'] = None
+                
+            # Convert controller_rating to integer
+            if controller_data.get('controller_rating'):
+                controller_data['controller_rating'] = int(controller_data['controller_rating'])
+            else:
+                controller_data['controller_rating'] = None
+                
+            # Convert preferences to JSON string
+            if controller_data.get('preferences'):
+                if isinstance(controller_data['preferences'], dict):
+                    import json
+                    controller_data['preferences'] = json.dumps(controller_data['preferences'])
+                elif not isinstance(controller_data['preferences'], str):
+                    controller_data['preferences'] = None
+            else:
+                controller_data['preferences'] = None
+                
+            return True
+        except (ValueError, TypeError) as e:
+            self.logger.error(f"Controller data validation failed: {e}")
+            return False
+    
     async def _process_flights_in_memory(self, flights_data: List[Dict[str, Any]]) -> int:
         """Process flights in memory cache"""
         try:
@@ -290,24 +328,26 @@ class DataService(DatabaseService):
             from ..config import get_config
             config = get_config()
             
-            for flight_data in flights_data:
+            # Apply filter pipeline: Airport Filter → Geographic Filter → Processing
+            # Each filter can be enabled/disabled independently
+            
+            # Step 1: Apply Airport Filter (if enabled)
+            filtered_flights = flights_data
+            if self.flight_filter.config.enabled:
+                filtered_flights = self.flight_filter.filter_flights_list(filtered_flights)
+                self.logger.debug(f"Airport filter: {len(flights_data)} → {len(filtered_flights)} flights")
+            
+            # Step 2: Apply Geographic Boundary Filter (if enabled)  
+            if self.geographic_boundary_filter.config.enabled:
+                pre_geo_count = len(filtered_flights)
+                filtered_flights = self.geographic_boundary_filter.filter_flights_list(filtered_flights)
+                self.logger.debug(f"Geographic filter: {pre_geo_count} → {len(filtered_flights)} flights")
+            
+            # Step 3: Process filtered flights
+            for flight_data in filtered_flights:
                 callsign = flight_data.get('callsign', '')
                 departure = flight_data.get('departure', '')
                 arrival = flight_data.get('arrival', '')
-                
-                # Check if flight filter is enabled
-                if config.flight_filter.enabled:
-                    # Import airport configuration
-                    from ..config import is_australian_airport
-                    
-                    # Filter for Australian airports using configuration
-                    is_australian_flight = (
-                        (departure and is_australian_airport(departure)) or 
-                        (arrival and is_australian_airport(arrival))
-                    )
-                    
-                    if not is_australian_flight:
-                        continue
                 
                 if not callsign:
                     continue
@@ -367,10 +407,15 @@ class DataService(DatabaseService):
                 self.cache['flights'].set(timestamp_key, flight_record)
                 processed_count += 1
             
-            if config.flight_filter.enabled:
-                self.logger.info(f"Processed {processed_count} Australian flights out of {len(flights_data)} total flights")
-            else:
-                self.logger.info(f"Processed {processed_count} flights out of {len(flights_data)} total flights (filter disabled)")
+            # Log filtering results
+            airport_filter_status = "enabled" if self.flight_filter.config.enabled else "disabled"
+            geo_filter_status = "enabled" if self.geographic_boundary_filter.config.enabled else "disabled"
+            
+            self.logger.info(f"Processed {processed_count} flights out of {len(flights_data)} total flights")
+            self.logger.info(f"Filter pipeline: Airport filter ({airport_filter_status}), Geographic filter ({geo_filter_status})")
+            
+            if self.flight_filter.config.enabled or self.geographic_boundary_filter.config.enabled:
+                self.logger.info(f"Final filtered count: {len(filtered_flights)} flights after filter pipeline")
             return processed_count
             
         except Exception as e:
@@ -432,7 +477,7 @@ class DataService(DatabaseService):
                         # Validate controller data before insert
                         if self._validate_controller_data(atc_data):
                             # Use upsert to handle existing records
-                            stmt = insert(Controller).values(**atc_data)
+                            stmt = postgresql_insert(Controller).values(**atc_data)
                             stmt = stmt.on_conflict_do_update(
                                 index_elements=['callsign'],
                                 set_=atc_data
@@ -445,12 +490,8 @@ class DataService(DatabaseService):
                 flights_data = list(self.cache['flights'].items())
                 if flights_data:
                     for timestamp_key, flight_data in flights_data:
-                        # Use upsert to handle existing records
-                        stmt = insert(Flight).values(**flight_data)
-                        stmt = stmt.on_conflict_do_update(
-                            index_elements=['callsign', 'last_updated'],
-                            set_=flight_data
-                        )
+                        # Use simple insert for flight records
+                        stmt = postgresql_insert(Flight).values(**flight_data)
                         db.execute(stmt)
                     
                     self.logger.info(f"Flushed {len(flights_data)} flights to disk")
@@ -459,7 +500,7 @@ class DataService(DatabaseService):
                 transceivers_data = self.cache['memory_buffer'].get('transceivers', [])
                 if transceivers_data:
                     for transceiver_data in transceivers_data:
-                        stmt = insert(Transceiver).values(**transceiver_data)
+                        stmt = postgresql_insert(Transceiver).values(**transceiver_data)
                         db.execute(stmt)
                     
                     self.logger.info(f"Flushed {len(transceivers_data)} transceivers to disk")
@@ -468,7 +509,7 @@ class DataService(DatabaseService):
                 sectors_data = self.cache['memory_buffer'].get('sectors', [])
                 if sectors_data:
                     for sector_data in sectors_data:
-                        stmt = insert(Sector).values(**sector_data)
+                        stmt = postgresql_insert(Sector).values(**sector_data)
                         db.execute(stmt)
                     
                     self.logger.info(f"Flushed {len(sectors_data)} sectors to disk")
@@ -477,7 +518,7 @@ class DataService(DatabaseService):
                 vatsim_status_data = self.cache['memory_buffer'].get('vatsim_status', [])
                 if vatsim_status_data:
                     for status_data in vatsim_status_data:
-                        stmt = insert(VatsimStatus).values(**status_data)
+                        stmt = postgresql_insert(VatsimStatus).values(**status_data)
                         db.execute(stmt)
                     
                     self.logger.info(f"Flushed {len(vatsim_status_data)} VATSIM status records to disk")

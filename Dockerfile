@@ -1,18 +1,19 @@
-# Ultra-optimized multi-stage build for minimal footprint
-FROM python:3.11-alpine as builder
+# Multi-stage build using Debian for better library support
+FROM python:3.11-slim as builder
 
 # Set environment variables for build
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Install build dependencies
-RUN apk add --no-cache \
+# Install build dependencies including GEOS for Shapely
+RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
-    musl-dev \
-    postgresql-dev \
-    linux-headers \
-    && rm -rf /var/cache/apk/*
+    libpq-dev \
+    libgeos-dev \
+    libproj-dev \
+    libgdal-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set work directory
 WORKDIR /app
@@ -24,19 +25,22 @@ COPY requirements.txt .
 RUN pip install --user --no-cache-dir --upgrade pip && \
     pip install --user --no-cache-dir -r requirements.txt
 
-# Production stage - Alpine for minimal footprint
-FROM python:3.11-alpine
+# Production stage - Debian slim for better library support
+FROM python:3.11-slim
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PATH=/home/app/.local/bin:$PATH
 
-# Install runtime dependencies
-RUN apk add --no-cache \
-    postgresql-libs \
+# Install runtime dependencies including GEOS runtime libraries
+RUN apt-get update && apt-get install -y \
+    libpq5 \
     curl \
-    && rm -rf /var/cache/apk/*
+    libgeos-c1v5 \
+    libproj25 \
+    libgdal32 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set work directory
 WORKDIR /app
@@ -56,8 +60,8 @@ COPY pytest.ini .
 RUN mkdir -p /app/logs /app/data /app/cache && \
     chmod 755 /app/logs /app/data /app/cache
 
-# Create non-root user for security
-RUN adduser -D -s /bin/sh -u 1000 app && \
+# Create non-root user for security (Debian syntax)
+RUN useradd --create-home --shell /bin/bash --uid 1000 app && \
     chown -R app:app /app
 
 # Switch to non-root user

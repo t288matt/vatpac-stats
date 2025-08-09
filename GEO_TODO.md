@@ -55,33 +55,33 @@ pip install shapely
 
 ## 🎯 Priority 2: Airspace Boundary Functions
 
-### TODO: Airspace Detection Service
+### TODO: Geographic Boundary Detection Service
 **Status:** To implement
 
 ```python
-class AirspaceDetectionService:
-    """Service for detecting flights within specific airspace boundaries"""
+class GeographicBoundaryDetectionService:
+    """Service for detecting flights within specific geographic boundaries"""
     
     def __init__(self):
-        self.airspace_boundaries = {}
-        self.load_airspace_data()
+        self.geographic_boundaries = {}
+        self.load_boundary_data()
     
-    def load_airspace_data(self):
-        """Load airspace boundary definitions from database or file"""
-        # TODO: Load from airspace_config table
+    def load_boundary_data(self):
+        """Load geographic boundary definitions from database or file"""
+        # TODO: Load from geographic_regions table
         pass
     
-    def detect_flight_in_airspace(self, flight_lat, flight_lon, airspace_name):
-        """Check if flight is within specified airspace"""
-        if airspace_name not in self.airspace_boundaries:
+    def detect_flight_in_boundary(self, flight_lat, flight_lon, boundary_name):
+        """Check if flight is within specified geographic boundary"""
+        if boundary_name not in self.geographic_boundaries:
             return False
         
-        polygon = self.airspace_boundaries[airspace_name]
+        polygon = self.geographic_boundaries[boundary_name]
         return is_point_in_polygon(flight_lat, flight_lon, polygon)
     
-    def get_flights_in_airspace(self, airspace_name):
-        """Get all flights currently in specified airspace"""
-        # TODO: Query flights table and filter by airspace
+    def get_flights_in_boundary(self, boundary_name):
+        """Get all flights currently in specified geographic boundary"""
+        # TODO: Query flights table and filter by boundary
         pass
 ```
 
@@ -105,28 +105,28 @@ def filter_flights_by_distance(flights, center_lat, center_lon, max_distance_nm)
 
 ## 🎯 Priority 3: Database Schema Extensions
 
-### TODO: Airspace Configuration Table
+### TODO: Geographic Boundary Configuration Table
 **Status:** To implement
 
 ```sql
 -- Add to database schema
-CREATE TABLE IF NOT EXISTS airspace_config (
+CREATE TABLE IF NOT EXISTS geographic_boundary_config (
     id SERIAL PRIMARY KEY,
-    airspace_name VARCHAR(100) UNIQUE NOT NULL,
-    airspace_type VARCHAR(50) NOT NULL, -- 'FIR', 'CTA', 'TMA', 'CTR', etc.
+    boundary_name VARCHAR(100) UNIQUE NOT NULL,
+    boundary_type VARCHAR(50) NOT NULL, -- 'country', 'region', 'airspace', 'custom', etc.
     boundary_coordinates JSONB NOT NULL, -- Array of [lat, lon] points
     min_altitude INTEGER, -- Minimum altitude in feet
     max_altitude INTEGER, -- Maximum altitude in feet
-    controlling_facility VARCHAR(50),
+    description VARCHAR(255),
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Indexes for efficient queries
-CREATE INDEX idx_airspace_config_name ON airspace_config(airspace_name);
-CREATE INDEX idx_airspace_config_type ON airspace_config(airspace_type);
-CREATE INDEX idx_airspace_config_active ON airspace_config(is_active);
+CREATE INDEX idx_geographic_boundary_name ON geographic_boundary_config(boundary_name);
+CREATE INDEX idx_geographic_boundary_type ON geographic_boundary_config(boundary_type);
+CREATE INDEX idx_geographic_boundary_active ON geographic_boundary_config(is_active);
 ```
 
 ### TODO: Geographic Regions Table
@@ -155,10 +155,10 @@ CREATE TABLE IF NOT EXISTS geographic_regions (
 ```python
 # Add to main.py or api module
 
-@app.get("/api/geographic/flights-in-airspace/{airspace_name}")
-async def get_flights_in_airspace(airspace_name: str):
-    """Get all flights currently in specified airspace"""
-    # TODO: Implement airspace detection
+@app.get("/api/geographic/flights-in-boundary/{boundary_name}")
+async def get_flights_in_boundary(boundary_name: str):
+    """Get all flights currently in specified geographic boundary"""
+    # TODO: Implement boundary detection
     pass
 
 @app.get("/api/geographic/flights-in-region")
@@ -171,10 +171,10 @@ async def get_flights_in_region(
     # TODO: Implement regional filtering
     pass
 
-@app.get("/api/geographic/airspace-status")
-async def get_airspace_status():
-    """Get status of all airspaces with flight counts"""
-    # TODO: Implement airspace status
+@app.get("/api/geographic/boundary-status")
+async def get_boundary_status():
+    """Get status of all geographic boundaries with flight counts"""
+    # TODO: Implement boundary status
     pass
 ```
 
@@ -192,8 +192,8 @@ class GeographicAnalyticsService:
         # TODO: Implement density calculation
         pass
     
-    def get_airspace_utilization(self, airspace_name):
-        """Calculate airspace utilization metrics"""
+    def get_boundary_utilization(self, boundary_name):
+        """Calculate geographic boundary utilization metrics"""
         # TODO: Implement utilization metrics
         pass
     
@@ -212,9 +212,9 @@ class GeographicAnalyticsService:
 class GeographicMonitoringService:
     """Service for monitoring geographic events"""
     
-    def monitor_airspace_incursions(self):
-        """Monitor for flights entering restricted airspace"""
-        # TODO: Implement incursion detection
+    def monitor_boundary_crossings(self):
+        """Monitor for flights entering/exiting geographic boundaries"""
+        # TODO: Implement boundary crossing detection
         pass
     
     def monitor_regional_traffic_spikes(self):
@@ -234,9 +234,9 @@ class GeographicMonitoringService:
 **Status:** To research
 
 - [ ] **OpenSky Network API** - Real-time flight data
-- [ ] **FAA Airspace Data** - US airspace boundaries
-- [ ] **Eurocontrol BADA** - European airspace data
-- [ ] **ICAO Airspace Database** - International airspace
+- [ ] **FAA Airspace Data** - US geographic boundaries
+- [ ] **Eurocontrol BADA** - European geographic data
+- [ ] **ICAO Database** - International geographic boundaries
 - [ ] **Natural Earth Data** - Geographic boundaries
 
 ### TODO: Data Import Scripts
@@ -244,8 +244,8 @@ class GeographicMonitoringService:
 
 ```python
 # Scripts to import geographic data
-def import_airspace_boundaries():
-    """Import airspace boundary data from external sources"""
+def import_geographic_boundaries():
+    """Import geographic boundary data from external sources"""
     # TODO: Implement import logic
     pass
 
@@ -286,8 +286,8 @@ class GeographicCache:
         self.airspace_cache = {}
         self.region_cache = {}
     
-    def get_cached_airspace_check(self, flight_id, airspace_name):
-        """Get cached airspace check result"""
+    def get_cached_boundary_check(self, flight_id, boundary_name):
+        """Get cached boundary check result"""
         # TODO: Implement caching logic
         pass
 ```
@@ -304,9 +304,9 @@ def test_polygon_detection():
     # TODO: Implement comprehensive tests
     pass
 
-def test_airspace_detection():
-    """Test airspace boundary detection"""
-    # TODO: Implement airspace tests
+def test_boundary_detection():
+    """Test geographic boundary detection"""
+    # TODO: Implement boundary tests
     pass
 
 def test_geographic_filtering():
@@ -334,13 +334,13 @@ def test_geographic_filtering():
 - [ ] Add unit tests for polygon detection
 
 ### Phase 2: Database Schema
-- [ ] Create airspace_config table
+- [ ] Create geographic_boundary_config table
 - [ ] Create geographic_regions table
 - [ ] Add spatial indexes
 - [ ] Create migration scripts
 
 ### Phase 3: Services
-- [ ] Implement AirspaceDetectionService
+- [ ] Implement GeographicBoundaryDetectionService
 - [ ] Implement GeographicAnalyticsService
 - [ ] Implement GeographicMonitoringService
 - [ ] Add geographic filtering to existing services
@@ -375,7 +375,7 @@ pip install geopandas  # For advanced geographic operations
 ## 📊 Expected Benefits
 
 1. **Enhanced Filtering** - Filter flights by geographic regions
-2. **Airspace Monitoring** - Monitor flights in specific airspaces
+2. **Boundary Monitoring** - Monitor flights in specific geographic boundaries
 3. **Geographic Analytics** - Analyze traffic patterns by region
 4. **Improved API** - Geographic-based API endpoints
 5. **Better Monitoring** - Geographic-based alerts and metrics

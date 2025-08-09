@@ -17,6 +17,10 @@ psutil==5.9.6
 # Validation
 pydantic==2.5.0
 
+# Geographic calculations (with compatible numpy version)
+numpy<2.0
+shapely==2.0.2
+
 # Testing Framework
 pytest==7.4.3
 pytest-asyncio==0.21.1
