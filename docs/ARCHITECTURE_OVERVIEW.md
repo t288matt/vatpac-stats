@@ -686,7 +686,7 @@ def parse_sectors(self, data: Dict) -> List[Dict]:
 #### **Data Service Pipeline Restoration:**
 - ✅ **Fixed missing `_validate_controller_data` method**: Restored accidentally removed method that was causing complete flush failures
 - ✅ **Fixed PostgreSQL dialect imports**: Added proper `postgresql_insert` import for upsert operations  
-- ✅ **Fixed missing model imports**: Added `Transceiver` and `VatsimStatus` to imports in data service
+- ✅ **Fixed missing model imports**: Added `Transceiver` to imports in data service
 - ✅ **Fixed undefined variables**: Added missing `departure` and `arrival` variable definitions in flight processing
 - ✅ **Fixed database constraint issues**: Switched from upsert to insert for flights table to avoid constraint conflicts
 

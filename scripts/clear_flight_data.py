@@ -10,14 +10,10 @@ TABLES TO CLEAR:
 - controllers  
 - sectors
 - traffic_movements
-- flight_summaries
-- movement_summaries
 - airport_config
 - movement_detection_config
 - system_config
-- events
 - transceivers
-- vatsim_status
 - frequency_matches
 
 TABLES TO PRESERVE:
@@ -64,9 +60,8 @@ def get_table_row_counts(session):
     """Get row counts for all tables to show before/after."""
     tables = [
         'flights', 'controllers', 'sectors', 'traffic_movements',
-        'flight_summaries', 'movement_summaries', 'airport_config',
-        'movement_detection_config', 'system_config', 'events',
-        'transceivers', 'vatsim_status', 'frequency_matches', 'airports'
+        'airport_config', 'movement_detection_config', 'system_config',
+        'transceivers', 'frequency_matches', 'airports'
     ]
     
     counts = {}
@@ -100,16 +95,12 @@ def clear_flight_data():
             'frequency_matches',      # No dependencies
             'transceivers',          # No dependencies  
             'traffic_movements',     # No dependencies
-            'flight_summaries',      # References flights, controllers, sectors
-            'movement_summaries',    # No dependencies
             'flights',               # No dependencies
             'sectors',               # References controllers
             'controllers',           # No dependencies
-            'events',                # No dependencies
             'airport_config',        # No dependencies
             'movement_detection_config', # No dependencies
-            'system_config',         # No dependencies
-            'vatsim_status'          # No dependencies
+            'system_config'          # No dependencies
         ]
         
         # Tables to preserve

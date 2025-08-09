@@ -1384,7 +1384,7 @@ async def get_service_health(service_name: str):
     """Get health status for a specific service."""
     from .services.monitoring_service import get_monitoring_service
     monitoring_service = get_monitoring_service()
-    health_status = monitoring_service.get_health_status(service_name)
+    health_status = await monitoring_service.get_health_status(service_name)
     if health_status:
         return {
             "service": health_status.service,

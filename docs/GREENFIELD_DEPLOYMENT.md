@@ -100,20 +100,16 @@ docker-compose ps
 
 ## 📊 Database Schema Created
 
-### **Tables Created (14 total):**
+### **Tables Created (10 total):**
 - `controllers` - ATC controller positions with VATSIM API fields
 - `sectors` - Airspace sector definitions
 - `flights` - Real-time flight data with complete VATSIM API mapping (FLIGHT STATUS REMOVED)
 - `traffic_movements` - Airport arrival/departure tracking (FLIGHT STATUS REMOVED)
-- `flight_summaries` - Historical flight data (FLIGHT STATUS REMOVED)
-- `movement_summaries` - Hourly movement statistics
 - `airport_config` - Airport configuration settings
 - `airports` - Global airport database
 - `movement_detection_config` - Detection algorithm settings
 - `system_config` - Application configuration
-- `events` - Special events and scheduling
 - `transceivers` - Radio frequency and position data
-- `vatsim_status` - VATSIM network status and general information
 - `frequency_matches` - Frequency matching events between pilots and ATC
 
 ### **VATSIM API Integration:**
@@ -126,7 +122,6 @@ docker-compose ps
 ### **Flight Status System Removal (COMPLETED):**
 - ✅ **Removed from flights table**: status, landed_at, completed_at, completion_method, completion_confidence, pilot_disconnected_at, disconnect_method
 - ✅ **Removed from traffic_movements**: flight_completion_triggered, completion_timestamp, completion_confidence
-- ✅ **Removed from flight_summaries**: completed_at
 - ✅ **Removed from frequency_matches**: is_active
 - ✅ **Simplified architecture**: Focus on core flight tracking without status complexity
 

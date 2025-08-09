@@ -33,15 +33,12 @@ This audit was conducted to verify the current database schema against the appli
 | sectors | - | 10 | 2 | ✅ Complete |
 | flights | - | 35 | 25 | ✅ Complete |
 | traffic_movements | - | 12 | 2 | ✅ Complete |
-| flight_summaries | - | 11 | 2 | ✅ Complete |
-| movement_summaries | - | 7 | 2 | ✅ Complete |
 | airport_config | - | 13 | 1 | ✅ Complete |
 | airports | - | 7 | 6 | ✅ Complete |
 | movement_detection_config | - | 6 | 1 | ✅ Complete |
 | system_config | - | 6 | 1 | ✅ Complete |
-| events | - | 8 | 2 | ✅ Complete |
 | transceivers | - | 12 | 6 | ✅ Complete |
-| vatsim_status | - | 8 | 5 | ✅ Complete |
+| frequency_matches | - | 8 | 3 | ✅ Complete |
 
 ## 🔍 Detailed Field Analysis
 

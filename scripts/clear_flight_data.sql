@@ -18,21 +18,13 @@ SELECT 'sectors', COUNT(*) FROM sectors
 UNION ALL
 SELECT 'traffic_movements', COUNT(*) FROM traffic_movements
 UNION ALL
-SELECT 'flight_summaries', COUNT(*) FROM flight_summaries
-UNION ALL
-SELECT 'movement_summaries', COUNT(*) FROM movement_summaries
-UNION ALL
 SELECT 'airport_config', COUNT(*) FROM airport_config
 UNION ALL
 SELECT 'movement_detection_config', COUNT(*) FROM movement_detection_config
 UNION ALL
 SELECT 'system_config', COUNT(*) FROM system_config
 UNION ALL
-SELECT 'events', COUNT(*) FROM events
-UNION ALL
 SELECT 'transceivers', COUNT(*) FROM transceivers
-UNION ALL
-SELECT 'vatsim_status', COUNT(*) FROM vatsim_status
 UNION ALL
 SELECT 'frequency_matches', COUNT(*) FROM frequency_matches
 UNION ALL
@@ -57,45 +49,29 @@ SELECT 'Cleared transceivers' as status;
 DELETE FROM traffic_movements;
 SELECT 'Cleared traffic_movements' as status;
 
--- 4. Clear flight_summaries (references flights, controllers, sectors)
-DELETE FROM flight_summaries;
-SELECT 'Cleared flight_summaries' as status;
-
--- 5. Clear movement_summaries (no dependencies)
-DELETE FROM movement_summaries;
-SELECT 'Cleared movement_summaries' as status;
-
--- 6. Clear flights (no dependencies)
+-- 4. Clear flights (no dependencies)
 DELETE FROM flights;
 SELECT 'Cleared flights' as status;
 
--- 7. Clear sectors (references controllers)
+-- 5. Clear sectors (references controllers)
 DELETE FROM sectors;
 SELECT 'Cleared sectors' as status;
 
--- 8. Clear controllers (no dependencies)
+-- 6. Clear controllers (no dependencies)
 DELETE FROM controllers;
 SELECT 'Cleared controllers' as status;
 
--- 9. Clear events (no dependencies)
-DELETE FROM events;
-SELECT 'Cleared events' as status;
-
--- 10. Clear airport_config (no dependencies)
+-- 7. Clear airport_config (no dependencies)
 DELETE FROM airport_config;
 SELECT 'Cleared airport_config' as status;
 
--- 11. Clear movement_detection_config (no dependencies)
+-- 8. Clear movement_detection_config (no dependencies)
 DELETE FROM movement_detection_config;
 SELECT 'Cleared movement_detection_config' as status;
 
--- 12. Clear system_config (no dependencies)
+-- 9. Clear system_config (no dependencies)
 DELETE FROM system_config;
 SELECT 'Cleared system_config' as status;
-
--- 13. Clear vatsim_status (no dependencies)
-DELETE FROM vatsim_status;
-SELECT 'Cleared vatsim_status' as status;
 
 -- Re-enable foreign key checks
 SET session_replication_role = DEFAULT;
@@ -110,21 +86,13 @@ SELECT 'sectors', COUNT(*) FROM sectors
 UNION ALL
 SELECT 'traffic_movements', COUNT(*) FROM traffic_movements
 UNION ALL
-SELECT 'flight_summaries', COUNT(*) FROM flight_summaries
-UNION ALL
-SELECT 'movement_summaries', COUNT(*) FROM movement_summaries
-UNION ALL
 SELECT 'airport_config', COUNT(*) FROM airport_config
 UNION ALL
 SELECT 'movement_detection_config', COUNT(*) FROM movement_detection_config
 UNION ALL
 SELECT 'system_config', COUNT(*) FROM system_config
 UNION ALL
-SELECT 'events', COUNT(*) FROM events
-UNION ALL
 SELECT 'transceivers', COUNT(*) FROM transceivers
-UNION ALL
-SELECT 'vatsim_status', COUNT(*) FROM vatsim_status
 UNION ALL
 SELECT 'frequency_matches', COUNT(*) FROM frequency_matches
 UNION ALL

@@ -522,7 +522,6 @@ class DataService(DatabaseService):
                 # Clear memory buffers after successful write
                 self.cache['memory_buffer']['transceivers'].clear()
                 self.cache['memory_buffer']['sectors'].clear()
-                self.cache['memory_buffer']['vatsim_status'].clear()
                 
             except Exception as e:
                 db.rollback()

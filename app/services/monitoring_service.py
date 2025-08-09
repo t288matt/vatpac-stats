@@ -332,7 +332,7 @@ class MonitoringService(BaseService):
         }
     
     @handle_service_errors
-    @log_operation
+    @log_operation("monitor_service")
     async def monitor_service(self, service_name: str, health_func: Callable):
         """Monitor a specific service."""
         health_status = await self.health_checker.check_service_health(service_name, health_func)
@@ -365,19 +365,19 @@ class MonitoringService(BaseService):
         return health_status
     
     @handle_service_errors
-    @log_operation
+    @log_operation("record_metric")
     async def record_metric(self, name: str, value: float, tags: Dict[str, str] = None, unit: str = ""):
         """Record a metric."""
         self.metrics_collector.record_metric(name, value, tags, unit)
     
     @handle_service_errors
-    @log_operation
+    @log_operation("get_metrics")
     async def get_metrics(self, name: str, hours: int = 24) -> List[Metric]:
         """Get metrics for a specific name."""
         return self.metrics_collector.get_metrics(name, hours)
     
     @handle_service_errors
-    @log_operation
+    @log_operation("get_metric_summary")
     async def get_metric_summary(self, name: str, hours: int = 24) -> Dict[str, Any]:
         """Get metric summary statistics."""
         return self.metrics_collector.get_metric_summary(name, hours)
@@ -395,20 +395,20 @@ class MonitoringService(BaseService):
         return self.health_checker.get_all_health_status()
     
     @handle_service_errors
-    @log_operation
+    @log_operation("create_alert")
     async def create_alert(self, alert_type: AlertType, severity: AlertSeverity, 
                     message: str, service: str, metadata: Dict[str, Any] = None) -> Alert:
         """Create an alert."""
         return self.alert_manager.create_alert(alert_type, severity, message, service, metadata)
     
     @handle_service_errors
-    @log_operation
+    @log_operation("get_active_alerts")
     async def get_active_alerts(self) -> List[Alert]:
         """Get active alerts."""
         return self.alert_manager.get_active_alerts()
     
     @handle_service_errors
-    @log_operation
+    @log_operation("resolve_alert")
     async def resolve_alert(self, alert_id: str) -> bool:
         """Resolve an alert."""
         return self.alert_manager.resolve_alert(alert_id)

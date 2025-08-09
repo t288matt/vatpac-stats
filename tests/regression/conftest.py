@@ -291,14 +291,6 @@ def expected_database_state() -> Dict[str, Any]:
                 "visual_range": 100,
                 "text_atis": "Test ATIS for regression testing"
             }
-        ],
-        "vatsim_status": [
-            {
-                "api_version": 8,
-                "reload": 1,
-                "connected_clients": 150,
-                "unique_users": 120
-            }
         ]
     }
 

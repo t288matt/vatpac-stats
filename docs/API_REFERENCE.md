@@ -475,12 +475,11 @@ Get database tables and record counts.
     "controllers": 45623,
     "transceivers": 78234,
     "traffic_movements": 234567,
-    "flight_summaries": 89012,
     "airports": 2720,
     "sectors": 156,
-    "vatsim_status": 8640
+    "frequency_matches": 12456
   },
-  "total_records": 612741,
+  "total_records": 515029,
   "last_updated": "2025-08-09T09:15:35Z"
 }
 ```

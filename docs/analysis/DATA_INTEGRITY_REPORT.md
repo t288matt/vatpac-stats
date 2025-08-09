@@ -116,11 +116,10 @@ All required tables are present and properly structured:
 - `traffic_movements` - Movement detection data
 - `sectors` - Airspace sector data
 - `system_config` - Configuration data
-- `events` - System events
 - `airport_config` - Airport configuration
 - `movement_detection_config` - Movement detection settings
-- `flight_summaries` - Flight summary data
-- `movement_summaries` - Movement summary data
+- `frequency_matches` - Frequency matching events
+- `transceivers` - Radio frequency and position data
 
 ### Data Quality Standards
 - **Completeness**: 100% for critical fields

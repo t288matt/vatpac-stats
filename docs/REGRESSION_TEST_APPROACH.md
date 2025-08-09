@@ -262,7 +262,6 @@ def clean_database():
         db.execute("TRUNCATE TABLE flights CASCADE")
         db.execute("TRUNCATE TABLE controllers CASCADE")
         db.execute("TRUNCATE TABLE sectors CASCADE")
-        db.execute("TRUNCATE TABLE vatsim_status CASCADE")
         db.commit()
     finally:
         db.close()

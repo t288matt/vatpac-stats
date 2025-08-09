@@ -114,8 +114,8 @@ This document shows the current field mappings after adding all missing VATSIM A
 - `visual_range` - Controller visual range
 - `text_atis` - ATIS information
 
-**New Table:**
-- `vatsim_status` - General/status data with 5 fields
+**Enhanced Table:**
+- `frequency_matches` - Frequency matching events with pilot/ATC correlation
 
 ### 🎯 **1:1 Mapping Achieved:**
 

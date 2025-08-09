@@ -41,8 +41,8 @@ class TestDatabaseSchemaIntegrity:
         
         expected_tables = {
             "flights", "controllers", "sectors", "traffic_movements",
-            "flight_summaries", "transceivers", "vatsim_status",
-            "frequency_matches", "airports", "airport_config"
+            "transceivers", "frequency_matches", "airports", 
+            "airport_config", "movement_detection_config", "system_config"
         }
         
         missing_tables = expected_tables - existing_tables

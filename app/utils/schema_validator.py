@@ -39,15 +39,7 @@ REQUIRED_TABLES = {
         'aircraft_type', 'timestamp', 'runway', 'altitude',
         'heading', 'metadata_json', 'created_at', 'updated_at'
     ],
-    'flight_summaries': [
-        'id', 'callsign', 'aircraft_type', 'departure', 'arrival',
-        'route', 'max_altitude', 'duration_minutes',
-        'sector_id', 'completed_at'
-    ],
-    'movement_summaries': [
-        'id', 'airport_icao', 'movement_type', 'aircraft_type',
-        'date', 'hour', 'count'
-    ],
+
     'airport_config': [
         'id', 'icao_code', 'name', 'latitude', 'longitude',
         'detection_radius_nm', 'departure_altitude_threshold',
@@ -68,10 +60,7 @@ REQUIRED_TABLES = {
         'id', 'key', 'value', 'description', 'last_updated',
         'environment', 'updated_at'
     ],
-    'events': [
-        'id', 'name', 'start_time', 'end_time', 'expected_traffic',
-        'required_controllers', 'status', 'notes'
-    ],
+
     'transceivers': [
         'id', 'callsign', 'transceiver_id', 'frequency', 'position_lat',
         'position_lon', 'height_msl', 'height_agl', 'entity_type',
