@@ -979,7 +979,13 @@ async def get_performance_metrics():
 async def get_flights_from_memory():
     """Get flights directly from memory cache (for debugging)"""
     data_service = get_data_service()
-    logger.info(f"Memory cache has {len(data_service.cache['flights'])} flights")
+    # Get cache size safely
+    try:
+        cache_size = len(data_service.cache['flights'].data) if hasattr(data_service.cache['flights'], 'data') else "unknown"
+        logger.info(f"Memory cache has {cache_size} flights")
+    except Exception as e:
+        logger.warning(f"Could not get cache size: {e}")
+        cache_size = "unknown"
     flights_data = []
     
     for callsign, flight_data in data_service.cache['flights'].items():

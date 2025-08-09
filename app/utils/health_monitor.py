@@ -25,6 +25,7 @@ FEATURES:
 """
 
 import asyncio
+from asyncio import Semaphore
 import aiohttp
 import psutil
 import logging
@@ -49,7 +50,8 @@ class HealthMonitor:
         self.response_times = {}
         
     async def check_api_endpoints(self) -> Dict[str, Any]:
-        """Check health of all API endpoints"""
+        """Check health of all API endpoints concurrently for better performance"""
+        # Core endpoints for health monitoring - excludes health endpoints to prevent circular dependencies
         endpoints = [
             "/api/status",
             "/api/network/status", 
@@ -60,21 +62,31 @@ class HealthMonitor:
             "/api/flights/memory",
             "/api/database/status",
             "/api/database/tables",
-            "/api/performance/metrics",
-            "/api/performance/optimize",
             "/api/airports/region/Australia",
             "/api/airports/YSSY/coordinates"
+            # Explicitly excluded to prevent circular dependencies:
+            # "/api/health/comprehensive" - would create infinite loop
+            # "/api/health/endpoints" - would create infinite loop  
+            # "/api/health/database" - redundant with /api/database/status
+            # "/api/health/system" - checked separately in comprehensive report
+            # "/api/health/data-freshness" - checked separately in comprehensive report
+            # Removed potentially slow endpoints that could cause timeouts:
+            # "/api/performance/metrics" - can be slow due to calculations
+            # "/api/performance/optimize" - heavy optimization operations
         ]
         
-        results = {}
-        async with aiohttp.ClientSession() as session:
-            for endpoint in endpoints:
+        # Semaphore to limit concurrent requests and prevent server overload
+        semaphore = Semaphore(5)  # Max 5 concurrent requests
+        
+        async def check_single_endpoint(session, endpoint):
+            """Check a single endpoint with rate limiting"""
+            async with semaphore:
                 try:
                     start_time = datetime.now(timezone.utc)
                     async with session.get(f"{self.base_url}{endpoint}", timeout=300) as response:
                         response_time = (datetime.now(timezone.utc) - start_time).total_seconds()
                         
-                        results[endpoint] = {
+                        result = {
                             "status": response.status,
                             "response_time": response_time,
                             "healthy": response.status == 200,
@@ -89,10 +101,12 @@ class HealthMonitor:
                         # Keep only last 10 measurements
                         if len(self.response_times[endpoint]) > 10:
                             self.response_times[endpoint] = self.response_times[endpoint][-10:]
-                            
+                        
+                        return endpoint, result
+                        
                 except Exception as e:
                     logger.error(f"Health check failed for {endpoint}: {e}")
-                    results[endpoint] = {
+                    error_result = {
                         "status": 0,
                         "response_time": 0,
                         "healthy": False,
@@ -104,6 +118,22 @@ class HealthMonitor:
                     if endpoint not in self.error_counts:
                         self.error_counts[endpoint] = 0
                     self.error_counts[endpoint] += 1
+                    
+                    return endpoint, error_result
+        
+        # Check all endpoints concurrently
+        async with aiohttp.ClientSession() as session:
+            tasks = [check_single_endpoint(session, endpoint) for endpoint in endpoints]
+            results_list = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Convert results list back to dictionary format
+            results = {}
+            for result in results_list:
+                if isinstance(result, Exception):
+                    logger.error(f"Unexpected error in concurrent health check: {result}")
+                    continue
+                endpoint, endpoint_result = result
+                results[endpoint] = endpoint_result
         
         return results
     
@@ -213,9 +243,11 @@ class HealthMonitor:
                 "last_flight_update": last_flight_update.isoformat() if last_flight_update else None,
                 "atc_freshness_seconds": (now - last_atc_update).total_seconds() if last_atc_update else None,
                 "flight_freshness_seconds": (now - last_flight_update).total_seconds() if last_flight_update else None,
+                # Data is considered stale after 3 minutes (180 seconds) to reduce false alarms
+                # This accounts for normal VATSIM API variations and network delays
                 "data_stale": (last_atc_update is None or last_flight_update is None or 
-                              (last_atc_update and (now - last_atc_update).total_seconds() > 120) or
-                              (last_flight_update and (now - last_flight_update).total_seconds() > 120)),
+                              (last_atc_update and (now - last_atc_update).total_seconds() > 180) or
+                              (last_flight_update and (now - last_flight_update).total_seconds() > 180)),
                 "timestamp": now.isoformat()
             }
             
