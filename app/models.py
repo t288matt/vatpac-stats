@@ -23,13 +23,11 @@ MODELS INCLUDED:
 - Flight: Real-time flight data with position tracking
 - Sector: Airspace sector definitions and traffic density
 - TrafficMovement: Airport arrival/departure tracking
-- FlightSummary: Compressed historical flight data
-- MovementSummary: Hourly movement statistics
 - Airports: Global airport database
 - AirportConfig: Movement detection settings
 - SystemConfig: Application configuration storage
-- Event: Special events and scheduling
 - Transceiver: Radio frequency and position data
+- FrequencyMatch: Frequency matching events between pilots and controllers
 
 OPTIMIZATIONS:
 - Storage-efficient data types (SMALLINT for durations)
@@ -198,54 +196,7 @@ class TrafficMovement(Base):
     
     # No relationships for now
 
-class FlightSummary(Base):
-    """Flight summary for analytics - COMPRESSED HISTORICAL DATA"""
-    __tablename__ = "flight_summaries"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    callsign = Column(String(20), nullable=False, index=True)
-    aircraft_type = Column(String(10), nullable=True)
-    departure = Column(String(10), nullable=True)
-    arrival = Column(String(10), nullable=True)
-    route = Column(Text, nullable=True)
-    max_altitude = Column(SmallInteger, nullable=True)  # SMALLINT for storage efficiency
-    duration_minutes = Column(SmallInteger, nullable=True)  # SMALLINT: max 65,535 minutes
-    controller_id = Column(Integer, ForeignKey("controllers.id"), nullable=True)
-    sector_id = Column(Integer, ForeignKey("sectors.id"), nullable=True)
-    
-    # Relationships
-    controller = relationship("Controller")
-    sector = relationship("Sector")
-    
-    # Indexes for efficient queries
-    __table_args__ = (
-        Index('idx_flight_summaries_callsign', 'callsign'),
-        Index('idx_flight_summaries_controller', 'controller_id'),
-        Index('idx_flight_summaries_departure', 'departure'),
-        Index('idx_flight_summaries_arrival', 'arrival'),
-        Index('idx_flight_summaries_sector', 'sector_id'),
-    )
 
-class MovementSummary(Base):
-    """Movement summary for analytics - COMPRESSED HISTORICAL DATA"""
-    __tablename__ = "movement_summaries"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    airport_icao = Column(String(10), nullable=False, index=True)
-    movement_type = Column(String(10), nullable=False)  # 'arrival' or 'departure'
-    aircraft_type = Column(String(10), nullable=True)
-    date = Column(DateTime, nullable=False, index=True)  # Date only
-    hour = Column(SmallInteger, nullable=False)  # 0-23 hour
-    count = Column(SmallInteger, default=1)  # Number of movements in this hour
-    
-    # Composite index for efficient queries
-    __table_args__ = (
-        Index('idx_movement_summaries_airport_date', 'airport_icao', 'date'),
-        Index('idx_movement_summaries_type_hour', 'movement_type', 'hour'),
-        Index('idx_movement_summaries_date_hour', 'date', 'hour'),
-        Index('idx_movement_summaries_aircraft', 'aircraft_type'),
-        {'sqlite_autoincrement': True}
-    )
 
 class AirportConfig(Base):
     """Airport configuration for movement detection"""
@@ -338,27 +289,7 @@ class SystemConfig(Base):
         Index('idx_system_config_updated', 'last_updated'),  # Time-based queries
     )
 
-class Event(Base):
-    """Event model for special events and scheduling"""
-    __tablename__ = "events"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(200), nullable=False)
-    start_time = Column(DateTime, nullable=False)
-    end_time = Column(DateTime, nullable=False)
-    expected_traffic = Column(Integer, default=0)
-    required_controllers = Column(Integer, default=0)
-    status = Column(String(20), default="scheduled")  # scheduled, active, completed
-    notes = Column(Text, nullable=True)
-    
-    # Indexes for efficient queries
-    __table_args__ = (
-        Index('idx_events_start_time', 'start_time'),
-        Index('idx_events_end_time', 'end_time'),
-        Index('idx_events_status', 'status'),
-        Index('idx_events_name', 'name'),
-        Index('idx_events_start_end', 'start_time', 'end_time'),
-    )
+
 
 class Transceiver(Base):
     """Transceiver model for storing radio frequency and position data from VATSIM transceivers API"""
@@ -390,18 +321,7 @@ class Transceiver(Base):
         Index('idx_transceivers_height', 'height_msl', 'height_agl'),  # Height-based queries
     )
 
-class VatsimStatus(Base):
-    """VATSIM network status and general information"""
-    __tablename__ = "vatsim_status"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    api_version = Column(Integer, nullable=True)  # From API "version"
-    reload = Column(Integer, nullable=True)  # From API "reload"
-    update_timestamp = Column(DateTime, nullable=True)  # From API "update_timestamp"
-    connected_clients = Column(Integer, nullable=True)  # From API "connected_clients"
-    unique_users = Column(Integer, nullable=True)  # From API "unique_users"
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 
 
 class FrequencyMatch(Base):

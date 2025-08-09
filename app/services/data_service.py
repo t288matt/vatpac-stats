@@ -54,7 +54,7 @@ from collections import defaultdict
 import time
 
 from ..database import SessionLocal
-from ..models import Controller, Flight, Sector, TrafficMovement, FlightSummary, Transceiver, VatsimStatus
+from ..models import Controller, Flight, Sector, TrafficMovement, Transceiver
 from .vatsim_service import VATSIMService
 from .traffic_analysis_service import TrafficAnalysisService
 from .base_service import DatabaseService
@@ -514,14 +514,7 @@ class DataService(DatabaseService):
                     
                     self.logger.info(f"Flushed {len(sectors_data)} sectors to disk")
                 
-                # Process VATSIM status from memory buffer
-                vatsim_status_data = self.cache['memory_buffer'].get('vatsim_status', [])
-                if vatsim_status_data:
-                    for status_data in vatsim_status_data:
-                        stmt = postgresql_insert(VatsimStatus).values(**status_data)
-                        db.execute(stmt)
-                    
-                    self.logger.info(f"Flushed {len(vatsim_status_data)} VATSIM status records to disk")
+                # VATSIM status processing removed (unused table)
                 
                 db.commit()
                 self.write_count += 1
@@ -540,38 +533,7 @@ class DataService(DatabaseService):
         except Exception as e:
             self.logger.error(f"Error in memory flush process: {e}")
     
-    async def _store_flight_summary(self, flight: Flight):
-        """Store flight summary for analytics"""
-        try:
-            db = SessionLocal()
-            try:
-                # Calculate flight duration if we have timestamps
-                duration_minutes = 0
-                if hasattr(flight, 'created_at') and flight.created_at:
-                    duration_minutes = int((flight.last_updated - flight.created_at).total_seconds() / 60)
-                
-                # Create flight summary with critical data preserved
-                summary = FlightSummary(
-                    callsign=flight.callsign,
-                    aircraft_type=flight.aircraft_type,
-                    departure=flight.departure,
-                    arrival=flight.arrival,
-                    route=flight.route,
-                    max_altitude=flight.altitude,
-                    duration_minutes=duration_minutes
-                )
-                
-                db.add(summary)
-                db.commit()
-                
-            except Exception as e:
-                db.rollback()
-                self.logger.error(f"Error storing flight summary: {e}")
-            finally:
-                db.close()
-                
-        except Exception as e:
-            self.logger.error(f"Error in flight summary storage: {e}")
+    # _store_flight_summary method removed (FlightSummary table unused)
     
     def get_network_status(self) -> Dict[str, Any]:
         """

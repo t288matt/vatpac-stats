@@ -109,18 +109,6 @@ CREATE TABLE IF NOT EXISTS flights (
     assigned_transponder VARCHAR(10)  -- Assigned transponder
 );
 
--- VATSIM Status table for general/status data
-CREATE TABLE IF NOT EXISTS vatsim_status (
-    id SERIAL PRIMARY KEY,
-    api_version INTEGER,
-    reload INTEGER,
-    update_timestamp TIMESTAMP WITH TIME ZONE,
-    connected_clients INTEGER,
-    unique_users INTEGER,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
 -- Traffic movements table
 CREATE TABLE IF NOT EXISTS traffic_movements (
     id SERIAL PRIMARY KEY,
@@ -136,31 +124,6 @@ CREATE TABLE IF NOT EXISTS traffic_movements (
     metadata_json TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Flight summaries table
-CREATE TABLE IF NOT EXISTS flight_summaries (
-    id SERIAL PRIMARY KEY,
-    callsign VARCHAR(20) NOT NULL,
-    aircraft_type VARCHAR(10),
-    departure VARCHAR(10),
-    arrival VARCHAR(10),
-    route TEXT,
-    max_altitude SMALLINT,
-    duration_minutes SMALLINT,
-    controller_id INTEGER REFERENCES controllers(id),
-    sector_id INTEGER REFERENCES sectors(id)
-);
-
--- Movement summaries table
-CREATE TABLE IF NOT EXISTS movement_summaries (
-    id SERIAL PRIMARY KEY,
-    airport_icao VARCHAR(10) NOT NULL,
-    movement_type VARCHAR(10) NOT NULL,
-    aircraft_type VARCHAR(10),
-    date TIMESTAMP WITH TIME ZONE NOT NULL,
-    hour SMALLINT NOT NULL,
-    count SMALLINT DEFAULT 1
 );
 
 -- Airport config table
@@ -215,18 +178,6 @@ CREATE TABLE IF NOT EXISTS system_config (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Events table
-CREATE TABLE IF NOT EXISTS events (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(200) NOT NULL,
-    start_time TIMESTAMP WITH TIME ZONE NOT NULL,
-    end_time TIMESTAMP WITH TIME ZONE NOT NULL,
-    expected_traffic INTEGER DEFAULT 0,
-    required_controllers INTEGER DEFAULT 0,
-    status VARCHAR(20) DEFAULT 'scheduled',
-    notes TEXT
-);
-
 -- Transceivers table
 CREATE TABLE IF NOT EXISTS transceivers (
     id SERIAL PRIMARY KEY,
@@ -257,7 +208,6 @@ CREATE INDEX IF NOT EXISTS idx_flights_transponder ON flights(transponder);
 CREATE INDEX IF NOT EXISTS idx_flights_logon_time ON flights(logon_time);
 CREATE INDEX IF NOT EXISTS idx_flights_last_updated_api ON flights(last_updated_api);
 CREATE INDEX IF NOT EXISTS idx_controllers_visual_range ON controllers(visual_range);
-CREATE INDEX IF NOT EXISTS idx_vatsim_status_update_timestamp ON vatsim_status(update_timestamp);
 CREATE INDEX IF NOT EXISTS idx_traffic_movements_airport ON traffic_movements(airport_code);
 CREATE INDEX IF NOT EXISTS idx_traffic_movements_timestamp ON traffic_movements(timestamp);
 CREATE INDEX IF NOT EXISTS idx_airport_config_icao ON airport_config(icao_code);
@@ -278,9 +228,7 @@ CREATE TRIGGER update_flights_updated_at
     BEFORE UPDATE ON flights 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_vatsim_status_updated_at 
-    BEFORE UPDATE ON vatsim_status 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 
 CREATE TRIGGER update_traffic_movements_updated_at 
     BEFORE UPDATE ON traffic_movements 
@@ -322,10 +270,7 @@ INSERT INTO movement_detection_config (config_key, config_value, description) VA
 ('default_arrival_speed_threshold', '150', 'Default arrival speed threshold in knots')
 ON CONFLICT (config_key) DO NOTHING;
 
--- Insert initial VATSIM status record
-INSERT INTO vatsim_status (api_version, reload, update_timestamp, connected_clients, unique_users) VALUES
-(3, 0, NOW(), 0, 0)
-ON CONFLICT DO NOTHING;
+
 
 -- Add comments for documentation
 COMMENT ON COLUMN controllers.visual_range IS 'Visual range in nautical miles from VATSIM API';
@@ -357,11 +302,7 @@ COMMENT ON COLUMN flights.remarks IS 'Flight plan remarks from VATSIM API';
 COMMENT ON COLUMN flights.revision_id IS 'Flight plan revision from VATSIM API';
 COMMENT ON COLUMN flights.assigned_transponder IS 'Assigned transponder from VATSIM API flight plan';
 
-COMMENT ON COLUMN vatsim_status.api_version IS 'VATSIM API version';
-COMMENT ON COLUMN vatsim_status.reload IS 'VATSIM API reload indicator';
-COMMENT ON COLUMN vatsim_status.update_timestamp IS 'VATSIM API update timestamp';
-COMMENT ON COLUMN vatsim_status.connected_clients IS 'Number of connected clients from VATSIM API';
-COMMENT ON COLUMN vatsim_status.unique_users IS 'Number of unique users from VATSIM API';
+
 
 -- Verify all tables were created successfully
 SELECT 
@@ -371,9 +312,8 @@ SELECT
 FROM information_schema.columns 
 WHERE table_schema = 'public' 
     AND table_name IN (
-        'controllers', 'sectors', 'flights', 'vatsim_status', 'traffic_movements',
-        'flight_summaries', 'movement_summaries', 'airport_config',
-        'airports', 'movement_detection_config', 'system_config',
-        'events', 'transceivers'
+        'controllers', 'sectors', 'flights', 'traffic_movements',
+        'airport_config', 'airports', 'movement_detection_config', 
+        'system_config', 'transceivers'
     )
 ORDER BY table_name, ordinal_position; 
