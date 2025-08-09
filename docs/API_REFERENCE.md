@@ -251,7 +251,7 @@ Get database status and migration information.
 {
   "database_status": {
     "connection": "healthy",
-    "tables": 14,
+    "tables": 6,
     "total_records": 156789,
     "last_migration": "010_remove_flight_status_fields.sql",
     "schema_version": "1.0.10",
@@ -476,10 +476,9 @@ Get database tables and record counts.
     "transceivers": 78234,
     "traffic_movements": 234567,
     "airports": 2720,
-    "sectors": 156,
     "frequency_matches": 12456
   },
-  "total_records": 515029,
+  "total_records": 502573,
   "last_updated": "2025-08-09T09:15:35Z"
 }
 ```

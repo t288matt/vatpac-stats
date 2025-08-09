@@ -85,7 +85,7 @@ async def get_db() -> AsyncGenerator[Session, None]:
 def init_db():
     """Initialize database tables"""
     # Import models to ensure they are registered with Base
-    from .models import Controller, Sector, Flight, TrafficMovement, AirportConfig, MovementDetectionConfig, Transceiver, Airports
+    from .models import Controller, Flight, TrafficMovement, Transceiver, Airports, FrequencyMatch
     Base.metadata.create_all(bind=engine)
 
 @handle_service_errors

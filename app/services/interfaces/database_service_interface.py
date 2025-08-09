@@ -25,10 +25,7 @@ class DatabaseServiceInterface(ABC):
         """Store controller data using existing Controller model."""
         pass
     
-    @abstractmethod
-    async def store_sectors(self, sectors: List[Dict[str, Any]]) -> int:
-        """Store sector data using existing Sector model."""
-        pass
+
     
     @abstractmethod
     async def store_transceivers(self, transceivers: List[Dict[str, Any]]) -> int:

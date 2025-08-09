@@ -102,7 +102,7 @@ AWS_SECRET_ACCESS_KEY=your_aws_secret_key
 # === CORE APPLICATION SETTINGS ===
 DATABASE_POOL_SIZE=20
 DATABASE_MAX_OVERFLOW=30
-REDIS_URL=redis://redis:6379
+CACHE_MAX_SIZE=10000
 MEMORY_LIMIT_MB=4096
 BATCH_SIZE_THRESHOLD=15000
 
@@ -180,21 +180,7 @@ services:
     networks:
       - vatsim_network
 
-  # Redis Cache
-  redis:
-    image: redis:7-alpine
-    container_name: vatsim_redis
-    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru --save 60 1000
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-    networks:
-      - vatsim_network
+  # Note: Redis removed - using in-memory cache
 
   # Main Application
   app:
@@ -211,8 +197,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/api/status"]
       interval: 30s
@@ -260,8 +245,6 @@ services:
 
 volumes:
   postgres_data:
-    driver: local
-  redis_data:
     driver: local
   grafana_data:
     driver: local

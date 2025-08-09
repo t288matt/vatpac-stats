@@ -34,7 +34,7 @@ A real-time VATSIM data collection and traffic analysis system that processes fl
 ### Services
 - **App Service**: Main application (Python/FastAPI) - VATSIM data collection and API
 - **PostgreSQL**: Primary database for flight data with optimized schema
-- **Redis**: Caching layer for high-performance data access
+- **In-Memory Cache**: High-performance caching with TTL and LRU eviction
 - **Grafana**: Data visualization and monitoring dashboards
 
 ### Data Flow
@@ -76,11 +76,13 @@ The system tracks all flights in real-time without status complexity:
 
 #### **Core Configuration:**
 ```yaml
-# Database & Cache
+# Database Configuration
 DATABASE_URL: postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data
 DATABASE_POOL_SIZE: 10
 DATABASE_MAX_OVERFLOW: 20
-REDIS_URL: redis://redis:6379
+
+# In-Memory Cache Configuration
+CACHE_MAX_SIZE: 10000
 
 # API Server
 API_HOST: 0.0.0.0
@@ -180,7 +182,6 @@ GRAFANA_ADMIN_PASSWORD: admin    # Change for production
 - Docker and Docker Compose
 - Python 3.11+
 - PostgreSQL 15+
-- Redis 7+
 
 ### Quick Start
 ```bash
@@ -226,7 +227,7 @@ docker exec vatsim_postgres psql -U vatsim_user -d vatsim_data -c "SELECT status
 
 **Performance Issues**
 - Monitor memory usage: `docker stats`
-- Check Redis cache status: `docker exec vatsim_redis redis-cli ping`
+- Check cache status: `curl http://localhost:8001/api/database/status`
 - Review application logs for errors
 
 **Controller Data Type Handling**
@@ -249,7 +250,7 @@ If data loss occurs:
 - ✅ **Complete VATSIM API v3 Integration**: 1:1 field mapping with current API
 - ✅ **Automatic Data Type Conversion**: Handles VATSIM API data types seamlessly
 - ✅ **Database Storage**: PostgreSQL with optimized schema and indexing
-- ✅ **High-Performance Caching**: Redis for memory-optimized data access
+- ✅ **High-Performance Caching**: In-memory cache with TTL and LRU eviction
 - ✅ **SSD Wear Optimization**: Batch writes every 15 seconds
 
 ### **Flight Filtering System:**

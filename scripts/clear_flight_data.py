@@ -8,11 +8,9 @@ the airports table data. This is useful for testing or resetting the system.
 TABLES TO CLEAR:
 - flights
 - controllers  
-- sectors
 - traffic_movements
-- airport_config
-- movement_detection_config
-- system_config
+- transceivers
+- frequency_matches
 - transceivers
 - frequency_matches
 
@@ -59,8 +57,7 @@ def get_database_connection():
 def get_table_row_counts(session):
     """Get row counts for all tables to show before/after."""
     tables = [
-        'flights', 'controllers', 'sectors', 'traffic_movements',
-        'airport_config', 'movement_detection_config', 'system_config',
+        'flights', 'controllers', 'traffic_movements',
         'transceivers', 'frequency_matches', 'airports'
     ]
     
@@ -96,11 +93,7 @@ def clear_flight_data():
             'transceivers',          # No dependencies  
             'traffic_movements',     # No dependencies
             'flights',               # No dependencies
-            'sectors',               # References controllers
-            'controllers',           # No dependencies
-            'airport_config',        # No dependencies
-            'movement_detection_config', # No dependencies
-            'system_config'          # No dependencies
+            'controllers'            # No dependencies
         ]
         
         # Tables to preserve

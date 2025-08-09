@@ -31,8 +31,7 @@ start_service() {
 # Check and start PostgreSQL
 start_service postgresql "PostgreSQL"
 
-# Check and start Redis
-start_service redis-server "Redis"
+# Redis removed - using in-memory cache
 
 # Check if virtual environment exists
 if [ ! -d "venv" ]; then
@@ -57,7 +56,7 @@ export $(cat .env | xargs)
 # Set default values if not in .env
 export PRODUCTION_MODE=${PRODUCTION_MODE:-false}
 export DATABASE_URL=${DATABASE_URL:-postgresql://vatsim_user:vatsim_password@localhost:5432/vatsim_data}
-export REDIS_URL=${REDIS_URL:-redis://localhost:6379}
+export CACHE_MAX_SIZE=${CACHE_MAX_SIZE:-10000}
 
 # Test database connection
 echo "🔍 Testing database connection..."
@@ -72,17 +71,11 @@ except Exception as e:
     exit(1)
 "
 
-# Test Redis connection
-echo "🔍 Testing Redis connection..."
+# Test in-memory cache configuration
+echo "🔍 Testing cache configuration..."
 python -c "
-import redis
-try:
-    r = redis.from_url('$REDIS_URL')
-    r.ping()
-    print('✅ Redis connection successful')
-except Exception as e:
-    print(f'❌ Redis connection failed: {e}')
-    exit(1)
+cache_size = int('$CACHE_MAX_SIZE')
+print(f'✅ In-memory cache configured with max size: {cache_size}')
 "
 
 echo "🚀 Starting application..."

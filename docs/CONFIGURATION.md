@@ -35,13 +35,14 @@ This document provides a centralized reference for all configuration options use
 - `LOG_MAX_FILE_SIZE`: Max log file size in bytes (default: 10MB)
 - `LOG_BACKUP_COUNT`: Number of log file backups (default: 5)
 
-### Traffic Analysis Configuration
+### Traffic Analysis Configuration (Currently Disabled)
 - `TRAFFIC_DENSITY_THRESHOLD_HIGH`: High density threshold (default: 80.0)
 - `TRAFFIC_DENSITY_THRESHOLD_MEDIUM`: Medium density threshold (default: 50.0)
 - `TRAFFIC_DENSITY_THRESHOLD_LOW`: Low density threshold (default: 20.0)
 - `POSITION_PRIORITY_WEIGHT_FLIGHTS`: Flight weight for position priority (default: 0.7)
-- `POSITION_PRIORITY_WEIGHT_SECTORS`: Sector weight for position priority (default: 0.3)
 - `TRAFFIC_PREDICTION_CONFIDENCE_BASE`: Base confidence for predictions (default: 0.7)
+
+**Note**: Traffic analysis service is currently disabled pending refactoring after removal of configuration tables.
 
 
 
@@ -79,16 +80,15 @@ All configuration is loaded through the `get_config()` function in `app/config.p
 - Configurable batch processing
 
 ### Cache Service
-- Redis connection configuration
+- In-memory cache configuration with bounded size
 - TTL settings for different data types
-- Fallback to memory cache when Redis unavailable
+- LRU eviction when cache reaches maximum size
 
 
 
-### Traffic Analysis Service
-- Movement detection thresholds
-- Distance calculation parameters
-- Confidence scoring weights
+### Traffic Analysis Service (Currently Disabled)
+- Service temporarily disabled pending refactoring
+- Configuration handled via environment variables instead of database tables
 
 ## Environment-Specific Configuration
 
@@ -121,8 +121,9 @@ The system validates configuration at startup and provides clear error messages 
 Configuration can be updated at runtime through:
 
 1. Environment variable changes (requires restart)
-2. Database configuration table updates
-3. API endpoint configuration updates
+2. API endpoint configuration updates
+
+**Note**: Database configuration tables have been removed. All configuration is now handled via environment variables.
 
 ## Monitoring Configuration
 

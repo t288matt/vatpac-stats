@@ -54,7 +54,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, desc
 
-from ..models import Flight, TrafficMovement, AirportConfig, MovementDetectionConfig
+from ..models import Flight, TrafficMovement, Airports
 from ..utils.logging import get_logger_for_module
 from ..utils.error_handling import handle_service_errors, log_operation, create_error_handler
 from ..utils.exceptions import DataProcessingError, ValidationError
@@ -70,9 +70,8 @@ class TrafficAnalysisService:
     def _load_detection_config(self) -> Dict[str, Any]:
         """Load movement detection configuration from database"""
         try:
-            configs = self.db.query(MovementDetectionConfig).filter(
-                MovementDetectionConfig.is_active == True
-            ).all()
+            # MovementDetectionConfig table removed - using default configuration
+            configs = []
             
             config_dict = {}
             for config in configs:
@@ -130,44 +129,29 @@ class TrafficAnalysisService:
     
     @handle_service_errors
     @log_operation("get_airport_config")
-    def get_airport_config(self, icao_code: str) -> Optional[AirportConfig]:
+    def get_airport_config(self, icao_code: str) -> Optional[Dict[str, Any]]:
         """Get airport configuration for movement detection"""
         try:
-            # First try to get existing airport config
-            airport_config = self.db.query(AirportConfig).filter(
-                and_(
-                    AirportConfig.icao_code == icao_code.upper(),
-                    AirportConfig.is_active == True
-                )
-            ).first()
-            
-            if airport_config:
-                return airport_config
-            
-            # If no config exists, try to get airport data from airports table
-            from ..models import Airports
+            # AirportConfig table removed - using airports table
             airport_data = self.db.query(Airports).filter(
                 Airports.icao_code == icao_code.upper()
             ).first()
             
             if airport_data:
-                # Create a default airport config for movement detection
-                default_config = AirportConfig(
-                    icao_code=airport_data.icao_code,
-                    name=airport_data.name or f"Airport {airport_data.icao_code}",
-                    latitude=airport_data.latitude,
-                    longitude=airport_data.longitude,
-                    detection_radius_nm=self.config.get('default_detection_radius_nm', 10.0),
-                    departure_altitude_threshold=self.config.get('default_departure_altitude_threshold', 1000),
-                    arrival_altitude_threshold=self.config.get('default_arrival_altitude_threshold', 3000),
-                    departure_speed_threshold=self.config.get('default_departure_speed_threshold', 50),
-                    arrival_speed_threshold=self.config.get('default_arrival_speed_threshold', 150),
-                    is_active=True,
-                    region=airport_data.country or 'Global'
-                )
-                
-                # Don't save to database to avoid cluttering, just return the config
-                return default_config
+                # Return a default configuration dictionary
+                return {
+                    'icao_code': airport_data.icao_code,
+                    'name': airport_data.name or f"Airport {airport_data.icao_code}",
+                    'latitude': airport_data.latitude,
+                    'longitude': airport_data.longitude,
+                    'detection_radius_nm': self.config.get('default_detection_radius_nm', 10.0),
+                    'departure_altitude_threshold': self.config.get('default_departure_altitude_threshold', 1000),
+                    'arrival_altitude_threshold': self.config.get('default_arrival_altitude_threshold', 3000),
+                    'departure_speed_threshold': self.config.get('default_departure_speed_threshold', 50),
+                    'arrival_speed_threshold': self.config.get('default_arrival_speed_threshold', 150),
+                    'is_active': True,
+                    'region': airport_data.country or 'Global'
+                }
             
             return None
             

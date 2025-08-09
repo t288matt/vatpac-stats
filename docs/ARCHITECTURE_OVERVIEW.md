@@ -46,7 +46,7 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 ├─────────────────────────────────────────────────────────────────┤
 │  External Data Sources                                        │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
-│  │ VATSIM API  │  │ PostgreSQL  │  │   Redis     │          │
+│  │ VATSIM API  │  │ PostgreSQL  │  │ In-Memory   │          │
 │  │   (Real-    │  │  Database   │  │   Cache     │          │
 │  │   time)     │  │             │  │             │          │
 │  └─────────────┘  └─────────────┘  └─────────────┘          │
@@ -133,14 +133,14 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 
 ### 4. Cache Service (`app/services/cache_service.py`)
 **Purpose**: High-performance caching layer
-- **Redis-based caching**
-- **Memory optimization**
+- **In-memory caching with TTL support**
+- **Memory optimization with LRU eviction**
 - **Cache invalidation strategies**
 - **Performance monitoring**
 
 **Key Features**:
-- Multi-level caching (memory + Redis)
-- Intelligent cache invalidation
+- Bounded in-memory cache with automatic eviction
+- Intelligent cache invalidation with pattern matching
 - Cache hit/miss monitoring
 - Memory usage optimization
 - Cache warming strategies
@@ -305,7 +305,7 @@ async def service_method():
 
 ### 1. Data Ingestion Flow
 ```
-VATSIM API → Flight Filter → Data Service → Memory Cache → Database → Cache Service
+VATSIM API → Flight Filter → Data Service → Memory Cache → Database → In-Memory Cache Service
 ```
 
 ### 2. API Request Flow
@@ -500,13 +500,13 @@ app/
 ### Software Requirements
 - **Python 3.11+** for application runtime
 - **PostgreSQL 13+** for data persistence
-- **Redis 6+** for caching layer
+- **In-memory cache** for high-performance data access
 - **Docker** for containerized deployment
 
 ### Dependencies
 - **FastAPI** for API framework
 - **SQLAlchemy** for database ORM
-- **Redis** for caching
+- **Built-in caching** with TTL and LRU eviction
 - **Pydantic** for data validation
 - **Uvicorn** for ASGI server
 

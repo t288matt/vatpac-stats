@@ -38,13 +38,7 @@ else
     echo "✅ PostgreSQL already installed"
 fi
 
-# Check/Install Redis
-if ! command_exists redis-cli; then
-    echo "📦 Installing Redis..."
-    sudo apt install -y redis-server
-else
-    echo "✅ Redis already installed"
-fi
+# Redis installation removed - using in-memory cache
 
 # Check Python version
 if ! command_exists python3.11; then
@@ -69,20 +63,7 @@ sudo -u postgres psql -c "CREATE USER vatsim_user WITH PASSWORD 'vatsim_password
 sudo -u postgres createdb vatsim_data 2>/dev/null || echo "Database already exists"
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE vatsim_data TO vatsim_user;" 2>/dev/null || echo "Privileges already granted"
 
-echo "🔧 Setting up Redis..."
-
-# Start Redis if not running
-if ! sudo systemctl is-active --quiet redis-server; then
-    echo "🚀 Starting Redis..."
-    sudo systemctl start redis-server
-    sudo systemctl enable redis-server
-fi
-
-# Configure Redis memory settings
-echo "⚙️  Configuring Redis..."
-sudo sed -i 's/# maxmemory <bytes>/maxmemory 512mb/' /etc/redis/redis.conf
-sudo sed -i 's/# maxmemory-policy noeviction/maxmemory-policy allkeys-lru/' /etc/redis/redis.conf
-sudo systemctl restart redis-server
+echo "✅ Redis removed - using in-memory cache instead"
 
 echo "🐍 Setting up Python environment..."
 
@@ -112,7 +93,9 @@ echo "📝 Creating environment file..."
 cat > .env << EOF
 # Database Configuration
 DATABASE_URL=postgresql://vatsim_user:vatsim_password@localhost:5432/vatsim_data
-REDIS_URL=redis://localhost:6379
+
+# Cache Configuration (In-Memory)
+CACHE_MAX_SIZE=10000
 
 # API Configuration
 API_HOST=0.0.0.0

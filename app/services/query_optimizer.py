@@ -65,7 +65,7 @@ from ..config import get_config
 from ..utils.logging import get_logger_for_module
 from ..utils.error_handling import handle_service_errors, log_operation, create_error_handler
 from ..utils.exceptions import DatabaseError, DataProcessingError
-from ..models import Controller, Flight, Sector, TrafficMovement, AirportConfig
+from ..models import Controller, Flight, TrafficMovement
 
 class QueryOptimizer:
     """Database query optimization service"""
@@ -120,8 +120,7 @@ class QueryOptimizer:
         try:
             # Use eager loading and filtering (status column removed)
             flights = db.query(Flight).options(
-                joinedload(Flight.atc_position),
-                joinedload(Flight.sector)
+                joinedload(Flight.atc_position)
             ).filter(
                 Flight.last_updated >= datetime.now(timezone.utc) - timedelta(minutes=5)
             ).order_by(desc(Flight.last_updated)).limit(1000).all()
@@ -140,8 +139,7 @@ class QueryOptimizer:
                     "cruise_tas": flight.cruise_tas,
                     "position": flight.position,
                     "last_updated": flight.last_updated.isoformat() if flight.last_updated else None,
-                    "atc_position_callsign": flight.atc_position.callsign if flight.atc_position else None,
-                    "sector_name": flight.sector.name if flight.sector else None
+                    "atc_position_callsign": flight.atc_position.callsign if flight.atc_position else None
                 })
             
             logger.info(f"Retrieved {len(flights_data)} active flights")
@@ -201,13 +199,12 @@ class QueryOptimizer:
             stats = db.query(
                 func.count(Controller.id).label('total_atc_positions'),
                 func.count(Flight.id).label('total_flights'),
-                func.count(Sector.id).label('total_sectors'),
+                # Sectors removed - table no longer exists
                 func.count(TrafficMovement.id).label('total_movements')
             ).outerjoin(
                 Flight, Flight.id.isnot(None)
             ).outerjoin(
-                Sector, Sector.id.isnot(None)
-            ).outerjoin(
+                # Sectors join removed - table no longer exists
                 TrafficMovement, TrafficMovement.id.isnot(None)
             ).filter(
                 and_(
@@ -219,7 +216,7 @@ class QueryOptimizer:
             return {
                 "atc_positions_count": stats.total_atc_positions or 0,
                 "flights_count": stats.total_flights or 0,
-                "sectors_count": stats.total_sectors or 0,
+                # "sectors_count": stats.total_sectors or 0,  # Removed - table no longer exists
                 "movements_count": stats.total_movements or 0,
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
@@ -229,7 +226,7 @@ class QueryOptimizer:
             return {
                 "atc_positions_count": 0,
                 "flights_count": 0,
-                "sectors_count": 0,
+                # "sectors_count": 0,  # Removed - table no longer exists
                 "movements_count": 0,
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
@@ -308,38 +305,11 @@ class QueryOptimizer:
     async def get_sector_workload_optimized(self, db: Session) -> List[Dict[str, Any]]:
         """Get sector workload with optimized query"""
         try:
-            # Use subquery for better performance
-            sector_workload = db.query(
-                Sector.id,
-                Sector.name,
-                Sector.facility,
-                Sector.status,
-                func.count(Flight.id).label('flight_count'),
-                func.avg(Flight.altitude).label('avg_altitude'),
-                func.max(Flight.altitude).label('max_altitude')
-            ).outerjoin(
-                Flight, Flight.sector_id == Sector.id
-            ).group_by(
-                Sector.id,
-                Sector.name,
-                Sector.facility,
-                Sector.status
-            ).order_by(
-                desc(text('flight_count'))
-            ).all()
+            # Sector workload analysis disabled - Sector table removed
+            # sector_workload = db.query(...)
             
             workload_data = []
-            for sector in sector_workload:
-                workload_data.append({
-                    "id": sector.id,
-                    "name": sector.name,
-                    "facility": sector.facility,
-                    "status": sector.status,
-                    "flight_count": sector.flight_count or 0,
-                    "avg_altitude": round(sector.avg_altitude or 0),
-                    "max_altitude": sector.max_altitude or 0,
-                    "workload_level": self._calculate_workload_level(sector.flight_count or 0)
-                })
+            # Sector workload data disabled - table no longer exists
             
             return workload_data
             
@@ -367,7 +337,7 @@ class QueryOptimizer:
             db.execute(text("ANALYZE"))
             
             # Update table statistics
-            tables = ["atc_positions", "flights", "sectors", "traffic_movements"]
+            tables = ["atc_positions", "flights", "traffic_movements"]
             for table in tables:
                 db.execute(text(f"ANALYZE {table}"))
             

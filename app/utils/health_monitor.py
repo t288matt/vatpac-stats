@@ -259,7 +259,7 @@ class HealthMonitor:
             }
     
     async def check_cache_health(self) -> Dict[str, Any]:
-        """Check Redis cache health"""
+        """Check in-memory cache health"""
         try:
             from app.services.cache_service import get_cache_service
             cache_service = await get_cache_service()

@@ -83,11 +83,11 @@
 
 ## 5. SECTORS
 
-**Note**: Sectors data is not available in the current VATSIM API v3. This is a known limitation.
+**Note**: Sectors data is not available in the current VATSIM API v3, and the sectors table has been removed from the database during cleanup.
 
 | VATSIM API Field | Current Code Field | Database Field | Status | Proposed Mapping |
 |------------------|-------------------|----------------|---------|------------------|
-| "sectors" | sectors | sectors | ❌ Not Available | Not available in API v3 |
+| "sectors" | N/A | N/A | ❌ Not Available | API v3 limitation + table removed |
 
 ## Summary
 

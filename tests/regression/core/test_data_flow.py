@@ -17,7 +17,7 @@ from typing import Dict, Any, List
 
 from app.services.vatsim_service import VATSIMService, VATSIMData
 from app.services.data_service import DataService
-from app.models import Flight, Controller, Sector, VatsimStatus, Transceiver
+from app.models import Flight, Controller, VatsimStatus, Transceiver
 from app.filters.flight_filter import FlightFilter
 from app.filters.geographic_boundary_filter import GeographicBoundaryFilter
 

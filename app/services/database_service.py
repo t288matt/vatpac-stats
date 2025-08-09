@@ -180,39 +180,7 @@ class DatabaseService(BaseService, DatabaseServiceInterface):
             await error_manager.handle_error(e, context)
             raise
     
-    @handle_service_errors
-    @log_operation("store_sectors")
-    async def store_sectors(self, sectors: List[Dict[str, Any]]) -> int:
-        """Store sector data using existing Sector model."""
-        try:
-            session = SessionLocal()
-            stored_count = 0
-            
-            for sector_data in sectors:
-                try:
-                    # Use existing Sector model (preserved unchanged)
-                    sector = Sector(**sector_data)
-                    session.add(sector)
-                    stored_count += 1
-                except Exception as e:
-                    self.logger.warning(f"Failed to store sector {sector_data.get('name', 'unknown')}: {e}")
-                    continue
-            
-            await session.commit()
-            session.close()
-            
-            self.logger.info(f"Stored {stored_count} sectors")
-            return stored_count
-            
-        except Exception as e:
-            self.logger.error(f"Failed to store sectors: {e}")
-            context = ErrorContext(
-                service_name="database_service",
-                operation="store_sectors",
-                metadata={"sector_count": len(sectors)}
-            )
-            await error_manager.handle_error(e, context)
-            raise
+    # Store sectors method removed - table no longer exists
     
     @handle_service_errors
     @log_operation("store_transceivers")
@@ -455,7 +423,7 @@ class DatabaseService(BaseService, DatabaseServiceInterface):
             # Get record counts
             flight_count = session.query(Flight).count()
             controller_count = session.query(Controller).count()
-            sector_count = session.query(Sector).count()
+            # Sector count removed - table no longer exists
             transceiver_count = session.query(Transceiver).count()
             
             # Get active counts
@@ -471,7 +439,7 @@ class DatabaseService(BaseService, DatabaseServiceInterface):
             stats = {
                 "total_flights": flight_count,
                 "total_controllers": controller_count,
-                "total_sectors": sector_count,
+                # Sectors removed - table no longer exists
                 "total_transceivers": transceiver_count,
                 "active_flights": active_flights,
                 "active_controllers": active_controllers,

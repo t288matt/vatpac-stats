@@ -54,9 +54,10 @@ from collections import defaultdict
 import time
 
 from ..database import SessionLocal
-from ..models import Controller, Flight, Sector, TrafficMovement, Transceiver
+from ..models import Controller, Flight, TrafficMovement, Transceiver
 from .vatsim_service import VATSIMService
-from .traffic_analysis_service import TrafficAnalysisService
+# Traffic analysis service temporarily disabled during table cleanup
+# from .traffic_analysis_service import TrafficAnalysisService
 from .base_service import DatabaseService
 from ..utils.error_handling import handle_service_errors, retry_on_failure, log_operation
 from ..filters.flight_filter import FlightFilter
@@ -231,10 +232,7 @@ class DataService(DatabaseService):
             else:
                 flights_data = []
                 
-            if hasattr(vatsim_data, 'sectors'):
-                sectors_data = vatsim_data.sectors
-            else:
-                sectors_data = []
+            # Sectors removed - VATSIM API v3 doesn't provide sectors data
             
             if hasattr(vatsim_data, 'transceivers'):
                 transceivers_data = [asdict(transceiver) for transceiver in vatsim_data.transceivers]
@@ -247,13 +245,12 @@ class DataService(DatabaseService):
             # Process flights in memory
             flights_count = await self._process_flights_in_memory(flights_data)
             
-            # Process sectors (if any)
-            sectors_count = await self._process_sectors_in_memory(sectors_data)
+            # Sectors processing removed - table no longer exists
             
             # Process transceivers in memory
             transceivers_count = await self._process_transceivers_in_memory(transceivers_data)
             
-            self.logger.info(f"Processed {len(flights_data)} flights, {len(atc_positions_data)} ATC positions, {len(sectors_data)} sectors, {len(transceivers_data)} transceivers")
+            self.logger.info(f"Processed {len(flights_data)} flights, {len(atc_positions_data)} ATC positions, {len(transceivers_data)} transceivers")
             
         except Exception as e:
             self.logger.error(f"Error processing data in memory: {e}")
@@ -422,14 +419,7 @@ class DataService(DatabaseService):
             self.logger.error(f"Error processing flights in memory: {e}")
             return 0
     
-    async def _process_sectors_in_memory(self, sectors_data: List[Dict[str, Any]]) -> int:
-        """Process sectors in memory cache"""
-        try:
-            # Sectors processing in memory (minimal for now)
-            return len(sectors_data)
-        except Exception as e:
-            self.logger.error(f"Error processing sectors in memory: {e}")
-            return 0
+    # Sectors processing method removed - table no longer exists
     
     async def _process_transceivers_in_memory(self, transceivers_data: List[Dict[str, Any]]) -> int:
         """Process transceivers in memory cache"""
@@ -505,14 +495,7 @@ class DataService(DatabaseService):
                     
                     self.logger.info(f"Flushed {len(transceivers_data)} transceivers to disk")
                 
-                # Process sectors from memory buffer
-                sectors_data = self.cache['memory_buffer'].get('sectors', [])
-                if sectors_data:
-                    for sector_data in sectors_data:
-                        stmt = postgresql_insert(Sector).values(**sector_data)
-                        db.execute(stmt)
-                    
-                    self.logger.info(f"Flushed {len(sectors_data)} sectors to disk")
+                # Sectors processing removed - table no longer exists
                 
                 # VATSIM status processing removed (unused table)
                 
@@ -521,7 +504,7 @@ class DataService(DatabaseService):
                 
                 # Clear memory buffers after successful write
                 self.cache['memory_buffer']['transceivers'].clear()
-                self.cache['memory_buffer']['sectors'].clear()
+                # Sectors buffer removed - table no longer exists
                 
             except Exception as e:
                 db.rollback()

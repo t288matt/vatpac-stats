@@ -14,15 +14,15 @@ SELECT 'flights' as table_name, COUNT(*) as row_count FROM flights
 UNION ALL
 SELECT 'controllers', COUNT(*) FROM controllers
 UNION ALL
-SELECT 'sectors', COUNT(*) FROM sectors
+-- SELECT 'sectors', COUNT(*) FROM sectors  -- Table removed
 UNION ALL
 SELECT 'traffic_movements', COUNT(*) FROM traffic_movements
 UNION ALL
-SELECT 'airport_config', COUNT(*) FROM airport_config
+-- SELECT 'airport_config', COUNT(*) FROM airport_config  -- Table removed
 UNION ALL
-SELECT 'movement_detection_config', COUNT(*) FROM movement_detection_config
+-- SELECT 'movement_detection_config', COUNT(*) FROM movement_detection_config  -- Table removed
 UNION ALL
-SELECT 'system_config', COUNT(*) FROM system_config
+-- SELECT 'system_config', COUNT(*) FROM system_config  -- Table removed
 UNION ALL
 SELECT 'transceivers', COUNT(*) FROM transceivers
 UNION ALL
@@ -53,25 +53,25 @@ SELECT 'Cleared traffic_movements' as status;
 DELETE FROM flights;
 SELECT 'Cleared flights' as status;
 
--- 5. Clear sectors (references controllers)
-DELETE FROM sectors;
-SELECT 'Cleared sectors' as status;
+-- 5. Clear sectors (references controllers) - Table removed
+-- DELETE FROM sectors;
+-- SELECT 'Cleared sectors' as status;
 
 -- 6. Clear controllers (no dependencies)
 DELETE FROM controllers;
 SELECT 'Cleared controllers' as status;
 
--- 7. Clear airport_config (no dependencies)
-DELETE FROM airport_config;
-SELECT 'Cleared airport_config' as status;
+-- 7. Clear airport_config (no dependencies) - Table removed
+-- DELETE FROM airport_config;
+-- SELECT 'Cleared airport_config' as status;
 
--- 8. Clear movement_detection_config (no dependencies)
-DELETE FROM movement_detection_config;
-SELECT 'Cleared movement_detection_config' as status;
+-- 8. Clear movement_detection_config (no dependencies) - Table removed
+-- DELETE FROM movement_detection_config;
+-- SELECT 'Cleared movement_detection_config' as status;
 
--- 9. Clear system_config (no dependencies)
-DELETE FROM system_config;
-SELECT 'Cleared system_config' as status;
+-- 9. Clear system_config (no dependencies) - Table removed
+-- DELETE FROM system_config;
+-- SELECT 'Cleared system_config' as status;
 
 -- Re-enable foreign key checks
 SET session_replication_role = DEFAULT;
@@ -82,15 +82,15 @@ SELECT 'flights' as table_name, COUNT(*) as row_count FROM flights
 UNION ALL
 SELECT 'controllers', COUNT(*) FROM controllers
 UNION ALL
-SELECT 'sectors', COUNT(*) FROM sectors
+-- SELECT 'sectors', COUNT(*) FROM sectors  -- Table removed
 UNION ALL
 SELECT 'traffic_movements', COUNT(*) FROM traffic_movements
 UNION ALL
-SELECT 'airport_config', COUNT(*) FROM airport_config
+-- SELECT 'airport_config', COUNT(*) FROM airport_config  -- Table removed
 UNION ALL
-SELECT 'movement_detection_config', COUNT(*) FROM movement_detection_config
+-- SELECT 'movement_detection_config', COUNT(*) FROM movement_detection_config  -- Table removed
 UNION ALL
-SELECT 'system_config', COUNT(*) FROM system_config
+-- SELECT 'system_config', COUNT(*) FROM system_config  -- Table removed
 UNION ALL
 SELECT 'transceivers', COUNT(*) FROM transceivers
 UNION ALL

@@ -22,8 +22,8 @@ from typing import List, Dict, Any
 
 from app.database import SessionLocal, get_database_info
 from app.models import (
-    Flight, Controller, Sector, TrafficMovement, FlightSummary,
-    Transceiver, VatsimStatus, FrequencyMatch, Airports, AirportConfig
+    Flight, Controller, TrafficMovement, FlightSummary,
+    Transceiver, VatsimStatus, FrequencyMatch, Airports
 )
 
 
@@ -40,9 +40,8 @@ class TestDatabaseSchemaIntegrity:
         existing_tables = set(inspector.get_table_names())
         
         expected_tables = {
-            "flights", "controllers", "sectors", "traffic_movements",
-            "transceivers", "frequency_matches", "airports", 
-            "airport_config", "movement_detection_config", "system_config"
+            "flights", "controllers", "traffic_movements",
+            "transceivers", "frequency_matches", "airports"
         }
         
         missing_tables = expected_tables - existing_tables
@@ -255,37 +254,10 @@ class TestDatabaseConstraints:
         db_session.add(controller)
         db_session.commit()
         
-        # Create sector linked to controller
-        sector = Sector(
-            name="TEST_SECTOR",
-            facility="Test Facility",
-            controller_id=controller.id,  # Valid foreign key
-            status="manned"
-        )
-        
-        db_session.add(sector)
-        db_session.commit()
-        
-        # Verify relationship works
-        assert sector.controller is not None
-        assert sector.controller.callsign == "TEST_CTR"
-        assert len(controller.sectors) == 1
-        assert controller.sectors[0].name == "TEST_SECTOR"
-        
-        # Try to create sector with invalid controller_id - should fail
-        invalid_sector = Sector(
-            name="INVALID_SECTOR",
-            facility="Test Facility",
-            controller_id=99999,  # Non-existent controller
-            status="unmanned"
-        )
-        
-        db_session.add(invalid_sector)
-        
-        with pytest.raises(IntegrityError):
-            db_session.commit()
-        
-        db_session.rollback()
+        # Sector model removed - skipping sector relationship tests
+        # Test passes if controller can be created successfully
+        assert controller.id is not None
+        assert controller.callsign == "TEST_CTR"
     
     def test_not_null_constraints(self, db_session, clean_database):
         """
@@ -325,9 +297,9 @@ class TestDatabaseConstraints:
 class TestModelRelationships:
     """Test model relationships work correctly"""
     
-    def test_controller_sector_relationship(self, db_session, clean_database):
+    def test_controller_relationships(self, db_session, clean_database):
         """
-        Test Controller ↔ Sector relationship works correctly
+        Test Controller relationships work correctly (Sector relationship removed)
         """
         # Create controller
         controller = Controller(
@@ -340,41 +312,17 @@ class TestModelRelationships:
         db_session.add(controller)
         db_session.commit()
         
-        # Create multiple sectors for this controller
-        sector1 = Sector(
-            name="SY_APP_01",
-            facility="Sydney",
-            controller_id=controller.id,
-            status="manned"
-        )
-        
-        sector2 = Sector(
-            name="SY_APP_02", 
-            facility="Sydney",
-            controller_id=controller.id,
-            status="manned"
-        )
-        
-        db_session.add_all([sector1, sector2])
-        db_session.commit()
-        
-        # Test forward relationship (controller -> sectors)
-        assert len(controller.sectors) == 2
-        sector_names = [s.name for s in controller.sectors]
-        assert "SY_APP_01" in sector_names
-        assert "SY_APP_02" in sector_names
-        
-        # Test reverse relationship (sector -> controller)
-        assert sector1.controller is not None
-        assert sector1.controller.callsign == "SY_APP"
-        assert sector2.controller is not None
-        assert sector2.controller.callsign == "SY_APP"
+        # Test controller was created successfully
+        assert controller.id is not None
+        assert controller.callsign == "SY_APP"
+        assert controller.controller_id == 123456
+        assert controller.controller_name == "Sydney Approach"
     
     def test_flight_summary_relationships(self, db_session, clean_database):
         """
-        Test FlightSummary relationships to Controller and Sector
+        Test FlightSummary relationships to Controller (Sector relationship removed)
         """
-        # Create controller and sector
+        # Create controller
         controller = Controller(
             callsign="TEST_CTR",
             controller_id=123456,
@@ -385,17 +333,7 @@ class TestModelRelationships:
         db_session.add(controller)
         db_session.commit()
         
-        sector = Sector(
-            name="TEST_SECTOR",
-            facility="Test",
-            controller_id=controller.id,
-            status="manned"
-        )
-        
-        db_session.add(sector)
-        db_session.commit()
-        
-        # Create flight summary with relationships
+        # Create flight summary with controller relationship (sector_id removed)
         flight_summary = FlightSummary(
             callsign="TEST123",
             aircraft_type="B738",
@@ -403,18 +341,15 @@ class TestModelRelationships:
             arrival="YBBN",
             max_altitude=35000,
             duration_minutes=120,
-            controller_id=controller.id,
-            sector_id=sector.id
+            controller_id=controller.id
         )
         
         db_session.add(flight_summary)
         db_session.commit()
         
-        # Test relationships
+        # Test controller relationship
         assert flight_summary.controller is not None
         assert flight_summary.controller.callsign == "TEST_CTR"
-        assert flight_summary.sector is not None
-        assert flight_summary.sector.name == "TEST_SECTOR"
 
 
 @pytest.mark.regression
@@ -603,8 +538,8 @@ class TestDatabaseMigrations:
         Test all model classes can be instantiated without errors
         """
         models_to_test = [
-            Flight, Controller, Sector, TrafficMovement, FlightSummary,
-            Transceiver, VatsimStatus, FrequencyMatch, Airports, AirportConfig
+            Flight, Controller, TrafficMovement, FlightSummary,
+            Transceiver, VatsimStatus, FrequencyMatch, Airports
         ]
         
         for model_class in models_to_test:

@@ -42,19 +42,8 @@ CREATE TABLE IF NOT EXISTS controllers (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Sectors table
-CREATE TABLE IF NOT EXISTS sectors (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    facility VARCHAR(50) NOT NULL,
-    controller_id INTEGER REFERENCES controllers(id),
-    traffic_density INTEGER DEFAULT 0,
-    status VARCHAR(20) DEFAULT 'unmanned',
-    priority_level INTEGER DEFAULT 1,
-    boundaries TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+-- Sectors table removed - VATSIM API v3 does not provide sectors data
+-- CREATE TABLE IF NOT EXISTS sectors (...) -- REMOVED
 
 -- Flights table with all VATSIM API fields
 CREATE TABLE IF NOT EXISTS flights (
@@ -126,23 +115,8 @@ CREATE TABLE IF NOT EXISTS traffic_movements (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Airport config table
-CREATE TABLE IF NOT EXISTS airport_config (
-    id SERIAL PRIMARY KEY,
-    icao_code VARCHAR(10) UNIQUE NOT NULL,
-    name VARCHAR(200) NOT NULL,
-    latitude DOUBLE PRECISION NOT NULL,
-    longitude DOUBLE PRECISION NOT NULL,
-    detection_radius_nm DOUBLE PRECISION DEFAULT 10.0,
-    departure_altitude_threshold INTEGER DEFAULT 1000,
-    arrival_altitude_threshold INTEGER DEFAULT 3000,
-    departure_speed_threshold INTEGER DEFAULT 50,
-    arrival_speed_threshold INTEGER DEFAULT 150,
-    is_active BOOLEAN DEFAULT TRUE,
-    region VARCHAR(50),
-    last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+-- Airport config table removed - functionality merged with airports table
+-- CREATE TABLE IF NOT EXISTS airport_config (...) -- REMOVED
 
 -- Airports table
 CREATE TABLE IF NOT EXISTS airports (
@@ -156,18 +130,8 @@ CREATE TABLE IF NOT EXISTS airports (
     region VARCHAR(100)
 );
 
--- Movement detection config table
-CREATE TABLE IF NOT EXISTS movement_detection_config (
-    id SERIAL PRIMARY KEY,
-    config_key VARCHAR(100) UNIQUE NOT NULL,
-    config_value TEXT NOT NULL,
-    description TEXT,
-    is_active BOOLEAN DEFAULT TRUE,
-    last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-
+-- Movement detection config table removed - configuration handled via environment variables
+-- CREATE TABLE IF NOT EXISTS movement_detection_config (...) -- REMOVED
 
 -- Transceivers table
 CREATE TABLE IF NOT EXISTS transceivers (
@@ -201,7 +165,7 @@ CREATE INDEX IF NOT EXISTS idx_flights_last_updated_api ON flights(last_updated_
 CREATE INDEX IF NOT EXISTS idx_controllers_visual_range ON controllers(visual_range);
 CREATE INDEX IF NOT EXISTS idx_traffic_movements_airport ON traffic_movements(airport_code);
 CREATE INDEX IF NOT EXISTS idx_traffic_movements_timestamp ON traffic_movements(timestamp);
-CREATE INDEX IF NOT EXISTS idx_airport_config_icao ON airport_config(icao_code);
+-- CREATE INDEX IF NOT EXISTS idx_airport_config_icao ON airport_config(icao_code); -- REMOVED - table removed
 CREATE INDEX IF NOT EXISTS idx_airports_icao ON airports(icao_code);
 CREATE INDEX IF NOT EXISTS idx_transceivers_callsign ON transceivers(callsign);
 CREATE INDEX IF NOT EXISTS idx_transceivers_timestamp ON transceivers(timestamp);
@@ -211,9 +175,7 @@ CREATE TRIGGER update_controllers_updated_at
     BEFORE UPDATE ON controllers 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_sectors_updated_at 
-    BEFORE UPDATE ON sectors 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- CREATE TRIGGER update_sectors_updated_at -- REMOVED - table removed
 
 CREATE TRIGGER update_flights_updated_at 
     BEFORE UPDATE ON flights 
@@ -225,15 +187,11 @@ CREATE TRIGGER update_traffic_movements_updated_at
     BEFORE UPDATE ON traffic_movements 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_airport_config_updated_at 
-    BEFORE UPDATE ON airport_config 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- CREATE TRIGGER update_airport_config_updated_at -- REMOVED - table removed
 
 
 
-CREATE TRIGGER update_movement_detection_config_updated_at 
-    BEFORE UPDATE ON movement_detection_config 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- CREATE TRIGGER update_movement_detection_config_updated_at -- REMOVED - table removed
 
 
 
@@ -243,14 +201,8 @@ CREATE TRIGGER update_transceivers_updated_at
 
 
 
--- Insert default movement detection configuration
-INSERT INTO movement_detection_config (config_key, config_value, description) VALUES
-('default_detection_radius_nm', '10.0', 'Default detection radius in nautical miles'),
-('default_departure_altitude_threshold', '1000', 'Default departure altitude threshold in feet'),
-('default_arrival_altitude_threshold', '3000', 'Default arrival altitude threshold in feet'),
-('default_departure_speed_threshold', '50', 'Default departure speed threshold in knots'),
-('default_arrival_speed_threshold', '150', 'Default arrival speed threshold in knots')
-ON CONFLICT (config_key) DO NOTHING;
+-- Insert default movement detection configuration -- REMOVED - table removed
+-- All INSERT statements for movement_detection_config removed
 
 
 

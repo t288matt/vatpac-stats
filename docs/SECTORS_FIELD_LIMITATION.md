@@ -83,50 +83,14 @@ def parse_sectors(self, data: Dict) -> List[Dict]:
     return sectors
 ```
 
-### Database Processing
+### Database Processing (Historical Reference)
 
-```python
-# In app/data_ingestion.py
-async def _process_sectors(self, sectors_data: List[Dict[str, Any]], db: Session):
-    """
-    Process and store sector data.
-    
-    SECTORS FIELD LIMITATION:
-    =========================
-    The 'sectors' field is completely missing from VATSIM API v3. This method
-    processes sector data that is created by fallback behavior in the parsing
-    layer, not from actual API data.
-    """
-    try:
-        for sector_data in sectors_data:
-            # Extract sector information
-            name = sector_data.get("name", "")
-            facility = sector_data.get("facility", "")
-            status = "unmanned"  # Default status
-            
-            # Check if sector already exists
-            existing_sector = db.query(Sector).filter(
-                Sector.name == name,
-                Sector.facility == facility
-            ).first()
-            
-            if not existing_sector:
-                # Create new sector
-                new_sector = Sector(
-                    name=name,
-                    facility=facility,
-                    status=status,
-                    traffic_density=0,
-                    priority_level=1
-                )
-                db.add(new_sector)
-        
-        logger.info(f"Processed {len(sectors_data)} sectors")
-        
-    except Exception as e:
-        logger.error(f"Error processing sectors: {e}")
-        raise
-```
+**IMPORTANT**: The sectors table and Sector model have been removed from the system as part of database cleanup. This section is kept for historical reference only.
+
+The sectors processing functionality is no longer available due to:
+1. VATSIM API v3 not providing sectors data
+2. Database cleanup removing unused tables
+3. System optimization focusing on actively used features
 
 ## Database Impact
 
@@ -144,12 +108,12 @@ CREATE TABLE IF NOT EXISTS sectors (
 );
 ```
 
-### Current Data State
-- **Table Exists**: Yes, with proper schema
-- **Data Population**: Minimal, mostly empty
-- **Relationships**: Controller-Sector relationships not populated
-- **Queries**: Sector-based queries return limited results
-- **Storage Impact**: Minimal
+### Current Data State (Updated)
+- **Table Exists**: No, removed during database cleanup
+- **Data Population**: N/A - table removed
+- **Relationships**: Controller-Sector relationships removed
+- **Queries**: Sector-based queries no longer supported
+- **Storage Impact**: Zero (table removed)
 
 ### Fallback Data Structure
 ```python

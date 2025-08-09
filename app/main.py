@@ -25,7 +25,7 @@ ENDPOINTS:
 
 DEPENDENCIES:
 - PostgreSQL database
-- Redis cache
+- In-memory cache
 - VATSIM API
 - Background data ingestion service
 """
@@ -42,12 +42,13 @@ from sqlalchemy import and_, desc, text
 
 # Config imports removed as they were unused
 from .database import get_db, init_db, get_database_info, SessionLocal
-from .models import Controller, Flight, TrafficMovement, Transceiver
+from .models import Controller, Flight, TrafficMovement, Transceiver, Airports
 from .utils.logging import get_logger_for_module
 from .utils.rating_utils import get_all_ratings, validate_rating
 from .services.vatsim_service import get_vatsim_service
 from .services.data_service import get_data_service
-from .services.traffic_analysis_service import get_traffic_analysis_service
+# Traffic analysis service temporarily disabled during table cleanup
+# from .services.traffic_analysis_service import get_traffic_analysis_service
 from .services.cache_service import get_cache_service
 from .services.query_optimizer import get_query_optimizer
 from .services.resource_manager import get_resource_manager
@@ -142,7 +143,7 @@ async def lifespan(app: FastAPI):
             'cache_service': await get_cache_service(),
             'vatsim_service': get_vatsim_service(),
             'data_service': get_data_service(),
-            'traffic_analysis_service': get_traffic_analysis_service(service_db),
+            # 'traffic_analysis_service': get_traffic_analysis_service(service_db),  # Temporarily disabled
             'query_optimizer': get_query_optimizer(),
             'resource_manager': get_resource_manager(),
             # Phase 3 services
@@ -265,7 +266,7 @@ async def get_status(db: Session = Depends(get_db)):
                 flights_count = 0
         
         try:
-            airports_count = db.query(AirportConfig).count()
+            airports_count = db.query(Airports).count()
         except Exception as e:
             logger.error(f"Error querying airports: {e}")
             airports_count = 0
@@ -473,12 +474,11 @@ async def get_network_status(db: Session = Depends(get_db)):
     # Get network data from database
     atc_count = db.query(Controller).filter(Controller.status == "online").count()
     flight_count = db.query(Flight).count()
-    sector_count = db.query(Sector).count()
+    # Sectors removed - VATSIM API v3 doesn't provide sectors data
     
     status = {
         "total_controllers": atc_count,
         "total_flights": flight_count,
-        "total_sectors": sector_count,
         "last_update": datetime.now(timezone.utc).isoformat()
     }
     
@@ -1037,8 +1037,10 @@ async def optimize_performance(db: Session = Depends(get_db)):
 @log_operation("get_traffic_dashboard")
 async def get_traffic_dashboard():
     """Get traffic dashboard HTML"""
-    traffic_service = get_traffic_analysis_service()
-    dashboard_data = await traffic_service.generate_dashboard_data()
+    # Traffic analysis service temporarily disabled
+    # traffic_service = get_traffic_analysis_service()
+    # dashboard_data = await traffic_service.generate_dashboard_data()
+    dashboard_data = {"message": "Traffic analysis temporarily disabled during database cleanup"}
     
     return dashboard_data
 
@@ -1232,7 +1234,7 @@ async def get_data_ingestion_diagnostic(db: Session = Depends(get_db)):
         # Check database state
         total_flights = db.query(Flight).count()
         total_controllers = db.query(Controller).count()
-        total_airports = db.query(AirportConfig).count()
+        total_airports = db.query(Airports).count()
         total_transceivers = db.query(Transceiver).count() if 'Transceiver' in globals() else 0
         
         # Check recent data

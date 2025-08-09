@@ -143,7 +143,7 @@ class LoggingConfig:
 
 
 @dataclass
-class AirportConfig:
+class AirportsConfig:
     """Airport configuration with no hardcoding."""
     coordinates_file: Optional[str] = None
     api_url: Optional[str] = None
@@ -318,7 +318,7 @@ class AppConfig:
     api: APIConfig
     logging: LoggingConfig
 
-    airports: AirportConfig
+    airports: AirportsConfig
     pilots: PilotConfig
     flight_filter: FlightFilterConfig
     environment: str = "development"
@@ -333,7 +333,7 @@ class AppConfig:
             api=APIConfig.from_env(),
             logging=LoggingConfig.from_env(),
 
-            airports=AirportConfig.from_env(),
+            airports=AirportsConfig.from_env(),
             pilots=PilotConfig.from_env(),
             flight_filter=FlightFilterConfig.from_env(),
             environment=os.getenv("ENVIRONMENT", "development")

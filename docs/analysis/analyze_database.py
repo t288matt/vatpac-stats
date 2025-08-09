@@ -41,7 +41,7 @@ def analyze_database():
         logger.info("\n📈 RECORD COUNTS")
         logger.info("-" * 30)
         
-        for table in ['atc_positions', 'flights', 'traffic_movements', 'sectors']:
+        for table in ['controllers', 'flights', 'traffic_movements', 'transceivers', 'frequency_matches', 'airports']:
             if table in tables:
                 cursor.execute(f"SELECT COUNT(*) FROM {table}")
                 count = cursor.fetchone()[0]
