@@ -629,23 +629,43 @@ class VATSIMService(BaseService):
         
         return transceivers
     
-    async def health_check(self) -> bool:
+    async def health_check(self) -> Dict[str, Any]:
         """
         Perform health check on VATSIM API.
         
         Returns:
-            bool: True if API is accessible, False otherwise
+            Dict[str, Any]: Health check result with status and details
         """
         try:
             await self._create_client()
             response = await self.client.get(self.config.vatsim.api_url)
-            return response.status_code == 200
+            
+            if response.status_code == 200:
+                return {
+                    "status": "healthy",
+                    "message": "VATSIM API accessible",
+                    "status_code": response.status_code,
+                    "response_time": response.elapsed.total_seconds() if hasattr(response, 'elapsed') else None,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+            else:
+                return {
+                    "status": "unhealthy",
+                    "message": f"VATSIM API returned status code {response.status_code}",
+                    "status_code": response.status_code,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
             
         except Exception as e:
             self.logger.error("VATSIM API health check failed", extra={
                 "error": str(e)
             })
-            return False
+            return {
+                "status": "error",
+                "message": "VATSIM API health check failed",
+                "error": str(e),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
     
     async def get_api_status(self) -> Dict[str, Any]:
         """
