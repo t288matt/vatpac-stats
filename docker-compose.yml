@@ -32,13 +32,8 @@ services:
       # Database Configuration
       DATABASE_URL: postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data
       
-      # API Configuration
-      API_HOST: 0.0.0.0
-      API_PORT: 8001
-      PYTHONUNBUFFERED: 1
-      
-      # Centralized Error Handling
-      # Error handling simplified - using basic error handling decorators
+      # Simplified Architecture - Sprint 2 Completed
+      # Service management simplified - direct service calls without abstraction layers
       LOG_LEVEL: "INFO"
       
       # Production Settings
@@ -73,16 +68,13 @@ services:
       API_RELOAD: "false"            # Enable API auto-reload
       CORS_ORIGINS: "*"              # CORS allowed origins
       
-
-      
-
+      # Simplified Service Architecture
+      # Over-engineered service management removed - direct service initialization
       
       # Logging Configuration
       LOG_FORMAT: "json"
       LOG_MAX_FILE_SIZE: 10485760    # 10MB in bytes
       LOG_BACKUP_COUNT: 5
-      
-
       
       # Flight Filter Configuration (Airport-based)
       FLIGHT_FILTER_ENABLED: "true"

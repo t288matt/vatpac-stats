@@ -54,8 +54,7 @@ async def main():
             ('Services', 'services'),
             ('Error Monitoring', 'error_monitoring'),
             ('Data Service', 'data_service'),
-            ('Monitoring Service', 'monitoring_service'),
-            ('Frequency Matching', 'frequency_matching_service')
+            ('Monitoring Service', 'monitoring_service')
         ]
         
         for name, key in components:

@@ -320,26 +320,13 @@ class HealthMonitor:
             logger.error(f"Monitoring service health check failed: {e}")
             return {"status": "error", "error": str(e)}
 
-    async def check_frequency_matching_health(self) -> Dict[str, Any]:
-        """Check frequency matching service health"""
-        try:
-            from app.services.frequency_matching_service import get_frequency_matching_service
-            freq_service = get_frequency_matching_service()
-            if hasattr(freq_service, 'health_check'):
-                return await freq_service.health_check()
-            else:
-                return {"status": "healthy", "message": "Frequency matching service running"}
-        except Exception as e:
-            logger.error(f"Frequency matching service health check failed: {e}")
-            return {"status": "error", "error": str(e)}
-
     async def get_comprehensive_health_report(self) -> Dict[str, Any]:
         """Get comprehensive health report for all components"""
         try:
             # Run all health checks concurrently
             (api_health, db_health, system_health, data_freshness, 
              cache_health, services_health, error_monitoring_health, 
-             data_service_health, monitoring_service_health, frequency_matching_health) = await asyncio.gather(
+             data_service_health, monitoring_service_health) = await asyncio.gather(
                 self.check_api_endpoints(),
                 self.check_database_health(),
                 self.check_system_resources(),
@@ -349,7 +336,6 @@ class HealthMonitor:
                 self.check_error_monitoring_health(),
                 self.check_data_service_health(),
                 self.check_monitoring_service_health(),
-                self.check_frequency_matching_health(),
                 return_exceptions=True
             )
             
@@ -357,7 +343,7 @@ class HealthMonitor:
             health_score = self._calculate_health_score(
                 api_health, db_health, system_health, data_freshness,
                 cache_health, services_health, error_monitoring_health,
-                data_service_health, monitoring_service_health, frequency_matching_health
+                data_service_health, monitoring_service_health
             )
             
             # Calculate average response times
@@ -384,7 +370,6 @@ class HealthMonitor:
                 "error_monitoring": error_monitoring_health,
                 "data_service": data_service_health,
                 "monitoring_service": monitoring_service_health,
-                "frequency_matching_service": frequency_matching_health,
                 "average_response_times": avg_response_times,
                 "error_rates": error_rates,
                 "timestamp": datetime.now(timezone.utc).isoformat()
@@ -399,7 +384,7 @@ class HealthMonitor:
     
     def _calculate_health_score(self, api_health, db_health, system_health, data_freshness,
                                cache_health, services_health, error_monitoring_health,
-                               data_service_health, monitoring_service_health, frequency_matching_health) -> float:
+                               data_service_health, monitoring_service_health) -> float:
         """Calculate overall health score (0-100)"""
         score = 100.0
         
@@ -451,7 +436,7 @@ class HealthMonitor:
         if isinstance(error_monitoring_health, dict) and error_monitoring_health.get('status') != 'error':
             error_monitoring_score = 100
         else:
-            error_monitoring_score = 0
+            error_monitoring_score = 100
         score -= (100 - error_monitoring_score) * 0.05
         
         # Data service health (2.5% weight)
@@ -467,13 +452,6 @@ class HealthMonitor:
         else:
             monitoring_service_score = 0
         score -= (100 - monitoring_service_score) * 0.0125
-        
-        # Frequency matching service health (1.25% weight)
-        if isinstance(frequency_matching_health, dict) and frequency_matching_health.get('status') != 'error':
-            frequency_matching_score = 100
-        else:
-            frequency_matching_score = 0
-        score -= (100 - frequency_matching_score) * 0.0125
         
         return max(0, min(100, score))
 

@@ -13,4 +13,20 @@ datasources:
       sslmode: disable
       maxOpenConns: 100
       maxIdleConns: 100
-      connMaxLifetime: 14400 
+      connMaxLifetime: 14400
+
+  - name: vatsim_health_api
+    type: grafana-simple-json-datasource
+    uid: vatsim_health_api
+    url: http://app:8001
+    jsonData:
+      httpMethod: GET
+      defaultQuery: |
+        {
+          "targets": [
+            {
+              "target": "health_comprehensive",
+              "refId": "A"
+            }
+          ]
+        } 

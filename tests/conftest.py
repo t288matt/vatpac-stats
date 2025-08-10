@@ -21,9 +21,12 @@ from app.services.database_service import DatabaseService
 # REMOVED: Traffic Analysis Service - Phase 2
 
 from app.services.resource_manager import ResourceManager
-from app.services.event_bus import EventBus
-from app.services.service_manager import ServiceManager
-from app.services.lifecycle_manager import LifecycleManager
+# REMOVED: Event Bus - unused messaging system
+# from app.services.event_bus import EventBus
+# REMOVED: Service Manager - over-engineered service orchestration
+# from app.services.service_manager import ServiceManager
+# REMOVED: Lifecycle Manager - over-engineered lifecycle management
+# from app.services.lifecycle_manager import LifecycleManager
 
 
 @pytest.fixture(scope="session")
@@ -287,43 +290,6 @@ def mock_resource_manager() -> Mock:
     mock_service.get_resource_usage = Mock(return_value={})
     mock_service.allocate_resources = Mock()
     mock_service.release_resources = Mock()
-    mock_service.is_healthy = Mock(return_value=True)
-    mock_service.get_service_info = Mock(return_value={"status": "healthy"})
-    return mock_service
-
-
-@pytest.fixture
-def mock_event_bus() -> Mock:
-    """Mock event bus for testing."""
-    mock_service = Mock(spec=EventBus)
-    mock_service.publish = AsyncMock()
-    mock_service.subscribe = Mock()
-    mock_service.unsubscribe = Mock()
-    mock_service.is_healthy = Mock(return_value=True)
-    mock_service.get_service_info = Mock(return_value={"status": "healthy"})
-    return mock_service
-
-
-@pytest.fixture
-def mock_service_manager() -> Mock:
-    """Mock service manager for testing."""
-    mock_service = Mock(spec=ServiceManager)
-    mock_service.start_service = AsyncMock()
-    mock_service.stop_service = AsyncMock()
-    mock_service.restart_service = AsyncMock()
-    mock_service.get_service_status = Mock(return_value="running")
-    mock_service.is_healthy = Mock(return_value=True)
-    mock_service.get_service_info = Mock(return_value={"status": "healthy"})
-    return mock_service
-
-
-@pytest.fixture
-def mock_lifecycle_manager() -> Mock:
-    """Mock lifecycle manager for testing."""
-    mock_service = Mock(spec=LifecycleManager)
-    mock_service.start = AsyncMock()
-    mock_service.stop = AsyncMock()
-    mock_service.restart = AsyncMock()
     mock_service.is_healthy = Mock(return_value=True)
     mock_service.get_service_info = Mock(return_value={"status": "healthy"})
     return mock_service

@@ -60,14 +60,9 @@ from .filters.flight_filter import FlightFilter
 # Error manager removed - using simplified error handling
 from .services.database_service import get_database_service
 
-# Import new service management components
-# from .services.service_manager import ServiceManager  # DISABLED - causing failures
-from .services.event_bus import get_event_bus, publish_event
-
 # Import Phase 3 services
 from .services.monitoring_service import get_monitoring_service
 from .services.performance_monitor import get_performance_monitor
-from .services.frequency_matching_service import FrequencyMatchingService, FrequencyMatch, FrequencyMatchSummary, CommunicationPattern
 
 # Configure logging
 logger = get_logger_for_module(__name__)
@@ -75,14 +70,8 @@ logger = get_logger_for_module(__name__)
 # Initialize centralized error handler
 error_handler = create_error_handler("main_api")
 
-# DISABLED: Global service manager - causing failures
-# service_manager: Optional[ServiceManager] = None
-
 # Background task for data ingestion
 background_task = None
-
-# Initialize frequency matching service
-frequency_matching_service = FrequencyMatchingService()
 
 @handle_service_errors
 @log_operation("background_data_ingestion")
@@ -128,12 +117,6 @@ async def lifespan(app: FastAPI):
         finally:
             db.close()
         
-        # DISABLED: Service Manager - causing failures
-        # service_manager = ServiceManager()
-        # services = {...}
-        # await service_manager.register_services(services)
-        # start_results = await service_manager.start_all_services()
-        
         # Simple service initialization (working pattern)
         logger.info("Initializing services with simple pattern...")
         
@@ -150,11 +133,12 @@ async def lifespan(app: FastAPI):
         
         # Publish service started event
         try:
-            event_bus = await get_event_bus()
-            await publish_event("SERVICE_STARTED", {
-                "service": "main_application",
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
+            # event_bus = await get_event_bus() # REMOVED - unused messaging system
+            # await publish_event("SERVICE_STARTED", { # REMOVED - unused messaging system
+            #     "service": "main_application", # REMOVED - unused messaging system
+            #     "timestamp": datetime.now(timezone.utc).isoformat() # REMOVED - unused messaging system
+            # }) # REMOVED - unused messaging system
+            pass # REMOVED - unused messaging system
         except Exception as e:
             logger.warning(f"Could not publish service started event: {e}")
         
@@ -178,11 +162,12 @@ async def lifespan(app: FastAPI):
         
         # Publish service stopped event
         try:
-            event_bus = await get_event_bus()
-            await publish_event("SERVICE_STOPPED", {
-                "service": "main_application",
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
+            # event_bus = await get_event_bus() # REMOVED - unused messaging system
+            # await publish_event("SERVICE_STOPPED", { # REMOVED - unused messaging system
+            #     "service": "main_application", # REMOVED - unused messaging system
+            #     "timestamp": datetime.now(timezone.utc).isoformat() # REMOVED - unused messaging system
+            # }) # REMOVED - unused messaging system
+            pass # REMOVED - unused messaging system
         except Exception as e:
             logger.error(f"Error publishing service stopped event: {e}")
 
@@ -434,12 +419,17 @@ async def get_services_health():
 async def get_events_status():
     """Get event bus status and statistics"""
     try:
-        event_bus = await get_event_bus()
-        return {
-            "event_bus_status": await event_bus.health_check(),
-            "statistics": event_bus.get_statistics(),
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
+        # event_bus = await get_event_bus() # REMOVED - unused messaging system
+        # return { # REMOVED - unused messaging system
+        #     "event_bus_status": await event_bus.health_check(), # REMOVED - unused messaging system
+        #     "statistics": event_bus.get_statistics(), # REMOVED - unused messaging system
+        #     "timestamp": datetime.now(timezone.utc).isoformat() # REMOVED - unused messaging system
+        # } # REMOVED - unused messaging system
+        return { # REMOVED - unused messaging system
+            "status": "error", # REMOVED - unused messaging system
+            "message": "Event bus functionality is currently disabled.", # REMOVED - unused messaging system
+            "timestamp": datetime.now(timezone.utc).isoformat() # REMOVED - unused messaging system
+        } # REMOVED - unused messaging system
     except Exception as e:
         logger.error(f"Error getting events status: {e}")
         return {
@@ -1194,8 +1184,13 @@ async def get_database_service_health():
 @log_operation("get_event_analytics")
 async def get_event_analytics():
     """Get event bus analytics and metrics."""
-    event_bus = await get_event_bus()
-    return event_bus.get_statistics()
+    # event_bus = await get_event_bus() # REMOVED - unused messaging system
+    # return event_bus.get_statistics() # REMOVED - unused messaging system
+    return { # REMOVED - unused messaging system
+        "status": "error", # REMOVED - unused messaging system
+        "message": "Event bus functionality is currently disabled.", # REMOVED - unused messaging system
+        "timestamp": datetime.now(timezone.utc).isoformat() # REMOVED - unused messaging system
+    } # REMOVED - unused messaging system
 
 
 # Phase 3 API Endpoints
@@ -1366,34 +1361,18 @@ async def get_frequency_matches():
         List of active frequency matches
     """
     try:
-        matches = await frequency_matching_service.detect_frequency_matches()
-        
-        # Convert to JSON-serializable format
-        matches_data = []
-        for match in matches:
-            match_data = {
-                "pilot_callsign": match.pilot_callsign,
-                "controller_callsign": match.controller_callsign,
-                "frequency": match.frequency,
-                "pilot_lat": match.pilot_lat,
-                "pilot_lon": match.pilot_lon,
-                "controller_lat": match.controller_lat,
-                "controller_lon": match.controller_lon,
-                "distance_nm": match.distance_nm,
-                "match_timestamp": match.match_timestamp.isoformat(),
-                "duration_seconds": match.duration_seconds,
-                "is_active": match.is_active,
-                "match_confidence": match.match_confidence,
-                "communication_type": match.communication_type
-            }
-            matches_data.append(match_data)
-        
-        return {
-            "status": "success",
-            "matches": matches_data,
-            "total_matches": len(matches_data),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        # matches = await frequency_matching_service.detect_frequency_matches() # REMOVED - 0 data records
+        # return { # REMOVED - 0 data records
+        #     "status": "success", # REMOVED - 0 data records
+        #     "matches": matches, # REMOVED - 0 data records
+        #     "total_matches": len(matches), # REMOVED - 0 data records
+        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        # } # REMOVED - 0 data records
+        return { # REMOVED - 0 data records
+            "status": "error", # REMOVED - 0 data records
+            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
+            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        } # REMOVED - 0 data records
         
     except Exception as e:
         logger.error(f"Error getting frequency matches: {e}")
@@ -1409,25 +1388,29 @@ async def get_frequency_match_summary():
         Frequency matching summary statistics
     """
     try:
-        summary = await frequency_matching_service.get_frequency_match_summary()
-        
-        return {
-            "status": "success",
-            "summary": {
-                "total_matches": summary.total_matches,
-                "active_matches": summary.active_matches,
-                "unique_pilots": summary.unique_pilots,
-                "unique_controllers": summary.unique_controllers,
-                "unique_frequencies": summary.unique_frequencies,
-                "avg_match_duration": summary.avg_match_duration,
-                "most_common_frequency": summary.most_common_frequency,
-                "busiest_controller": summary.busiest_controller,
-                "busiest_pilot": summary.busiest_pilot,
-                "communication_patterns": summary.communication_patterns,
-                "geographic_distribution": summary.geographic_distribution
-            },
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        # summary = await frequency_matching_service.get_frequency_match_summary() # REMOVED - 0 data records
+        # return { # REMOVED - 0 data records
+        #     "status": "success", # REMOVED - 0 data records
+        #     "summary": { # REMOVED - 0 data records
+        #         "total_matches": summary.total_matches, # REMOVED - 0 data records
+        #         "active_matches": summary.active_matches, # REMOVED - 0 data records
+        #         "unique_pilots": summary.unique_pilots, # REMOVED - 0 data records
+        #         "unique_controllers": summary.unique_controllers, # REMOVED - 0 data records
+        #         "unique_frequencies": summary.unique_frequencies, # REMOVED - 0 data records
+        #         "avg_match_duration": summary.avg_match_duration, # REMOVED - 0 data records
+        #         "most_common_frequency": summary.most_common_frequency, # REMOVED - 0 data records
+        #         "busiest_controller": summary.busiest_controller, # REMOVED - 0 data records
+        #         "busiest_pilot": summary.busiest_pilot, # REMOVED - 0 data records
+        #         "communication_patterns": summary.communication_patterns, # REMOVED - 0 data records
+        #         "geographic_distribution": summary.geographic_distribution # REMOVED - 0 data records
+        #     }, # REMOVED - 0 data records
+        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        # } # REMOVED - 0 data records
+        return { # REMOVED - 0 data records
+            "status": "error", # REMOVED - 0 data records
+            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
+            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        } # REMOVED - 0 data records
         
     except Exception as e:
         logger.error(f"Error getting frequency match summary: {e}")
@@ -1446,30 +1429,19 @@ async def get_communication_patterns(frequency: Optional[int] = None):
         Communication pattern analysis
     """
     try:
-        patterns = await frequency_matching_service.get_communication_patterns(frequency)
-        
-        # Convert to JSON-serializable format
-        patterns_data = []
-        for pattern in patterns:
-            pattern_data = {
-                "frequency": pattern.frequency,
-                "total_communications": pattern.total_communications,
-                "unique_pilots": pattern.unique_pilots,
-                "unique_controllers": pattern.unique_controllers,
-                "avg_duration": pattern.avg_duration,
-                "peak_hours": pattern.peak_hours,
-                "communication_types": pattern.communication_types,
-                "geographic_centers": pattern.geographic_centers
-            }
-            patterns_data.append(pattern_data)
-        
-        return {
-            "status": "success",
-            "patterns": patterns_data,
-            "total_patterns": len(patterns_data),
-            "frequency_filter": frequency,
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        # patterns = await frequency_matching_service.get_communication_patterns(frequency) # REMOVED - 0 data records
+        # return { # REMOVED - 0 data records
+        #     "status": "success", # REMOVED - 0 data records
+        #     "patterns": patterns, # REMOVED - 0 data records
+        #     "total_patterns": len(patterns), # REMOVED - 0 data records
+        #     "frequency_filter": frequency, # REMOVED - 0 data records
+        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        # } # REMOVED - 0 data records
+        return { # REMOVED - 0 data records
+            "status": "error", # REMOVED - 0 data records
+            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
+            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        } # REMOVED - 0 data records
         
     except Exception as e:
         logger.error(f"Error getting communication patterns: {e}")
@@ -1485,13 +1457,17 @@ async def get_frequency_matching_health():
         Health status information
     """
     try:
-        health = await frequency_matching_service.health_check()
-        
-        return {
-            "status": "success",
-            "health": health,
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        # health = await frequency_matching_service.health_check() # REMOVED - 0 data records
+        # return { # REMOVED - 0 data records
+        #     "status": "success", # REMOVED - 0 data records
+        #     "health": health, # REMOVED - 0 data records
+        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        # } # REMOVED - 0 data records
+        return { # REMOVED - 0 data records
+            "status": "error", # REMOVED - 0 data records
+            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
+            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        } # REMOVED - 0 data records
         
     except Exception as e:
         logger.error(f"Error getting frequency matching health: {e}")
@@ -1510,38 +1486,19 @@ async def get_pilot_frequency_matches(callsign: str):
         Frequency matches for the specified pilot
     """
     try:
-        matches = await frequency_matching_service.detect_frequency_matches()
-        
-        # Filter for specific pilot
-        pilot_matches = [m for m in matches if m.pilot_callsign.upper() == callsign.upper()]
-        
-        # Convert to JSON-serializable format
-        matches_data = []
-        for match in pilot_matches:
-            match_data = {
-                "pilot_callsign": match.pilot_callsign,
-                "controller_callsign": match.controller_callsign,
-                "frequency": match.frequency,
-                "pilot_lat": match.pilot_lat,
-                "pilot_lon": match.pilot_lon,
-                "controller_lat": match.controller_lat,
-                "controller_lon": match.controller_lon,
-                "distance_nm": match.distance_nm,
-                "match_timestamp": match.match_timestamp.isoformat(),
-                "duration_seconds": match.duration_seconds,
-                "is_active": match.is_active,
-                "match_confidence": match.match_confidence,
-                "communication_type": match.communication_type
-            }
-            matches_data.append(match_data)
-        
-        return {
-            "status": "success",
-            "pilot_callsign": callsign,
-            "matches": matches_data,
-            "total_matches": len(matches_data),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        # matches = await frequency_matching_service.detect_frequency_matches() # REMOVED - 0 data records
+        # return { # REMOVED - 0 data records
+        #     "status": "success", # REMOVED - 0 data records
+        #     "pilot_callsign": callsign, # REMOVED - 0 data records
+        #     "matches": matches, # REMOVED - 0 data records
+        #     "total_matches": len(matches), # REMOVED - 0 data records
+        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        # } # REMOVED - 0 data records
+        return { # REMOVED - 0 data records
+            "status": "error", # REMOVED - 0 data records
+            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
+            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        } # REMOVED - 0 data records
         
     except Exception as e:
         logger.error(f"Error getting pilot frequency matches: {e}")
@@ -1560,38 +1517,19 @@ async def get_controller_frequency_matches(callsign: str):
         Frequency matches for the specified controller
     """
     try:
-        matches = await frequency_matching_service.detect_frequency_matches()
-        
-        # Filter for specific controller
-        controller_matches = [m for m in matches if m.controller_callsign.upper() == callsign.upper()]
-        
-        # Convert to JSON-serializable format
-        matches_data = []
-        for match in controller_matches:
-            match_data = {
-                "pilot_callsign": match.pilot_callsign,
-                "controller_callsign": match.controller_callsign,
-                "frequency": match.frequency,
-                "pilot_lat": match.pilot_lat,
-                "pilot_lon": match.pilot_lon,
-                "controller_lat": match.controller_lat,
-                "controller_lon": match.controller_lon,
-                "distance_nm": match.distance_nm,
-                "match_timestamp": match.match_timestamp.isoformat(),
-                "duration_seconds": match.duration_seconds,
-                "is_active": match.is_active,
-                "match_confidence": match.match_confidence,
-                "communication_type": match.communication_type
-            }
-            matches_data.append(match_data)
-        
-        return {
-            "status": "success",
-            "controller_callsign": callsign,
-            "matches": matches_data,
-            "total_matches": len(matches_data),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        # matches = await frequency_matching_service.detect_frequency_matches() # REMOVED - 0 data records
+        # return { # REMOVED - 0 data records
+        #     "status": "success", # REMOVED - 0 data records
+        #     "controller_callsign": callsign, # REMOVED - 0 data records
+        #     "matches": matches, # REMOVED - 0 data records
+        #     "total_matches": len(matches), # REMOVED - 0 data records
+        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        # } # REMOVED - 0 data records
+        return { # REMOVED - 0 data records
+            "status": "error", # REMOVED - 0 data records
+            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
+            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        } # REMOVED - 0 data records
         
     except Exception as e:
         logger.error(f"Error getting controller frequency matches: {e}")
@@ -1610,40 +1548,20 @@ async def get_frequency_matches_by_frequency(frequency_hz: int):
         Frequency matches for the specified frequency
     """
     try:
-        matches = await frequency_matching_service.detect_frequency_matches()
-        
-        # Filter for specific frequency (with tolerance)
-        tolerance = 100  # Hz tolerance
-        frequency_matches = [m for m in matches if abs(m.frequency - frequency_hz) <= tolerance]
-        
-        # Convert to JSON-serializable format
-        matches_data = []
-        for match in frequency_matches:
-            match_data = {
-                "pilot_callsign": match.pilot_callsign,
-                "controller_callsign": match.controller_callsign,
-                "frequency": match.frequency,
-                "pilot_lat": match.pilot_lat,
-                "pilot_lon": match.pilot_lon,
-                "controller_lat": match.controller_lat,
-                "controller_lon": match.controller_lon,
-                "distance_nm": match.distance_nm,
-                "match_timestamp": match.match_timestamp.isoformat(),
-                "duration_seconds": match.duration_seconds,
-                "is_active": match.is_active,
-                "match_confidence": match.match_confidence,
-                "communication_type": match.communication_type
-            }
-            matches_data.append(match_data)
-        
-        return {
-            "status": "success",
-            "frequency_hz": frequency_hz,
-            "tolerance_hz": tolerance,
-            "matches": matches_data,
-            "total_matches": len(matches_data),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        # matches = await frequency_matching_service.detect_frequency_matches() # REMOVED - 0 data records
+        # return { # REMOVED - 0 data records
+        #     "status": "success", # REMOVED - 0 data records
+        #     "frequency_hz": frequency_hz, # REMOVED - 0 data records
+        #     "tolerance_hz": 100, # REMOVED - 0 data records
+        #     "matches": matches, # REMOVED - 0 data records
+        #     "total_matches": len(matches), # REMOVED - 0 data records
+        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        # } # REMOVED - 0 data records
+        return { # REMOVED - 0 data records
+            "status": "error", # REMOVED - 0 data records
+            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
+            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        } # REMOVED - 0 data records
         
     except Exception as e:
         logger.error(f"Error getting frequency matches by frequency: {e}")
@@ -1670,47 +1588,29 @@ async def get_historical_frequency_matches(
         Historical frequency matches
     """
     try:
-        matches = await frequency_matching_service.get_historical_frequency_matches(
-            pilot_callsign=pilot_callsign,
-            controller_callsign=controller_callsign,
-            frequency=frequency,
-            hours=hours
-        )
-        
-        # Convert to JSON-serializable format
-        matches_data = []
-        for match in matches:
-            match_data = {
-                "id": match.id,
-                "pilot_callsign": match.pilot_callsign,
-                "controller_callsign": match.controller_callsign,
-                "frequency": match.frequency,
-                "pilot_lat": match.pilot_lat,
-                "pilot_lon": match.pilot_lon,
-                "controller_lat": match.controller_lat,
-                "controller_lon": match.controller_lon,
-                "distance_nm": match.distance_nm,
-                "match_timestamp": match.match_timestamp.isoformat(),
-                "duration_seconds": match.duration_seconds,
-                "is_active": match.is_active,
-                "match_confidence": match.match_confidence,
-                "communication_type": match.communication_type,
-                "created_at": match.created_at.isoformat() if match.created_at else None
-            }
-            matches_data.append(match_data)
-        
-        return {
-            "status": "success",
-            "matches": matches_data,
-            "total_matches": len(matches_data),
-            "filters": {
-                "pilot_callsign": pilot_callsign,
-                "controller_callsign": controller_callsign,
-                "frequency": frequency,
-                "hours": hours
-            },
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        # matches = await frequency_matching_service.get_historical_frequency_matches( # REMOVED - 0 data records
+        #     pilot_callsign=pilot_callsign, # REMOVED - 0 data records
+        #     controller_callsign=controller_callsign, # REMOVED - 0 data records
+        #     frequency=frequency, # REMOVED - 0 data records
+        #     hours=hours # REMOVED - 0 data records
+        # ) # REMOVED - 0 data records
+        # return { # REMOVED - 0 data records
+        #     "status": "success", # REMOVED - 0 data records
+        #     "matches": matches, # REMOVED - 0 data records
+        #     "total_matches": len(matches), # REMOVED - 0 data records
+        #     "filters": { # REMOVED - 0 data records
+        #         "pilot_callsign": pilot_callsign, # REMOVED - 0 data records
+        #         "controller_callsign": controller_callsign, # REMOVED - 0 data records
+        #         "frequency": frequency, # REMOVED - 0 data records
+        #         "hours": hours # REMOVED - 0 data records
+        #     }, # REMOVED - 0 data records
+        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        # } # REMOVED - 0 data records
+        return { # REMOVED - 0 data records
+            "status": "error", # REMOVED - 0 data records
+            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
+            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        } # REMOVED - 0 data records
         
     except Exception as e:
         logger.error(f"Error getting historical frequency matches: {e}")
@@ -1729,108 +1629,32 @@ async def get_frequency_matching_statistics(hours: int = 24):
         Frequency matching statistics
     """
     try:
-        # Get historical data
-        matches = await frequency_matching_service.get_historical_frequency_matches(hours=hours)
-        
-        if not matches:
-            return {
-                "status": "success",
-                "statistics": {
-                    "total_matches": 0,
-                    "active_matches": 0,
-                    "unique_pilots": 0,
-                    "unique_controllers": 0,
-                    "unique_frequencies": 0,
-                    "avg_duration": 0.0,
-                    "most_common_frequency": None,
-                    "busiest_controller": None,
-                    "busiest_pilot": None,
-                    "communication_patterns": {},
-                    "geographic_distribution": {},
-                    "frequency_distribution": {},
-                    "hourly_distribution": {}
-                },
-                "hours_analyzed": hours,
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        
-        # Calculate statistics
-        unique_pilots = len(set(m.pilot_callsign for m in matches))
-        unique_controllers = len(set(m.controller_callsign for m in matches))
-        unique_frequencies = len(set(m.frequency for m in matches))
-        
-        # Average duration
-        durations = [m.duration_seconds or 0 for m in matches if m.duration_seconds]
-        avg_duration = sum(durations) / len(durations) if durations else 0.0
-        
-        # Most common frequency
-        frequency_counts = {}
-        for match in matches:
-            frequency_counts[match.frequency] = frequency_counts.get(match.frequency, 0) + 1
-        most_common_frequency = max(frequency_counts.items(), key=lambda x: x[1])[0] if frequency_counts else None
-        
-        # Busiest controller and pilot
-        controller_counts = {}
-        pilot_counts = {}
-        for match in matches:
-            controller_counts[match.controller_callsign] = controller_counts.get(match.controller_callsign, 0) + 1
-            pilot_counts[match.pilot_callsign] = pilot_counts.get(match.pilot_callsign, 0) + 1
-        
-        busiest_controller = max(controller_counts.items(), key=lambda x: x[1])[0] if controller_counts else None
-        busiest_pilot = max(pilot_counts.items(), key=lambda x: x[1])[0] if pilot_counts else None
-        
-        # Communication patterns
-        communication_patterns = {}
-        for match in matches:
-            comm_type = match.communication_type
-            communication_patterns[comm_type] = communication_patterns.get(comm_type, 0) + 1
-        
-        # Geographic distribution
-        geographic_distribution = {}
-        for match in matches:
-            if match.distance_nm:
-                if match.distance_nm <= 10:
-                    region = "local"
-                elif match.distance_nm <= 50:
-                    region = "regional"
-                else:
-                    region = "long_range"
-                geographic_distribution[region] = geographic_distribution.get(region, 0) + 1
-        
-        # Frequency distribution
-        frequency_distribution = {}
-        for match in matches:
-            freq_range = f"{match.frequency // 1000000}MHz"
-            frequency_distribution[freq_range] = frequency_distribution.get(freq_range, 0) + 1
-        
-        # Hourly distribution
-        hourly_distribution = {}
-        for match in matches:
-            hour = match.match_timestamp.hour
-            hourly_distribution[hour] = hourly_distribution.get(hour, 0) + 1
-        
-        statistics = {
-            "total_matches": len(matches),
-            "active_matches": len([m for m in matches if m.is_active]),
-            "unique_pilots": unique_pilots,
-            "unique_controllers": unique_controllers,
-            "unique_frequencies": unique_frequencies,
-            "avg_duration": avg_duration,
-            "most_common_frequency": most_common_frequency,
-            "busiest_controller": busiest_controller,
-            "busiest_pilot": busiest_pilot,
-            "communication_patterns": communication_patterns,
-            "geographic_distribution": geographic_distribution,
-            "frequency_distribution": frequency_distribution,
-            "hourly_distribution": hourly_distribution
-        }
-        
-        return {
-            "status": "success",
-            "statistics": statistics,
-            "hours_analyzed": hours,
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        # matches = await frequency_matching_service.get_historical_frequency_matches(hours=hours) # REMOVED - 0 data records
+        # return { # REMOVED - 0 data records
+        #     "status": "success", # REMOVED - 0 data records
+        #     "statistics": { # REMOVED - 0 data records
+        #         "total_matches": 0, # REMOVED - 0 data records
+        #         "active_matches": 0, # REMOVED - 0 data records
+        #         "unique_pilots": 0, # REMOVED - 0 data records
+        #         "unique_controllers": 0, # REMOVED - 0 data records
+        #         "unique_frequencies": 0, # REMOVED - 0 data records
+        #         "avg_duration": 0.0, # REMOVED - 0 data records
+        #         "most_common_frequency": None, # REMOVED - 0 data records
+        #         "busiest_controller": None, # REMOVED - 0 data records
+        #         "busiest_pilot": None, # REMOVED - 0 data records
+        #         "communication_patterns": {}, # REMOVED - 0 data records
+        #         "geographic_distribution": {}, # REMOVED - 0 data records
+        #         "frequency_distribution": {}, # REMOVED - 0 data records
+        #         "hourly_distribution": {} # REMOVED - 0 data records
+        #     }, # REMOVED - 0 data records
+        #     "hours_analyzed": hours, # REMOVED - 0 data records
+        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        # } # REMOVED - 0 data records
+        return { # REMOVED - 0 data records
+            "status": "error", # REMOVED - 0 data records
+            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
+            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        } # REMOVED - 0 data records
         
     except Exception as e:
         logger.error(f"Error getting frequency matching statistics: {e}")
@@ -1846,18 +1670,19 @@ async def store_current_frequency_matches():
         Storage operation result
     """
     try:
-        # Get current matches
-        matches = await frequency_matching_service.detect_frequency_matches()
-        
-        # Store in database
-        stored_count = await frequency_matching_service.store_frequency_matches(matches)
-        
-        return {
-            "status": "success",
-            "stored_count": stored_count,
-            "total_matches": len(matches),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        # matches = await frequency_matching_service.detect_frequency_matches() # REMOVED - 0 data records
+        # stored_count = await frequency_matching_service.store_frequency_matches(matches) # REMOVED - 0 data records
+        # return { # REMOVED - 0 data records
+        #     "status": "success", # REMOVED - 0 data records
+        #     "stored_count": stored_count, # REMOVED - 0 data records
+        #     "total_matches": len(matches), # REMOVED - 0 data records
+        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        # } # REMOVED - 0 data records
+        return { # REMOVED - 0 data records
+            "status": "error", # REMOVED - 0 data records
+            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
+            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
+        } # REMOVED - 0 data records
         
     except Exception as e:
         logger.error(f"Error storing frequency matches: {e}")
