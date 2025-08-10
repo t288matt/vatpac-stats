@@ -447,7 +447,7 @@ class BaselineManager:
 
 - **API Endpoints**: 100% of public endpoints
 - **Database Models**: 100% of models and relationships
-- **Services**: 100% of service interfaces
+- **Services**: 100% of service implementations
 - **Data Flow**: 100% of critical data paths
 - **Error Scenarios**: 90% of error conditions
 

@@ -356,15 +356,6 @@ from ..models import Flight, Controller, Sector, TrafficMovement, Transceiver
 from ..models import Flight, Controller, TrafficMovement, Transceiver
 ```
 
-**5. `app/services/interfaces/database_service_interface.py`**
-```python
-# REMOVE store_sectors method (lines 29-31):
-@abstractmethod
-async def store_sectors(self, sectors: List[Dict[str, Any]]) -> int:
-    """Store sector data using existing Sector model."""
-    pass
-```
-
 **6. `app/services/traffic_analysis_service.py`**
 ```python
 # REMOVE airport_config usage and replace with airports table:

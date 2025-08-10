@@ -64,11 +64,10 @@ class EventBus:
 ```
 
 #### **Implementation Steps:**
-1. **Create service interfaces** (`app/services/interfaces/`)
-2. **Extract VATSIM service** from current DataService
-3. **Extract flight processing** logic
-4. **Extract database operations** into dedicated service (preserve existing models)
-5. **Implement event bus** for service communication
+1. **Extract VATSIM service** from current DataService
+2. **Extract flight processing** logic
+3. **Extract database operations** into dedicated service (preserve existing models)
+4. **Implement event bus** for service communication
 
 ### **1.2 Configuration Management Refactor**
 
@@ -276,7 +275,7 @@ class MonitoringService:
         self.health_checks = HealthChecker()
         self.alerting = AlertManager()
     
-    async def monitor_service(self, service: BaseService):
+    async def monitor_service(self, service):
         health = await service.health_check()
         self.metrics.record(health)
         

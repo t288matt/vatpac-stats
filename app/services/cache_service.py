@@ -1,109 +1,76 @@
 #!/usr/bin/env python3
 """
-In-Memory Caching Service for VATSIM Data Collection System
+In-Memory Cache Service for VATSIM Data Collection System
 
-This service provides intelligent in-memory caching to reduce database load and improve
-API response times for frequently accessed data. It uses a bounded LRU cache with
-configurable TTL values for different data types.
+This module provides an in-memory caching service for performance optimization
+by storing frequently accessed data in memory with TTL-based expiration.
 
 INPUTS:
-- Data objects to cache (ATC positions, flights, etc.)
-- Cache keys and TTL values
-- Cache invalidation patterns
+- Cache key-value pairs with TTL
+- Cache invalidation requests
+- Cache statistics queries
 
 OUTPUTS:
-- Cached data objects with TTL management
+- Fast data retrieval from memory
 - Cache statistics and performance metrics
-- Cache invalidation results
-- Memory-efficient LRU eviction
-
-CACHE TYPES:
-- Active ATC Positions: 30-second TTL
-- Active Flights: 30-second TTL
-- Network Statistics: 1-minute TTL
-- Network Statistics: 1-minute TTL
-- Traffic Movements: 5-minute TTL
-- Airport Data: 10-minute TTL
-- Analytics Data: 1-hour TTL
-- Static Data: 1-hour TTL
-
-FEATURES:
-- Bounded LRU cache with automatic eviction
-- Automatic TTL management
-- Cache invalidation patterns
-- Performance monitoring
-- Error handling and recovery
-- Memory leak prevention
-
-OPTIMIZATIONS:
-- Configurable TTL per data type
-- Configurable cache size limits
-- JSON serialization for complex objects
-- Pattern-based cache invalidation
-- Hit rate monitoring
+- Automatic TTL-based expiration
 """
 
-import json
 import os
 import time
+import logging
 from typing import Dict, Any, Optional, List
-from datetime import datetime, timezone, timedelta
-import asyncio
+from collections import OrderedDict
+from datetime import datetime, timezone
 
-from .base_service import CacheService as BaseCacheService
-from ..utils.error_handling import handle_service_errors, log_operation, CacheError
+from ..utils.logging import get_logger_for_module
+from ..utils.error_handling import handle_service_errors, log_operation
+
 
 class BoundedCacheWithTTL:
-    """Bounded cache with LRU eviction and TTL support."""
+    """Bounded cache with TTL support and LRU eviction."""
     
     def __init__(self, max_size: int = 10000):
         self.max_size = max_size
-        self.cache = {}
-        self.access_times = {}
-        self.expiry_times = {}
-        self.access_counter = 0
+        self.cache: OrderedDict[str, tuple] = OrderedDict()
     
     def _evict_expired(self):
-        """Remove expired entries."""
+        """Remove expired entries from cache."""
         current_time = time.time()
-        expired_keys = [key for key, expiry in self.expiry_times.items() if expiry < current_time]
+        expired_keys = [key for key, (_, expiry) in self.cache.items() if current_time > expiry]
         for key in expired_keys:
             self._remove_key(key)
     
     def _remove_key(self, key: str):
-        """Remove a key from all internal structures."""
-        self.cache.pop(key, None)
-        self.access_times.pop(key, None)
-        self.expiry_times.pop(key, None)
+        """Remove a key from cache."""
+        if key in self.cache:
+            del self.cache[key]
     
     def set(self, key: str, value: Any, ttl_seconds: int = 300) -> None:
-        """Set a value in the cache with TTL and LRU eviction."""
-        self._evict_expired()
-        
-        if len(self.cache) >= self.max_size and key not in self.cache:
-            # Evict least recently used
-            oldest_key = min(self.access_times, key=self.access_times.get)
+        """Set a key-value pair with TTL."""
+        if len(self.cache) >= self.max_size:
+            # Remove oldest entry (LRU)
+            oldest_key = next(iter(self.cache))
             self._remove_key(oldest_key)
         
-        self.cache[key] = value
-        self.access_times[key] = self.access_counter
-        self.expiry_times[key] = time.time() + ttl_seconds
-        self.access_counter += 1
+        expiry = time.time() + ttl_seconds
+        self.cache[key] = (value, expiry)
+        # Move to end (most recently used)
+        self.cache.move_to_end(key)
     
     def get(self, key: str) -> Optional[Any]:
-        """Get a value from the cache and update access time."""
-        self._evict_expired()
+        """Get a value by key, return None if expired or not found."""
+        if key not in self.cache:
+            return None
         
-        if key in self.cache:
-            # Check if expired
-            if self.expiry_times[key] < time.time():
-                self._remove_key(key)
-                return None
-            
-            self.access_times[key] = self.access_counter
-            self.access_counter += 1
-            return self.cache[key]
-        return None
+        value, expiry = self.cache[key]
+        if time.time() > expiry:
+            self._remove_key(key)
+            return None
+        
+        # Move to end (most recently used)
+        self.cache.move_to_end(key)
+        return value
     
     def delete(self, key: str) -> bool:
         """Delete a key from cache."""
@@ -115,8 +82,6 @@ class BoundedCacheWithTTL:
     def clear(self) -> None:
         """Clear all cache entries."""
         self.cache.clear()
-        self.access_times.clear()
-        self.expiry_times.clear()
     
     def size(self) -> int:
         """Get current cache size."""
@@ -129,11 +94,14 @@ class BoundedCacheWithTTL:
         return list(self.cache.keys())
 
 
-class CacheService(BaseCacheService):
+class CacheService:
     """In-memory caching service for performance optimization"""
     
     def __init__(self):
-        super().__init__("cache_service")
+        self.service_name = "cache_service"
+        self.logger = get_logger_for_module(f"services.{self.service_name}")
+        self._initialized = False
+        
         max_cache_size = int(os.getenv('CACHE_MAX_SIZE', 10000))
         self.memory_cache = BoundedCacheWithTTL(max_cache_size)
         self.cache_ttl = {
@@ -153,7 +121,7 @@ class CacheService(BaseCacheService):
         self.hit_count = 0
         self.miss_count = 0
         
-    async def _initialize_service(self):
+    async def initialize(self) -> bool:
         """Initialize in-memory cache service"""
         try:
             # Initialize statistics
@@ -165,11 +133,18 @@ class CacheService(BaseCacheService):
             self.logger.info(f"In-memory cache service initialized successfully with max size: {cache_size}")
             self.logger.info(f"Cache TTL configuration: {len(self.cache_ttl)} cache types configured")
             
+            self._initialized = True
+            return True
+            
         except Exception as e:
             self.logger.error(f"Error initializing cache service: {e}")
-            raise
+            return False
     
-    async def _perform_health_check(self) -> Dict[str, Any]:
+    def is_initialized(self) -> bool:
+        """Check if service is properly initialized."""
+        return self._initialized
+    
+    async def health_check(self) -> Dict[str, Any]:
         """Perform cache service health check."""
         try:
             cache_size = self.memory_cache.size()
@@ -188,7 +163,7 @@ class CacheService(BaseCacheService):
         except Exception as e:
             return {"status": "error", "error": str(e)}
     
-    async def _cleanup_service(self):
+    async def cleanup(self):
         """Cleanup cache service resources."""
         try:
             self.memory_cache.clear()

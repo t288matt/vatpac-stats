@@ -108,7 +108,7 @@ BATCH_SIZE_THRESHOLD=10000
 
 # Error Handling
 LOG_LEVEL=info
-ERROR_MONITORING_ENABLED=true
+# Error handling simplified - using basic error handling decorators
 
 # VATSIM API Settings
 VATSIM_API_URL=https://data.vatsim.net/v3/

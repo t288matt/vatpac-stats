@@ -1,61 +1,52 @@
 #!/usr/bin/env python3
 """
-VATSIM API Service for Data Collection
+VATSIM Service for VATSIM Data Collection System
 
-This service handles all VATSIM API interactions for the data collection system.
-It provides a clean interface for fetching, parsing, and processing VATSIM
-network data including controllers, flights, sectors, and transceivers.
+This service provides a clean interface for fetching, parsing, and processing VATSIM
+network data, following our architecture principles.
 
-INPUTS:
-- VATSIM API endpoints (data, status, transceivers)
-- Network authentication and configuration
-- API request parameters and timeouts
-- Error handling and retry logic
+VATSIM API v3 Compliance:
+- Endpoint: https://data.vatsim.net/v3/vatsim-data.json
+- Flight plans: Nested under flight_plan object
+- Aircraft types: Extracted from flight_plan.aircraft_short
+- Controller fields: Uses correct API field names (cid, name, facility, etc.)
+- Sectors data: Not available in current API v3 (handled gracefully)
 
-OUTPUTS:
-- Structured VATSIM data objects (controllers, flights, sectors)
-- Network status and health information
-- Parsed and validated data structures
-- Error handling and logging information
+SECTORS FIELD LIMITATION:
+=========================
+The 'sectors' field is completely missing from VATSIM API v3. This is a known
+limitation, not a bug in our code. The field simply doesn't exist in the API
+response.
 
-DATA STRUCTURES:
-- VATSIMController: ATC controller position data
-- VATSIMFlight: Real-time flight tracking data
-- VATSIMTransceiver: Radio frequency and position data
-- VATSIMData: Complete network data container
+Technical Details:
+- Expected: sectors array containing airspace sector definitions
+- Actual: Field does not exist in API response
+- Impact: Traffic density analysis and sector-based routing limited
+- Handling: Graceful degradation with warning logs and fallback behavior
 
-FEATURES:
-- Asynchronous HTTP client with timeouts
-- Automatic data parsing and validation
-- Error handling and retry logic
-- Health checking and status monitoring
-- Connection pooling and resource management
-- Structured data objects with type safety
+Fallback Behavior:
+- Creates basic sector definitions from facility data
+- Logs warning when sectors data is missing
+- Continues operation without sectors data
+- Database schema supports sectors if API adds them back
 
-API ENDPOINTS:
-- /v3/vatsim-data.json: Main network data
-- /v3/status.json: Network status
-- /v3/transceivers-data.json: Radio frequency data
-
-OPTIMIZATIONS:
-- HTTP connection pooling
-- Request timeout management
-- JSON parsing optimization
-- Memory-efficient data structures
-- Automatic error recovery
+Future Considerations:
+- Monitor for sectors field return in future API versions
+- Consider external sector definition sources
+- Option to manually define critical sectors
+- Feature flags for sector-based features
 """
 
-import asyncio
 import httpx
-from typing import List, Optional, Dict, Any
-from dataclasses import dataclass
-from datetime import datetime, timezone
+import asyncio
 import logging
+from typing import Dict, Any, Optional, List
+from datetime import datetime, timezone, timedelta
+from dataclasses import dataclass, field
 
 from ..config import get_config
 from ..utils.logging import get_logger_for_module
-from .base_service import BaseService
-from ..utils.error_handling import handle_service_errors, retry_on_failure, log_operation, APIError
+from ..utils.error_handling import handle_service_errors, log_operation, retry_on_failure
 from ..filters.flight_filter import FlightFilter
 
 logger = logging.getLogger(__name__)
@@ -169,7 +160,7 @@ class VATSIMAPIError(Exception):
         self.status_code = status_code
 
 
-class VATSIMService(BaseService):
+class VATSIMService:
     """
     Service for handling VATSIM API v3 interactions.
     
@@ -210,7 +201,11 @@ class VATSIMService(BaseService):
     
     def __init__(self):
         """Initialize VATSIM service with configuration."""
-        super().__init__("vatsim_service")
+        self.service_name = "vatsim_service"
+        self.config = get_config()
+        self.logger = get_logger_for_module(f"services.{self.service_name}")
+        self._initialized = False
+        
         self.client: Optional[httpx.AsyncClient] = None
         self.flight_filter = FlightFilter()
     
@@ -223,12 +218,22 @@ class VATSIMService(BaseService):
         """Async context manager exit."""
         await self._close_client()
     
-    async def _initialize_service(self):
+    async def initialize(self) -> bool:
         """Initialize VATSIM service with HTTP client."""
-        await self._create_client()
-        self.logger.info("VATSIM service initialized successfully")
+        try:
+            await self._create_client()
+            self.logger.info("VATSIM service initialized successfully")
+            self._initialized = True
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to initialize VATSIM service: {e}")
+            return False
     
-    async def _perform_health_check(self) -> Dict[str, Any]:
+    def is_initialized(self) -> bool:
+        """Check if service is properly initialized."""
+        return self._initialized
+    
+    async def health_check(self) -> Dict[str, Any]:
         """Perform VATSIM service health check."""
         try:
             if not self.client:
@@ -243,7 +248,7 @@ class VATSIMService(BaseService):
         except Exception as e:
             return {"status": "error", "error": str(e)}
     
-    async def _cleanup_service(self):
+    async def cleanup(self):
         """Cleanup VATSIM service resources."""
         await self._close_client()
         self.logger.info("VATSIM service cleanup completed")
@@ -628,44 +633,6 @@ class VATSIMService(BaseService):
             # If no match, keep as "flight" (default)
         
         return transceivers
-    
-    async def health_check(self) -> Dict[str, Any]:
-        """
-        Perform health check on VATSIM API.
-        
-        Returns:
-            Dict[str, Any]: Health check result with status and details
-        """
-        try:
-            await self._create_client()
-            response = await self.client.get(self.config.vatsim.api_url)
-            
-            if response.status_code == 200:
-                return {
-                    "status": "healthy",
-                    "message": "VATSIM API accessible",
-                    "status_code": response.status_code,
-                    "response_time": response.elapsed.total_seconds() if hasattr(response, 'elapsed') else None,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                }
-            else:
-                return {
-                    "status": "unhealthy",
-                    "message": f"VATSIM API returned status code {response.status_code}",
-                    "status_code": response.status_code,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                }
-            
-        except Exception as e:
-            self.logger.error("VATSIM API health check failed", extra={
-                "error": str(e)
-            })
-            return {
-                "status": "error",
-                "message": "VATSIM API health check failed",
-                "error": str(e),
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }
     
     async def get_api_status(self) -> Dict[str, Any]:
         """

@@ -33,11 +33,10 @@
 ✅ **database/init.sql** - Removed table creation statements  
 
 ### Service Layer Files  
-✅ **app/services/database_service.py** - Removed `store_sectors` method  
+✅ **app/services/database_service.py** - Removed abstract `store_sectors` method  
 ✅ **app/services/data_service.py** - Removed sector processing logic  
 ✅ **app/services/query_optimizer.py** - Removed (service was unused complexity)  
 ✅ **app/services/cache_service.py** - Updated cache type documentation  
-✅ **app/services/interfaces/database_service_interface.py** - Removed abstract `store_sectors` method  
 
 ### Configuration & Utilities
 ✅ **app/utils/schema_validator.py** - Removed deleted tables from validation  

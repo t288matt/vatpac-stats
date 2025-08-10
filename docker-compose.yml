@@ -38,7 +38,7 @@ services:
       PYTHONUNBUFFERED: 1
       
       # Centralized Error Handling
-      ERROR_MONITORING_ENABLED: "true"
+      # Error handling simplified - using basic error handling decorators
       LOG_LEVEL: "INFO"
       
       # Production Settings
@@ -49,9 +49,9 @@ services:
       BATCH_SIZE_THRESHOLD: 10000
       
       # VATSIM Data Collection Intervals (seconds)
-      VATSIM_POLLING_INTERVAL: 30    # How often to fetch VATSIM data (10 seconds)
+      VATSIM_POLLING_INTERVAL: 15    # How often to fetch VATSIM data (10 seconds)
 
-      WRITE_TO_DISK_INTERVAL: 120    # How often to write data to disk (2 minutes)
+      WRITE_TO_DISK_INTERVAL: 30    # How often to write data to disk (2 minutes)
       VATSIM_API_TIMEOUT: 60         # VATSIM API timeout in seconds
       VATSIM_API_RETRY_ATTEMPTS: 20   # Number of retry attempts for VATSIM API
       

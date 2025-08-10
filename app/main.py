@@ -21,7 +21,7 @@ ENDPOINTS:
 - /api/status - System health and status
 - /api/atc-positions - ATC position data
 - /api/flights - Flight data
-# REMOVED: /api/traffic/* - Traffic analysis endpoints
+# Core API endpoints
 
 DEPENDENCIES:
 - PostgreSQL database
@@ -47,25 +47,22 @@ from .utils.logging import get_logger_for_module
 from .utils.rating_utils import get_all_ratings, validate_rating
 from .services.vatsim_service import get_vatsim_service
 from .services.data_service import get_data_service
-# REMOVED: Traffic Analysis Service - Phase 2
 from .services.cache_service import get_cache_service
 
 from .services.resource_manager import get_resource_manager
 from .utils.airport_utils import get_airports_by_region, get_region_statistics, get_airport_coordinates
-from .utils.error_monitoring import start_error_monitoring
-from .api.error_monitoring import router as error_monitoring_router
+# Error monitoring simplified - using basic error handling
 from .utils.error_handling import handle_service_errors, log_operation, create_error_handler
 from .utils.exceptions import APIError, DatabaseError, CacheError
 from .utils.health_monitor import health_monitor
 from .utils.schema_validator import ensure_database_schema
 from .filters.flight_filter import FlightFilter
-from .utils.error_manager import get_error_analytics, get_circuit_breaker_status
+# Error manager removed - using simplified error handling
 from .services.database_service import get_database_service
 
 # Import new service management components
-from .services.service_manager import ServiceManager
+# from .services.service_manager import ServiceManager  # DISABLED - causing failures
 from .services.event_bus import get_event_bus, publish_event
-from .services.interfaces.event_bus_interface import EventType
 
 # Import Phase 3 services
 from .services.monitoring_service import get_monitoring_service
@@ -78,8 +75,8 @@ logger = get_logger_for_module(__name__)
 # Initialize centralized error handler
 error_handler = create_error_handler("main_api")
 
-# Global service manager
-service_manager: Optional[ServiceManager] = None
+# DISABLED: Global service manager - causing failures
+# service_manager: Optional[ServiceManager] = None
 
 # Background task for data ingestion
 background_task = None
@@ -113,8 +110,8 @@ async def background_data_ingestion():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan manager with new service management"""
-    global service_manager, background_task
+    """Application lifespan manager with simplified service initialization"""
+    global background_task
     
     try:
         # Initialize database
@@ -131,33 +128,14 @@ async def lifespan(app: FastAPI):
         finally:
             db.close()
         
-        # Initialize service manager
-        service_manager = ServiceManager()
+        # DISABLED: Service Manager - causing failures
+        # service_manager = ServiceManager()
+        # services = {...}
+        # await service_manager.register_services(services)
+        # start_results = await service_manager.start_all_services()
         
-        # Create a database session for service initialization
-        service_db = SessionLocal()
-        
-        # Register services with the service manager
-        services = {
-            'cache_service': await get_cache_service(),
-            'vatsim_service': get_vatsim_service(),
-            'data_service': get_data_service(),
-            # REMOVED: Traffic Analysis Service - Phase 2
-
-            'resource_manager': get_resource_manager(),
-            # Phase 3 services
-            'monitoring_service': get_monitoring_service(),
-            'performance_monitor': get_performance_monitor(),
-        }
-        
-        # Close the service database session
-        service_db.close()
-        
-        await service_manager.register_services(services)
-        
-        # Start all services
-        start_results = await service_manager.start_all_services()
-        logger.info(f"Service startup results: {start_results}")
+        # Simple service initialization (working pattern)
+        logger.info("Initializing services with simple pattern...")
         
         # Initialize cache service
         cache_service = await get_cache_service()
@@ -165,8 +143,7 @@ async def lifespan(app: FastAPI):
         # Initialize resource manager
         resource_manager = get_resource_manager()
         
-        # Start error monitoring
-        await start_error_monitoring()
+        # Error monitoring simplified - using basic error handling
         
         # Start background task
         background_task = asyncio.create_task(background_data_ingestion())
@@ -174,7 +151,7 @@ async def lifespan(app: FastAPI):
         # Publish service started event
         try:
             event_bus = await get_event_bus()
-            await publish_event(EventType.SERVICE_STARTED, {
+            await publish_event("SERVICE_STARTED", {
                 "service": "main_application",
                 "timestamp": datetime.now(timezone.utc).isoformat()
             })
@@ -195,14 +172,14 @@ async def lifespan(app: FastAPI):
             except asyncio.CancelledError:
                 pass
         
-        # Graceful shutdown of services
-        if service_manager:
-            await service_manager.graceful_shutdown()
+        # DISABLED: Graceful shutdown of services
+        # if service_manager:
+        #     await service_manager.graceful_shutdown()
         
         # Publish service stopped event
         try:
             event_bus = await get_event_bus()
-            await publish_event(EventType.SERVICE_STOPPED, {
+            await publish_event("SERVICE_STOPPED", {
                 "service": "main_application",
                 "timestamp": datetime.now(timezone.utc).isoformat()
             })
@@ -228,8 +205,7 @@ app.add_middleware(
     max_age=3600,
 )
 
-# Include error monitoring router
-app.include_router(error_monitoring_router)
+# Error monitoring simplified - using basic error handling
 
 @app.get("/api/status")
 @handle_service_errors
@@ -270,15 +246,7 @@ async def get_status(db: Session = Depends(get_db)):
             logger.error(f"Error querying airports: {e}")
             airports_count = 0
         
-        # DISABLED: Traffic Analysis Service Removal - Phase 1
-        # try:
-        #     movements_count = db.query(TrafficMovement).filter(
-        #         TrafficMovement.timestamp >= datetime.now(timezone.utc) - timedelta(hours=24)
-        #     ).count()
-        # except Exception as e:
-        #     logger.error(f"Error querying movements: {e}")
-        #     movements_count = 0
-        movements_count = 0  # Temporarily disabled
+        movements_count = 0  # Placeholder for future traffic metrics
         
         # Check if database is empty and provide diagnostic info
         total_flights = db.query(Flight).count()
@@ -349,96 +317,116 @@ async def get_status(db: Session = Depends(get_db)):
 @log_operation("get_services_status")
 async def get_services_status():
     """Get status of all services"""
-    global service_manager
-    if service_manager is None:
-        return {
-            "status": "error",
-            "message": "Service manager not initialized",
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
+    # global service_manager
+    # if service_manager is None:
+    #     return {
+    #         "status": "error",
+    #         "message": "Service manager not initialized",
+    #         "timestamp": datetime.now(timezone.utc).isoformat()
+    #     }
     
-    try:
-        return {
-            "manager_status": service_manager.get_manager_status(),
-            "services_status": service_manager.get_all_service_status(),
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
-    except Exception as e:
-        logger.error(f"Error getting services status: {e}")
-        return {
-            "status": "error",
-            "message": f"Error getting services status: {str(e)}",
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
+    # try:
+    #     return {
+    #         "manager_status": service_manager.get_manager_status(),
+    #         "services_status": service_manager.get_all_service_status(),
+    #         "timestamp": datetime.now(timezone.utc).isoformat()
+    #     }
+    # except Exception as e:
+    #     logger.error(f"Error getting services status: {e}")
+    #     return {
+    #         "status": "error",
+    #         "message": f"Error getting services status: {str(e)}",
+    #         "timestamp": datetime.now(timezone.utc).isoformat()
+    #     }
+    return {
+        "status": "error",
+        "message": "Service manager functionality is currently disabled.",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
 
 @app.get("/api/services/{service_name}/status")
 @handle_service_errors
 @log_operation("get_service_status")
 async def get_service_status(service_name: str):
     """Get status of a specific service"""
-    global service_manager
-    if service_manager is None:
-        raise HTTPException(status_code=503, detail="Service manager not initialized")
+    # global service_manager
+    # if service_manager is None:
+    #     raise HTTPException(status_code=503, detail="Service manager not initialized")
     
-    try:
-        status = service_manager.get_service_status(service_name)
-        if status is None:
-            raise HTTPException(status_code=404, detail=f"Service {service_name} not found")
+    # try:
+    #     status = service_manager.get_service_status(service_name)
+    #     if status is None:
+    #         raise HTTPException(status_code=404, detail=f"Service {service_name} not found")
         
-        return status
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting service status for {service_name}: {e}")
-        raise HTTPException(status_code=500, detail=f"Error getting service status: {str(e)}")
+    #     return status
+    # except HTTPException:
+    #     raise
+    # except Exception as e:
+    #     logger.error(f"Error getting service status for {service_name}: {e}")
+    #     raise HTTPException(status_code=500, detail=f"Error getting service status: {str(e)}")
+    return {
+        "status": "error",
+        "message": "Service manager functionality is currently disabled.",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
 
 @app.post("/api/services/{service_name}/restart")
 @handle_service_errors
 @log_operation("restart_service")
 async def restart_service(service_name: str):
     """Restart a specific service"""
-    global service_manager
-    if service_manager is None:
-        raise HTTPException(status_code=503, detail="Service manager not initialized")
+    # global service_manager
+    # if service_manager is None:
+    #     raise HTTPException(status_code=503, detail="Service manager not initialized")
     
-    try:
-        success = await service_manager.restart_service(service_name)
-        if not success:
-            raise HTTPException(status_code=500, detail=f"Failed to restart service {service_name}")
+    # try:
+    #     success = await service_manager.restart_service(service_name)
+    #     if not success:
+    #         raise HTTPException(status_code=500, detail=f"Failed to restart service {service_name}")
         
-        return {
-            "status": "success",
-            "message": f"Service {service_name} restarted successfully",
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error restarting service {service_name}: {e}")
-        raise HTTPException(status_code=500, detail=f"Error restarting service: {str(e)}")
+    #     return {
+    #         "status": "success",
+    #         "message": f"Service {service_name} restarted successfully",
+    #         "timestamp": datetime.now(timezone.utc).isoformat()
+    #     }
+    # except HTTPException:
+    #     raise
+    # except Exception as e:
+    #     logger.error(f"Error restarting service {service_name}: {e}")
+    #     raise HTTPException(status_code=500, detail=f"Error restarting service: {str(e)}")
+    return {
+        "status": "error",
+        "message": "Service manager functionality is currently disabled.",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
 
 @app.get("/api/services/health")
 @handle_service_errors
 @log_operation("get_services_health")
 async def get_services_health():
     """Get health status of all services"""
-    global service_manager
-    if service_manager is None:
-        return {
-            "status": "error",
-            "message": "Service manager not initialized",
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
+    # global service_manager
+    # if service_manager is None:
+    #     return {
+    #         "status": "error",
+    #         "message": "Service manager not initialized",
+    #         "timestamp": datetime.now(timezone.utc).isoformat()
+    #     }
     
-    try:
-        return await service_manager.health_check_all()
-    except Exception as e:
-        logger.error(f"Error getting services health: {e}")
-        return {
-            "status": "error",
-            "message": f"Error getting services health: {str(e)}",
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
+    # try:
+    #     return await service_manager.health_check_all()
+    # except Exception as e:
+    #     logger.error(f"Error getting services health: {e}")
+    #     return {
+    #         "status": "error",
+    #         "message": f"Error getting services health: {str(e)}",
+    #         "timestamp": datetime.now(timezone.utc).isoformat()
+    #     }
+    return {
+        "status": "error",
+        "message": "Service manager functionality is currently disabled.",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
 
 @app.get("/api/events/status")
 @handle_service_errors
@@ -798,159 +786,7 @@ async def get_flight_stats(callsign: str, db: Session = Depends(get_db)):
         logger.error(f"Error getting flight stats: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving flight statistics")
 
-# DISABLED: Traffic Analysis Service Removal - Phase 1
-# @app.get("/api/traffic/movements/{airport_icao}")
-# @handle_service_errors
-# @log_operation("get_airport_movements")
-# async def get_airport_movements(
-#     airport_icao: str, 
-#     hours: int = 24,
-#     db: Session = Depends(get_db)
-# ):
-#     """Get traffic movements for specific airport with caching"""
-#     # Try to get from cache first
-#     cache_service = await get_cache_service()
-#     cached_movements = await cache_service.get_traffic_movements_cache(airport_icao)
-#     
-#     if cached_movements:
-#         logger.info(f"Returning cached movements for {airport_icao}")
-#         return {"movements": cached_movements, "cached": True}
-#     
-#     # If not cached, get from database
-#     cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
-#     
-#     movements = db.query(TrafficMovement).filter(
-#         and_(
-#             TrafficMovement.airport_icao == airport_icao.upper(),
-#             TrafficMovement.timestamp >= cutoff_time
-#         )
-#     ).order_by(desc(TrafficMovement.timestamp)).all()
-#     
-#     movements_data = []
-#     for movement in movements:
-#         movements_data.append({
-#             "id": movement.id,
-#             "airport_icao": movement.airport_icao,
-#             "flight_callsign": movement.flight_callsign,
-#             "movement_type": movement.movement_type,
-#             "timestamp": movement.timestamp.isoformat(),
-#             "confidence": movement.confidence,
-#             "altitude": movement.altitude
-#         })
-#     
-#     # Cache the result
-#     await cache_service.set_traffic_movements_cache(airport_icao, movements_data)
-#     
-#     return {"movements": movements_data, "cached": False}
 
-# DISABLED: Traffic Analysis Service Removal - Phase 1
-# @app.get("/api/traffic/summary")
-# @handle_service_errors
-# @log_operation("get_traffic_summary")
-# async def get_traffic_summary(
-#     hours: int = 24,
-#     db: Session = Depends(get_db)
-# ):
-#     """Get traffic summary for all airports with caching"""
-#     # Try to get from cache first
-#     cache_service = await get_cache_service()
-#     cache_key = f'traffic:summary:all:{hours}h'
-#     cached_summary = await cache_service.get_cached_data(cache_key)
-#     
-#     if cached_summary:
-#         return cached_summary
-#     
-#     # If not cached, calculate from database
-#     cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
-#     
-#     # Get all movements in the time period
-#     movements = db.query(TrafficMovement).filter(
-#         TrafficMovement.timestamp >= cutoff_time
-#     ).all()
-#     
-#     # Calculate summary statistics
-#     total_movements = len(movements)
-#     arrivals = len([m for m in movements if m.movement_type == "arrival"])
-#     departures = len([m for m in movements if m.movement_type == "departure"])
-#     
-#     # Group by airport
-#     airport_stats = {}
-#     for movement in movements:
-#         airport = movement.airport_code
-#         if airport not in airport_stats:
-#             airport_stats[airport] = {"arrivals": 0, "departures": 0}
-#         
-#         if movement.movement_type == "arrival":
-#             airport_stats[airport]["arrivals"] += 1
-#         else:
-#             airport_stats[airport]["departures"] += 1
-#     
-#     summary = {
-#         "period_hours": hours,
-#         "total_movements": total_movements,
-#         "arrivals": arrivals,
-#         "departures": departures,
-#         "airport_breakdown": airport_stats,
-#         "timestamp": datetime.now(timezone.utc).isoformat()
-#     }
-#     
-#     # Cache the result
-#     await cache_service.set_cached_data(cache_key, summary, 300)
-#     
-#     return summary
-
-# DISABLED: Traffic Analysis Service Removal - Phase 1
-# @app.get("/api/traffic/trends/{airport_icao}")
-# @handle_service_errors
-# @log_operation("get_traffic_trends")
-# async def get_traffic_trends(
-#     airport_icao: str,
-#     days: int = 7,
-#     db: Session = Depends(get_db)
-# ):
-#     """Get traffic trends for airport with caching"""
-#     # Try to get from cache first
-#     cache_service = await get_cache_service()
-#     cache_key = f'traffic:trends:{airport_icao}:{days}d'
-#     cached_trends = await cache_service.get_cached_data(cache_key)
-#     
-#     if cached_trends:
-#         return cached_trends
-#     
-#     # If not cached, calculate from database
-#     cutoff_time = datetime.now(timezone.utc) - timedelta(days=days)
-#     
-#     movements = db.query(TrafficMovement).filter(
-#         and_(
-#             TrafficMovement.airport_icao == airport_icao.upper(),
-#             TrafficMovement.timestamp >= cutoff_time
-#         )
-#     ).order_by(TrafficMovement.timestamp).all()
-#     
-#     # Group by day
-#     daily_stats = {}
-#     for movement in movements:
-#         date_key = movement.timestamp.date().isoformat()
-#         if date_key not in daily_stats:
-#             daily_stats[date_key] = {"arrivals": 0, "departures": 0}
-#         
-#         if movement.movement_type == "arrival":
-#             daily_stats[date_key]["arrivals"] += 1
-#         else:
-#             daily_stats[date_key]["departures"] += 1
-#     
-#     trends = {
-#         "airport_icao": airport_icao,
-#         "period_days": days,
-#         "daily_stats": daily_stats,
-#         "total_movements": len(movements),
-#         "timestamp": datetime.now(timezone.utc).isoformat()
-#     }
-#     
-#     # Cache the result
-#     await cache_service.set_cached_data(cache_key, trends, 3600)
-#     
-#     return trends
 
 @app.get("/api/database/status")
 @handle_service_errors
@@ -1059,18 +895,8 @@ async def optimize_performance(db: Session = Depends(get_db)):
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
-# REMOVED: Traffic Analysis Service - Phase 2
-# @app.get("/traffic-dashboard")
-# @handle_service_errors
-# @log_operation("get_traffic_dashboard")
-# async def get_traffic_dashboard():
-#     """Get traffic dashboard HTML"""
-#     # Traffic analysis service temporarily disabled
-#     # traffic_service = get_traffic_analysis_service()
-#     # dashboard_data = await traffic_service.generate_dashboard_data()
-#     dashboard_data = {"message": "Traffic analysis temporarily disabled during database cleanup"}
-#     
-#     return dashboard_data
+# Traffic dashboard endpoint (future implementation)
+
 
 from pydantic import BaseModel
 

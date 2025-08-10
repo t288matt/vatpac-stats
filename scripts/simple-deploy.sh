@@ -77,7 +77,7 @@ GRAFANA_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
 
 # Production Mode
 PRODUCTION_MODE=true
-ERROR_MONITORING_ENABLED=true
+# Error handling simplified - using basic error handling decorators
 LOG_LEVEL=INFO
 
 # Performance for production

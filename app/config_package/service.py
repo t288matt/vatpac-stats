@@ -33,7 +33,7 @@ class ServiceConfig:
     max_concurrent_requests: int = 100
     
     # Error Handling
-    error_monitoring_enabled: bool = True
+    # Error monitoring simplified - using basic error handling
     retry_max_attempts: int = 3
     circuit_breaker_threshold: int = 5
     
@@ -62,7 +62,7 @@ class ServiceConfig:
             memory_limit_mb=int(os.getenv("MEMORY_LIMIT_MB", "2048")),
             batch_size_threshold=int(os.getenv("BATCH_SIZE_THRESHOLD", "10000")),
             max_concurrent_requests=int(os.getenv("MAX_CONCURRENT_REQUESTS", "100")),
-            error_monitoring_enabled=os.getenv("ERROR_MONITORING_ENABLED", "true").lower() == "true",
+            # Error monitoring simplified - using basic error handling
             retry_max_attempts=int(os.getenv("RETRY_MAX_ATTEMPTS", "3")),
             circuit_breaker_threshold=int(os.getenv("CIRCUIT_BREAKER_THRESHOLD", "5"))
         )
@@ -117,7 +117,7 @@ class ServiceConfig:
             "memory_limit_mb": self.memory_limit_mb,
             "batch_size_threshold": self.batch_size_threshold,
             "max_concurrent_requests": self.max_concurrent_requests,
-            "error_monitoring_enabled": self.error_monitoring_enabled,
+            "error_monitoring_enabled": False,  # Simplified
             "retry_max_attempts": self.retry_max_attempts,
             "circuit_breaker_threshold": self.circuit_breaker_threshold
         } 

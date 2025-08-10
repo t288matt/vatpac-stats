@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Comprehensive Monitoring Service for VATSIM Data Collection System - Phase 3
+Comprehensive Monitoring Service for VATSIM Data Collection System
 
 This service provides comprehensive monitoring and observability for the VATSIM
 data collection system, including metrics collection, health checking, and alerting.
@@ -28,16 +28,6 @@ FEATURES:
 - Error rate tracking and analysis
 - Service dependency monitoring
 - Real-time dashboard updates
-
-PHASE 3 FEATURES:
-- Comprehensive metrics collection
-- Advanced health checking
-- Intelligent alerting system
-- Performance optimization recommendations
-- Service dependency mapping
-- Resource usage analytics
-- Error pattern analysis
-- Predictive monitoring capabilities
 """
 
 import asyncio
@@ -49,7 +39,6 @@ from enum import Enum
 import psutil
 import json
 
-from .base_service import BaseService
 from ..utils.logging import get_logger_for_module
 from ..utils.error_handling import handle_service_errors, log_operation
 from ..utils.health_monitor import HealthMonitor
@@ -289,47 +278,60 @@ class AlertManager:
                 logging.error(f"Alert handler failed: {e}")
 
 
-class MonitoringService(BaseService):
-    """Comprehensive monitoring service for Phase 3."""
+class MonitoringService:
+    """Comprehensive monitoring service for the VATSIM data collection system."""
     
     def __init__(self):
-        super().__init__("monitoring")
-        self.config = ServiceConfig.load_from_env()
+        self.logger = get_logger_for_module(__name__)
         self.metrics_collector = MetricsCollector()
         self.health_checker = HealthChecker()
         self.alert_manager = AlertManager()
-        self.monitoring_task: Optional[asyncio.Task] = None
-        self.running = False
-    
-    async def _initialize_service(self):
-        """Initialize monitoring service."""
-        # Register default alert handlers
-        self.alert_manager.register_alert_handler(AlertType.SERVICE_DOWN, self._handle_service_down)
-        self.alert_manager.register_alert_handler(AlertType.HIGH_ERROR_RATE, self._handle_high_error_rate)
-        self.alert_manager.register_alert_handler(AlertType.PERFORMANCE_DEGRADATION, self._handle_performance_degradation)
+        self.monitoring_task = None
+        self.is_running = False
         
-        # Start monitoring task
-        self.monitoring_task = asyncio.create_task(self._monitoring_loop())
-        self.running = True
+        # Configuration
+        self.monitoring_interval = 30  # seconds
+        self.health_check_interval = 60  # seconds
+        
+        # Service registry for health monitoring
+        self.registered_services = {}
     
-    async def _cleanup_service(self):
-        """Cleanup monitoring service."""
-        self.running = False
+    async def initialize(self):
+        """Initialize monitoring service."""
+        self.logger.info("Initializing monitoring service")
+        self.is_running = True
+        self.monitoring_task = asyncio.create_task(self._monitoring_loop())
+        self.logger.info("Monitoring service initialized")
+    
+    async def cleanup(self):
+        """Cleanup monitoring service resources."""
+        self.logger.info("Cleaning up monitoring service")
+        self.is_running = False
         if self.monitoring_task:
             self.monitoring_task.cancel()
             try:
                 await self.monitoring_task
             except asyncio.CancelledError:
                 pass
+        self.logger.info("Monitoring service cleaned up")
     
-    async def _perform_health_check(self) -> Dict[str, Any]:
-        """Perform health check for monitoring service."""
-        return {
-            "running": self.running,
-            "metrics_count": len(self.metrics_collector.metrics),
-            "active_alerts": len(self.alert_manager.get_active_alerts()),
-            "health_checks": len(self.health_checker.health_status)
-        }
+    async def health_check(self) -> Dict[str, Any]:
+        """Perform monitoring service health check."""
+        try:
+            return {
+                "monitoring_service_healthy": True,
+                "metrics_collector_active": True,
+                "health_checker_active": True,
+                "alert_manager_active": True,
+                "monitoring_task_running": self.monitoring_task and not self.monitoring_task.done(),
+                "registered_services_count": len(self.registered_services)
+            }
+        except Exception as e:
+            self.logger.error(f"Monitoring service health check failed: {e}")
+            return {
+                "monitoring_service_healthy": False,
+                "error": str(e)
+            }
     
     @handle_service_errors
     @log_operation("monitor_service")
@@ -415,7 +417,7 @@ class MonitoringService(BaseService):
     
     async def _monitoring_loop(self):
         """Main monitoring loop."""
-        while self.running:
+        while self.is_running:
             try:
                 # Monitor system resources
                 await self._monitor_system_resources()
@@ -427,7 +429,7 @@ class MonitoringService(BaseService):
                 await self._check_performance_issues()
                 
                 # Wait before next monitoring cycle
-                await asyncio.sleep(self.config.health_check_interval)
+                await asyncio.sleep(self.health_check_interval)
                 
             except Exception as e:
                 self.logger.error(f"Monitoring loop error: {e}")

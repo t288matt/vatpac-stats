@@ -2,65 +2,49 @@
 """
 Data Service for VATSIM Data Collection System
 
-This service handles all database operations and data processing for the VATSIM
-data collection system. It provides memory-optimized data ingestion with SSD
-wear optimization and efficient database operations.
+This service handles the core data ingestion, processing, and storage operations
+for the VATSIM data collection system. It coordinates between VATSIM API data
+fetching, data filtering, and database storage with SSD wear optimization.
 
 INPUTS:
-- VATSIM API data (controllers, flights, sectors, transceivers)
-- Real-time flight tracking information
-- ATC position updates and status changes
-- Memory cache for batch processing
+- VATSIM API data (controllers, flights, transceivers)
+- Flight filter configurations
+- Geographic boundary filter settings
+- Database connection and session management
 
 OUTPUTS:
-- Database records for all VATSIM data types
-- Memory-optimized data processing
-- Batch database operations
-- Data cleanup and maintenance
-- Network status and health metrics
+- Processed and filtered flight data
+- ATC position data with validation
+- Transceiver frequency data
+- Network status and statistics
+- Memory-optimized data caching
 
 FEATURES:
-- Memory-based data processing to reduce SSD wear
-- Batch database operations for efficiency
-- Automatic data cleanup and maintenance
-- Real-time status tracking
-- Error handling and recovery
-- Configurable processing intervals
-
-DATA TYPES PROCESSED:
-- ATC Positions: Controller callsigns, facilities, frequencies
-- Flights: Aircraft tracking, position, altitude, speed
-- Sectors: Airspace definitions and traffic density
-- Transceivers: Radio frequency and position data
-- Traffic Movements: Airport arrival/departure tracking
-
-OPTIMIZATIONS:
-- Memory caching to reduce disk I/O
-- Batch database operations
-- SSD wear optimization (periodic writes)
-- Connection pooling
-
+- SSD wear optimization through batch writing
+- Memory-efficient data processing
+- Real-time data filtering and validation
+- Automatic data persistence scheduling
+- Health monitoring and error handling
 """
 
-import asyncio
 import os
-from datetime import datetime, timezone, timedelta, timezone, timezone
-from typing import Dict, List, Any, Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, desc, insert, cast, JSON
-from sqlalchemy.dialects.postgresql import insert as postgresql_insert
-import json
-from collections import defaultdict
 import time
+import asyncio
+import logging
+from typing import Dict, Any, List, Optional
+from collections import defaultdict
+from datetime import datetime, timezone, timedelta
 
+from ..config import get_config
+from ..utils.logging import get_logger_for_module
+from ..utils.error_handling import handle_service_errors, log_operation
 from ..database import SessionLocal
-from ..models import Controller, Flight, Transceiver
+from ..models import Flight, Controller, Transceiver
 from .vatsim_service import VATSIMService
-# REMOVED: Traffic Analysis Service - Phase 2
-from .base_service import DatabaseService
-from ..utils.error_handling import handle_service_errors, retry_on_failure, log_operation
+from .database_service import get_database_service
 from ..filters.flight_filter import FlightFilter
 from ..filters.geographic_boundary_filter import GeographicBoundaryFilter
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 
 
 class BoundedCache:
@@ -114,9 +98,13 @@ class BoundedCache:
         return list(self.cache.items())
 
 
-class DataService(DatabaseService):
+class DataService:
     def __init__(self):
-        super().__init__("data_service")
+        self.service_name = "data_service"
+        self.config = get_config()
+        self.logger = get_logger_for_module(f"services.{self.service_name}")
+        self._initialized = False
+        
         self.vatsim_service = VATSIMService()
         # REMOVED: Traffic Analysis Service - Phase 2
         
@@ -143,20 +131,28 @@ class DataService(DatabaseService):
         }
         self.write_count = 0
     
-    async def _initialize_service(self):
+    async def initialize(self) -> bool:
         """Initialize data service with dependencies."""
-        await super()._initialize_service()
-        
-        self.logger.info("Data service initialized successfully")
+        try:
+            # Initialize VATSIM service
+            await self.vatsim_service.initialize()
+            
+            self.logger.info("Data service initialized successfully")
+            self._initialized = True
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to initialize data service: {e}")
+            return False
     
-    async def _perform_health_check(self) -> Dict[str, Any]:
+    def is_initialized(self) -> bool:
+        """Check if service is properly initialized."""
+        return self._initialized
+    
+    async def health_check(self) -> Dict[str, Any]:
         """Perform data service health check."""
         try:
             # Check VATSIM service
             vatsim_health = await self.vatsim_service.health_check()
-            
-            # Check database connectivity
-            db_health = await super()._perform_health_check()
             
             # Check cache status
             cache_status = {
@@ -168,7 +164,6 @@ class DataService(DatabaseService):
             
             return {
                 'vatsim_service': vatsim_health,
-                'database': db_health,
                 'cache_status': cache_status,
                 'write_count': self.write_count
             }
@@ -176,17 +171,15 @@ class DataService(DatabaseService):
             self.logger.error(f"Health check failed: {e}")
             return {'error': str(e)}
     
-    async def _cleanup_service(self):
+    async def cleanup(self):
         """Cleanup data service resources."""
-        await super()._cleanup_service()
-        
         # Clear memory cache
         self.cache['flights'].clear()
         self.cache['atc_positions'].clear()
         self.cache['memory_buffer'].clear()
         
         self.logger.info("Data service cleanup completed")
-        
+    
     async def start_data_ingestion(self):
         """Start the data ingestion process with SSD wear optimization"""
         self.logger.info("Starting data ingestion process with SSD wear optimization")

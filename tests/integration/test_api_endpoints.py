@@ -65,20 +65,7 @@ class TestAPIEndpoints:
             response = test_client.get(f"/flight-track/{callsign}")
             assert response.status_code in [200, 404]  # 404 if flight not found
 
-    # REMOVED: Traffic Analysis Service - Phase 4
-    # def test_traffic_analysis_endpoint(self, test_client):
-    #     """Test the traffic analysis endpoint."""
-    #     response = test_client.get("/traffic-analysis")
-    #     assert response.status_code == 200
-    #     data = response.json()
-    #     assert isinstance(data, dict)
 
-    # def test_traffic_summary_endpoint(self, test_client):
-    #     """Test the traffic summary endpoint."""
-    #     response = test_client.get("/traffic-summary")
-    #     assert response.status_code == 200
-    #     data = response.json()
-    #     assert isinstance(data, dict)
 
     def test_monitoring_metrics_endpoint(self, test_client):
         """Test the monitoring metrics endpoint."""
@@ -171,14 +158,7 @@ class TestAsyncAPIEndpoints:
         data = response.json()
         assert isinstance(data, list)
 
-    # REMOVED: Traffic Analysis Service - Phase 4
-    # @pytest.mark.asyncio
-    # async def test_async_traffic_analysis_endpoint(self, async_client):
-    #     """Test the traffic analysis endpoint asynchronously."""
-    #     response = await async_client.get("/traffic-analysis")
-    #     assert response.status_code == 200
-    #     data = response.json()
-    #     assert isinstance(data, dict)
+
 
     @pytest.mark.asyncio
     async def test_async_monitoring_endpoints(self, async_client):

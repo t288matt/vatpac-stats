@@ -26,7 +26,6 @@
 - **`app/services/traffic_analysis_service.py`**: Updated to use default configs (service disabled)
 - **`app/services/query_optimizer.py`**: Removed (service was unused complexity)
 - **`app/services/cache_service.py`**: Removed sector status caching
-- **`app/services/interfaces/database_service_interface.py`**: Removed abstract `store_sectors` method
 - **`app/services/vatsim_service.py`**: Maintained sectors handling for API compatibility (returns empty list)
 - **`app/config.py`**: Renamed `AirportConfig` to `AirportsConfig` to avoid naming conflict
 - **`app/utils/schema_validator.py`**: Removed deleted tables from required tables list

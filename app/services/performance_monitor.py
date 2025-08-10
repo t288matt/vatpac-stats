@@ -51,7 +51,7 @@ from enum import Enum
 import statistics
 import json
 
-from .base_service import BaseService
+
 from ..utils.logging import get_logger_for_module
 from ..utils.error_handling import handle_service_errors, log_operation
 from ..utils.structured_logging import get_structured_logger, LogLevel, LogCategory
@@ -285,43 +285,64 @@ class PerformanceOptimizer:
         return recommendations
 
 
-class PerformanceMonitor(BaseService):
-    """Comprehensive performance monitoring service for Phase 3."""
+class PerformanceMonitor:
+    """Performance monitoring service for the VATSIM data collection system."""
     
     def __init__(self):
-        super().__init__("performance_monitor")
-        self.config = ServiceConfig.load_from_env()
+        self.logger = get_logger_for_module(__name__)
         self.performance_collector = PerformanceCollector()
         self.performance_optimizer = PerformanceOptimizer()
-        self.structured_logger = get_structured_logger("performance_monitor")
-        self.monitoring_task: Optional[asyncio.Task] = None
-        self.running = False
-        self.performance_alerts: List[PerformanceAlert] = []
+        self.monitoring_task = None
+        self.is_running = False
+        
+        # Configuration
+        self.monitoring_interval = 30  # seconds
+        self.analysis_interval = 300  # seconds
+        
+        # Performance thresholds
+        self.thresholds = {
+            PerformanceMetric.RESPONSE_TIME: 1000,  # ms
+            PerformanceMetric.MEMORY_USAGE: 80,     # %
+            PerformanceMetric.CPU_USAGE: 80,        # %
+            PerformanceMetric.ERROR_RATE: 5         # %
+        }
     
-    async def _initialize_service(self):
-        """Initialize performance monitoring service."""
-        # Start monitoring task
+    async def initialize(self):
+        """Initialize performance monitor."""
+        self.logger.info("Initializing performance monitor")
+        self.is_running = True
         self.monitoring_task = asyncio.create_task(self._monitoring_loop())
-        self.running = True
+        self.logger.info("Performance monitor initialized")
     
-    async def _cleanup_service(self):
-        """Cleanup performance monitoring service."""
-        self.running = False
+    async def cleanup(self):
+        """Cleanup performance monitor resources."""
+        self.logger.info("Cleaning up performance monitor")
+        self.is_running = False
         if self.monitoring_task:
             self.monitoring_task.cancel()
             try:
                 await self.monitoring_task
             except asyncio.CancelledError:
                 pass
+        self.logger.info("Performance monitor cleaned up")
     
-    async def _perform_health_check(self) -> Dict[str, Any]:
-        """Perform health check for performance monitoring service."""
-        return {
-            "running": self.running,
-            "metrics_count": len(self.performance_collector.metrics),
-            "alerts_count": len(self.performance_alerts),
-            "recommendations_count": len(self.performance_optimizer.recommendations)
-        }
+    async def health_check(self) -> Dict[str, Any]:
+        """Perform performance monitor health check."""
+        try:
+            return {
+                "performance_monitor_healthy": True,
+                "performance_collector_active": True,
+                "performance_optimizer_active": True,
+                "monitoring_task_running": self.monitoring_task and not self.monitoring_task.done(),
+                "metrics_count": len(self.performance_collector.metrics),
+                "active_alerts": len(self.performance_collector.active_alerts)
+            }
+        except Exception as e:
+            self.logger.error(f"Performance monitor health check failed: {e}")
+            return {
+                "performance_monitor_healthy": False,
+                "error": str(e)
+            }
     
     @handle_service_errors
     @log_operation("monitor_operation")
@@ -433,7 +454,7 @@ class PerformanceMonitor(BaseService):
     
     async def _monitoring_loop(self):
         """Main performance monitoring loop."""
-        while self.running:
+        while self.is_running:
             try:
                 # Monitor system performance
                 await self._monitor_system_performance()
@@ -442,10 +463,10 @@ class PerformanceMonitor(BaseService):
                 await self._generate_recommendations()
                 
                 # Wait before next monitoring cycle
-                await asyncio.sleep(self.config.health_check_interval)
+                await asyncio.sleep(self.monitoring_interval)
                 
             except Exception as e:
-                self.structured_logger.log_error(
+                self.logger.error(
                     "Performance monitoring loop error",
                     exception=e,
                     category=LogCategory.PERFORMANCE
@@ -502,7 +523,7 @@ class PerformanceMonitor(BaseService):
         )
         
         if recommendations:
-            self.structured_logger.log_info(
+            self.logger.info(
                 f"Generated {len(recommendations)} performance optimization recommendations",
                 category=LogCategory.PERFORMANCE,
                 recommendations_count=len(recommendations)

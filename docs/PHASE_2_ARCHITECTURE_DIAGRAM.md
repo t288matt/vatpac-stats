@@ -1,270 +1,451 @@
-# Phase 2 Architecture Diagram
+# Phase 2 Architecture Diagram - Error Handling & Event Architecture
 
-## System Overview
-
-Phase 2 enhanced the VATSIM Data Collection System with comprehensive error handling and event-driven architecture. This document provides a visual representation of the new components and their interactions.
-
-## Architecture Components
+## 🏗️ **System Architecture Overview**
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           PHASE 2 ARCHITECTURE                            │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              VATSIM Data Collection System                     │
+│                              Phase 2: Error Handling & Events                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           ERROR MANAGEMENT LAYER                           │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐        │
-│  │  ErrorManager   │    │ RetryHandler    │    │CircuitBreaker   │        │
-│  │                 │    │                 │    │   Handler       │        │
-│  │ • Error tracking│    │ • Exponential   │    │ • Failure       │        │
-│  │ • Analytics     │    │   backoff       │    │   threshold     │        │
-│  │ • Recovery      │    │ • Auto retry    │    │ • State mgmt    │        │
-│  │ • Context       │    │ • Transient     │    │ • Timeout       │        │
-│  │   preservation  │    │   error recovery│    │   handling      │        │
-│  └─────────────────┘    └─────────────────┘    └─────────────────┘        │
-│           │                       │                       │                │
-│           └───────────────────────┼───────────────────────┘                │
-│                                   │                                        │
-│  ┌─────────────────────────────────┼─────────────────────────────────────┐  │
-│  │                    RecoveryStrategy                                │  │
-│  │                    • Handler wrapping                              │  │
-│  │                    • Success/failure tracking                      │  │
-│  │                    • Strategy execution                            │  │
-│  └─────────────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              API Layer (FastAPI)                              │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
+│  │   Flight API    │  │   ATC API       │  │   Status API    │  │ Events API  │ │
+│  │   Endpoints     │  │   Endpoints     │  │   Endpoints     │  │ Endpoints   │ │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘  └─────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           EVENT BUS LAYER                                 │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐        │
-│  │   EventBus      │    │  EventMetrics   │    │ DeadLetterQueue │        │
-│  │                 │    │                 │    │                 │        │
-│  │ • Event routing │    │ • Event counts  │    │ • Failed events │        │
-│  │ • Handler mgmt  │    │ • Processing    │    │ • Retry logic   │        │
-│  │ • Circuit       │    │   times         │    │ • Queue limits  │        │
-│  │   breakers      │    │ • Type tracking │    │ • Event storage │        │
-│  │ • Timeout       │    │ • Service       │    │ • Recovery      │        │
-│  │   protection    │    │   analytics     │    │   mechanisms    │        │
-│  └─────────────────┘    └─────────────────┘    └─────────────────┘        │
-│           │                       │                       │                │
-│           └───────────────────────┼───────────────────────┘                │
-│                                   │                                        │
-│  ┌─────────────────────────────────┼─────────────────────────────────────┐  │
-│  │                    Event Processing Pipeline                        │  │
-│  │                    • Handler execution with timeout                 │  │
-│  │                    • Circuit breaker checks                        │  │
-│  │                    • Error handling and logging                    │  │
-│  │                    • Metrics collection                            │  │
-│  └─────────────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              Service Layer                                    │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
+│  │  DataService    │  │ VATSIMService   │  │DatabaseService  │  │ CacheService│ │
+│  │                 │  │                 │  │                 │  │             │ │
+│  │ • Flight        │  │ • API Fetching  │  │ • Data Storage  │  │ • Redis     │ │
+│  │   Processing    │  │ • Data Parsing  │  │ • Querying      │  │   Caching   │ │
+│  │ • Filtering     │  │ • Error Handling│  │ • Transactions  │  │ • TTL Mgmt  │ │
+│  │ • Validation    │  │ • Rate Limiting │  │ • Connection    │  │ • Inval.    │ │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘  └─────────────┘ │
+│                                                                                 │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
+│  │ EventBus        │  │ServiceManager   │  │LifecycleManager │  │ResourceMgr  │ │
+│  │                 │  │                 │  │                 │  │             │ │
+│  │ • Event Pub/Sub │  │ • Service       │  │ • Lifecycle     │  │ • Memory    │ │
+│  │ • Event History │  │   Coordination  │  │   Management    │  │   Monitoring│ │
+│  │ • Event Metrics │  │ • Health Checks │  │ • Startup/      │  │ • Cleanup   │ │
+│  │ • Error Handling│  │ • Status Mgmt   │  │   Shutdown      │  │ • Limits    │ │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘  └─────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           DATABASE SERVICE LAYER                          │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐        │
-│  │DatabaseService  │    │ SessionManager  │    │ HealthMonitor   │        │
-│  │                 │    │                 │    │                 │        │
-│  │ • Data storage  │    │ • Connection    │    │ • Connectivity  │        │
-│  │ • Data retrieval│    │   pooling       │    │   checks        │        │
-│  │ • Query ops     │    │ • Session       │    │ • Performance   │        │
-│  │ • Error handling│    │   lifecycle     │    │   monitoring    │        │
-│  │ • Stats tracking│    │ • Resource      │    │ • Alerting      │        │
-│  │ • Cleanup ops   │    │   management    │    │ • Reporting     │        │
-│  └─────────────────┘    └─────────────────┘    └─────────────────┘        │
-│           │                       │                       │                │
-│           └───────────────────────┼───────────────────────┘                │
-│                                   │                                        │
-│  ┌─────────────────────────────────┼─────────────────────────────────────┐  │
-│  │                    Database Operations                             │  │
-│  │                    • Flight data management                        │  │
-│  │                    • Controller data management                    │  │
-│  │                    • Sector data management                        │  │
-│  │                    • Transceiver data management                   │  │
-│  └─────────────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              Error Management Layer                           │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
+│  │ ErrorManager    │  │ ErrorHandling   │  │ ErrorMonitoring │  │ HealthMon   │ │
+│  │                 │  │                 │  │                 │  │             │ │
+│  │ • Error         │  │ • Decorators    │  │ • Error         │  │ • Health    │ │
+│  │   Analytics     │  │ • Context       │  │   Tracking      │  │   Checks    │ │
+│  │ • Circuit       │  │ • Recovery      │  │ • Metrics       │  │ • Alerts    │ │
+│  │   Breakers      │  │ • Logging       │  │ • Reporting     │  │ • Status    │ │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘  └─────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           API LAYER                                       │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐        │
-│  │ /api/errors/    │    │ /api/database/  │    │ /api/events/    │        │
-│  │ analytics       │    │ service/*       │    │ analytics       │        │
-│  │                 │    │                 │    │                 │        │
-│  │ • Error reports │    │ • Database      │    │ • Event metrics │        │
-│  │ • Circuit       │    │   statistics    │    │ • Processing    │        │
-│  │   breaker status│    │ • Health checks │    │   times         │        │
-│  │ • Recovery      │    │ • Performance   │    │ • Handler       │        │
-│  │   analytics     │    │   metrics       │    │   status        │        │
-│  │ • Error trends  │    │ • Query stats   │    │ • Queue status  │        │
-│  └─────────────────┘    └─────────────────┘    └─────────────────┘        │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           INTEGRATION LAYER                               │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐        │
-│  │ Phase 1 Config  │    │ Existing Models │    │ Base Services   │        │
-│  │ Management      │    │ (Unchanged)     │    │                 │        │
-│  │                 │    │                 │    │ • Service       │        │
-│  │ • Environment   │    │ • Flight        │    │   lifecycle     │        │
-│  │   variables     │    │ • Controller    │    │ • Health checks │        │
-│  │ • Service       │    │ • Sector        │    │ • Error         │        │
-│  │   configuration │    │ • Transceiver   │    │   integration   │        │
-│  │ • Validation    │    │ • All other     │    │ • Resource      │        │
-│  │   rules         │    │   models        │    │   management    │        │
-│  └─────────────────┘    └─────────────────┘    └─────────────────┘        │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              Data Layer                                       │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
+│  │   PostgreSQL    │  │     Redis       │  │   VATSIM API    │  │   Logs      │ │
+│  │   Database      │  │     Cache       │  │   v3            │  │             │ │
+│  │                 │  │                 │  │                 │  │             │ │
+│  │ • Flights       │  │ • Flight Data   │  │ • Real-time     │  │ • App Logs  │ │
+│  │ • Controllers   │  │ • ATC Data      │  │   Data          │  │ • Error     │ │
+│  │ • Airports      │  │ • Config        │  │ • Controller    │  │   Logs      │ │
+│  │ • Transceivers  │  │ • Sessions      │  │   Positions     │  │ • Access    │ │
+│  │ • Frequency     │  │ • Rate Limiting│  │ • Flight Plans  │  │   Logs      │ │
+│  │   Matches       │  │ • Event History │  │ • Server Status │  │ • Audit     │ │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘  └─────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Component Interactions
+## 🔄 **Data Flow Architecture**
 
-### Error Flow
+### **1. VATSIM Data Collection Flow**
 ```
-Service Operation → ErrorManager → ErrorHandler → RecoveryStrategy → Success/Failure
-       ↓
-Error Analytics ← Circuit Breaker Status ← Error Context ← Error Info
-```
-
-### Event Flow
-```
-Event → EventBus → Handler → Circuit Breaker Check → Timeout Protection → Execution
-  ↓
-EventMetrics ← Dead Letter Queue ← Error Handling ← Context Creation
+VATSIM API → VATSIMService → DataService → DatabaseService → PostgreSQL
+                ↓              ↓              ↓
+            ErrorManager   EventBus      ErrorHandling
+                ↓              ↓              ↓
+            Logging      Event History   Health Monitor
 ```
 
-### Database Flow
+### **2. Flight Data Processing Flow**
 ```
-Request → DatabaseService → SessionManager → Database Operation → Error Handling
-  ↓
-Health Check ← Statistics ← Performance Tracking ← Resource Management
+DatabaseService → DataService → Flight Filters → CacheService → Redis
+      ↓              ↓              ↓              ↓
+  ErrorHandling  EventBus      Geographic     TTL Management
+      ↓              ↓              ↓              ↓
+  Health Check  Event Metrics  Boundary      Cache Invalidation
 ```
 
-## Key Features by Layer
+### **3. Error Handling Flow**
+```
+Service Error → ErrorManager → Circuit Breaker → Recovery Strategy
+      ↓              ↓              ↓              ↓
+  Logging      Error Analytics  Health Check   Event Publishing
+      ↓              ↓              ↓              ↓
+  Monitoring   Metrics         Alerting       Event History
+```
 
-### Error Management Layer
-- **Centralized Error Handling**: All errors routed through ErrorManager
-- **Type-Specific Handlers**: Different strategies for different error types
-- **Circuit Breaker Patterns**: Prevents cascading failures
-- **Recovery Strategies**: Automatic retry with exponential backoff
-- **Error Analytics**: Comprehensive reporting and monitoring
+### **4. Event Processing Flow**
+```
+Service Action → EventBus → Event Handlers → Event History → Metrics
+      ↓              ↓              ↓              ↓
+  ErrorHandling  Event Validation  Event Storage  Event Analytics
+      ↓              ↓              ↓              ↓
+  Circuit Breaker  Dead Letter     Event TTL      Performance
+```
 
-### Event Bus Layer
-- **Event Persistence**: Events stored for replay and analysis
-- **Circuit Breaker Integration**: Per-handler failure protection
-- **Dead Letter Queue**: Failed events stored for later processing
-- **Timeout Protection**: Prevents handler blocking
-- **Event Metrics**: Real-time processing analytics
+## 🏗️ **Service Dependencies**
 
-### Database Service Layer
-- **Dedicated Service**: Focused database operations
-- **Connection Pooling**: Efficient resource management
-- **Health Monitoring**: Proactive database health checks
-- **Performance Tracking**: Query optimization and monitoring
-- **Error Integration**: Database-specific error handling
+### **Core Service Dependencies**
+```
+DataService
+├── VATSIMService (VATSIM API data)
+├── DatabaseService (Data persistence)
+├── CacheService (Performance caching)
+├── EventBus (Event publishing)
+└── ErrorManager (Error handling)
 
-### API Layer
-- **Error Analytics**: `/api/errors/analytics`
-- **Circuit Breaker Status**: `/api/errors/circuit-breakers`
-- **Database Statistics**: `/api/database/service/stats`
-- **Database Health**: `/api/database/service/health`
-- **Event Analytics**: `/api/events/analytics`
+VATSIMService
+├── DatabaseService (Data storage)
+├── CacheService (API response caching)
+├── EventBus (Data update events)
+└── ErrorManager (API error handling)
 
-## Integration Points
+DatabaseService
+├── EventBus (Database events)
+├── ErrorManager (Database errors)
+└── HealthMonitor (Connection health)
 
-### With Phase 1 Components
-- **Configuration Management**: Uses Phase 1 configuration system
-- **Service Interfaces**: Implements Phase 1 service contracts
-- **Environment Variables**: Leverages Phase 1 configuration
+CacheService
+├── EventBus (Cache events)
+├── ErrorManager (Cache errors)
+└── ResourceManager (Memory management)
+```
 
-### With Existing System
-- **Model Preservation**: All existing models unchanged
-- **API Compatibility**: Existing endpoints remain functional
-- **Service Integration**: Seamless integration with existing services
+### **Management Service Dependencies**
+```
+ServiceManager
+├── LifecycleManager (Service lifecycle)
+├── EventBus (Service events)
+├── ErrorManager (Service errors)
+└── HealthMonitor (Service health)
 
-## Performance Characteristics
+LifecycleManager
+├── EventBus (Lifecycle events)
+├── ErrorManager (Lifecycle errors)
+└── HealthMonitor (Service monitoring)
 
-### Error Handling Performance
-- **Latency**: Minimal overhead for error tracking
-- **Throughput**: Efficient error processing pipeline
-- **Recovery**: Fast recovery with exponential backoff
+EventBus
+├── ErrorManager (Event errors)
+├── ResourceManager (Memory management)
+└── HealthMonitor (Event processing health)
+```
 
-### Event Processing Performance
-- **Reliability**: Dead letter queue prevents event loss
-- **Monitoring**: Real-time metrics collection
-- **Protection**: Timeout protection prevents blocking
+## 🔧 **Configuration Architecture**
 
-### Database Performance
-- **Connection Efficiency**: Connection pooling reduces overhead
-- **Query Optimization**: Performance tracking enables optimization
-- **Health Monitoring**: Proactive health checks prevent failures
+### **Configuration Files**
+```
+app/config_package/
+├── __init__.py           # Main config module
+├── database.py           # Database configuration
+├── vatsim.py            # VATSIM API configuration
+├── service.py            # Service configuration
+└── hot_reload.py         # Configuration hot-reload
+```
 
-## Scalability Considerations
+### **Environment Variables**
+```
+# Database Configuration
+DATABASE_URL=postgresql://user:pass@localhost:5432/vatsim
+DATABASE_MAX_CONNECTIONS=20
+DATABASE_TIMEOUT=30
 
-### Error Management
-- **Horizontal Scaling**: ErrorManager can be distributed
-- **Storage**: Error analytics can be persisted to database
-- **Caching**: Circuit breaker state can be cached
+# VATSIM API Configuration
+VATSIM_API_URL=https://data.vatsim.net/v3/vatsim-data.json
+VATSIM_API_TIMEOUT=10
+VATSIM_API_RETRY_ATTEMPTS=3
 
-### Event Bus
-- **Event Persistence**: Events can be stored in database
-- **Queue Management**: Dead letter queue can be externalized
-- **Handler Scaling**: Handlers can be distributed
+# Service Configuration
+SERVICE_MAX_WORKERS=4
+SERVICE_HEALTH_CHECK_INTERVAL=30
+SERVICE_SHUTDOWN_TIMEOUT=30
 
-### Database Service
-- **Connection Pooling**: Efficient resource utilization
-- **Query Optimization**: Performance monitoring enables optimization
-- **Health Checks**: Proactive monitoring prevents failures
+# Error Management Configuration
+ERROR_MANAGER_ENABLED=true
+ERROR_ANALYTICS_RETENTION_HOURS=24
+CIRCUIT_BREAKER_FAILURE_THRESHOLD=5
+CIRCUIT_BREAKER_TIMEOUT=60
 
-## Security Considerations
+# Event Bus Configuration
+EVENT_BUS_MAX_HISTORY_SIZE=1000
+EVENT_BUS_MAX_DEAD_LETTER_SIZE=100
+EVENT_BUS_HANDLER_TIMEOUT=30.0
 
-### Error Information
-- **Context Sanitization**: Sensitive data filtered from error context
-- **Access Control**: Error analytics require proper authentication
-- **Data Retention**: Error data automatically cleaned up
+# Cache Configuration
+REDIS_URL=redis://localhost:6379
+CACHE_TTL_DEFAULT=300
+CACHE_TTL_FLIGHT_DATA=60
+CACHE_TTL_ATC_DATA=30
+```
 
-### Event Processing
-- **Event Validation**: Events validated before processing
-- **Handler Security**: Handler execution in controlled environment
-- **Queue Security**: Dead letter queue access controlled
+## 📊 **Monitoring & Observability**
 
-### Database Operations
-- **Session Security**: Database sessions properly managed
-- **Query Security**: SQL injection prevention
-- **Access Control**: Database operations require proper permissions
+### **Health Check Endpoints**
+```
+GET /api/status                    # Overall system health
+GET /api/services/health          # All services health
+GET /api/services/{name}/health   # Specific service health
+GET /api/database/health          # Database health
+GET /api/cache/health             # Cache health
+```
 
-## Monitoring and Observability
+### **Metrics Endpoints**
+```
+GET /api/metrics/performance      # Performance metrics
+GET /api/metrics/errors           # Error metrics
+GET /api/metrics/events           # Event metrics
+GET /api/metrics/database         # Database metrics
+GET /api/metrics/cache            # Cache metrics
+```
 
-### Error Metrics
-- **Error Rates**: Track error frequency by type and service
-- **Recovery Success**: Monitor recovery strategy effectiveness
-- **Circuit Breaker Status**: Track circuit breaker states
+### **Error Analytics Endpoints**
+```
+GET /api/errors/analytics         # Error analytics
+GET /api/errors/circuit-breakers  # Circuit breaker status
+GET /api/errors/recovery          # Recovery statistics
+GET /api/errors/trends            # Error trends
+```
 
-### Event Metrics
-- **Processing Times**: Monitor event processing performance
-- **Queue Status**: Track dead letter queue size
-- **Handler Health**: Monitor handler success rates
+## 🚀 **Deployment Architecture**
 
-### Database Metrics
-- **Query Performance**: Track query execution times
-- **Connection Health**: Monitor connection pool status
-- **Data Volume**: Track data growth and cleanup effectiveness
+### **Docker Services**
+```yaml
+services:
+  app:
+    build: .
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql://user:pass@postgres:5432/vatsim
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
 
-## Future Enhancements
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=vatsim
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
-### Phase 3 Integration
-- **ML Service Integration**: Error patterns for ML training
-- **Predictive Analytics**: Predict failures before they occur
-- **Advanced Monitoring**: AI-powered anomaly detection
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+```
 
-### Scalability Improvements
-- **Distributed Error Management**: Multi-node error handling
-- **Event Streaming**: Real-time event processing pipeline
-- **Database Sharding**: Horizontal database scaling
+### **Service Startup Order**
+```
+1. PostgreSQL (Database)
+2. Redis (Cache)
+3. App (Main Application)
+   ├── Configuration loading
+   ├── Database connection
+   ├── Cache connection
+   ├── Service initialization
+   ├── Event bus startup
+   ├── Health monitoring
+   └── API server startup
+```
 
-This architecture provides a robust foundation for the Phase 3 Advanced Analytics & ML Integration while maintaining full backward compatibility with existing systems. 
+## 🔒 **Security & Error Handling**
+
+### **Error Handling Strategy**
+```
+1. Input Validation
+   ├── Request validation
+   ├── Data sanitization
+   └── Type checking
+
+2. Service Error Handling
+   ├── Circuit breakers
+   ├── Retry mechanisms
+   └── Fallback strategies
+
+3. Error Recovery
+   ├── Automatic retry
+   ├── Graceful degradation
+   └── Service restart
+
+4. Error Monitoring
+   ├── Error tracking
+   ├── Performance metrics
+   └── Alerting
+```
+
+### **Circuit Breaker Implementation**
+```
+CLOSED State (Normal)
+├── Requests pass through
+├── Failure count = 0
+└── Monitor for failures
+
+OPEN State (Error)
+├── Requests fail fast
+├── No service calls
+└── Wait for timeout
+
+HALF-OPEN State (Testing)
+├── Allow test requests
+├── Monitor success rate
+└── Close if successful
+```
+
+## 📈 **Performance & Scalability**
+
+### **Performance Optimizations**
+```
+1. Caching Strategy
+   ├── Redis caching for flight data
+   ├── In-memory caching for config
+   └── TTL-based cache invalidation
+
+2. Database Optimization
+   ├── Connection pooling
+   ├── Query optimization
+   └── Index optimization
+
+3. Service Optimization
+   ├── Async processing
+   ├── Resource management
+   └── Error handling
+```
+
+### **Scalability Features**
+```
+1. Horizontal Scaling
+   ├── Stateless services
+   ├── Shared database
+   └── Shared cache
+
+2. Load Distribution
+   ├── Service health checks
+   ├── Circuit breakers
+   └── Resource monitoring
+
+3. Resource Management
+   ├── Memory monitoring
+   ├── Connection pooling
+   └── Cleanup procedures
+```
+
+## 🔄 **Event-Driven Architecture**
+
+### **Event Types**
+```
+1. Flight Events
+   ├── FLIGHT_CREATED
+   ├── FLIGHT_UPDATED
+   ├── FLIGHT_COMPLETED
+   └── FLIGHT_CANCELLED
+
+2. ATC Events
+   ├── CONTROLLER_LOGON
+   ├── CONTROLLER_LOGOFF
+   ├── FREQUENCY_CHANGE
+   └── POSITION_UPDATE
+
+3. System Events
+   ├── SERVICE_STARTED
+   ├── SERVICE_STOPPED
+   ├── HEALTH_CHECK
+   └── ERROR_OCCURRED
+
+4. Data Events
+   ├── DATA_FETCHED
+   ├── DATA_PROCESSED
+   ├── DATA_STORED
+   └── DATA_CACHED
+```
+
+### **Event Processing**
+```
+1. Event Publishing
+   ├── Service actions trigger events
+   ├── Events include metadata
+   └── Events are validated
+
+2. Event Handling
+   ├── Subscribers receive events
+   ├── Events are processed asynchronously
+   └── Errors are handled gracefully
+
+3. Event History
+   ├── Events are stored
+   ├── Event metrics are tracked
+   └── Event TTL is managed
+```
+
+## 🎯 **Phase 2 Success Criteria**
+
+### **Error Handling**
+- ✅ **Circuit Breaker Implementation** - Automatic failure detection and recovery
+- ✅ **Error Analytics** - Comprehensive error tracking and reporting
+- ✅ **Recovery Strategies** - Automatic retry and fallback mechanisms
+- ✅ **Error Monitoring** - Real-time error detection and alerting
+
+### **Event Architecture**
+- ✅ **Event Bus Implementation** - Inter-service communication
+- ✅ **Event History** - Complete event tracking and storage
+- ✅ **Event Metrics** - Performance monitoring and analytics
+- ✅ **Event Validation** - Input validation and error handling
+
+### **Service Integration**
+- ✅ **Error Manager Integration** - All services use centralized error handling
+- ✅ **Event Bus Integration** - All services publish and consume events
+- ✅ **Health Monitoring** - Comprehensive service health checks
+- ✅ **Performance Monitoring** - Service performance metrics
+
+### **API Enhancements**
+- ✅ **Error Endpoints** - Error analytics and circuit breaker status
+- ✅ **Event Endpoints** - Event publishing and analytics
+- ✅ **Health Endpoints** - Service and system health checks
+- ✅ **Metrics Endpoints** - Performance and error metrics
+
+## 🚀 **Next Steps for Phase 3**
+
+Phase 2 is complete and ready for **Phase 3: Advanced Analytics & ML Integration**:
+
+### **Machine Learning Service**
+- Traffic pattern analysis
+- Predictive modeling
+- Anomaly detection
+- Performance optimization
+
+### **Advanced Analytics**
+- Real-time analytics
+- Historical trend analysis
+- Performance benchmarking
+- Capacity planning
+
+### **System Optimization**
+- Performance tuning
+- Resource optimization
+- Scalability improvements
+- Monitoring enhancements 

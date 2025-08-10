@@ -1,60 +1,48 @@
 #!/usr/bin/env python3
 """
-Database Service for VATSIM Data Collection System - Phase 2
+Database Service for VATSIM Data Collection System
 
-This service provides dedicated database operations using existing models.
-It implements the DatabaseServiceInterface and preserves all existing
-database functionality while providing a clean, focused service layer.
+This service handles all database operations including storing and retrieving
+flight data, controller data, and transceiver data with SSD wear optimization.
 
 INPUTS:
-- Database operations requests from other services
-- Existing SQLAlchemy models (Flight, Controller, Sector, etc.)
+- Flight data from VATSIM API
+- Controller data from VATSIM API
+- Transceiver data from VATSIM API
 - Database connection and session management
-- Query parameters and filters
 
 OUTPUTS:
-- Database records and query results
-- Database health and status information
-- Database statistics and analytics
-- Error handling and recovery information
+- Stored flight records in database
+- Stored controller records in database
+- Stored transceiver records in database
+- Flight tracking and statistics
+- Database health and performance metrics
 
 FEATURES:
-- Uses existing models from app/models.py (preserved unchanged)
-- Focused database operations only
-- Connection pooling and session management
-- Error handling with circuit breakers
-- Database health monitoring
-- Query optimization and performance tracking
-
-PRESERVED MODELS:
-- Flight: Complete flight tracking with all position updates
-- Controller: ATC controller positions and status
-- Sector: Airspace sector definitions
-- TrafficMovement: Airport arrival/departure tracking
-- All other existing models unchanged
+- SSD wear optimization through batch writing
+- Connection pooling for performance
+- Comprehensive error handling and logging
+- Health monitoring and statistics
 """
 
-import asyncio
-from typing import Dict, List, Any, Optional
-from datetime import datetime, timezone, timedelta
+import os
+import time
+from datetime import datetime, timezone
+from typing import Dict, Any, Optional, List
+from sqlalchemy import text
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, desc, func, text
-import logging
 
-from ..database import SessionLocal, get_db
 from ..models import Flight, Controller, Transceiver
-from .interfaces.database_service_interface import DatabaseServiceInterface
-from .base_service import BaseService
+from ..database import SessionLocal
 from ..utils.logging import get_logger_for_module
 from ..utils.error_handling import handle_service_errors, log_operation
-from ..utils.error_manager import ErrorContext, error_manager
+# Error manager removed - using simplified error handling
 
 
-class DatabaseService(BaseService, DatabaseServiceInterface):
+class DatabaseService:
     """Database service implementation using existing models."""
     
     def __init__(self):
-        super().__init__("database_service")
         self.logger = get_logger_for_module(__name__)
         self.session_pool = []
         self.max_pool_size = 10
@@ -65,13 +53,13 @@ class DatabaseService(BaseService, DatabaseServiceInterface):
         self.query_times = []
         self.last_cleanup = datetime.now(timezone.utc)
     
-    async def _initialize_service(self):
+    async def initialize(self):
         """Initialize database service."""
         self.logger.info("Initializing database service")
         # Database service doesn't need special initialization
         # as it uses existing database connection management
     
-    async def _cleanup_service(self):
+    async def cleanup(self):
         """Cleanup database service resources."""
         self.logger.info("Cleaning up database service")
         # Close any active sessions
@@ -82,7 +70,7 @@ class DatabaseService(BaseService, DatabaseServiceInterface):
                 self.logger.warning(f"Error closing session: {e}")
         self.session_pool.clear()
     
-    async def _perform_health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> Dict[str, Any]:
         """Perform database service health check."""
         try:
             session = SessionLocal()
@@ -138,12 +126,7 @@ class DatabaseService(BaseService, DatabaseServiceInterface):
             
         except Exception as e:
             self.logger.error(f"Failed to store flights: {e}")
-            context = ErrorContext(
-                service_name="database_service",
-                operation="store_flights",
-                metadata={"flight_count": len(flights)}
-            )
-            await error_manager.handle_error(e, context)
+            self.logger.error(f"Failed to store flights: {e}")
             raise
     
     @handle_service_errors
@@ -172,12 +155,7 @@ class DatabaseService(BaseService, DatabaseServiceInterface):
             
         except Exception as e:
             self.logger.error(f"Failed to store controllers: {e}")
-            context = ErrorContext(
-                service_name="database_service",
-                operation="store_controllers",
-                metadata={"controller_count": len(controllers)}
-            )
-            await error_manager.handle_error(e, context)
+            self.logger.error(f"Failed to store controllers: {e}")
             raise
     
     # Store sectors method removed - table no longer exists
@@ -208,12 +186,7 @@ class DatabaseService(BaseService, DatabaseServiceInterface):
             
         except Exception as e:
             self.logger.error(f"Failed to store transceivers: {e}")
-            context = ErrorContext(
-                service_name="database_service",
-                operation="store_transceivers",
-                metadata={"transceiver_count": len(transceivers)}
-            )
-            await error_manager.handle_error(e, context)
+            self.logger.error(f"Failed to store transceivers: {e}")
             raise
     
     @handle_service_errors
@@ -259,12 +232,7 @@ class DatabaseService(BaseService, DatabaseServiceInterface):
             
         except Exception as e:
             self.logger.error(f"Failed to get flight track for {callsign}: {e}")
-            context = ErrorContext(
-                service_name="database_service",
-                operation="get_flight_track",
-                metadata={"callsign": callsign, "start_time": start_time, "end_time": end_time}
-            )
-            await error_manager.handle_error(e, context)
+            self.logger.error(f"Failed to get flight track for {callsign}: {e}")
             raise
     
     @handle_service_errors
@@ -324,12 +292,7 @@ class DatabaseService(BaseService, DatabaseServiceInterface):
             
         except Exception as e:
             self.logger.error(f"Failed to get flight stats for {callsign}: {e}")
-            context = ErrorContext(
-                service_name="database_service",
-                operation="get_flight_stats",
-                metadata={"callsign": callsign}
-            )
-            await error_manager.handle_error(e, context)
+            self.logger.error(f"Failed to get flight stats for {callsign}: {e}")
             raise
     
     @handle_service_errors
@@ -365,11 +328,6 @@ class DatabaseService(BaseService, DatabaseServiceInterface):
             
         except Exception as e:
             self.logger.error(f"Failed to get active flights: {e}")
-            context = ErrorContext(
-                service_name="database_service",
-                operation="get_active_flights"
-            )
-            await error_manager.handle_error(e, context)
             raise
     
     @handle_service_errors
@@ -404,11 +362,7 @@ class DatabaseService(BaseService, DatabaseServiceInterface):
             
         except Exception as e:
             self.logger.error(f"Failed to get active controllers: {e}")
-            context = ErrorContext(
-                service_name="database_service",
-                operation="get_active_controllers"
-            )
-            await error_manager.handle_error(e, context)
+            self.logger.error(f"Failed to get active controllers: {e}")
             raise
     
 
@@ -454,11 +408,6 @@ class DatabaseService(BaseService, DatabaseServiceInterface):
             
         except Exception as e:
             self.logger.error(f"Failed to get database stats: {e}")
-            context = ErrorContext(
-                service_name="database_service",
-                operation="get_database_stats"
-            )
-            await error_manager.handle_error(e, context)
             raise
     
     @handle_service_errors
@@ -505,11 +454,7 @@ class DatabaseService(BaseService, DatabaseServiceInterface):
             return session
         except Exception as e:
             self.logger.error(f"Failed to get database session: {e}")
-            context = ErrorContext(
-                service_name="database_service",
-                operation="get_session"
-            )
-            await error_manager.handle_error(e, context)
+            self.logger.error(f"Failed to get database session: {e}")
             raise
 
 

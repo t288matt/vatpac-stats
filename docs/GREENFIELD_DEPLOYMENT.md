@@ -326,7 +326,7 @@ SSL_CERT_PATH=/certs/cert.pem
 SSL_KEY_PATH=/certs/key.pem
 
 # Monitoring (Production Only)
-ERROR_MONITORING_ENABLED=true
+# Error monitoring simplified
 PERFORMANCE_MONITORING_ENABLED=true
 GRAFANA_ADMIN_PASSWORD=your_secure_password_here
 POSTGRES_PASSWORD=your_secure_db_password_here

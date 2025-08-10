@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from httpx import AsyncClient
 
 from app.main import app
-from app.services.base_service import BaseService
+
 from app.services.vatsim_service import VATSIMService
 from app.services.data_service import DataService
 from app.services.cache_service import CacheService
@@ -274,16 +274,7 @@ def mock_database_service() -> Mock:
     return mock_service
 
 
-# REMOVED: Traffic Analysis Service - Phase 2
-# @pytest.fixture
-# def mock_traffic_analysis_service() -> Mock:
-#     """Mock traffic analysis service for testing."""
-#     mock_service = Mock(spec=TrafficAnalysisService)
-#     mock_service.analyze_traffic = AsyncMock(return_value={})
-#     mock_service.get_traffic_summary = AsyncMock(return_value={})
-#     mock_service.is_healthy = Mock(return_value=True)
-#     mock_service.get_service_info = Mock(return_value={"status": "healthy"})
-#     return mock_service
+
 
 
 
@@ -338,12 +329,4 @@ def mock_lifecycle_manager() -> Mock:
     return mock_service
 
 
-@pytest.fixture
-def mock_base_service() -> Mock:
-    """Mock base service for testing."""
-    mock_service = Mock(spec=BaseService)
-    mock_service.start = AsyncMock()
-    mock_service.stop = AsyncMock()
-    mock_service.is_healthy = Mock(return_value=True)
-    mock_service.get_service_info = Mock(return_value={"status": "healthy"})
-    return mock_service 
+ 

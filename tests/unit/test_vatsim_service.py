@@ -18,10 +18,10 @@ class TestVATSIMService:
         return VATSIMService()
 
     @pytest.mark.asyncio
-    async def test_service_implements_interface(self, vatsim_service):
-        """Test that VATSIM service implements the interface."""
-        from app.services.base_service import BaseService
-        assert isinstance(vatsim_service, BaseService)
+    async def test_service_initialization_type(self, vatsim_service):
+        """Test that VATSIM service is properly initialized."""
+        
+        assert isinstance(vatsim_service, VATSIMService)
 
     @pytest.mark.asyncio
     async def test_service_initialization(self, vatsim_service):

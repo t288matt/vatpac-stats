@@ -64,9 +64,7 @@ class ServiceManager:
                 'database_service',
                 'cache_service', 
                 'vatsim_service',
-                'flight_processing_service',
                 'data_service'
-                # 'traffic_analysis_service'  # DISABLED: Traffic Analysis Service Removal - Phase 1
             ]
             
             results = {}
@@ -114,9 +112,7 @@ class ServiceManager:
             
             # Stop services in reverse dependency order
             stop_order = [
-                # 'traffic_analysis_service',  # DISABLED: Traffic Analysis Service Removal - Phase 1
                 'data_service',
-                'flight_processing_service',
                 'vatsim_service',
                 'cache_service',
                 'database_service'

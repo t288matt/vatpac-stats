@@ -264,7 +264,7 @@ async def service_method():
 #### Error Handler Components
 - **Service Error Handler**: `app/utils/error_handling.py`
 - **Exception Classes**: `app/utils/exceptions.py`
-- **Error Monitoring**: `app/utils/error_monitoring.py`
+- **Error Handling**: `app/utils/error_handling.py` (simplified)
 - **Operation Logging**: Integrated logging with rich context
 
 #### Error Handling Features
@@ -273,6 +273,18 @@ async def service_method():
 - **Circuit Breakers**: Fault tolerance patterns
 - **Error Analytics**: Error tracking and reporting
 - **Graceful Degradation**: Fallback mechanisms
+
+### Error Handling
+- **Centralized error handling** with decorators and context management
+- **Basic error tracking** and logging
+- **Service error decorators** for consistent error handling
+- **Simplified error context** preservation
+
+### Logging Strategy
+- **Structured logging** with rich context
+- **Operation tracking** with correlation IDs
+- **Performance metrics** collection
+- **Error context** preservation
 
 ## 📊 Data Flow Architecture
 

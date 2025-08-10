@@ -124,7 +124,7 @@ BOUNDARY_FILTER_PERFORMANCE_THRESHOLD: 10.0
 API_KEY_REQUIRED: false          # Set to true for production
 API_RATE_LIMIT_ENABLED: false    # Set to true for production
 SSL_ENABLED: false               # Set to true for production
-ERROR_MONITORING_ENABLED: true
+# Error monitoring simplified
 
 # Monitoring
 PERFORMANCE_MONITORING_ENABLED: true
