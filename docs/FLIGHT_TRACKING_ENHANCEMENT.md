@@ -100,8 +100,8 @@ async def get_flight_track(
                 "positions": [
                     {
                         "timestamp": pos.last_updated.isoformat(),
-                        "latitude": pos.position_lat,
-                        "longitude": pos.position_lng,
+                        "latitude": pos.latitude,
+                        "longitude": pos.longitude,
                         "altitude": pos.altitude,
                         "heading": pos.heading,
                         "groundspeed": pos.groundspeed,

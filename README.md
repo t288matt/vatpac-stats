@@ -59,11 +59,16 @@ A real-time VATSIM data collection system that processes flight data, ATC positi
 
 The flight table stores comprehensive flight data with 39 optimized columns:
 
+**⚠️ Important Note on Field Naming Conventions:**
+- **Flights table**: Uses `latitude`/`longitude` fields (standardized in migration 019)
+- **Transceivers table**: Uses `position_lat`/`position_lon` fields (unchanged)
+- This dual naming convention is intentional and correct for each table's purpose
+
 | Field Category | Fields | Source | Description |
 |----------------|--------|--------|-------------|
 | **Primary Key** | `id` | App | Auto-generated primary key |
 | **Basic Info** | `callsign`, `aircraft_type`, `departure`, `arrival`, `route` | API | Flight identification and routing |
-| **Position** | `position_lat`, `position_lng`, `altitude`, `heading`, `groundspeed` | API | Real-time position data |
+| **Position** | `latitude`, `longitude`, `altitude`, `heading`, `groundspeed` | API | Real-time position data |
 | **Communication** | `transponder` | API | Transponder code |
 | **Flight Plan** | `flight_rules`, `aircraft_faa`, `planned_altitude`, `deptime`, etc. | API | Detailed flight plan information |
 | **Pilot Info** | `cid`, `name`, `server`, `pilot_rating` | API | Pilot and network information |
