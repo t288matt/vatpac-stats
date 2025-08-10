@@ -18,14 +18,12 @@ OUTPUTS:
 
 import os
 import time
-import logging
 from typing import Dict, Any, Optional, List
 from collections import OrderedDict
 from datetime import datetime, timezone
 
 from ..utils.logging import get_logger_for_module
 from ..utils.error_handling import handle_service_errors, log_operation
-
 
 class BoundedCacheWithTTL:
     """Bounded cache with TTL support and LRU eviction."""
@@ -49,13 +47,11 @@ class BoundedCacheWithTTL:
     def set(self, key: str, value: Any, ttl_seconds: int = 300) -> None:
         """Set a key-value pair with TTL."""
         if len(self.cache) >= self.max_size:
-            # Remove oldest entry (LRU)
             oldest_key = next(iter(self.cache))
             self._remove_key(oldest_key)
         
         expiry = time.time() + ttl_seconds
         self.cache[key] = (value, expiry)
-        # Move to end (most recently used)
         self.cache.move_to_end(key)
     
     def get(self, key: str) -> Optional[Any]:
@@ -68,7 +64,6 @@ class BoundedCacheWithTTL:
             self._remove_key(key)
             return None
         
-        # Move to end (most recently used)
         self.cache.move_to_end(key)
         return value
     
@@ -93,7 +88,6 @@ class BoundedCacheWithTTL:
         self._evict_expired()
         return list(self.cache.keys())
 
-
 class CacheService:
     """In-memory caching service for performance optimization"""
     
@@ -106,17 +100,14 @@ class CacheService:
         self.memory_cache = BoundedCacheWithTTL(max_cache_size)
         self.cache_ttl = {
             'active_atc_positions': 30,      # 30 seconds
-            'active_flights': 30,          # 30 seconds
-            'network_status': 300,         # 5 minutes
-            'network_stats': 60,           # 1 minute
-            # 'traffic_movements': 300,    # REMOVED: Traffic Analysis Service - Phase 2
-            'airport_data': 600,           # 10 minutes
-            'analytics_data': 3600,        # 1 hour
-            'atc_positions:active': 30,     # 30 seconds
-            'atc_positions:by_controller_id': 30,  # 30 seconds
-            'vatsim:ratings': 3600,        # 1 hour (static data)
-            'airports:region': 600,        # 10 minutes (static data)
-            'airport:coords': 3600,        # 1 hour (static data)
+            'active_flights': 30,            # 30 seconds
+            'network_status': 300,           # 5 minutes
+            'network_stats': 60,             # 1 minute
+            'airport_data': 600,             # 10 minutes
+            'analytics_data': 3600,          # 1 hour
+            'vatsim:ratings': 3600,          # 1 hour (static data)
+            'airports:region': 600,          # 10 minutes (static data)
+            'airport:coords': 3600,          # 1 hour (static data)
         }
         self.hit_count = 0
         self.miss_count = 0
@@ -124,11 +115,9 @@ class CacheService:
     async def initialize(self) -> bool:
         """Initialize in-memory cache service"""
         try:
-            # Initialize statistics
             self.hit_count = 0
             self.miss_count = 0
             
-            # Log cache configuration
             cache_size = self.memory_cache.max_size
             self.logger.info(f"In-memory cache service initialized successfully with max size: {cache_size}")
             self.logger.info(f"Cache TTL configuration: {len(self.cache_ttl)} cache types configured")
@@ -205,7 +194,6 @@ class CacheService:
     async def invalidate_cache(self, pattern: str) -> bool:
         """Invalidate cache entries matching pattern"""
         try:
-            # Simple pattern matching for in-memory cache
             keys_to_delete = []
             for key in self.memory_cache.keys():
                 if self._pattern_match(key, pattern):
@@ -226,7 +214,6 @@ class CacheService:
         if '*' not in pattern:
             return key == pattern
         
-        # Convert Redis-style pattern to simple matching
         if pattern.endswith('*'):
             prefix = pattern[:-1]
             return key.startswith(prefix)
@@ -234,7 +221,6 @@ class CacheService:
             suffix = pattern[1:]
             return key.endswith(suffix)
         else:
-            # For more complex patterns, fall back to simple contains
             pattern_without_asterisk = pattern.replace('*', '')
             return pattern_without_asterisk in key
     
@@ -261,15 +247,6 @@ class CacheService:
     async def set_network_stats_cache(self, stats: Dict[str, Any]) -> bool:
         """Set cached network statistics"""
         return await self.set_cached_data('network:stats', stats)
-    
-    # REMOVED: Traffic Analysis Service - Phase 2
-    # async def get_traffic_movements_cache(self, airport_icao: str) -> Optional[List[Dict[str, Any]]]:
-    #     """Get cached traffic movements for airport"""
-    #     return await self.get_cached_data(f'traffic:movements:{airport_icao}')
-    # 
-    # async def set_traffic_movements_cache(self, airport_icao: str, movements: List[Dict[str, Any]]) -> bool:
-    #     """Set cached traffic movements for airport"""
-    #     return await self.set_cached_data(f'traffic:movements:{airport_icao}', movements)
     
     async def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache statistics"""
@@ -306,6 +283,5 @@ async def get_cache_service() -> CacheService:
     global _cache_service
     if _cache_service is None:
         _cache_service = CacheService()
-        # Initialize the service
         await _cache_service.initialize()
     return _cache_service 

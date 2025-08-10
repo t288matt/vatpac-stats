@@ -22,8 +22,8 @@ from typing import List, Dict, Any
 
 from app.database import SessionLocal, get_database_info
 from app.models import (
-    Flight, Controller, Transceiver, FrequencyMatch, Airports
-    # REMOVED: TrafficMovement, FlightSummary, VatsimStatus - Phase 4
+    Flight, Controller, Transceiver, Airports
+    # REMOVED: TrafficMovement, FlightSummary, VatsimStatus, FrequencyMatch - Phase 4
 )
 
 

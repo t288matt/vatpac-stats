@@ -84,3 +84,4 @@ The `/api/health/comprehensive` endpoint provides:
 - Timestamp information
 
 All data is real-time and reflects the current state of your VATSIM data application.
+
