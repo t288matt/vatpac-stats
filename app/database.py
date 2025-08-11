@@ -27,17 +27,18 @@ config = get_config()
 
 # Database URLs
 DATABASE_URL = config.database.url
-ASYNC_DATABASE_URL = config.database.async_url
+# Convert to async URL format for async operations
+ASYNC_DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://")
 
-# Engine configuration
+# Engine configuration - simplified
 ENGINE_CONFIG = {
     "pool_size": config.database.pool_size,
     "max_overflow": config.database.max_overflow,
-    "pool_timeout": config.database.pool_timeout,
-    "pool_recycle": config.database.pool_recycle,
-    "pool_pre_ping": config.database.pool_pre_ping,
-    "echo": config.database.echo,
-    "echo_pool": config.database.echo_pool,
+    "pool_timeout": 30,
+    "pool_recycle": 3600,
+    "pool_pre_ping": True,
+    "echo": False,
+    "echo_pool": False,
 }
 
 # Create database engines

@@ -40,12 +40,8 @@ def setup_logging(
         level = config.logging.level
     if format_string is None:
         format_string = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    if file_path is None:
-        file_path = config.logging.file_path
-    if max_bytes == 10 * 1024 * 1024:
-        max_bytes = config.logging.max_file_size
-    if backup_count == 5:
-        backup_count = config.logging.backup_count
+    # Simplified config - no file logging for now
+    file_path = None
     
     # Configure root logger
     root_logger = logging.getLogger()

@@ -139,12 +139,11 @@ class DataService:
             processing_time = time.time() - start_time
             
             # Update statistics
-            self.processing_stats.update({
-                "total_flights_processed": self.processing_stats["total_flights_processed"] + flights_processed,
-                "total_controllers_processed": self.processing_stats["total_controllers_processed"] + controllers_processed,
-                "total_transceivers_processed": self.processing_stats["total_transceivers_processed"] + transceivers_processed,
-                "last_processing_time": processing_time,
-                "last_processing_timestamp": datetime.now(timezone.utc).isoformat()
+            self.stats.update({
+                "flights": self.stats["flights"] + flights_processed,
+                "controllers": self.stats["controllers"] + controllers_processed,
+                "transceivers": self.stats["transceivers"] + transceivers_processed,
+                "last_run": datetime.now(timezone.utc)
             })
             
             self.logger.info("VATSIM data processing completed", extra={
@@ -237,7 +236,7 @@ class DataService:
                     
                     # Bulk insert all flights
                     if bulk_flights:
-                        session.bulk_insert_mappings(Flight, bulk_flights)
+                        session.add_all([Flight(**flight_data) for flight_data in bulk_flights])
                         await session.commit()
                         processed_count = len(bulk_flights)
                         self.logger.info(f"Bulk inserted {processed_count} flights")
@@ -303,7 +302,7 @@ class DataService:
                     
                     # Bulk insert all controllers
                     if bulk_controllers:
-                        session.bulk_insert_mappings(Controller, bulk_controllers)
+                        session.add_all([Controller(**controller_data) for controller_data in bulk_controllers])
                         await session.commit()
                         processed_count = len(bulk_controllers)
                         self.logger.info(f"Bulk inserted {processed_count} controllers")
@@ -394,7 +393,7 @@ class DataService:
                     
                     # Bulk insert all transceivers
                     if bulk_transceivers:
-                        session.bulk_insert_mappings(Transceiver, bulk_transceivers)
+                        session.add_all([Transceiver(**transceiver_data) for transceiver_data in bulk_transceivers])
                         await session.commit()
                         processed_count = len(bulk_transceivers)
                         self.logger.info(f"Bulk inserted {processed_count} transceivers")
