@@ -407,7 +407,6 @@ Get system performance metrics.
       "slow_queries": 0
     },
     "cache": {
-      "redis_memory_mb": 156,
       "cache_hit_rate": 94.5,
       "operations_per_second": 450
     }

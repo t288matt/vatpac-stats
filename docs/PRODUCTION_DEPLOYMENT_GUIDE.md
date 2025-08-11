@@ -180,7 +180,7 @@ services:
     networks:
       - vatsim_network
 
-  # Note: Redis removed - using in-memory cache
+
 
   # Main Application
   app:

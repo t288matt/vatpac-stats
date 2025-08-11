@@ -713,7 +713,7 @@ async def get_flight_analytics():
     try:
         async with get_database_session() as session:
             # Get flight analytics
-            analytics_result = session.execute(
+            analytics_result = await session.execute(
                 text("""
                     SELECT 
                         COUNT(DISTINCT callsign) as unique_flights,
@@ -751,52 +751,38 @@ async def get_flight_analytics():
 @handle_service_errors
 @log_operation("get_performance_metrics")
 async def get_performance_metrics():
-    """Get basic system performance metrics"""
+    """Get basic system status - simplified without complex monitoring"""
     try:
-        import psutil
-        
-        # Get basic system metrics
-        cpu_percent = psutil.cpu_percent(interval=1)
-        memory = psutil.virtual_memory()
-        disk = psutil.disk_usage('/')
-        
         return {
-            "performance_metrics": {
+            "system_status": {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "system": {
-                    "cpu_usage_percent": cpu_percent,
-                    "memory_usage_mb": memory.used / (1024 * 1024),
-                    "memory_total_mb": memory.total / (1024 * 1024),
-                    "disk_usage_percent": (disk.used / disk.total) * 100
-                },
-                "application": {
-                    "status": "operational",
-                    "uptime": "active"
-                }
+                "status": "operational",
+                "uptime": "active",
+                "message": "Performance monitoring simplified - basic status only"
             }
         }
         
     except Exception as e:
-        logger.error(f"Error getting performance metrics: {e}")
-        raise HTTPException(status_code=500, detail=f"Error getting performance metrics: {str(e)}")
+        logger.error(f"Error getting system status: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting system status: {str(e)}")
 
 @app.post("/api/performance/optimize")
 @handle_service_errors
 @log_operation("trigger_performance_optimization")
 async def trigger_performance_optimization():
-    """Trigger performance optimization - simplified"""
+    """System status check - simplified"""
     try:
         return {
-            "optimization_result": {
-                "triggered_at": datetime.now(timezone.utc).isoformat(),
-                "message": "Performance monitoring simplified - no complex optimization needed",
-                "status": "completed"
+            "status_check": {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "message": "System status check completed - no complex optimization needed",
+                "status": "operational"
             }
         }
         
     except Exception as e:
-        logger.error(f"Error triggering performance optimization: {e}")
-        raise HTTPException(status_code=500, detail=f"Error triggering optimization: {str(e)}")
+        logger.error(f"Error during status check: {e}")
+        raise HTTPException(status_code=500, detail=f"Error during status check: {str(e)}")
 
 # Transceiver Data Endpoints
 

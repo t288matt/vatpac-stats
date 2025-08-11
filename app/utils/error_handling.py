@@ -16,31 +16,6 @@ from .logging import get_logger_for_module
 logger = get_logger_for_module(__name__)
 
 
-class ErrorContext:
-    """Context manager for error handling with additional context."""
-    
-    def __init__(self, operation: str, service: str = None, **context):
-        self.operation = operation
-        self.service = service
-        self.context = context
-    
-    def __enter__(self):
-        return self
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is not None:
-            logger.error(
-                f"Error in {self.operation}",
-                extra={
-                    "operation": self.operation,
-                    "service": self.service,
-                    **self.context
-                },
-                exc_info=True
-            )
-        return False
-
-
 def handle_service_errors(func: Callable) -> Callable:
     """Basic decorator for service error handling."""
     
@@ -67,14 +42,13 @@ def handle_service_errors(func: Callable) -> Callable:
         return sync_wrapper
 
 
-def log_operation(operation_name: str, log_args: bool = False, log_result: bool = False):
+def log_operation(operation_name: str):
     """Basic decorator for operation logging."""
     
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             logger.info(f"Starting operation: {operation_name}")
-            
             try:
                 result = await func(*args, **kwargs)
                 logger.info(f"Completed operation: {operation_name}")
@@ -86,7 +60,6 @@ def log_operation(operation_name: str, log_args: bool = False, log_result: bool 
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
             logger.info(f"Starting operation: {operation_name}")
-            
             try:
                 result = func(*args, **kwargs)
                 logger.info(f"Completed operation: {operation_name}")

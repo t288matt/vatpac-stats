@@ -148,7 +148,6 @@ generate_passwords() {
     JWT_SECRET=$(openssl rand -base64 64 | tr -d '\n')
     API_MASTER_KEY=$(openssl rand -base64 32 | tr -d '\n')
     POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d '\n')
-    REDIS_PASSWORD=$(openssl rand -base64 32 | tr -d '\n')
     GRAFANA_PASSWORD=$(openssl rand -base64 16 | tr -d '\n')
     
     print_success "Secure passwords generated"
@@ -173,8 +172,7 @@ API_MASTER_KEY=$API_MASTER_KEY
 POSTGRES_USER=vatsim_prod_user
 POSTGRES_PASSWORD=$POSTGRES_PASSWORD
 
-# Redis Security
-REDIS_PASSWORD=$REDIS_PASSWORD
+
 
 # Grafana Security
 GRAFANA_ADMIN_PASSWORD=$GRAFANA_PASSWORD
@@ -272,10 +270,6 @@ services:
       - $DEPLOYMENT_DIR/backups:/app/backups:rw
   
   postgres:
-    env_file:
-      - $DEPLOYMENT_DIR/config/production.env
-  
-  redis:
     env_file:
       - $DEPLOYMENT_DIR/config/production.env
   

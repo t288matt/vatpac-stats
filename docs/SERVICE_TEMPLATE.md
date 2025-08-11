@@ -30,7 +30,7 @@ This service uses configuration from the centralized configuration system. See `
 
 ## Dependencies
 - **Database**: PostgreSQL connection for data storage
-- **Cache**: Redis for performance optimization
+- **Cache**: In-memory caching for performance optimization
 - **External APIs**: VATSIM API for data collection
 - **Other Services**: List of service dependencies
 
