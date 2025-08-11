@@ -1,27 +1,8 @@
 #!/usr/bin/env python3
 """
-Database Service for VATSIM Data Collection System
+Database Service - Simplified
 
-This service handles all database operations including storing and retrieving
-flight data, controller data, and transceiver data.
-
-INPUTS:
-- Flight data from VATSIM API
-- Controller data from VATSIM API
-- Transceiver data from VATSIM API
-- Database connection and session management
-
-OUTPUTS:
-- Stored flight records in database
-- Stored controller records in database
-- Stored transceiver records in database
-- Flight tracking and statistics
-- Database performance metrics
-
-FEATURES:
-- Connection pooling for performance
-- Comprehensive error handling and logging
-- Performance statistics
+Handles database operations for VATSIM data storage and retrieval.
 """
 
 import time
@@ -40,16 +21,14 @@ class DatabaseService:
     
     def __init__(self):
         self.logger = get_logger_for_module(__name__)
-        self.query_count = 0
-        self.last_cleanup = datetime.now(timezone.utc)
     
     async def initialize(self):
         """Initialize database service."""
-        self.logger.info("Initializing database service")
+        pass
     
     async def cleanup(self):
         """Cleanup database service resources."""
-        self.logger.info("Cleaning up database service")
+        pass
     
 
     
@@ -72,7 +51,6 @@ class DatabaseService:
             
             session.commit()
             session.close()
-            self.query_count += 1
             
             return stored_count
             
@@ -102,7 +80,6 @@ class DatabaseService:
             
             session.commit()
             session.close()
-            self.query_count += 1
             
             return stored_count
             
@@ -132,7 +109,6 @@ class DatabaseService:
             
             session.commit()
             session.close()
-            self.query_count += 1
             
             return stored_count
             
@@ -174,7 +150,6 @@ class DatabaseService:
                 })
             
             session.close()
-            self.query_count += 1
             
             return track_data
             

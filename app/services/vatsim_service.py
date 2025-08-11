@@ -1,40 +1,9 @@
 #!/usr/bin/env python3
 """
-VATSIM Service for VATSIM Data Collection System
+VATSIM Service - Simplified
 
-This service provides a clean interface for fetching, parsing, and processing VATSIM
-network data, following our architecture principles.
-
-VATSIM API v3 Compliance:
-- Endpoint: https://data.vatsim.net/v3/vatsim-data.json
-- Flight plans: Nested under flight_plan object
-- Aircraft types: Extracted from flight_plan.aircraft_short
-- Controller fields: Uses correct API field names (cid, name, facility, etc.)
-- Sectors data: Not available in current API v3 (handled gracefully)
-
-SECTORS FIELD LIMITATION:
-=========================
-The 'sectors' field is completely missing from VATSIM API v3. This is a known
-limitation, not a bug in our code. The field simply doesn't exist in the API
-response.
-
-Technical Details:
-- Expected: sectors array containing airspace sector definitions
-- Actual: Field does not exist in API response
-- Impact: Traffic density analysis and sector-based routing limited
-- Handling: Graceful degradation with warning logs and fallback behavior
-
-Fallback Behavior:
-- Creates basic sector definitions from facility data
-- Logs warning when sectors data is missing
-- Continues operation without sectors data
-- Database schema supports sectors if API adds them back
-
-Future Considerations:
-- Monitor for sectors field return in future API versions
-- Consider external sector definition sources
-- Option to manually define critical sectors
-- Feature flags for sector-based features
+Fetches and processes VATSIM network data from API v3.
+Handles flights, controllers, and transceivers data.
 """
 
 import httpx
@@ -60,43 +29,7 @@ class VATSIMAPIError(Exception):
 
 
 class VATSIMService:
-    """
-    Service for handling VATSIM API v3 interactions.
-    
-    This service provides a clean interface for fetching and processing
-    VATSIM network data, following our architecture principles.
-    
-    VATSIM API v3 Compliance:
-    - Endpoint: https://data.vatsim.net/v3/vatsim-data.json
-    - Flight plans: Nested under flight_plan object
-    - Aircraft types: Extracted from flight_plan.aircraft_short
-    - Controller fields: Uses correct API field names (cid, name, facility, etc.)
-    - Sectors data: Not available in current API v3 (handled gracefully)
-    
-    SECTORS FIELD LIMITATION:
-    =========================
-    The 'sectors' field is completely missing from VATSIM API v3. This is a known
-    limitation, not a bug in our code. The field simply doesn't exist in the API
-    response.
-    
-    Technical Details:
-    - Expected: sectors array containing airspace sector definitions
-    - Actual: Field does not exist in API response
-    - Impact: Traffic density analysis and sector-based routing limited
-    - Handling: Graceful degradation with warning logs and fallback behavior
-    
-    Fallback Behavior:
-    - Creates basic sector definitions from facility data
-    - Logs warning when sectors data is missing
-    - Continues operation without sectors data
-    - Database schema supports sectors if API adds them back
-    
-    Future Considerations:
-    - Monitor for sectors field return in future API versions
-    - Consider external sector definition sources
-    - Option to manually define critical sectors
-    - Feature flags for sector-based features
-    """
+    """Service for handling VATSIM API v3 interactions."""
     
     def __init__(self):
         """Initialize VATSIM service with configuration."""
@@ -194,13 +127,6 @@ class VATSIMService:
             controllers = self._parse_controllers(parsed_data.get("controllers", []))
             sectors = parsed_data.get("sectors", [])
             
-            # Handle missing sectors gracefully
-            if not sectors:
-                self.logger.warning("No sectors data available from VATSIM API", extra={
-                    "sectors_count": 0,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                })
-            
             # Parse all flights - no filtering applied here
             flights = self._parse_flights(parsed_data.get("pilots", []))
             
@@ -211,9 +137,7 @@ class VATSIMService:
                 # Link transceivers to flights and controllers
                 transceivers = self._link_transceivers_to_entities(transceivers, flights, controllers)
             except Exception as e:
-                self.logger.warning("Failed to fetch transceivers data, continuing without it", extra={
-                    "error": str(e)
-                })
+                self.logger.warning(f"Failed to fetch transceivers: {e}")
                 transceivers = []
             
             # Return dictionary directly instead of dataclass
@@ -229,32 +153,20 @@ class VATSIMService:
                 "total_transceivers": len(transceivers)
             }
             
-            self.logger.info("Successfully fetched VATSIM data", extra={
-                "controllers_count": vatsim_data["total_controllers"],
-                "flights_count": vatsim_data["total_flights"],
-                "sectors_count": vatsim_data["total_sectors"],
-                "transceivers_count": vatsim_data["total_transceivers"]
-            })
+            self.logger.info(f"VATSIM data: {len(controllers)} controllers, {len(flights)} flights, {len(transceivers)} transceivers")
             
             return vatsim_data
             
         except httpx.TimeoutException as e:
-            self.logger.error("VATSIM API request timed out", extra={
-                "timeout": self.config.vatsim.timeout,
-                "error": str(e)
-            })
+            self.logger.error(f"VATSIM API timeout: {e}")
             raise VATSIMAPIError(f"VATSIM API request timed out: {e}")
             
         except httpx.RequestError as e:
-            self.logger.error("VATSIM API request failed", extra={
-                "error": str(e)
-            })
+            self.logger.error(f"VATSIM API request failed: {e}")
             raise VATSIMAPIError(f"VATSIM API request failed: {e}")
             
         except Exception as e:
-            self.logger.exception("Unexpected error fetching VATSIM data", extra={
-                "error": str(e)
-            })
+            self.logger.error(f"Unexpected error: {e}")
             raise VATSIMAPIError(f"Unexpected error: {e}")
     
     def _parse_controllers(self, controllers_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

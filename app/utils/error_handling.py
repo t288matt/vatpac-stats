@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-Simplified Error Handling for VATSIM Data Collection System
+Error Handling - Simplified
 
-This module provides basic error handling decorators without complex
-custom exception hierarchies.
+Basic decorators for service error handling and operation logging.
 """
 
 import asyncio
@@ -24,7 +23,7 @@ def handle_service_errors(func: Callable) -> Callable:
         try:
             return await func(*args, **kwargs)
         except Exception as e:
-            logger.error(f"Service error in {func.__name__}: {e}", exc_info=True)
+            logger.error(f"Service error in {func.__name__}: {e}")
             raise
     
     @wraps(func)
@@ -32,7 +31,7 @@ def handle_service_errors(func: Callable) -> Callable:
         try:
             return func(*args, **kwargs)
         except Exception as e:
-            logger.error(f"Service error in {func.__name__}: {e}", exc_info=True)
+            logger.error(f"Service error in {func.__name__}: {e}")
             raise
     
     # Return async wrapper for async functions, sync wrapper for sync functions
@@ -54,7 +53,7 @@ def log_operation(operation_name: str):
                 logger.info(f"Completed operation: {operation_name}")
                 return result
             except Exception as e:
-                logger.error(f"Failed operation: {operation_name} - {e}", exc_info=True)
+                logger.error(f"Failed operation: {operation_name} - {e}")
                 raise
         
         @wraps(func)
@@ -65,7 +64,7 @@ def log_operation(operation_name: str):
                 logger.info(f"Completed operation: {operation_name}")
                 return result
             except Exception as e:
-                logger.error(f"Failed operation: {operation_name} - {e}", exc_info=True)
+                logger.error(f"Failed operation: {operation_name} - {e}")
                 raise
         
         # Return async wrapper for async functions, sync wrapper for sync functions
