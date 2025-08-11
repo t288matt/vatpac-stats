@@ -191,18 +191,18 @@ class DataService:
                             # Flight filtered out by geographic boundary
                             continue
                     
-                    # Create flight model
+                    # Create flight model - simplified field mapping
                     flight = Flight(
                         callsign=flight_dict.get("callsign", ""),
-                        name=flight_dict.get("name", ""),  # Changed from pilot_name to name
-                        aircraft_type=flight_dict.get("aircraft_type", ""),  # Use aircraft_type, not aircraft_short
+                        name=flight_dict.get("name", ""),
+                        aircraft_type=flight_dict.get("aircraft_type", ""),
                         departure=flight_dict.get("departure", ""),
                         arrival=flight_dict.get("arrival", ""),
                         route=flight_dict.get("route", ""),
                         altitude=flight_dict.get("altitude", 0),
                         latitude=flight_dict.get("latitude"),
                         longitude=flight_dict.get("longitude"),
-                        groundspeed=flight_dict.get("groundspeed"),  # Changed from groundspeed to groundspeed
+                        groundspeed=flight_dict.get("groundspeed"),
                         heading=flight_dict.get("heading"),
                         cid=flight_dict.get("cid"),
                         server=flight_dict.get("server", ""),
@@ -260,12 +260,8 @@ class DataService:
         
         # Get database session
         async with get_database_session() as session:
-            self.logger.info(f"Starting controller processing with {len(filtered_controllers)} controllers")
-            
             for controller_dict in filtered_controllers:
                 try:
-                    # Debug logging to see what data we're getting
-                    self.logger.debug(f"Processing controller: {controller_dict}")
                     
                     # Create controller model using SQLAlchemy ORM
                     controller = Controller(
@@ -314,68 +310,28 @@ class DataService:
         return processed_count
     
     def _convert_text_atis(self, text_atis_data: Any) -> Optional[str]:
-        """
-        Convert text_atis data to string format.
-        
-        Args:
-            text_atis_data: Text ATIS data from VATSIM API (can be string, list, or None)
-            
-        Returns:
-            String representation or None if no data
-        """
+        """Convert text_atis data to string format - simplified"""
         if text_atis_data is None:
             return None
-        
-        if isinstance(text_atis_data, str):
-            return text_atis_data
-        
-        if isinstance(text_atis_data, list):
-            # Join list items with newlines
-            return '\n'.join(str(item) for item in text_atis_data)
-        
-        # Convert any other type to string
-        return str(text_atis_data)
+        return str(text_atis_data) if not isinstance(text_atis_data, str) else text_atis_data
     
     def _parse_timestamp(self, timestamp_str: Optional[Any]) -> Optional[datetime]:
-        """
-        Parse timestamp string to datetime object.
-        
-        Args:
-            timestamp_str: Timestamp string from VATSIM API (e.g., '2025-08-11T11:53:48.7182327Z')
-                          or datetime object
-            
-        Returns:
-            datetime object or None if parsing fails
-        """
+        """Parse timestamp string to datetime object - simplified"""
         if not timestamp_str:
             return None
         
-        # If it's already a datetime object, return it
         if isinstance(timestamp_str, datetime):
             return timestamp_str
         
-        # If it's a string, parse it
         if isinstance(timestamp_str, str):
             try:
-                # Remove the 'Z' suffix and parse as UTC timestamp
-                if timestamp_str.endswith('Z'):
-                    timestamp_str = timestamp_str[:-1]
-                
-                # Parse the ISO format timestamp
-                parsed_time = datetime.fromisoformat(timestamp_str)
-                
-                # Ensure it's timezone-aware (UTC)
-                if parsed_time.tzinfo is None:
-                    parsed_time = parsed_time.replace(tzinfo=timezone.utc)
-                
-                return parsed_time
-                
-            except (ValueError, TypeError) as e:
-                self.logger.warning(f"Failed to parse timestamp '{timestamp_str}': {e}")
+                # Remove 'Z' suffix and parse as UTC
+                clean_timestamp = timestamp_str[:-1] if timestamp_str.endswith('Z') else timestamp_str
+                parsed_time = datetime.fromisoformat(clean_timestamp)
+                return parsed_time.replace(tzinfo=timezone.utc) if parsed_time.tzinfo is None else parsed_time
+            except (ValueError, TypeError):
                 return None
         
-        # If it's any other type, log warning and return None
-        self.logger.warning(f"Unexpected timestamp type {type(timestamp_str)}: {timestamp_str}")
         return None
     
     async def _process_transceivers(self, transceivers_data: List[Dict[str, Any]]) -> int:
@@ -458,13 +414,12 @@ class DataService:
     #         self.logger.error(f"Failed to update VATSIM status: {e}") # This method is removed
     
     def get_processing_stats(self) -> Dict[str, Any]:
-        """Get data processing statistics."""
+        """Get data processing statistics - simplified"""
         return {
             "flights_processed": self.processing_stats.get("total_flights_processed", 0),
             "controllers_processed": self.processing_stats.get("total_controllers_processed", 0),
             "transceivers_processed": self.processing_stats.get("total_transceivers_processed", 0),
-            "last_processing_time": self.processing_stats.get("last_processing_time", 0),
-            "total_processing_time": self.processing_stats.get("last_processing_time", 0) # This seems like a bug, should be total_processing_time
+            "last_processing_time": self.processing_stats.get("last_processing_time", 0)
         }
     
     def get_filter_status(self) -> Dict[str, Any]:
