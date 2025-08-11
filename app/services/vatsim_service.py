@@ -376,8 +376,7 @@ class VATSIMService:
                     "groundspeed": flight_data.get("groundspeed"),
                     "transponder": flight_data.get("transponder"),
                     "heading": flight_data.get("heading"),
-                    "qnh_i_hg": flight_data.get("qnh_i_hg"),
-                    "qnh_mb": flight_data.get("qnh_mb"),
+
                     "logon_time": logon_time,
                     "last_updated": last_updated,
                     
@@ -392,8 +391,7 @@ class VATSIMService:
                     "enroute_time": flight_plan.get("enroute_time"),
                     "fuel_time": flight_plan.get("fuel_time"),
                     "remarks": flight_plan.get("remarks"),
-                    "revision_id": flight_plan.get("revision_id"),
-                    "assigned_transponder": flight_plan.get("assigned_transponder")
+
                 }
                 flights.append(flight)
                 

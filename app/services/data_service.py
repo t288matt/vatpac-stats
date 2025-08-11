@@ -285,8 +285,7 @@ class DataService:
                         'groundspeed': flight_data.get('groundspeed'),
                         'transponder': flight_data.get('transponder'),
                         'heading': flight_data.get('heading'),
-                        'qnh_i_hg': flight_data.get('qnh_i_hg'),
-                        'qnh_mb': flight_data.get('qnh_mb'),
+
                         'logon_time': flight_data.get('logon_time'),
                         'last_updated': flight_data.get('last_updated'),
                         'departure': flight_plan.get('departure'),
@@ -295,16 +294,14 @@ class DataService:
                         'aircraft_type': flight_plan.get('aircraft_short'),
                         'flight_rules': flight_plan.get('flight_rules'),
                         'aircraft_faa': flight_plan.get('aircraft_faa'),
-                        'aircraft_short': flight_plan.get('aircraft_short'),
+
                         'alternate': flight_plan.get('alternate'),
                         'cruise_tas': flight_plan.get('cruise_tas'),
                         'planned_altitude': flight_plan.get('altitude'),
                         'deptime': flight_plan.get('deptime'),
                         'enroute_time': flight_plan.get('enroute_time'),
                         'fuel_time': flight_plan.get('fuel_time'),
-                        'remarks': flight_plan.get('remarks'),
-                        'revision_id': flight_plan.get('revision_id'),
-                        'assigned_transponder': flight_plan.get('assigned_transponder')
+                        'remarks': flight_plan.get('remarks')
                     }
                     
                     # Apply flight filters if enabled
