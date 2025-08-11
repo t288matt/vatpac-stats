@@ -1,110 +1,98 @@
 #!/usr/bin/env python3
 """
-Database Connection and Session Management
+Database configuration and connection management for VATSIM Data Collection System.
 
-This module provides database connection management for the VATSIM data collection
-system. It handles PostgreSQL connection pooling, session management, and database
-initialization with optimized settings for high-throughput data ingestion.
-
-INPUTS:
-- Environment variable DATABASE_URL for connection string
-- SQLAlchemy model definitions
-- Database session requests from application
-
-OUTPUTS:
-- Database engine with connection pooling
-- Database sessions for data access
-- Database initialization and table creation
-- Connection monitoring and health information
-
-FEATURES:
-- Connection pooling with optimized settings
-- SSD-optimized PostgreSQL settings
-- Automatic connection recycling
-- Connection health monitoring
-- FastAPI dependency injection support
-- Robust error handling and retry logic
-
-OPTIMIZATIONS:
-- Disabled SQL logging for performance
-- UTC timezone configuration
-- Asynchronous commit for SSD optimization
-- Connection pre-ping for reliability
-- Optimized pool settings for high throughput
+This module provides database connection management, configuration, and utility functions
+for the VATSIM data collection system.
 """
 
-from sqlalchemy import create_engine, event, text
-from sqlalchemy.orm import sessionmaker, Session, scoped_session
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.pool import QueuePool
-from sqlalchemy.exc import SQLAlchemyError, DisconnectionError, OperationalError
 import os
-from typing import Generator, AsyncGenerator, Optional
 import logging
-import time
-from contextlib import contextmanager
+from typing import Optional, Dict, Any
+from sqlalchemy import create_engine, text, event
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.pool import QueuePool
+from sqlalchemy.exc import SQLAlchemyError
 import asyncio
 
-from .utils.error_handling import handle_service_errors, log_operation, create_error_handler
+from .config import get_config
 from .utils.logging import get_logger_for_module
+from .utils.error_handling import handle_service_errors, log_operation
 
-# Configure logging
 logger = get_logger_for_module(__name__)
 
-# Initialize centralized error handler
-error_handler = create_error_handler("database")
+# Database configuration
+config = get_config()
 
-# Database configuration - PostgreSQL only
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data")
+# Database URLs
+DATABASE_URL = config.database.url
+ASYNC_DATABASE_URL = config.database.async_url
 
-# Enhanced PostgreSQL configuration for high-throughput data ingestion
-engine = create_engine(
-    DATABASE_URL,
-    # Connection pooling
-    poolclass=QueuePool,
-    pool_pre_ping=True,      # Verify connections before use
-    pool_recycle=300,        # Recycle connections every 5 minutes
-    pool_size=20,            # Increased for high throughput
-    max_overflow=30,         # Additional connections when pool is full
-    pool_timeout=30,         # Timeout for getting connection from pool
-    pool_reset_on_return='commit',  # Reset connection state on return
+# Engine configuration
+ENGINE_CONFIG = {
+    "pool_size": config.database.pool_size,
+    "max_overflow": config.database.max_overflow,
+    "pool_timeout": config.database.pool_timeout,
+    "pool_recycle": config.database.pool_recycle,
+    "pool_pre_ping": config.database.pool_pre_ping,
+    "echo": config.database.echo,
+    "echo_pool": config.database.echo_pool,
+}
+
+# Create database engines
+engine = None
+async_engine = None
+SessionLocal = None
+AsyncSessionLocal = None
+
+def _create_engines():
+    """Create database engines with configuration."""
+    global engine, async_engine, SessionLocal, AsyncSessionLocal
     
-    # Performance optimizations
-    echo=False,              # Disable SQL logging for performance
-    echo_pool=False,         # Disable pool logging
-    future=True,             # Use SQLAlchemy 2.0 style
-    
-    # Connection settings
-    connect_args={
-        "connect_timeout": 30,      # PostgreSQL connection timeout
-        "application_name": "vatsim_data_collector",  # Application name for monitoring
-        "options": "-c timezone=utc -c synchronous_commit=off",  # SSD optimization
-        "keepalives": 1,            # Enable TCP keepalives
-        "keepalives_idle": 30,      # Start keepalives after 30 seconds of inactivity
-        "keepalives_interval": 10,  # Send keepalives every 10 seconds
-        "keepalives_count": 5,      # Give up after 5 failed keepalives
-    }
-)
+    try:
+        # Create synchronous engine
+        engine = create_engine(
+            DATABASE_URL,
+            **ENGINE_CONFIG,
+            poolclass=QueuePool
+        )
+        
+        # Create synchronous session factory
+        SessionLocal = sessionmaker(
+            autocommit=False,
+            autoflush=False,
+            bind=engine
+        )
+        
+        # Create asynchronous engine
+        async_engine = create_async_engine(
+            ASYNC_DATABASE_URL,
+            **ENGINE_CONFIG,
+            poolclass=QueuePool
+        )
+        
+        # Create asynchronous session factory
+        AsyncSessionLocal = async_sessionmaker(
+            async_engine,
+            class_=AsyncSession,
+            expire_on_commit=False
+        )
+        
+        logger.info("Database engines created successfully")
+        
+    except Exception as e:
+        logger.error(f"Failed to create database engines: {e}")
+        raise
 
-# Create session factory with enhanced configuration
-SessionLocal = sessionmaker(
-    autocommit=False, 
-    autoflush=False, 
-    bind=engine,
-    expire_on_commit=False  # Prevent expired object access issues
-)
+# Initialize engines
+_create_engines()
 
-# Create scoped session for thread safety
-ScopedSessionLocal = scoped_session(SessionLocal)
-
-# Base class for models
-Base = declarative_base()
-
-# Connection event listeners for monitoring and optimization
+# Database event handlers
 @event.listens_for(engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
-    """Set SQLite pragmas for better performance (if using SQLite)"""
-    if 'sqlite' in DATABASE_URL:
+    """Set SQLite pragmas for better performance."""
+    if "sqlite" in DATABASE_URL.lower():
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA synchronous=NORMAL")
@@ -114,216 +102,118 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
 
 @event.listens_for(engine, "connect")
 def set_postgresql_settings(dbapi_connection, connection_record):
-    """Set PostgreSQL-specific settings for optimization"""
-    if 'postgresql' in DATABASE_URL:
+    """Set PostgreSQL settings for better performance."""
+    if "postgresql" in DATABASE_URL.lower():
         cursor = dbapi_connection.cursor()
-        cursor.execute("SET timezone = 'UTC'")
-        cursor.execute("SET synchronous_commit = off")
-        cursor.execute("SET work_mem = '256MB'")
-        cursor.execute("SET maintenance_work_mem = '256MB'")
-        cursor.execute("SET effective_cache_size = '1GB'")
+        cursor.execute("SET statement_timeout = 30000")  # 30 seconds
+        cursor.execute("SET idle_in_transaction_session_timeout = 30000")  # 30 seconds
         cursor.close()
 
+# Connection pool event handlers
 @event.listens_for(engine, "checkout")
 def receive_checkout(dbapi_connection, connection_record, connection_proxy):
-    """Log connection checkout for monitoring"""
-    logger.debug(f"Database connection checked out. Pool size: {engine.pool.size()}, "
-                f"Checked in: {engine.pool.checkedin()}, Checked out: {engine.pool.checkedout()}")
+    """Handle connection checkout."""
+    logger.debug("Database connection checked out")
 
 @event.listens_for(engine, "checkin")
 def receive_checkin(dbapi_connection, connection_record):
-    """Log connection checkin for monitoring"""
-    logger.debug(f"Database connection checked in. Pool size: {engine.pool.size()}, "
-                f"Checked in: {engine.pool.checkedin()}, Checked out: {engine.pool.checkedout()}")
+    """Handle connection checkin."""
+    logger.debug("Database connection checked in")
 
-async def get_db() -> AsyncGenerator[Session, None]:
-    """Dependency to get database session - FastAPI compatible"""
-    db = SessionLocal()
-    try:
-        yield db
-    except SQLAlchemyError as e:
-        logger.error(f"Database error: {e}")
-        db.rollback()
-        raise
-    finally:
-        db.close()
-
-async def get_async_session():
-    """Get async database session as context manager"""
-    session = SessionLocal()
-    try:
-        yield session
-    except SQLAlchemyError as e:
-        logger.error(f"Database error: {e}")
-        session.rollback()
-        raise
-    finally:
-        session.close()
-
-class AsyncDatabaseSession:
-    """Async context manager for database sessions (wraps synchronous sessions)"""
+# Database connection context manager
+class DatabaseConnection:
+    """Database connection context manager."""
+    
     def __init__(self):
         self.session = None
     
     async def __aenter__(self):
-        """Get database session"""
-        self.session = SessionLocal()
+        """Async context manager entry."""
+        self.session = AsyncSessionLocal()
         return self.session
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Clean up database session"""
+        """Async context manager exit."""
         if self.session:
-            try:
-                if exc_type is not None:
-                    self.session.rollback()
-                else:
-                    self.session.commit()
-            except SQLAlchemyError as e:
-                logger.error(f"Error during session cleanup: {e}")
-                self.session.rollback()
-            finally:
-                self.session.close()
+            await self.session.close()
+    
+    def __enter__(self):
+        """Sync context manager entry."""
+        self.session = SessionLocal()
+        return self.session
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Sync context manager exit."""
+        if self.session:
+            self.session.close()
     
     def execute(self, query, params=None):
-        """Execute query (synchronous, no await needed)"""
-        return self.session.execute(query, params)
+        """Execute a query."""
+        if not self.session:
+            raise RuntimeError("No active database session")
+        return self.session.execute(text(query), params or {})
     
     def commit(self):
-        """Commit session (synchronous, no await needed)"""
-        return self.session.commit()
+        """Commit the current transaction."""
+        if not self.session:
+            raise RuntimeError("No active database session")
+        self.session.commit()
     
     def rollback(self):
-        """Rollback session (synchronous, no await needed)"""
-        return self.session.rollback()
+        """Rollback the current transaction."""
+        if not self.session:
+            raise RuntimeError("No active database session")
+        self.session.rollback()
 
-def get_database_session():
-    """Get database session as async context manager"""
-    return AsyncDatabaseSession()
+# Database session functions
+async def get_database_session() -> AsyncSession:
+    """Get an async database session."""
+    return AsyncSessionLocal()
 
-@contextmanager
-def get_sync_session():
-    """Synchronous context manager for database sessions"""
-    session = SessionLocal()
+def get_sync_session() -> Session:
+    """Get a synchronous database session."""
+    return SessionLocal()
+
+# Database initialization
+async def init_db():
+    """Initialize database connection and test connectivity."""
     try:
-        yield session
-        session.commit()
-    except SQLAlchemyError as e:
-        logger.error(f"Database error in sync session: {e}")
-        session.rollback()
-        raise
-    finally:
-        session.close()
-
-@handle_service_errors
-@log_operation("init_db")
-def init_db():
-    """Initialize database tables with enhanced error handling"""
-    try:
-        # Import models to ensure they are registered with Base
-        from .models import Controller, Flight, Transceiver
-        
-        # Create all tables
-        Base.metadata.create_all(bind=engine)
-        logger.info("Database tables created successfully")
-        
-        # Verify tables exist
+        # Test synchronous connection
         with get_sync_session() as session:
-            result = session.execute(text("""
-                SELECT table_name 
-                FROM information_schema.tables 
-                WHERE table_schema = 'public' 
-                AND table_name IN ('controllers', 'flights', 'transceivers')
-                ORDER BY table_name
-            """))
-            tables = [row[0] for row in result.fetchall()]
-            logger.info(f"Verified tables: {tables}")
-            
-    except SQLAlchemyError as e:
-        logger.error(f"Failed to initialize database: {e}")
-        raise
-
-@handle_service_errors
-@log_operation("close_db")
-def close_db():
-    """Close database connections gracefully"""
-    try:
-        # Close all sessions
-        ScopedSessionLocal.remove()
+            result = session.execute(text("SELECT 1"))
+            logger.info("Synchronous database connection successful")
         
-        # Dispose engine
-        engine.dispose()
-        logger.info("Database connections closed successfully")
+        # Test asynchronous connection
+        async with get_database_session() as session:
+            result = await session.execute(text("SELECT 1"))
+            logger.info("Asynchronous database connection successful")
+        
+        logger.info("Database initialization completed successfully")
+        return True
+        
+    except SQLAlchemyError as e:
+        logger.error(f"Database initialization failed: {e}")
+        return False
     except Exception as e:
-        logger.error(f"Error closing database connections: {e}")
+        logger.error(f"Unexpected error during database initialization: {e}")
+        return False
 
-@handle_service_errors
-@log_operation("get_database_info")
-async def get_database_info():
-    """Get comprehensive database information for monitoring"""
-    try:
-        pool = engine.pool
-        
-        # Test database connectivity
-        with get_sync_session() as session:
-            session.execute(text("SELECT 1"))
-            connectivity = "connected"
-    except SQLAlchemyError:
-        connectivity = "disconnected"
+# Database cleanup
+async def close_db():
+    """Close database connections and cleanup resources."""
+    global engine, async_engine
     
-    return {
-        "database_type": "PostgreSQL",
-        "connection_string": DATABASE_URL.replace(DATABASE_URL.split('@')[0].split('://')[1], '***') if '@' in DATABASE_URL else DATABASE_URL,
-        "connectivity": connectivity,
-        "pool_size": pool.size(),
-        "checked_in": pool.checkedin(),
-        "checked_out": pool.checkedout(),
-        "overflow": pool.overflow(),
-        "pool_status": {
-            "size": pool.size(),
-            "checked_in": pool.checkedin(),
-            "checked_out": pool.checkedout(),
-            "overflow": pool.overflow(),
-            "invalid": pool.invalid() if hasattr(pool, 'invalid') else 0
-        }
-    }
-
-@handle_service_errors
-@log_operation("health_check")
-async def health_check():
-    """Perform database health check"""
     try:
-        with get_sync_session() as session:
-            # Test basic connectivity
-            session.execute(text("SELECT 1"))
-            
-            # Check table counts
-            result = session.execute(text("""
-                SELECT 
-                    (SELECT COUNT(*) FROM controllers) as controllers_count,
-                    (SELECT COUNT(*) FROM flights) as flights_count,
-                    (SELECT COUNT(*) FROM transceivers) as transceivers_count
-            """))
-            counts = result.fetchone()
-            
-            return {
-                "status": "healthy",
-                "connectivity": "connected",
-                "table_counts": {
-                    "controllers": counts[0] or 0,
-                    "flights": counts[1] or 0,
-                    "transceivers": counts[2] or 0
-                },
-                "pool_status": {
-                    "size": engine.pool.size(),
-                    "checked_in": engine.pool.checkedin(),
-                    "checked_out": engine.pool.checkedout(),
-                    "overflow": engine.pool.overflow()
-                }
-            }
-    except SQLAlchemyError as e:
-        logger.error(f"Database health check failed: {e}")
-        return {
-            "status": "unhealthy",
-            "connectivity": "disconnected",
-            "error": str(e)
-        } 
+        if engine:
+            engine.dispose()
+            logger.info("Synchronous database engine disposed")
+        
+        if async_engine:
+            await async_engine.dispose()
+            logger.info("Asynchronous database engine disposed")
+        
+        logger.info("Database cleanup completed successfully")
+        
+    except Exception as e:
+        logger.error(f"Error during database cleanup: {e}")
+        raise 

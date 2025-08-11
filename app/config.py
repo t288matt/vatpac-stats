@@ -47,18 +47,32 @@ from pathlib import Path
 class DatabaseConfig:
     """Database configuration with no hardcoding."""
     url: str
+    async_url: str
     pool_size: int = 10
     max_overflow: int = 20
+    pool_timeout: int = 30
+    pool_recycle: int = 3600
+    pool_pre_ping: bool = True
     echo: bool = False
+    echo_pool: bool = False
     
     @classmethod
     def from_env(cls):
         """Load database configuration from environment variables."""
+        base_url = os.getenv("DATABASE_URL", "postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data")
+        # Convert to async URL format
+        async_url = base_url.replace("postgresql://", "postgresql+asyncpg://")
+        
         return cls(
-            url=os.getenv("DATABASE_URL", "postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data"),
+            url=base_url,
+            async_url=async_url,
             pool_size=int(os.getenv("DATABASE_POOL_SIZE", "10")),
             max_overflow=int(os.getenv("DATABASE_MAX_OVERFLOW", "20")),
-            echo=os.getenv("DATABASE_ECHO", "false").lower() == "true"
+            pool_timeout=int(os.getenv("DATABASE_POOL_TIMEOUT", "30")),
+            pool_recycle=int(os.getenv("DATABASE_POOL_RECYCLE", "3600")),
+            pool_pre_ping=os.getenv("DATABASE_POOL_PRE_PING", "true").lower() == "true",
+            echo=os.getenv("DATABASE_ECHO", "false").lower() == "true",
+            echo_pool=os.getenv("DATABASE_ECHO_POOL", "false").lower() == "true"
         )
 
 

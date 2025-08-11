@@ -1,2 +1,0 @@
-# This file ensures the audit_reports directory is tracked by git
-# Audit reports will be saved here when running the audit framework

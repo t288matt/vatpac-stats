@@ -77,6 +77,13 @@ class GeographicBoundaryFilter:
             'flights_included': 0,
             'flights_excluded': 0,
             'flights_no_position': 0,
+            'total_transceivers_processed': 0,
+            'transceivers_included': 0,
+            'transceivers_excluded': 0,
+            'transceivers_no_position': 0,
+            'total_controllers_processed': 0,
+            'controllers_included': 0,
+            'controllers_excluded': 0,
             'processing_time_ms': 0.0
         }
         
@@ -223,6 +230,163 @@ class GeographicBoundaryFilter:
             logger.warning(f"Geographic boundary filter processing time: {processing_time_ms:.2f}ms")
         
         return filtered_flights
+    
+    def _is_transceiver_in_boundary(self, transceiver_data: Dict[str, Any]) -> bool:
+        """
+        Check if a transceiver is within the geographic boundary
+        
+        Args:
+            transceiver_data: Transceiver data from VATSIM API
+            
+        Returns:
+            True if transceiver is within boundary, False otherwise
+        """
+        # Check if filter is properly initialized
+        if not self.is_initialized:
+            logger.debug("Filter not initialized, allowing transceiver through")
+            return True
+        
+        # Extract position data
+        latitude = transceiver_data.get('position_lat') or transceiver_data.get('lat')
+        longitude = transceiver_data.get('position_lon') or transceiver_data.get('lon')
+        
+        if latitude is None or longitude is None:
+            callsign = transceiver_data.get('callsign', 'UNKNOWN')
+            logger.debug(f"Transceiver {callsign} has no position data, allowing through")
+            self.stats['transceivers_no_position'] += 1
+            return True  # Conservative: allow transceivers without position data
+        
+        try:
+            # Convert to float if needed
+            lat = float(latitude)
+            lon = float(longitude)
+            
+            # Check if position is within boundary using our geographic utils
+            is_inside = is_point_in_polygon(lat, lon, self.polygon)
+            
+            callsign = transceiver_data.get('callsign', 'UNKNOWN')
+            if is_inside:
+                logger.debug(f"Transceiver {callsign} is within boundary at ({lat:.4f}, {lon:.4f})")
+                self.stats['transceivers_included'] += 1
+            else:
+                logger.debug(f"Transceiver {callsign} is outside boundary at ({lat:.4f}, {lon:.4f})")
+                self.stats['transceivers_excluded'] += 1
+            
+            return is_inside
+            
+        except (ValueError, TypeError) as e:
+            callsign = transceiver_data.get('callsign', 'UNKNOWN')
+            logger.warning(f"Invalid coordinates for transceiver {callsign}: {e}")
+            self.stats['transceivers_no_position'] += 1
+            return True  # Conservative: allow transceivers with invalid coordinates
+    
+    def _is_controller_in_boundary(self, controller_data: Dict[str, Any]) -> bool:
+        """
+        Check if a controller is within the geographic boundary
+        
+        Args:
+            controller_data: Controller data from VATSIM API
+            
+        Returns:
+            True if controller is within boundary, False otherwise
+        """
+        # Check if filter is properly initialized
+        if not self.is_initialized:
+            logger.debug("Filter not initialized, allowing controller through")
+            return True
+        
+        # Extract position data - controllers may not have direct position data
+        # We'll use a conservative approach and allow controllers through
+        # since they represent ATC positions that may not have specific coordinates
+        callsign = controller_data.get('callsign', 'UNKNOWN')
+        logger.debug(f"Controller {callsign} - no position filtering applied (conservative approach)")
+        self.stats['controllers_included'] += 1
+        return True  # Allow all controllers through for now
+    
+    def filter_transceivers_list(self, transceivers: List[Dict]) -> List[Dict]:
+        """
+        Filter a list of transceiver objects to only include those within the boundary
+        
+        Args:
+            transceivers: List of transceiver data dictionaries
+            
+        Returns:
+            Filtered list of transceiver data dictionaries
+        """
+        if not self.config.enabled:
+            logger.debug("Geographic boundary filter is disabled, returning original transceivers")
+            return transceivers
+        
+        if not transceivers:
+            logger.debug("No transceivers provided to filter")
+            return transceivers
+        
+        # Reset statistics for this run
+        self.stats['total_transceivers_processed'] = len(transceivers)
+        self.stats['transceivers_included'] = 0
+        self.stats['transceivers_excluded'] = 0
+        self.stats['transceivers_no_position'] = 0
+        
+        start_time = time.time()
+        
+        filtered_transceivers = []
+        
+        for transceiver in transceivers:
+            if self._is_transceiver_in_boundary(transceiver):
+                filtered_transceivers.append(transceiver)
+        
+        end_time = time.time()
+        processing_time_ms = (end_time - start_time) * 1000
+        
+        original_count = len(transceivers)
+        filtered_count = len(filtered_transceivers)
+        
+        logger.info(f"Geographic boundary filter: {original_count} transceivers -> {filtered_count} transceivers "
+                   f"({original_count - filtered_count} filtered out) in {processing_time_ms:.2f}ms")
+        
+        return filtered_transceivers
+    
+    def filter_controllers_list(self, controllers: List[Dict]) -> List[Dict]:
+        """
+        Filter a list of controller objects to only include those within the boundary
+        
+        Args:
+            controllers: List of controller data dictionaries
+            
+        Returns:
+            Filtered list of controller data dictionaries
+        """
+        if not self.config.enabled:
+            logger.debug("Geographic boundary filter is disabled, returning original controllers")
+            return controllers
+        
+        if not controllers:
+            logger.debug("No controllers provided to filter")
+            return controllers
+        
+        # Reset statistics for this run
+        self.stats['total_controllers_processed'] = len(controllers)
+        self.stats['controllers_included'] = 0
+        self.stats['controllers_excluded'] = 0
+        
+        start_time = time.time()
+        
+        filtered_controllers = []
+        
+        for controller in controllers:
+            if self._is_controller_in_boundary(controller):
+                filtered_controllers.append(controller)
+        
+        end_time = time.time()
+        processing_time_ms = (end_time - start_time) * 1000
+        
+        original_count = len(controllers)
+        filtered_count = len(filtered_controllers)
+        
+        logger.info(f"Geographic boundary filter: {original_count} controllers -> {filtered_count} controllers "
+                   f"({original_count - filtered_count} filtered out) in {processing_time_ms:.2f}ms")
+        
+        return filtered_controllers
     
     def filter_vatsim_data(self, vatsim_data: Dict) -> Dict:
         """

@@ -34,7 +34,7 @@ from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from ..database import get_db, SessionLocal
+from ..database import SessionLocal
 from ..config import get_config
 
 logger = logging.getLogger(__name__)

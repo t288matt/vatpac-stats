@@ -1,282 +1,275 @@
 #!/usr/bin/env python3
 """
-Resource Management Service for VATSIM Data Collection System
+Resource Manager Service for VATSIM Data Collection System
 
-This service manages system resources, memory usage, and performance monitoring
-to ensure optimal operation under high load conditions. It provides real-time
-monitoring and automatic resource optimization.
-
-INPUTS:
-- System resource metrics (CPU, memory, disk)
-- Performance thresholds and monitoring data
-- Resource optimization requests
-- System health status information
-
-OUTPUTS:
-- Resource usage statistics and metrics
-- Performance optimization recommendations
-- System health alerts and warnings
-- Memory cleanup and optimization results
-
-MONITORING FEATURES:
-- Real-time CPU, memory, and disk monitoring
-- Automatic resource threshold detection
-- Performance bottleneck identification
-- System health status tracking
-- Resource usage trend analysis
-
-RESOURCE TYPES:
-- Memory usage and garbage collection
-- CPU utilization and load balancing
-- Disk space and I/O performance
-- Network connectivity and bandwidth
-- Database connection pool health
-
-OPTIMIZATION FEATURES:
-- Automatic memory cleanup
-- CPU load balancing
-- Disk space management
-- Connection pool optimization
-- Performance tuning recommendations
-
-THRESHOLDS:
-- Memory usage: 80% warning threshold
-- CPU usage: 90% warning threshold
-- Disk usage: 90% warning threshold
-- Monitoring interval: 60 seconds
-- Cleanup interval: 5 minutes
-
-ALERTS AND ACTIONS:
-- High memory usage triggers garbage collection
-- High CPU usage triggers load analysis
-- High disk usage triggers cleanup operations
-- Automatic resource optimization
-- Performance degradation alerts
+This service manages system resources including memory, CPU, and database connections
+to ensure optimal performance and prevent resource exhaustion.
 """
 
-import psutil
-import logging
 import asyncio
-from typing import Dict, Any, Optional
-from datetime import datetime, timezone, timedelta, timezone
-import gc
-import threading
-import time
+import logging
+import psutil
+from typing import Dict, Any, Optional, List
+from datetime import datetime, timezone, timedelta
+from dataclasses import dataclass, field
 
-from ..config import get_config
 from ..utils.logging import get_logger_for_module
-from ..utils.error_handling import handle_service_errors, log_operation, create_error_handler
-from ..utils.exceptions import ResourceError, SystemError
+from ..utils.error_handling import handle_service_errors, log_operation
 
 logger = get_logger_for_module(__name__)
 
+@dataclass
+class ResourceUsage:
+    """Resource usage information."""
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    cpu_percent: float = 0.0
+    memory_percent: float = 0.0
+    memory_used_mb: float = 0.0
+    memory_available_mb: float = 0.0
+    disk_usage_percent: float = 0.0
+    network_connections: int = 0
+    open_files: int = 0
+
+@dataclass
+class ResourceThresholds:
+    """Resource usage thresholds."""
+    cpu_warning: float = 80.0
+    cpu_critical: float = 95.0
+    memory_warning: float = 80.0
+    memory_critical: float = 95.0
+    disk_warning: float = 85.0
+    disk_critical: float = 95.0
+
 class ResourceManager:
-    """System resource management service"""
+    """Manages system resources and provides monitoring capabilities."""
     
     def __init__(self):
-        self.config = get_config()
-        self.error_handler = create_error_handler("resource_manager")
-        self.memory_threshold = 0.8  # 80% memory usage threshold
-        self.cpu_threshold = 0.9     # 90% CPU usage threshold
-        self.disk_threshold = 0.9    # 90% disk usage threshold
-        self.monitoring_interval = 60  # seconds
-        self.last_cleanup = time.time()
-        self.cleanup_interval = 300   # 5 minutes
-        
-    @handle_service_errors
-    @log_operation("start_monitoring")
-    async def start_monitoring(self):
-        """Start resource monitoring"""
-        logger.info("Starting resource monitoring service")
-        
-        while True:
+        self.logger = get_logger_for_module(__name__)
+        self.service_name = "resource_manager"
+        self.thresholds = ResourceThresholds()
+        self.usage_history: List[ResourceUsage] = []
+        self.max_history_size = 1000
+        self.monitoring_task: Optional[asyncio.Task] = None
+        self.is_monitoring = False
+    
+    async def initialize(self):
+        """Initialize resource manager."""
+        self.logger.info("Initializing resource manager")
+        await self.start_monitoring()
+    
+    async def cleanup(self):
+        """Cleanup resource manager."""
+        self.logger.info("Cleaning up resource manager")
+        await self.stop_monitoring()
+    
+    async def health_check(self) -> Dict[str, Any]:
+        """Check resource manager health."""
+        try:
+            current_usage = await self.get_current_usage()
+            return {
+                "status": "healthy",
+                "service": "resource_manager",
+                "current_usage": current_usage.__dict__,
+                "thresholds": self.thresholds.__dict__,
+                "monitoring_active": self.is_monitoring
+            }
+        except Exception as e:
+            self.logger.error(f"Health check failed: {e}")
+            return {
+                "status": "unhealthy",
+                "service": "resource_manager",
+                "error": str(e)
+            }
+    
+    async def get_current_usage(self) -> ResourceUsage:
+        """Get current resource usage."""
+        try:
+            # CPU usage
+            cpu_percent = psutil.cpu_percent(interval=1)
+            
+            # Memory usage
+            memory = psutil.virtual_memory()
+            memory_percent = memory.percent
+            memory_used_mb = memory.used / (1024 * 1024)
+            memory_available_mb = memory.available / (1024 * 1024)
+            
+            # Disk usage
+            disk = psutil.disk_usage('/')
+            disk_usage_percent = disk.percent
+            
+            # Network connections
+            network_connections = len(psutil.net_connections())
+            
+            # Open files
             try:
-                # Monitor system resources
-                await self._monitor_resources()
-                
-                # Perform periodic cleanup
-                current_time = time.time()
-                if current_time - self.last_cleanup >= self.cleanup_interval:
-                    await self._perform_cleanup()
-                    self.last_cleanup = current_time
-                
-                # Wait for next monitoring cycle
-                await asyncio.sleep(self.monitoring_interval)
-                
-            except Exception as e:
-                self.error_handler.logger.error(f"Error in resource monitoring: {e}")
-                await asyncio.sleep(self.monitoring_interval)
+                process = psutil.Process()
+                open_files = len(process.open_files())
+            except (psutil.AccessDenied, psutil.NoSuchProcess):
+                open_files = 0
+            
+            usage = ResourceUsage(
+                cpu_percent=cpu_percent,
+                memory_percent=memory_percent,
+                memory_used_mb=memory_used_mb,
+                memory_available_mb=memory_available_mb,
+                disk_usage_percent=disk_usage_percent,
+                network_connections=network_connections,
+                open_files=open_files
+            )
+            
+            # Store in history
+            self.usage_history.append(usage)
+            if len(self.usage_history) > self.max_history_size:
+                self.usage_history.pop(0)
+            
+            return usage
+            
+        except Exception as e:
+            self.logger.error(f"Failed to get resource usage: {e}")
+            raise
     
-    @handle_service_errors
-    @log_operation("monitor_resources")
-    async def _monitor_resources(self):
-        """Monitor system resources and log warnings"""
-        # Get system metrics
-        memory = psutil.virtual_memory()
-        cpu = psutil.cpu_percent(interval=1)
-        disk = psutil.disk_usage('/')
-        
-        # Check memory usage
-        if memory.percent > (self.memory_threshold * 100):
-            logger.warning(f"High memory usage: {memory.percent:.1f}%")
-            await self._handle_high_memory()
-        
-        # Check CPU usage
-        if cpu > (self.cpu_threshold * 100):
-            logger.warning(f"High CPU usage: {cpu:.1f}%")
-            await self._handle_high_cpu()
-        
-        # Check disk usage
-        if disk.percent > (self.disk_threshold * 100):
-            logger.warning(f"High disk usage: {disk.percent:.1f}%")
-            await self._handle_high_disk()
-        
-        # Log resource status periodically
-        if int(time.time()) % 300 == 0:  # Every 5 minutes
-            logger.info(f"Resource status - Memory: {memory.percent:.1f}%, CPU: {cpu:.1f}%, Disk: {disk.percent:.1f}%")
+    async def check_resource_health(self) -> Dict[str, Any]:
+        """Check if resources are within healthy thresholds."""
+        try:
+            current_usage = await self.get_current_usage()
+            
+            warnings = []
+            criticals = []
+            
+            # CPU checks
+            if current_usage.cpu_percent >= self.thresholds.cpu_critical:
+                criticals.append(f"CPU usage critical: {current_usage.cpu_percent:.1f}%")
+            elif current_usage.cpu_percent >= self.thresholds.cpu_warning:
+                warnings.append(f"CPU usage high: {current_usage.cpu_percent:.1f}%")
+            
+            # Memory checks
+            if current_usage.memory_percent >= self.thresholds.memory_critical:
+                criticals.append(f"Memory usage critical: {current_usage.memory_percent:.1f}%")
+            elif current_usage.memory_percent >= self.thresholds.memory_warning:
+                warnings.append(f"Memory usage high: {current_usage.memory_percent:.1f}%")
+            
+            # Disk checks
+            if current_usage.disk_usage_percent >= self.thresholds.disk_critical:
+                criticals.append(f"Disk usage critical: {current_usage.disk_usage_percent:.1f}%")
+            elif current_usage.disk_usage_percent >= self.thresholds.disk_warning:
+                warnings.append(f"Disk usage high: {current_usage.disk_usage_percent:.1f}%")
+            
+            return {
+                "status": "critical" if criticals else "warning" if warnings else "healthy",
+                "warnings": warnings,
+                "criticals": criticals,
+                "current_usage": current_usage.__dict__,
+                "thresholds": self.thresholds.__dict__
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Failed to check resource health: {e}")
+            return {
+                "status": "error",
+                "error": str(e)
+            }
     
-    @handle_service_errors
-    @log_operation("handle_high_memory")
-    async def _handle_high_memory(self):
-        """Handle high memory usage"""
-        # Force garbage collection
-        gc.collect()
-        
-        # Log memory details
-        memory = psutil.virtual_memory()
-        logger.info(f"Memory cleanup performed - Available: {memory.available / 1024 / 1024:.1f} MB")
+    async def get_usage_history(self, hours: int = 24) -> List[ResourceUsage]:
+        """Get resource usage history for the specified number of hours."""
+        try:
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+            return [
+                usage for usage in self.usage_history
+                if usage.timestamp >= cutoff_time
+            ]
+        except Exception as e:
+            self.logger.error(f"Failed to get usage history: {e}")
+            return []
     
-    @handle_service_errors
-    @log_operation("handle_high_cpu")
-    async def _handle_high_cpu(self):
-        """Handle high CPU usage"""
-        # Get process information
-        process = psutil.Process()
-        cpu_percent = process.cpu_percent()
-        
-        logger.info(f"High CPU usage detected - Process CPU: {cpu_percent:.1f}%")
-        
-        # Could implement CPU throttling here if needed
+    async def set_thresholds(self, **kwargs):
+        """Set resource thresholds."""
+        try:
+            for key, value in kwargs.items():
+                if hasattr(self.thresholds, key):
+                    setattr(self.thresholds, key, value)
+                    self.logger.info(f"Set {key} threshold to {value}")
+                else:
+                    self.logger.warning(f"Unknown threshold: {key}")
+        except Exception as e:
+            self.logger.error(f"Failed to set thresholds: {e}")
+            raise
     
-    @handle_service_errors
-    @log_operation("handle_high_disk")
-    async def _handle_high_disk(self):
-        """Handle high disk usage"""
-        # Get disk information
-        disk = psutil.disk_usage('/')
-        free_gb = disk.free / 1024 / 1024 / 1024
+    async def start_monitoring(self):
+        """Start resource monitoring."""
+        if self.is_monitoring:
+            self.logger.warning("Resource monitoring already active")
+            return
         
-        logger.warning(f"Low disk space - Free: {free_gb:.1f} GB")
-        
-        # Could implement disk cleanup here
+        try:
+            self.is_monitoring = True
+            self.monitoring_task = asyncio.create_task(self._monitoring_loop())
+            self.logger.info("Resource monitoring started")
+        except Exception as e:
+            self.logger.error(f"Failed to start monitoring: {e}")
+            self.is_monitoring = False
+            raise
     
-    @handle_service_errors
-    @log_operation("perform_cleanup")
-    async def _perform_cleanup(self):
-        """Perform periodic system cleanup"""
-        # Force garbage collection
-        collected = gc.collect()
+    async def stop_monitoring(self):
+        """Stop resource monitoring."""
+        if not self.is_monitoring:
+            return
         
-        # Clear Python cache
-        import sys
-        if hasattr(sys, 'getsizeof'):
-            cache_size = sum(sys.getsizeof(obj) for obj in gc.get_objects())
-            logger.info(f"Cleanup performed - Collected objects: {collected}, Cache size: {cache_size / 1024:.1f} KB")
+        try:
+            self.is_monitoring = False
+            if self.monitoring_task:
+                self.monitoring_task.cancel()
+                try:
+                    await self.monitoring_task
+                except asyncio.CancelledError:
+                    pass
+            self.logger.info("Resource monitoring stopped")
+        except Exception as e:
+            self.logger.error(f"Failed to stop monitoring: {e}")
+            raise
     
-    @handle_service_errors
-    @log_operation("optimize_memory_usage")
-    async def optimize_memory_usage(self) -> Dict[str, Any]:
-        """Optimize memory usage"""
-        # Force garbage collection
-        collected_before = len(gc.get_objects())
-        collected = gc.collect()
-        collected_after = len(gc.get_objects())
-        
-        # Get memory before and after
-        memory_before = psutil.virtual_memory()
-        
-        # Perform additional cleanup
-        await self._perform_cleanup()
-        
-        memory_after = psutil.virtual_memory()
-        
-        return {
-            "status": "optimized",
-            "objects_collected": collected,
-            "objects_before": collected_before,
-            "objects_after": collected_after,
-            "memory_freed_mb": (memory_before.used - memory_after.used) / 1024 / 1024,
-            "optimization_timestamp": datetime.now(timezone.utc).isoformat()
-        }
-    
-    @handle_service_errors
-    @log_operation("get_performance_metrics")
-    async def get_performance_metrics(self) -> Dict[str, Any]:
-        """Get detailed performance metrics"""
-        # System metrics
-        memory = psutil.virtual_memory()
-        cpu = psutil.cpu_percent(interval=None)  # Non-blocking CPU measurement
-        disk = psutil.disk_usage('/')
-        
-        # Process metrics
-        process = psutil.Process()
-        process_memory = process.memory_info()
-        process_cpu = process.cpu_percent()
-        
-        # Network metrics
-        network = psutil.net_io_counters()
-        
-        # Disk I/O metrics
-        disk_io = psutil.disk_io_counters()
-        
-        return {
-            "system": {
-                "memory_usage_percent": memory.percent,
-                "cpu_usage_percent": cpu,
-                "disk_usage_percent": disk.percent,
-                "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else None
-            },
-            "process": {
-                "memory_mb": process_memory.rss / 1024 / 1024,
-                "cpu_percent": process_cpu,
-                "threads": process.num_threads(),
-                "open_files": len(process.open_files()),
-                "connections": len(process.connections())
-            },
-            "network": {
-                "bytes_sent": network.bytes_sent,
-                "bytes_recv": network.bytes_recv,
-                "packets_sent": network.packets_sent,
-                "packets_recv": network.packets_recv
-            },
-            "disk_io": {
-                "read_bytes": disk_io.read_bytes if disk_io else 0,
-                "write_bytes": disk_io.write_bytes if disk_io else 0,
-                "read_count": disk_io.read_count if disk_io else 0,
-                "write_count": disk_io.write_count if disk_io else 0
-            },
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
-    
-    @handle_service_errors
-    @log_operation("set_thresholds")
-    def set_thresholds(self, memory: float = None, cpu: float = None, disk: float = None):
-        """Set resource monitoring thresholds"""
-        if memory is not None:
-            self.memory_threshold = memory
-        if cpu is not None:
-            self.cpu_threshold = cpu
-        if disk is not None:
-            self.disk_threshold = disk
-        
-        logger.info(f"Updated thresholds - Memory: {self.memory_threshold}, CPU: {self.cpu_threshold}, Disk: {self.disk_threshold}")
+    async def _monitoring_loop(self):
+        """Main monitoring loop."""
+        try:
+            while self.is_monitoring:
+                try:
+                    # Check resource health
+                    health_status = await self.check_resource_health()
+                    
+                    # Log warnings and criticals
+                    if health_status["warnings"]:
+                        for warning in health_status["warnings"]:
+                            self.logger.warning(warning)
+                    
+                    if health_status["criticals"]:
+                        for critical in health_status["criticals"]:
+                            self.logger.critical(critical)
+                    
+                    # Wait before next check
+                    await asyncio.sleep(30)  # Check every 30 seconds
+                    
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    self.logger.error(f"Error in monitoring loop: {e}")
+                    await asyncio.sleep(60)  # Wait longer on error
+                    
+        except asyncio.CancelledError:
+            self.logger.info("Monitoring loop cancelled")
+        except Exception as e:
+            self.logger.error(f"Monitoring loop failed: {e}")
+        finally:
+            self.is_monitoring = False
+
 
 # Global resource manager instance
-_resource_manager = None
+_resource_manager: Optional[ResourceManager] = None
 
-def get_resource_manager() -> ResourceManager:
-    """Get or create resource manager instance"""
+async def get_resource_manager() -> ResourceManager:
+    """Get or create resource manager instance."""
     global _resource_manager
+    
     if _resource_manager is None:
         _resource_manager = ResourceManager()
+        await _resource_manager.initialize()
+    
     return _resource_manager 

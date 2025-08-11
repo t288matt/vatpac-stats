@@ -17,11 +17,10 @@ from httpx import AsyncClient
 
 # Import application components
 from app.main import app
-from app.database import SessionLocal, get_db
+from app.database import SessionLocal, get_sync_session
 from app.models import Flight, Controller, Transceiver
 from app.services.vatsim_service import VATSIMService
 from app.services.data_service import DataService
-from app.services.cache_service import CacheService
 
 
 # ===== EVENT LOOP CONFIGURATION =====
@@ -344,20 +343,6 @@ def mock_data_service() -> Mock:
     mock_service.stop_data_ingestion = AsyncMock()
     mock_service._process_data_in_memory = AsyncMock()
     mock_service._flush_memory_to_disk = AsyncMock()
-    mock_service.is_healthy = Mock(return_value=True)
-    mock_service.get_service_info = Mock(return_value={"status": "healthy"})
-    
-    return mock_service
-
-
-@pytest.fixture
-def mock_cache_service() -> Mock:
-    """Mock cache service for testing"""
-    mock_service = Mock(spec=CacheService)
-    mock_service.get = AsyncMock(return_value=None)
-    mock_service.set = AsyncMock()
-    mock_service.delete = AsyncMock()
-    mock_service.clear = AsyncMock()
     mock_service.is_healthy = Mock(return_value=True)
     mock_service.get_service_info = Mock(return_value={"status": "healthy"})
     

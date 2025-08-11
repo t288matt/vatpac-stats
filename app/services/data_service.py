@@ -111,7 +111,8 @@ class DataService:
             
             # Check database connectivity
             try:
-                async with get_database_session() as session:
+                session = await get_database_session()
+                async with session as session:
                     session.execute(text("SELECT 1"))
                     database_status = "connected"
             except Exception:
@@ -220,7 +221,8 @@ class DataService:
         processed_count = 0
         
         # Get database session
-        async with get_database_session() as session:
+        session = await get_database_session()
+        async with session as session:
             for flight_dict in flights_data:
                 try:
                     # Apply geographic boundary filtering
@@ -270,13 +272,13 @@ class DataService:
             
             # Commit all flights
             if processed_count > 0:
-                session.commit()
+                await session.commit()
         
         return processed_count
     
     async def _process_controllers(self, controllers_data: List[Dict[str, Any]]) -> int:
         """
-        Process and store controller data.
+        Process and store controller data with geographic boundary filtering.
         
         Args:
             controllers_data: Raw controller data from VATSIM API
@@ -284,56 +286,153 @@ class DataService:
         Returns:
             int: Number of controllers processed and stored
         """
+        print("DEBUG: === _process_controllers METHOD ENTRY ===")
+        print(f"DEBUG: _process_controllers called with {len(controllers_data)} controllers")
+        
         if not controllers_data:
+            print("DEBUG: No controllers data, returning 0")
             return 0
         
         processed_count = 0
         
+        # Apply geographic boundary filtering
+        if self.geographic_boundary_filter.config.enabled:
+            filtered_controllers = self.geographic_boundary_filter.filter_controllers_list(controllers_data)
+            self.logger.info(f"Geographic filtering: {len(controllers_data)} controllers -> {len(filtered_controllers)} controllers")
+        else:
+            filtered_controllers = controllers_data
+        
+        print(f"DEBUG: After filtering: {len(filtered_controllers)} controllers")
+        
         # Get database session
-        async with get_database_session() as session:
-            for controller_dict in controllers_data:
+        session = await get_database_session()
+        print(f"DEBUG: Got database session: {session}")
+        
+        async with session as session:
+            print(f"DEBUG: Inside session context")
+            self.logger.info(f"Starting controller processing with {len(filtered_controllers)} controllers")
+            
+            for controller_dict in filtered_controllers:
                 try:
-                    # Insert new controller (allow duplicates)
-                    session.execute(
-                        text("""
-                            INSERT INTO controllers (
-                                callsign, frequency, cid, name, rating, facility, 
-                                visual_range, text_atis, server, last_updated, logon_time
-                            ) VALUES (
-                                :callsign, :frequency, :cid, :name, :rating, :facility,
-                                :visual_range, :text_atis, :server, :last_updated, :logon_time
-                            )
-                        """),
-                        {
-                            "callsign": controller_dict.get("callsign", ""),
-                            "frequency": controller_dict.get("frequency", ""),
-                            "cid": controller_dict.get("cid"),
-                            "name": controller_dict.get("name", ""),
-                            "rating": controller_dict.get("rating"),
-                            "facility": controller_dict.get("facility"),
-                            "visual_range": controller_dict.get("visual_range"),
-                            "text_atis": controller_dict.get("text_atis"),
-                            "server": controller_dict.get("server", ""),
-                            "last_updated": controller_dict.get("last_updated"),
-                            "logon_time": controller_dict.get("logon_time")
-                        }
+                    print(f"DEBUG: Processing controller: {controller_dict.get('callsign', 'unknown')}")
+                    
+                    # Debug logging to see what data we're getting
+                    self.logger.debug(f"Processing controller: {controller_dict}")
+                    
+                    # Create controller model using SQLAlchemy ORM
+                    controller = Controller(
+                        callsign=controller_dict.get("callsign", ""),
+                        frequency=controller_dict.get("frequency", ""),
+                        cid=controller_dict.get("cid"),
+                        name=controller_dict.get("name", ""),
+                        rating=controller_dict.get("rating"),
+                        facility=controller_dict.get("facility"),
+                        visual_range=controller_dict.get("visual_range"),
+                        text_atis=self._convert_text_atis(controller_dict.get("text_atis")),
+                        server=controller_dict.get("server", ""),
+                        last_updated=self._parse_timestamp(controller_dict.get("last_updated")),
+                        logon_time=self._parse_timestamp(controller_dict.get("logon_time"))
                     )
                     
+                    print(f"DEBUG: Created controller model: {controller.callsign}")
+                    
+                    # Debug logging to see the created model
+                    self.logger.debug(f"Created controller model: {controller}")
+                    
+                    # Store to database
+                    session.add(controller)
                     processed_count += 1
                     
+                    print(f"DEBUG: Added controller {controller.callsign} to session, total: {processed_count}")
+                    
+                    self.logger.debug(f"Added controller {controller.callsign} to session, total in session: {processed_count}")
+                    
                 except Exception as e:
-                    self.logger.warning(f"Failed to process controller {controller_dict.get('callsign', 'unknown')}: {e}")
+                    print(f"DEBUG: Exception processing controller: {e}")
+                    self.logger.error(f"Failed to process controller {controller_dict.get('callsign', 'unknown')}: {e}")
+                    self.logger.error(f"Exception details: {type(e).__name__}: {str(e)}")
                     continue
+            
+            print(f"DEBUG: About to commit {processed_count} controllers")
+            
+            # Log before commit
+            self.logger.info(f"About to commit {processed_count} controllers to database")
             
             # Commit all controllers
             if processed_count > 0:
-                session.commit()
+                try:
+                    await session.commit()
+                    print(f"DEBUG: Successfully committed {processed_count} controllers")
+                    self.logger.info(f"Successfully committed {processed_count} controllers to database")
+                except Exception as e:
+                    print(f"DEBUG: Commit failed: {e}")
+                    self.logger.error(f"Failed to commit controllers: {e}")
+                    self.logger.error(f"Commit exception details: {type(e).__name__}: {str(e)}")
+                    raise
+            else:
+                print("DEBUG: No controllers to commit")
+                self.logger.info("No controllers to commit")
         
+        print(f"DEBUG: Returning processed_count: {processed_count}")
         return processed_count
+    
+    def _convert_text_atis(self, text_atis_data: Any) -> Optional[str]:
+        """
+        Convert text_atis data to string format.
+        
+        Args:
+            text_atis_data: Text ATIS data from VATSIM API (can be string, list, or None)
+            
+        Returns:
+            String representation or None if no data
+        """
+        if text_atis_data is None:
+            return None
+        
+        if isinstance(text_atis_data, str):
+            return text_atis_data
+        
+        if isinstance(text_atis_data, list):
+            # Join list items with newlines
+            return '\n'.join(str(item) for item in text_atis_data)
+        
+        # Convert any other type to string
+        return str(text_atis_data)
+    
+    def _parse_timestamp(self, timestamp_str: Optional[str]) -> Optional[datetime]:
+        """
+        Parse VATSIM timestamp string to datetime object.
+        
+        Args:
+            timestamp_str: Timestamp string from VATSIM API (e.g., '2025-08-11T11:53:48.7182327Z')
+            
+        Returns:
+            datetime object or None if parsing fails
+        """
+        if not timestamp_str:
+            return None
+        
+        try:
+            # Remove the 'Z' suffix and parse as UTC timestamp
+            if timestamp_str.endswith('Z'):
+                timestamp_str = timestamp_str[:-1]
+            
+            # Parse the ISO format timestamp
+            parsed_time = datetime.fromisoformat(timestamp_str)
+            
+            # Ensure it's timezone-aware (UTC)
+            if parsed_time.tzinfo is None:
+                parsed_time = parsed_time.replace(tzinfo=timezone.utc)
+            
+            return parsed_time
+            
+        except (ValueError, TypeError) as e:
+            self.logger.warning(f"Failed to parse timestamp '{timestamp_str}': {e}")
+            return None
     
     async def _process_transceivers(self, transceivers_data: List[Dict[str, Any]]) -> int:
         """
-        Process and store transceiver data.
+        Process and store transceiver data with geographic boundary filtering.
         
         Args:
             transceivers_data: Raw transceiver data from VATSIM API
@@ -346,9 +445,17 @@ class DataService:
         
         processed_count = 0
         
+        # Apply geographic boundary filtering
+        if self.geographic_boundary_filter.config.enabled:
+            filtered_transceivers = self.geographic_boundary_filter.filter_transceivers_list(transceivers_data)
+            self.logger.info(f"Geographic filtering: {len(transceivers_data)} transceivers -> {len(filtered_transceivers)} transceivers")
+        else:
+            filtered_transceivers = transceivers_data
+        
         # Get database session
-        async with get_database_session() as session:
-            for transceiver_dict in transceivers_data:
+        session = await get_database_session()
+        async with session as session:
+            for transceiver_dict in filtered_transceivers:
                 try:
                     # Create transceiver model
                     transceiver = Transceiver(
@@ -361,7 +468,8 @@ class DataService:
                         height_agl=transceiver_dict.get("height_agl"),
                         entity_type=transceiver_dict.get("entity_type", ""),
                         entity_id=transceiver_dict.get("entity_id"),
-                        timestamp=datetime.now(timezone.utc)
+                        timestamp=datetime.now(timezone.utc),
+                        updated_at=datetime.now(timezone.utc)
                     )
                     
                     # Store to database
@@ -374,7 +482,7 @@ class DataService:
             
             # Commit all transceivers
             if processed_count > 0:
-                session.commit()
+                await session.commit()
         
         return processed_count
     

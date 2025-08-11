@@ -50,7 +50,7 @@ class Controller(Base, TimestampMixin):
     __tablename__ = "controllers"
     
     id = Column(Integer, primary_key=True, index=True)
-    callsign = Column(String(50), unique=True, index=True, nullable=False)
+    callsign = Column(String(50), index=True, nullable=False)
     frequency = Column(String(20), nullable=True)
     cid = Column(Integer, nullable=True, index=True)  # From API "cid"
     name = Column(String(100), nullable=True)  # From API "name"
@@ -64,9 +64,6 @@ class Controller(Base, TimestampMixin):
     
     # Constraints
     __table_args__ = (
-        CheckConstraint('rating >= -1 AND rating <= 12', name='valid_rating'),
-        CheckConstraint('facility >= 0 AND facility <= 6', name='valid_facility'),
-        CheckConstraint('visual_range >= 0', name='valid_visual_range'),
         Index('idx_controllers_callsign', 'callsign'),
         Index('idx_controllers_cid', 'cid'),
         Index('idx_controllers_cid_rating', 'cid', 'rating'),
@@ -200,17 +197,15 @@ class Transceiver(Base):
     entity_type = Column(String(20), nullable=False, index=True)  # 'flight' or 'atc'
     entity_id = Column(Integer, nullable=True, index=True)  # Foreign key to flights.id or controllers.id
     timestamp = Column(TIMESTAMP(timezone=True), default=func.now(), nullable=False, index=True)
+    updated_at = Column(TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
     
     # Constraints
     __table_args__ = (
-        CheckConstraint('frequency > 0', name='valid_frequency'),
-        CheckConstraint('position_lat >= -90 AND position_lat <= 90', name='valid_transceiver_latitude'),
-        CheckConstraint('position_lon >= -180 AND position_lon <= 180', name='valid_transceiver_longitude'),
-        CheckConstraint("entity_type IN ('flight', 'atc')", name='valid_entity_type'),
+        CheckConstraint('frequency >= 0', name='valid_frequency'),
+        CheckConstraint('entity_type IN (\'flight\', \'atc\')', name='valid_entity_type'),
         Index('idx_transceivers_callsign_timestamp', 'callsign', 'timestamp'),
-        Index('idx_transceivers_frequency', 'frequency'),
         Index('idx_transceivers_entity', 'entity_type', 'entity_id'),
-        Index('idx_transceivers_position', 'position_lat', 'position_lon'),
+        Index('idx_transceivers_frequency', 'frequency'),
     )
     
     @validates('frequency')

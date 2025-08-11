@@ -10,8 +10,8 @@ import asyncio
 from datetime import datetime, timezone
 
 from app.main import app
-from app.database import get_db
-from app.services.cache_service import CacheService
+from app.database import get_sync_session
+from app.services.vatsim_service import VATSIMService
 
 class TestAPIEndpoints:
     """Test class for API endpoints."""

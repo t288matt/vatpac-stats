@@ -45,7 +45,7 @@ from datetime import datetime, timezone, timedelta
 
 from ..config import get_config
 from ..utils.logging import get_logger_for_module
-from ..utils.error_handling import handle_service_errors, log_operation, retry_on_failure
+from ..utils.error_handling import handle_service_errors, log_operation
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +168,6 @@ class VATSIMService:
             self.logger.debug("Closed HTTP client")
     
     @handle_service_errors
-    @retry_on_failure(max_retries=3, delay=1.0)
     @log_operation("fetch_vatsim_data")
     async def get_current_data(self) -> Dict[str, Any]:
         """
