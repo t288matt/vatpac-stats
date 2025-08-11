@@ -14,19 +14,12 @@ from app.main import app
 
 from app.services.vatsim_service import VATSIMService
 from app.services.data_service import DataService
-
-from app.services.monitoring_service import MonitoringService
-from app.services.performance_monitor import PerformanceMonitor
 from app.services.database_service import DatabaseService
-# REMOVED: Traffic Analysis Service - Phase 2
-
 from app.services.resource_manager import ResourceManager
-# REMOVED: Event Bus - unused messaging system
-# from app.services.event_bus import EventBus
-# REMOVED: Service Manager - over-engineered service orchestration
-# from app.services.service_manager import ServiceManager
-# REMOVED: Lifecycle Manager - over-engineered lifecycle management
-# from app.services.lifecycle_manager import LifecycleManager
+from app.filters.geographic_boundary_filter import GeographicBoundaryFilter
+from app.utils.geographic_utils import load_polygon_from_geojson
+from app.database import get_database_session
+from app.models import Flight, Controller, Transceiver
 
 
 @pytest.fixture(scope="session")
@@ -229,33 +222,6 @@ def mock_data_service() -> Mock:
     return mock_service
 
 
-
-
-
-@pytest.fixture
-def mock_monitoring_service() -> Mock:
-    """Mock monitoring service for testing."""
-    mock_service = Mock(spec=MonitoringService)
-    mock_service.record_metric = Mock()
-    mock_service.get_metrics = Mock(return_value=[])
-    mock_service.get_alerts = Mock(return_value=[])
-    mock_service.is_healthy = Mock(return_value=True)
-    mock_service.get_service_info = Mock(return_value={"status": "healthy"})
-    return mock_service
-
-
-@pytest.fixture
-def mock_performance_monitor() -> Mock:
-    """Mock performance monitor for testing."""
-    mock_service = Mock(spec=PerformanceMonitor)
-    mock_service.record_operation = Mock()
-    mock_service.get_performance_metrics = Mock(return_value={})
-    mock_service.get_recommendations = Mock(return_value=[])
-    mock_service.is_healthy = Mock(return_value=True)
-    mock_service.get_service_info = Mock(return_value={"status": "healthy"})
-    return mock_service
-
-
 @pytest.fixture
 def mock_database_service() -> Mock:
     """Mock database service for testing."""
@@ -266,12 +232,6 @@ def mock_database_service() -> Mock:
     mock_service.is_healthy = Mock(return_value=True)
     mock_service.get_service_info = Mock(return_value={"status": "healthy"})
     return mock_service
-
-
-
-
-
-
 
 
 @pytest.fixture

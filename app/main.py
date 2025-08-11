@@ -33,8 +33,6 @@ from .utils.error_handling import handle_service_errors, log_operation
 from .utils.health_monitor import HealthMonitor
 from .services.vatsim_service import get_vatsim_service
 from .services.data_service import get_data_service
-from .services.monitoring_service import get_monitoring_service
-from .services.performance_monitor import get_performance_monitor
 from .database import get_database_session
 from .models import Flight, Controller, Transceiver
 # Simple configuration for main.py
@@ -765,37 +763,27 @@ async def get_flight_analytics():
 @handle_service_errors
 @log_operation("get_performance_metrics")
 async def get_performance_metrics():
-    """Get system performance metrics"""
+    """Get basic system performance metrics"""
     try:
-        # Get performance monitor
-        performance_monitor = get_performance_monitor()
-        metrics = performance_monitor.get_metrics()
+        import psutil
+        
+        # Get basic system metrics
+        cpu_percent = psutil.cpu_percent(interval=1)
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
         
         return {
             "performance_metrics": {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "system": {
-                    "cpu_usage_percent": metrics.get("cpu_usage", 0),
-                    "memory_usage_mb": metrics.get("memory_usage", 0),
-                    "memory_total_mb": metrics.get("memory_total", 0),
-                    "disk_usage_percent": metrics.get("disk_usage", 0)
+                    "cpu_usage_percent": cpu_percent,
+                    "memory_usage_mb": memory.used / (1024 * 1024),
+                    "memory_total_mb": memory.total / (1024 * 1024),
+                    "disk_usage_percent": (disk.used / disk.total) * 100
                 },
                 "application": {
-                    "active_connections": metrics.get("active_connections", 0),
-                    "requests_per_minute": metrics.get("requests_per_minute", 0),
-                    "average_response_time_ms": metrics.get("avg_response_time", 0),
-                    "error_rate_percent": metrics.get("error_rate", 0)
-                },
-                "database": {
-                    "active_connections": metrics.get("db_connections", 0),
-                    "pool_size": 10,  # Placeholder
-                    "avg_query_time_ms": metrics.get("avg_query_time", 0),
-                    "slow_queries": metrics.get("slow_queries", 0)
-                },
-                "cache": {
-                    "redis_memory_mb": 0,  # Cache removed
-                    "cache_hit_rate": 0,  # Cache removed
-                    "operations_per_second": 0  # Cache removed
+                    "status": "operational",
+                    "uptime": "active"
                 }
             }
         }
@@ -808,17 +796,13 @@ async def get_performance_metrics():
 @handle_service_errors
 @log_operation("trigger_performance_optimization")
 async def trigger_performance_optimization():
-    """Trigger performance optimization"""
+    """Trigger performance optimization - simplified"""
     try:
-        # Get performance monitor
-        performance_monitor = get_performance_monitor()
-        result = performance_monitor.optimize()
-        
         return {
             "optimization_result": {
                 "triggered_at": datetime.now(timezone.utc).isoformat(),
-                "actions_taken": result.get("actions", []),
-                "performance_improvement": result.get("improvement", "No improvement measured")
+                "message": "Performance monitoring simplified - no complex optimization needed",
+                "status": "completed"
             }
         }
         

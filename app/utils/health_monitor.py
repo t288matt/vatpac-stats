@@ -307,17 +307,8 @@ class HealthMonitor:
             return {"status": "error", "error": str(e)}
 
     async def check_monitoring_service_health(self) -> Dict[str, Any]:
-        """Check monitoring service health"""
-        try:
-            from app.services.monitoring_service import get_monitoring_service
-            monitoring_service = get_monitoring_service()
-            if hasattr(monitoring_service, 'health_check'):
-                return await monitoring_service.health_check()
-            else:
-                return {"status": "healthy", "message": "Monitoring service running"}
-        except Exception as e:
-            logger.error(f"Monitoring service health check failed: {e}")
-            return {"status": "error", "error": str(e)}
+        """Check monitoring service health - simplified since monitoring service was removed"""
+        return {"status": "healthy", "message": "Basic health monitoring active"}
 
     async def get_comprehensive_health_report(self) -> Dict[str, Any]:
         """Get comprehensive health report for all components"""
@@ -325,7 +316,7 @@ class HealthMonitor:
             # Run all health checks concurrently
             (api_health, db_health, system_health, data_freshness, 
              cache_health, services_health, error_monitoring_health, 
-             data_service_health, monitoring_service_health) = await asyncio.gather(
+             data_service_health) = await asyncio.gather(
                 self.check_api_endpoints(),
                 self.check_database_health(),
                 self.check_system_resources(),
@@ -334,7 +325,6 @@ class HealthMonitor:
                 self.check_services_health(),
                 self.check_error_monitoring_health(),
                 self.check_data_service_health(),
-                self.check_monitoring_service_health(),
                 return_exceptions=True
             )
             
@@ -342,7 +332,7 @@ class HealthMonitor:
             health_score = self._calculate_health_score(
                 api_health, db_health, system_health, data_freshness,
                 cache_health, services_health, error_monitoring_health,
-                data_service_health, monitoring_service_health
+                data_service_health
             )
             
             # Calculate average response times
@@ -368,7 +358,6 @@ class HealthMonitor:
                 "services": services_health,
                 "error_monitoring": error_monitoring_health,
                 "data_service": data_service_health,
-                "monitoring_service": monitoring_service_health,
                 "average_response_times": avg_response_times,
                 "error_rates": error_rates,
                 "timestamp": datetime.now(timezone.utc).isoformat()
@@ -383,7 +372,7 @@ class HealthMonitor:
     
     def _calculate_health_score(self, api_health, db_health, system_health, data_freshness,
                                cache_health, services_health, error_monitoring_health,
-                               data_service_health, monitoring_service_health) -> float:
+                               data_service_health) -> float:
         """Calculate overall health score (0-100)"""
         score = 100.0
         
@@ -410,49 +399,42 @@ class HealthMonitor:
             system_score = (cpu_score + memory_score) / 2
             score -= (100 - system_score) * 0.15
         
-        # Data freshness (10% weight)
-        if isinstance(data_freshness, dict) and not data_freshness.get('data_stale', True):
-            freshness_score = 100
+        # Data freshness (15% weight)
+        if isinstance(data_freshness, dict) and data_freshness.get('is_fresh', False):
+            data_score = 100
         else:
-            freshness_score = 0
-        score -= (100 - freshness_score) * 0.1
+            data_score = 0
+        score -= (100 - data_score) * 0.15
         
-        # Cache health (10% weight)
-        if isinstance(cache_health, dict) and cache_health.get('status') in ['healthy', 'no_redis']:
+        # Cache service (10% weight)
+        if isinstance(cache_health, dict) and cache_health.get('status') == 'healthy':
             cache_score = 100
         else:
             cache_score = 0
         score -= (100 - cache_score) * 0.1
         
-        # Services health (10% weight)
-        if isinstance(services_health, dict) and services_health.get('status') != 'error':
+        # Services (10% weight)
+        if isinstance(services_health, dict) and services_health.get('status') == 'healthy':
             services_score = 100
         else:
             services_score = 0
         score -= (100 - services_score) * 0.1
         
-        # Error monitoring health (5% weight)
-        if isinstance(error_monitoring_health, dict) and error_monitoring_health.get('status') != 'error':
-            error_monitoring_score = 100
+        # Error monitoring (3% weight)
+        if isinstance(error_monitoring_health, dict) and error_monitoring_health.get('status') == 'healthy':
+            error_score = 100
         else:
-            error_monitoring_score = 100
-        score -= (100 - error_monitoring_score) * 0.05
+            error_score = 0
+        score -= (100 - error_score) * 0.03
         
-        # Data service health (2.5% weight)
-        if isinstance(data_service_health, dict) and 'error' not in data_service_health:
+        # Data service (2% weight)
+        if isinstance(data_service_health, dict) and data_service_health.get('status') == 'healthy':
             data_service_score = 100
         else:
             data_service_score = 0
-        score -= (100 - data_service_score) * 0.025
+        score -= (100 - data_service_score) * 0.02
         
-        # Monitoring service health (1.25% weight)
-        if isinstance(monitoring_service_health, dict) and monitoring_service_health.get('status') != 'error':
-            monitoring_service_score = 100
-        else:
-            monitoring_service_score = 0
-        score -= (100 - monitoring_service_score) * 0.0125
-        
-        return max(0, min(100, score))
+        return max(0.0, min(100.0, score))
 
 # Global health monitor instance
 health_monitor = HealthMonitor() 

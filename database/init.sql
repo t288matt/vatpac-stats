@@ -35,10 +35,10 @@ CREATE TABLE IF NOT EXISTS controllers (
     visual_range INTEGER,           -- From API "visual_range" - Visual range in NM
     text_atis TEXT,                 -- From API "text_atis" - ATIS information
     server VARCHAR(50),             -- From API "server" - Network server
-    last_updated TIMESTAMP WITH TIME ZONE,  -- From API "last_updated"
-    logon_time TIMESTAMP WITH TIME ZONE,    -- From API "logon_time"
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    last_updated TIMESTAMP(0) WITH TIME ZONE,  -- From API "last_updated" - UTC, no subseconds
+    logon_time TIMESTAMP(0) WITH TIME ZONE,    -- From API "logon_time" - UTC, no subseconds
+    created_at TIMESTAMP(0) WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP(0) WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Flights table with optimized VATSIM API field mapping
@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS flights (
     assigned_transponder VARCHAR(10), -- Assigned transponder from flight_plan.assigned_transponder
     
     -- Timestamps
-    last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    last_updated TIMESTAMP(0) WITH TIME ZONE DEFAULT NOW(),  -- UTC, no subseconds
     
     -- VATSIM API fields - 1:1 mapping with API field names
     cid INTEGER,                    -- From API "cid" - VATSIM user ID
@@ -85,11 +85,11 @@ CREATE TABLE IF NOT EXISTS flights (
     transponder VARCHAR(10),        -- From API "transponder" - Transponder code
     qnh_i_hg DOUBLE PRECISION,      -- QNH pressure in inches Hg from VATSIM API
     qnh_mb INTEGER,                 -- QNH pressure in millibars from VATSIM API
-    logon_time TIMESTAMP WITH TIME ZONE,    -- From API "logon_time"
-    last_updated_api TIMESTAMP WITH TIME ZONE,  -- From API "last_updated"
+    logon_time TIMESTAMP(0) WITH TIME ZONE,    -- From API "logon_time" - UTC, no subseconds
+    last_updated_api TIMESTAMP(0) WITH TIME ZONE,  -- From API "last_updated" - UTC, no subseconds
     
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP(0) WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP(0) WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Transceivers table for radio frequency and position data

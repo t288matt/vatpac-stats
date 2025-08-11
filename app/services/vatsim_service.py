@@ -284,6 +284,27 @@ class VATSIMService:
         
         for controller_data in controllers_data:
             try:
+                # Parse timestamps - ensure UTC timezone and no subseconds
+                last_updated = None
+                if controller_data.get("last_updated"):
+                    try:
+                        # Parse ISO format and ensure UTC timezone
+                        dt = datetime.fromisoformat(controller_data["last_updated"].replace("Z", "+00:00"))
+                        # Remove subseconds by truncating to seconds
+                        last_updated = dt.replace(microsecond=0)
+                    except:
+                        last_updated = None
+                
+                logon_time = None
+                if controller_data.get("logon_time"):
+                    try:
+                        # Parse ISO format and ensure UTC timezone
+                        dt = datetime.fromisoformat(controller_data["logon_time"].replace("Z", "+00:00"))
+                        # Remove subseconds by truncating to seconds
+                        logon_time = dt.replace(microsecond=0)
+                    except:
+                        logon_time = None
+                
                 controller = {
                     "callsign": controller_data.get("callsign", ""),
                     "frequency": controller_data.get("frequency", ""),
@@ -294,8 +315,8 @@ class VATSIMService:
                     "visual_range": controller_data.get("visual_range"),
                     "text_atis": controller_data.get("text_atis"),
                     "server": controller_data.get("server", ""),
-                    "last_updated": controller_data.get("last_updated"),
-                    "logon_time": controller_data.get("logon_time")
+                    "last_updated": last_updated,
+                    "logon_time": logon_time
                 }
                 controllers.append(controller)
                 
@@ -337,18 +358,24 @@ class VATSIMService:
                 if flight_plan is None:
                     flight_plan = {}
                 
-                # Parse timestamps
+                # Parse timestamps - ensure UTC timezone and no subseconds
                 logon_time = None
                 if flight_data.get("logon_time"):
                     try:
-                        logon_time = datetime.fromisoformat(flight_data["logon_time"].replace("Z", "+00:00"))
+                        # Parse ISO format and ensure UTC timezone
+                        dt = datetime.fromisoformat(flight_data["logon_time"].replace("Z", "+00:00"))
+                        # Remove subseconds by truncating to seconds
+                        logon_time = dt.replace(microsecond=0)
                     except:
                         logon_time = None
                 
                 last_updated = None
                 if flight_data.get("last_updated"):
                     try:
-                        last_updated = datetime.fromisoformat(flight_data["last_updated"].replace("Z", "+00:00"))
+                        # Parse ISO format and ensure UTC timezone
+                        dt = datetime.fromisoformat(flight_data["last_updated"].replace("Z", "+00:00"))
+                        # Remove subseconds by truncating to seconds
+                        last_updated = dt.replace(microsecond=0)
                     except:
                         last_updated = None
                 
@@ -462,6 +489,17 @@ class VATSIMService:
                 transceivers_list = entry.get("transceivers", [])
                 
                 for transceiver_data in transceivers_list:
+                    # Parse timestamp - ensure UTC timezone and no subseconds
+                    timestamp = None
+                    if transceiver_data.get("timestamp"):
+                        try:
+                            # Parse ISO format and ensure UTC timezone
+                            dt = datetime.fromisoformat(transceiver_data["timestamp"].replace("Z", "+00:00"))
+                            # Remove subseconds by truncating to seconds
+                            timestamp = dt.replace(microsecond=0)
+                        except:
+                            timestamp = None
+                    
                     transceiver = {
                         "callsign": callsign,
                         "transceiver_id": transceiver_data.get("id", 0),
@@ -470,7 +508,8 @@ class VATSIMService:
                         "position_lon": transceiver_data.get("lonDeg"),
                         "height_msl": transceiver_data.get("heightMslM"),
                         "height_agl": transceiver_data.get("heightAglM"),
-                        "entity_type": "flight"  # Default to flight, will be updated later
+                        "entity_type": "flight",  # Default to flight, will be updated later
+                        "timestamp": timestamp
                     }
                     transceivers.append(transceiver)
                 
@@ -531,14 +570,14 @@ class VATSIMService:
                 "status": "healthy" if response.status_code == 200 else "unhealthy",
                 "status_code": response.status_code,
                 "response_time": response.elapsed.total_seconds(),
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).replace(microsecond=0).isoformat()
             }
             
         except Exception as e:
             return {
                 "status": "error",
                 "error": str(e),
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).replace(microsecond=0).isoformat()
             }
 
 
