@@ -709,41 +709,37 @@ async def get_boundary_filter_info():
 @handle_service_errors
 @log_operation("get_flight_analytics")
 async def get_flight_analytics():
-    """Get flight summary data and analytics"""
+    """Get flight summary data and analytics - simplified"""
     try:
         async with get_database_session() as session:
-            # Get flight analytics
-            analytics_result = await session.execute(
+            result = await session.execute(
                 text("""
                     SELECT 
-                        COUNT(DISTINCT callsign) as unique_flights,
-                        COUNT(*) as total_positions,
-                        AVG(groundspeed) as avg_groundspeed,
-                        MAX(altitude) as max_altitude,
-                        COUNT(DISTINCT departure) as unique_departures,
-                        COUNT(DISTINCT arrival) as unique_arrivals
+                        COUNT(DISTINCT callsign) as flights,
+                        COUNT(*) as positions,
+                        AVG(groundspeed) as avg_speed,
+                        MAX(altitude) as max_alt,
+                        COUNT(DISTINCT departure) as deps,
+                        COUNT(DISTINCT arrival) as arrs
                     FROM flights 
                     WHERE last_updated >= NOW() - INTERVAL '24 hours'
                 """)
             )
             
-            analytics_row = analytics_result.fetchone()
-            
+            row = result.fetchone()
             return {
-                "flight_analytics": {
-                    "unique_flights": analytics_row[0] if analytics_row[0] else 0,
-                    "total_positions": analytics_row[1] if analytics_row[1] else 0,
-                    "average_groundspeed": float(analytics_row[2]) if analytics_row[2] else 0,
-                    "max_altitude": analytics_row[3] if analytics_row[3] else 0,
-                    "unique_departures": analytics_row[4] if analytics_row[4] else 0,
-                    "unique_arrivals": analytics_row[5] if analytics_row[5] else 0,
-                    "time_period": "24 hours"
-                }
+                "flights": row[0] or 0,
+                "positions": row[1] or 0,
+                "avg_speed": float(row[2]) if row[2] else 0,
+                "max_alt": row[3] or 0,
+                "departures": row[4] or 0,
+                "arrivals": row[5] or 0,
+                "period": "24h"
             }
             
     except Exception as e:
-        logger.error(f"Error getting flight analytics: {e}")
-        raise HTTPException(status_code=500, detail=f"Error getting flight analytics: {str(e)}")
+        logger.error(f"Flight analytics error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Performance & Monitoring Endpoints
 
@@ -751,38 +747,21 @@ async def get_flight_analytics():
 @handle_service_errors
 @log_operation("get_performance_metrics")
 async def get_performance_metrics():
-    """Get basic system status - simplified without complex monitoring"""
-    try:
-        return {
-            "system_status": {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "status": "operational",
-                "uptime": "active",
-                "message": "Performance monitoring simplified - basic status only"
-            }
-        }
-        
-    except Exception as e:
-        logger.error(f"Error getting system status: {e}")
-        raise HTTPException(status_code=500, detail=f"Error getting system status: {str(e)}")
+    """Get basic system status - simplified"""
+    return {
+        "status": "operational",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
 
 @app.post("/api/performance/optimize")
 @handle_service_errors
 @log_operation("trigger_performance_optimization")
 async def trigger_performance_optimization():
     """System status check - simplified"""
-    try:
-        return {
-            "status_check": {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "message": "System status check completed - no complex optimization needed",
-                "status": "operational"
-            }
-        }
-        
-    except Exception as e:
-        logger.error(f"Error during status check: {e}")
-        raise HTTPException(status_code=500, detail=f"Error during status check: {str(e)}")
+    return {
+        "status": "operational",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
 
 # Transceiver Data Endpoints
 
@@ -835,11 +814,10 @@ async def get_transceivers():
 @handle_service_errors
 @log_operation("get_database_tables")
 async def get_database_tables():
-    """Get database tables and record counts"""
+    """Get database tables and record counts - simplified"""
     try:
         async with get_database_session() as session:
-            # Get table names
-            tables_result = await session.execute(text("""
+            result = await session.execute(text("""
                 SELECT table_name 
                 FROM information_schema.tables 
                 WHERE table_schema = 'public'
@@ -847,49 +825,34 @@ async def get_database_tables():
             """))
             
             tables = []
-            total_records = 0
-            
-            for row in tables_result.fetchall():
-                table_name = row[0]
-                
-                # Get record count for each table
+            for row in result.fetchall():
                 count_result = await session.execute(
-                    text(f"SELECT COUNT(*) FROM {table_name}")
+                    text(f"SELECT COUNT(*) FROM {row[0]}")
                 )
-                count = count_result.scalar()
-                total_records += count or 0
-                
                 tables.append({
-                    "name": table_name,
-                    "record_count": count or 0
+                    "name": row[0],
+                    "count": count_result.scalar() or 0
                 })
             
-            return {
-                "database_tables": tables,
-                "total_records": total_records,
-                "last_updated": datetime.now(timezone.utc).isoformat()
-            }
+            return {"tables": tables}
             
     except Exception as e:
-        logger.error(f"Error getting database tables: {e}")
-        raise HTTPException(status_code=500, detail=f"Error getting database tables: {str(e)}")
+        logger.error(f"Database tables error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/database/query")
 @handle_service_errors
 @log_operation("execute_database_query")
 async def execute_database_query(query: str, limit: int = 1000):
-    """Execute custom SQL queries (admin only)"""
+    """Execute custom SQL queries (admin only) - simplified"""
+    # Basic query validation
+    dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'ALTER', 'CREATE', 'INSERT', 'UPDATE']
+    if any(keyword in query.upper() for keyword in dangerous):
+        raise HTTPException(status_code=400, detail="Dangerous query")
+    
     try:
-        # Basic query validation (prevent dangerous operations)
-        dangerous_keywords = ['DROP', 'DELETE', 'TRUNCATE', 'ALTER', 'CREATE', 'INSERT', 'UPDATE']
-        if any(keyword in query.upper() for keyword in dangerous_keywords):
-            raise HTTPException(status_code=400, detail="Query contains dangerous operations")
-        
         async with get_database_session() as session:
-            # Execute query with limit
             result = await session.execute(text(f"{query} LIMIT {limit}"))
-            
-            # Fetch results
             rows = result.fetchall()
             columns = result.keys()
             
@@ -899,33 +862,24 @@ async def execute_database_query(query: str, limit: int = 1000):
                 row_dict = {}
                 for i, column in enumerate(columns):
                     value = row[i]
-                    if hasattr(value, 'isoformat'):  # Handle datetime objects
+                    if hasattr(value, 'isoformat'):
                         value = value.isoformat()
                     row_dict[column] = value
                 data.append(row_dict)
             
-            return {
-                "query": query,
-                "results": data,
-                "row_count": len(data),
-                "columns": list(columns)
-            }
+            return {"results": data, "count": len(data)}
             
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Error executing database query: {e}")
-        raise HTTPException(status_code=500, detail=f"Error executing query: {str(e)}")
+        logger.error(f"Query error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 
 # Root endpoint
 @app.get("/")
 async def root():
-    """Root endpoint with system information"""
+    """Root endpoint - simplified"""
     return {
-        "message": "VATSIM Data Collection System API",
-        "version": "1.0.0",
         "status": "operational",
-        "documentation": "/docs"
+        "version": "1.0.0"
     } 

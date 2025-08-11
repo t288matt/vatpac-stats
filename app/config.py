@@ -45,61 +45,36 @@ from pathlib import Path
 
 @dataclass
 class DatabaseConfig:
-    """Database configuration with no hardcoding."""
+    """Database configuration - simplified"""
     url: str
-    async_url: str
-    pool_size: int = 10
-    max_overflow: int = 20
-    pool_timeout: int = 30
-    pool_recycle: int = 3600
-    pool_pre_ping: bool = True
-    echo: bool = False
-    echo_pool: bool = False
+    pool_size: int = 20
+    max_overflow: int = 40
     
     @classmethod
     def from_env(cls):
         """Load database configuration from environment variables."""
-        base_url = os.getenv("DATABASE_URL", "postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data")
-        # Convert to async URL format - use psycopg for async operations
-        async_url = base_url.replace("postgresql://", "postgresql+psycopg://")
-        
+        url = os.getenv("DATABASE_URL", "postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data")
         return cls(
-            url=base_url,
-            async_url=async_url,
-            pool_size=int(os.getenv("DATABASE_POOL_SIZE", "10")),
-            max_overflow=int(os.getenv("DATABASE_MAX_OVERFLOW", "20")),
-            pool_timeout=int(os.getenv("DATABASE_POOL_TIMEOUT", "30")),
-            pool_recycle=int(os.getenv("DATABASE_POOL_RECYCLE", "3600")),
-            pool_pre_ping=os.getenv("DATABASE_POOL_PRE_PING", "true").lower() == "true",
-            echo=os.getenv("DATABASE_ECHO", "false").lower() == "true",
-            echo_pool=os.getenv("DATABASE_ECHO_POOL", "false").lower() == "true"
+            url=url,
+            pool_size=int(os.getenv("DATABASE_POOL_SIZE", "20")),
+            max_overflow=int(os.getenv("DATABASE_MAX_OVERFLOW", "40"))
         )
 
 
 @dataclass
 class VATSIMConfig:
-    """VATSIM API configuration with no hardcoding."""
+    """VATSIM API configuration - simplified"""
     api_url: str
-    transceivers_api_url: str
     timeout: int = 30
-    retry_attempts: int = 3
-    polling_interval: int = 10
-    user_agent: str = "ATC-Position-Engine/1.0"
-    write_interval: int = 600  # 10 minutes - fallback if docker-compose doesn't set WRITE_TO_DISK_INTERVAL
+    polling_interval: int = 60
     
     @classmethod
     def from_env(cls):
         """Load VATSIM configuration from environment variables."""
         return cls(
             api_url=os.getenv("VATSIM_API_URL", "https://data.vatsim.net/v3/vatsim-data.json"),
-            transceivers_api_url=os.getenv("VATSIM_TRANSCEIVERS_API_URL", "https://data.vatsim.net/v3/transceivers-data.json"),
             timeout=int(os.getenv("VATSIM_API_TIMEOUT", "30")),
-            retry_attempts=int(os.getenv("VATSIM_API_RETRY_ATTEMPTS", "3")),
-            polling_interval=int(os.getenv("VATSIM_POLLING_INTERVAL", "10")),
-            user_agent=os.getenv("VATSIM_USER_AGENT", "ATC-Position-Engine/1.0"),
-            # WRITE_TO_DISK_INTERVAL: Fallback to 10 minutes (600 seconds) if docker-compose doesn't set it
-            # Docker environment typically sets this to 15 seconds for optimized performance
-            write_interval=int(os.getenv("WRITE_TO_DISK_INTERVAL", "600"))
+            polling_interval=int(os.getenv("VATSIM_POLLING_INTERVAL", "60"))
         )
 
 
@@ -111,48 +86,36 @@ class VATSIMConfig:
 
 @dataclass
 class APIConfig:
-    """API configuration with no hardcoding."""
+    """API configuration - simplified"""
     host: str = "0.0.0.0"
     port: int = 8001
-    workers: int = 4
-    debug: bool = False
-    reload: bool = False
-    cors_origins: Optional[list] = None
+    cors_origins: list = None
     
     @classmethod
     def from_env(cls):
         """Load API configuration from environment variables."""
-        cors_origins_str = os.getenv("CORS_ORIGINS", "*")
-        cors_origins = cors_origins_str.split(",") if cors_origins_str != "*" else ["*"]
+        cors_str = os.getenv("CORS_ORIGINS", "*")
+        cors = cors_str.split(",") if cors_str != "*" else ["*"]
         
         return cls(
             host=os.getenv("API_HOST", "0.0.0.0"),
             port=int(os.getenv("API_PORT", "8001")),
-            workers=int(os.getenv("API_WORKERS", "4")),
-            debug=os.getenv("API_DEBUG", "false").lower() == "true",
-            reload=os.getenv("API_RELOAD", "false").lower() == "true",
-            cors_origins=cors_origins
+            cors_origins=cors
         )
 
 
 @dataclass
 class LoggingConfig:
-    """Logging configuration with no hardcoding."""
+    """Logging configuration - simplified"""
     level: str = "INFO"
     format: str = "json"
-    file_path: Optional[str] = None
-    max_file_size: int = 10 * 1024 * 1024  # 10MB
-    backup_count: int = 5
     
     @classmethod
     def from_env(cls):
         """Load logging configuration from environment variables."""
         return cls(
             level=os.getenv("LOG_LEVEL", "INFO"),
-            format=os.getenv("LOG_FORMAT", "json"),
-            file_path=os.getenv("LOG_FILE_PATH"),
-            max_file_size=int(os.getenv("LOG_MAX_FILE_SIZE", str(10 * 1024 * 1024))),
-            backup_count=int(os.getenv("LOG_BACKUP_COUNT", "5"))
+            format=os.getenv("LOG_FORMAT", "json")
         )
 
 
@@ -161,16 +124,14 @@ class LoggingConfig:
 
 @dataclass
 class FlightFilterConfig:
-    """Flight filter configuration with no hardcoding."""
+    """Flight filter configuration - simplified"""
     enabled: bool = False
-    log_level: str = "INFO"
     
     @classmethod
     def from_env(cls):
         """Load flight filter configuration from environment variables."""
         return cls(
-            enabled=os.getenv("FLIGHT_FILTER_ENABLED", "false").lower() == "true",
-            log_level=os.getenv("FLIGHT_FILTER_LOG_LEVEL", "INFO")
+            enabled=os.getenv("FLIGHT_FILTER_ENABLED", "false").lower() == "true"
         )
 
 
@@ -191,18 +152,14 @@ class FlightFilterConfig:
 
 @dataclass
 class PilotConfig:
-    """Pilot configuration with no hardcoding."""
-    names_file: Optional[str] = None
-    home_airports_file: Optional[str] = None
-    api_url: Optional[str] = None
+    """Pilot configuration - simplified"""
+    names_file: str = None
     
     @classmethod
     def from_env(cls):
         """Load pilot configuration from environment variables."""
         return cls(
-            names_file=os.getenv("PILOT_NAMES_FILE"),
-            home_airports_file=os.getenv("PILOT_HOME_AIRPORTS_FILE"),
-            api_url=os.getenv("PILOT_API_URL")
+            names_file=os.getenv("PILOT_NAMES_FILE")
         )
 
 

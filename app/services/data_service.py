@@ -62,13 +62,12 @@ class DataService:
         self.vatsim_service = None
         self.db_session = None
         
-        # Performance tracking
-        self.processing_stats = {
-            "total_flights_processed": 0,
-            "total_controllers_processed": 0,
-            "total_transceivers_processed": 0,
-            "last_processing_time": 0.0,
-            "last_processing_timestamp": None
+        # Performance tracking - simplified
+        self.stats = {
+            "flights": 0,
+            "controllers": 0,
+            "transceivers": 0,
+            "last_run": None
         }
     
     async def initialize(self) -> bool:
@@ -84,8 +83,7 @@ class DataService:
             # Don't get database session here - we'll get it when needed
             self.db_session = None
             
-            self.logger.info(f"Geographic filter initialized: {self.geographic_boundary_filter.config.enabled}")
-            self.logger.info(f"Callsign pattern filter initialized: {self.callsign_pattern_filter.config.enabled}")
+            self.logger.info(f"Filters: geo={self.geographic_boundary_filter.config.enabled}, callsign={self.callsign_pattern_filter.config.enabled}")
             self._initialized = True
             return True
             
@@ -187,9 +185,10 @@ class DataService:
         # Apply geographic boundary filtering first (if enabled)
         if self.geographic_boundary_filter.config.enabled:
             filtered_flights = self.geographic_boundary_filter.filter_flights_list(flights_data)
-            self.logger.info(f"Geographic filtering: {len(flights_data)} flights -> {len(filtered_flights)} flights")
         else:
             filtered_flights = flights_data
+        
+        self.logger.info(f"Flights: {len(flights_data)} → {len(filtered_flights)}")
         
         # Get database session
         async with get_database_session() as session:
@@ -268,9 +267,10 @@ class DataService:
         # Apply geographic boundary filtering
         if self.geographic_boundary_filter.config.enabled:
             filtered_controllers = self.geographic_boundary_filter.filter_controllers_list(controllers_data)
-            self.logger.info(f"Geographic filtering: {len(controllers_data)} controllers -> {len(filtered_controllers)} controllers")
         else:
             filtered_controllers = controllers_data
+        
+        self.logger.info(f"Controllers: {len(controllers_data)} → {len(filtered_controllers)}")
         
         # Get database session
         async with get_database_session() as session:
@@ -355,14 +355,12 @@ class DataService:
         
         processed_count = 0
         
-        # Apply callsign pattern filtering first (always enabled)
+        # Apply filters
         filtered_transceivers = self.callsign_pattern_filter.filter_transceivers_list(transceivers_data)
-        self.logger.info(f"Callsign pattern filtering: {len(transceivers_data)} transceivers -> {len(filtered_transceivers)} transceivers")
-        
-        # Apply geographic boundary filtering
         if self.geographic_boundary_filter.config.enabled:
             filtered_transceivers = self.geographic_boundary_filter.filter_transceivers_list(filtered_transceivers)
-            self.logger.info(f"Geographic filtering: {len(filtered_transceivers)} transceivers -> {len(filtered_transceivers)} transceivers")
+        
+        self.logger.info(f"Transceivers: {len(transceivers_data)} → {len(filtered_transceivers)}")
         
         # Get database session
         async with get_database_session() as session:
@@ -435,10 +433,10 @@ class DataService:
     def get_processing_stats(self) -> Dict[str, Any]:
         """Get data processing statistics - simplified"""
         return {
-            "flights_processed": self.processing_stats.get("total_flights_processed", 0),
-            "controllers_processed": self.processing_stats.get("total_controllers_processed", 0),
-            "transceivers_processed": self.processing_stats.get("total_transceivers_processed", 0),
-            "last_processing_time": self.processing_stats.get("last_processing_time", 0)
+            "flights": self.stats.get("flights", 0),
+            "controllers": self.stats.get("controllers", 0),
+            "transceivers": self.stats.get("transceivers", 0),
+            "last_run": self.stats.get("last_run")
         }
     
     def get_filter_status(self) -> Dict[str, Any]:
