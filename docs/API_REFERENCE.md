@@ -35,8 +35,8 @@ Get all active flights with current position and flight plan data.
       "name": "John Pilot",
       "server": "AUSTRALIA",
       "pilot_rating": 1,
-      "position_lat": -33.9461,
-      "position_lng": 151.1772,
+      "latitude": -33.9461,
+      "longitude": 151.1772,
       "altitude": 37000,
       "groundspeed": 485,
       "heading": 90,
@@ -67,8 +67,8 @@ Get specific flight by callsign.
     "callsign": "QFA005",
     "cid": 123456,
     "name": "John Pilot",
-    "position_lat": -33.9461,
-    "position_lng": 151.1772,
+    "latitude": -33.9461,
+    "longitude": 151.1772,
     "altitude": 37000,
     "departure": "VTBS",
     "arrival": "YBBN",
@@ -89,15 +89,15 @@ Get complete flight track with all position updates.
   "track_points": [
     {
       "timestamp": "2025-08-09T08:30:00Z",
-      "position_lat": 13.6900,
-      "position_lng": 100.7501,
+      "latitude": 13.6900,
+      "longitude": 100.7501,
       "altitude": 2000,
       "groundspeed": 180
     },
     {
       "timestamp": "2025-08-09T09:15:30Z",
-      "position_lat": -33.9461,
-      "position_lng": 151.1772,
+      "latitude": -33.9461,
+      "longitude": 151.1772,
       "altitude": 37000,
       "groundspeed": 485
     }

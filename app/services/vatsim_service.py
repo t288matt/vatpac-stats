@@ -54,21 +54,19 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class VATSIMController:
-    """VATSIM controller data structure."""
+    """VATSIM controller data structure - EXACT API mapping"""
     
     callsign: str
-    facility: str
-    position: str
-    frequency: str
-    status: str
-    controller_id: Optional[str] = None
-    controller_name: Optional[str] = None
-    controller_rating: Optional[int] = None
-    last_seen: Optional[datetime] = None
-    
-    # Missing VATSIM API fields - 1:1 mapping with API field names
-    visual_range: Optional[int] = None  # Controller visual range
-    text_atis: Optional[str] = None  # ATIS information
+    frequency: Optional[str] = None
+    cid: Optional[int] = None
+    name: Optional[str] = None
+    rating: Optional[int] = None
+    facility: Optional[int] = None
+    visual_range: Optional[int] = None
+    text_atis: Optional[str] = None
+    server: Optional[str] = None
+    last_updated: Optional[str] = None
+    logon_time: Optional[str] = None
 
 
 @dataclass
@@ -376,7 +374,7 @@ class VATSIMService:
     
     def _parse_controllers(self, controllers_data: List[Dict[str, Any]]) -> List[VATSIMController]:
         """
-        Parse controller data from VATSIM API response.
+        Parse controller data from VATSIM API response - EXACT field mapping.
         
         Args:
             controllers_data: Raw controller data from API
@@ -388,30 +386,18 @@ class VATSIMService:
         
         for controller_data in controllers_data:
             try:
-                # Convert facility number to string representation
-                facility_num = controller_data.get("facility", 0)
-                facility_map = {
-                    0: "OBS", 1: "FSS", 2: "DEL", 3: "GND", 4: "TWR", 5: "APP", 6: "CTR"
-                }
-                facility = facility_map.get(facility_num, "OBS")
-                
-                # Extract position from callsign (e.g., "VECC_TWR" -> "TWR")
-                callsign = controller_data.get("callsign", "")
-                position = callsign.split("_")[-1] if "_" in callsign else ""
-                
                 controller = VATSIMController(
-                    callsign=callsign,
-                    facility=facility,
-                    position=position,
+                    callsign=controller_data.get("callsign", ""),
                     frequency=controller_data.get("frequency", ""),
-                    status="online",  # If they're in the API, they're online
-                    controller_id=int(controller_data.get("cid", 0)) if controller_data.get("cid") else None,
-                    controller_name=controller_data.get("name", ""),
-                    controller_rating=int(controller_data.get("rating", 0)) if controller_data.get("rating") else None,
-                    
-                    # Missing VATSIM API fields - 1:1 mapping with API field names
+                    cid=controller_data.get("cid"),
+                    name=controller_data.get("name", ""),
+                    rating=controller_data.get("rating"),
+                    facility=controller_data.get("facility"),
                     visual_range=controller_data.get("visual_range"),
-                    text_atis=controller_data.get("text_atis")
+                    text_atis=controller_data.get("text_atis"),
+                    server=controller_data.get("server", ""),
+                    last_updated=controller_data.get("last_updated"),
+                    logon_time=controller_data.get("logon_time")
                 )
                 controllers.append(controller)
                 

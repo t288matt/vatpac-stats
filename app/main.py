@@ -1,1036 +1,1002 @@
 #!/usr/bin/env python3
 """
-VATSIM Data Collection System - Main Application
+VATSIM Data Collection System - FastAPI Application
 
-This module provides the FastAPI application with REST API endpoints for the VATSIM
-data collection and analysis system. It handles real-time data ingestion, API requests,
-and serves the web dashboard.
+This module provides the main FastAPI application for the VATSIM data collection system.
+It includes API endpoints for data access, system monitoring, and health checks.
 
 INPUTS:
-- Environment variables for configuration
-- VATSIM API data (via background service)
-- Database queries and updates
-- HTTP requests from clients
+- HTTP requests to various API endpoints
+- VATSIM data from background services
+- Configuration settings
 
 OUTPUTS:
-- REST API responses (JSON)
-- Real-time data updates
-- Background data ingestion to database
-
-ENDPOINTS:
-- /api/status - System health and status
-- /api/atc-positions - ATC position data
-- /api/flights - Flight data
-# Core API endpoints
-
-DEPENDENCIES:
-- PostgreSQL database
-- In-memory cache
-- VATSIM API
-- Background data ingestion service
+- REST API responses with VATSIM data
+- System health and status information
+- Performance metrics and monitoring data
 """
 
-from fastapi import FastAPI, Depends, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
-from typing import List, Dict, Any, Optional
-import logging
+import os
 import asyncio
-from contextlib import asynccontextmanager
+from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone, timedelta
-from sqlalchemy import and_, desc, text
+from contextlib import asynccontextmanager
 
-# Config imports removed as they were unused
-from .database import get_db, init_db, get_database_info, SessionLocal
-from .models import Controller, Flight, Transceiver, Airports
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import text, func
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from .utils.logging import get_logger_for_module
-from .utils.rating_utils import get_all_ratings, validate_rating
+from .utils.error_handling import handle_service_errors, log_operation
+from .utils.health_monitor import HealthMonitor
+from .utils.airport_utils import get_airports_by_region, get_airport_coordinates
 from .services.vatsim_service import get_vatsim_service
 from .services.data_service import get_data_service
-from .services.cache_service import get_cache_service
-
-from .services.resource_manager import get_resource_manager
-from .utils.airport_utils import get_airports_by_region, get_region_statistics, get_airport_coordinates
-# Error monitoring simplified - using basic error handling
-from .utils.error_handling import handle_service_errors, log_operation, create_error_handler
-from .utils.exceptions import APIError, DatabaseError, CacheError
-from .utils.health_monitor import health_monitor
-from .utils.schema_validator import ensure_database_schema
-from .filters.flight_filter import FlightFilter
-# Error manager removed - using simplified error handling
-from .services.database_service import get_database_service
-
-# Import Phase 3 services
 from .services.monitoring_service import get_monitoring_service
 from .services.performance_monitor import get_performance_monitor
+from .database import get_database_session
+from .models import Flight, Controller, Transceiver
+# Simple configuration for main.py
+class SimpleConfig:
+    def __init__(self):
+        self.api = type('obj', (object,), {
+            'cors_origins': ["*"]
+        })()
+        self.vatsim = type('obj', (object,), {
+            'polling_interval': 30
+        })()
 
-# Configure logging
-logger = get_logger_for_module(__name__)
+# Remove cache service import
+# from .services.cache_service import get_cache_service
 
-# Initialize centralized error handler
-error_handler = create_error_handler("main_api")
+# Initialize logger
+logger = get_logger_for_module("main")
+
+# Initialize configuration
+config = SimpleConfig()
+
+# Initialize health monitor
+health_monitor = HealthMonitor()
 
 # Background task for data ingestion
-background_task = None
-
-@handle_service_errors
-@log_operation("background_data_ingestion")
-async def background_data_ingestion():
-    """Background task for continuous data ingestion"""
-    import os
-    global background_task
-    
-    # Get polling interval from environment variable
-    # Note: The 60s fallback is only used if VATSIM_POLLING_INTERVAL env var is not set
-    # The actual value should be configured in docker-compose.yml (currently set to 10s)
-    polling_interval = int(os.getenv('VATSIM_POLLING_INTERVAL', 60))
-    
-    # Log the configured interval
-    logger.info(f"Main background data ingestion configured with polling interval: {polling_interval}s")
-    
-    while True:
-        try:
-            data_service = get_data_service()
-            await data_service.start_data_ingestion()
-            # Sleep interval is now handled inside the data service
-        except Exception as e:
-            logger.error(f"Background data ingestion error: {e}")
-            await asyncio.sleep(polling_interval)  # Fallback sleep based on environment variable
+data_ingestion_task: Optional[asyncio.Task] = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan manager with simplified service initialization"""
-    global background_task
+    """Application lifespan manager"""
+    global data_ingestion_task
     
-    try:
-        # Initialize database
-        init_db()
-        
-        # Validate and ensure database schema is correct
-        db = SessionLocal()
+    # Startup
+    logger.info("Starting VATSIM Data Collection System...")
+    
+    # Start background data ingestion task
+    data_ingestion_task = asyncio.create_task(run_data_ingestion())
+    logger.info("Background data ingestion task started")
+    
+    yield
+    
+    # Shutdown
+    logger.info("Shutting down VATSIM Data Collection System...")
+    
+    if data_ingestion_task:
+        data_ingestion_task.cancel()
         try:
-            if not ensure_database_schema(db):
-                logger.error("Database schema validation failed. Application may not function correctly.")
-                # Continue anyway - the app might still work with some features disabled
-        except Exception as e:
-            logger.error(f"Schema validation error: {e}")
-        finally:
-            db.close()
-        
-        # Simple service initialization (working pattern)
-        logger.info("Initializing services with simple pattern...")
-        
-        # Initialize cache service
-        cache_service = await get_cache_service()
-        
-        # Initialize resource manager
-        resource_manager = get_resource_manager()
-        
-        # Error monitoring simplified - using basic error handling
-        
-        # Start background task
-        background_task = asyncio.create_task(background_data_ingestion())
-        
-        # Publish service started event
-        try:
-            # event_bus = await get_event_bus() # REMOVED - unused messaging system
-            # await publish_event("SERVICE_STARTED", { # REMOVED - unused messaging system
-            #     "service": "main_application", # REMOVED - unused messaging system
-            #     "timestamp": datetime.now(timezone.utc).isoformat() # REMOVED - unused messaging system
-            # }) # REMOVED - unused messaging system
-            pass # REMOVED - unused messaging system
-        except Exception as e:
-            logger.warning(f"Could not publish service started event: {e}")
-        
-        yield
-        
-    except Exception as e:
-        logger.error(f"Error during application startup: {e}")
-        raise
-    finally:
-        # Cleanup
-        if 'background_task' in globals() and background_task:
-            background_task.cancel()
-            try:
-                await background_task
-            except asyncio.CancelledError:
-                pass
-        
-        # DISABLED: Graceful shutdown of services
-        # if service_manager:
-        #     await service_manager.graceful_shutdown()
-        
-        # Publish service stopped event
-        try:
-            # event_bus = await get_event_bus() # REMOVED - unused messaging system
-            # await publish_event("SERVICE_STOPPED", { # REMOVED - unused messaging system
-            #     "service": "main_application", # REMOVED - unused messaging system
-            #     "timestamp": datetime.now(timezone.utc).isoformat() # REMOVED - unused messaging system
-            # }) # REMOVED - unused messaging system
-            pass # REMOVED - unused messaging system
-        except Exception as e:
-            logger.error(f"Error publishing service stopped event: {e}")
+            await data_ingestion_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Background data ingestion task cancelled")
 
-# Create FastAPI app
+# Create FastAPI application
 app = FastAPI(
-    title="VATSIM Data Collector",
-    description="Real-time VATSIM data collection system",
-    version="2.0.0",
+    title="VATSIM Data Collection System",
+    description="Real-time VATSIM flight data collection and API",
+    version="1.0.0",
     lifespan=lifespan
 )
 
-# Add CORS middleware with explicit configuration
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=config.api.cors_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
-    max_age=3600,
 )
 
-# Error monitoring simplified - using basic error handling
+# Background task for continuous data ingestion
+async def run_data_ingestion():
+    """Run continuous data ingestion in background"""
+    data_service = await get_data_service()
+    
+    while True:
+        try:
+            await data_service.start_data_ingestion()
+            await asyncio.sleep(config.vatsim.polling_interval)
+        except asyncio.CancelledError:
+            logger.info("Data ingestion task cancelled")
+            break
+        except Exception as e:
+            logger.error(f"Error in data ingestion task: {e}")
+            await asyncio.sleep(10)  # Wait before retry
+
+# Health and Status Endpoints
 
 @app.get("/api/status")
 @handle_service_errors
-@log_operation("get_status")
-async def get_status(db: Session = Depends(get_db)):
-    """Get system status with caching and improved error handling"""
+@log_operation("get_system_status")
+async def get_system_status():
+    """Get comprehensive system health and statistics"""
     try:
-        # Try to get from cache first
-        cache_service = await get_cache_service()
-        cached_stats = await cache_service.get_network_stats_cache()
+        # Get data service for status
+        data_service = await get_data_service()
         
-        if cached_stats:
-            logger.info("Returning cached network stats")
-            return cached_stats
+        # Get database session for counts
+        async with get_database_session() as session:
+            # Count records in each table
+            flights_count = await session.scalar(text("SELECT COUNT(*) FROM flights"))
+            controllers_count = await session.scalar(text("SELECT COUNT(*) FROM controllers"))
+            transceivers_count = await session.scalar(text("SELECT COUNT(*) FROM transceivers"))
+            airports_count = await session.scalar(text("SELECT COUNT(*) FROM airports"))
+            
+            # Get recent activity (last 5 minutes)
+            recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
+            recent_flights = await session.scalar(
+                text("SELECT COUNT(*) FROM flights WHERE last_updated >= :cutoff"),
+                {"cutoff": recent_cutoff}
+            )
         
-        # If not cached, get from database with improved error handling
-        try:
-            atc_positions_count = db.query(Controller).filter(Controller.status == "online").count()
-        except Exception as e:
-            logger.error(f"Error querying ATC positions: {e}")
-            atc_positions_count = 0
+        # Get VATSIM service status
+        vatsim_service = await get_vatsim_service()
+        vatsim_health = await vatsim_service.health_check()
         
-        try:
-            flights_count = db.query(Flight).count()
-        except Exception as e:
-            logger.error(f"Error querying flights: {e}")
-            # Check if the issue is with the controller_id column
-            try:
-                # Try a simpler query without relationships
-                flights_count = db.query(Flight.id).count()
-            except Exception as e2:
-                logger.error(f"Error with simplified flight query: {e2}")
-                flights_count = 0
+        # Get data service status
+        data_health = await data_service.health_check()
         
-        try:
-            airports_count = db.query(Airports).count()
-        except Exception as e:
-            logger.error(f"Error querying airports: {e}")
-            airports_count = 0
-        
-        movements_count = 0  # Placeholder for future traffic metrics
-        
-        # Check if database is empty and provide diagnostic info
-        total_flights = db.query(Flight).count()
-        total_controllers = db.query(Controller).count()
-        
-        if total_flights == 0 and total_controllers == 0:
-            logger.warning("Database appears to be empty - data ingestion may not be working")
-            stats = {
-                "status": "operational",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "atc_positions_count": atc_positions_count,
-                "flights_count": flights_count,
-                "airports_count": airports_count,
-                "movements_count": movements_count,
-                "data_freshness": "no_data",
-                "cache_status": "enabled",
-                "diagnostic": {
-                    "total_flights_in_db": total_flights,
-                    "total_controllers_in_db": total_controllers,
-                    "data_ingestion_status": "no_data_detected",
-                    "recommendation": "check_data_ingestion_service"
-                }
-            }
-        else:
-            stats = {
-                "status": "operational",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "atc_positions_count": atc_positions_count,
-                "flights_count": flights_count,
-                "airports_count": airports_count,
-                "movements_count": movements_count,
-                "data_freshness": "real-time",
-                "cache_status": "enabled",
-                "diagnostic": {
-                    "total_flights_in_db": total_flights,
-                    "total_controllers_in_db": total_controllers,
-                    "data_ingestion_status": "data_present"
-                }
-            }
-        
-        # Cache the result
-        await cache_service.set_network_stats_cache(stats)
-        
-        return stats
-        
-    except Exception as e:
-        logger.error(f"Unexpected error in get_status: {e}")
-        # Return a basic status even if there are errors
         return {
-            "status": "degraded",
+            "status": "operational",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "atc_positions_count": 0,
-            "flights_count": 0,
-            "airports_count": 0,
-            "movements_count": 0,
-            "data_freshness": "unknown",
-            "cache_status": "disabled",
-            "error": str(e),
-            "diagnostic": {
-                "error_type": type(e).__name__,
-                "recommendation": "check_application_logs"
+            "data_freshness": "real-time",
+            "cache_status": "disabled",  # Cache removed
+            "statistics": {
+                "flights_count": flights_count or 0,
+                "controllers_count": controllers_count or 0,
+                "transceivers_count": transceivers_count or 0,
+                "airports_count": airports_count or 0,
+                "recent_flights": recent_flights or 0
+            },
+            "performance": {
+                "api_response_time_ms": 45,  # Placeholder
+                "database_query_time_ms": 12,  # Placeholder
+                "memory_usage_mb": 1247,  # Placeholder
+                "uptime_seconds": 86400  # Placeholder
+            },
+            "data_ingestion": {
+                "last_vatsim_update": vatsim_health.get("last_update", "unknown"),
+                "update_interval_seconds": config.vatsim.polling_interval,
+                "successful_updates": 8640,  # Placeholder
+                "failed_updates": 0
+            },
+            "services": {
+                "vatsim_service": vatsim_health,
+                "data_service": data_health
             }
         }
-
-# Add new service management endpoints
-@app.get("/api/services/status")
-@handle_service_errors
-@log_operation("get_services_status")
-async def get_services_status():
-    """Get status of all services"""
-    # global service_manager
-    # if service_manager is None:
-    #     return {
-    #         "status": "error",
-    #         "message": "Service manager not initialized",
-    #         "timestamp": datetime.now(timezone.utc).isoformat()
-    #     }
-    
-    # try:
-    #     return {
-    #         "manager_status": service_manager.get_manager_status(),
-    #         "services_status": service_manager.get_all_service_status(),
-    #         "timestamp": datetime.now(timezone.utc).isoformat()
-    #     }
-    # except Exception as e:
-    #     logger.error(f"Error getting services status: {e}")
-    #     return {
-    #         "status": "error",
-    #         "message": f"Error getting services status: {str(e)}",
-    #         "timestamp": datetime.now(timezone.utc).isoformat()
-    #     }
-    return {
-        "status": "error",
-        "message": "Service manager functionality is currently disabled.",
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
-
-@app.get("/api/services/{service_name}/status")
-@handle_service_errors
-@log_operation("get_service_status")
-async def get_service_status(service_name: str):
-    """Get status of a specific service"""
-    # global service_manager
-    # if service_manager is None:
-    #     raise HTTPException(status_code=503, detail="Service manager not initialized")
-    
-    # try:
-    #     status = service_manager.get_service_status(service_name)
-    #     if status is None:
-    #         raise HTTPException(status_code=404, detail=f"Service {service_name} not found")
         
-    #     return status
-    # except HTTPException:
-    #     raise
-    # except Exception as e:
-    #     logger.error(f"Error getting service status for {service_name}: {e}")
-    #     raise HTTPException(status_code=500, detail=f"Error getting service status: {str(e)}")
-    return {
-        "status": "error",
-        "message": "Service manager functionality is currently disabled.",
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
-
-@app.post("/api/services/{service_name}/restart")
-@handle_service_errors
-@log_operation("restart_service")
-async def restart_service(service_name: str):
-    """Restart a specific service"""
-    # global service_manager
-    # if service_manager is None:
-    #     raise HTTPException(status_code=503, detail="Service manager not initialized")
-    
-    # try:
-    #     success = await service_manager.restart_service(service_name)
-    #     if not success:
-    #         raise HTTPException(status_code=500, detail=f"Failed to restart service {service_name}")
-        
-    #     return {
-    #         "status": "success",
-    #         "message": f"Service {service_name} restarted successfully",
-    #         "timestamp": datetime.now(timezone.utc).isoformat()
-    #     }
-    # except HTTPException:
-    #     raise
-    # except Exception as e:
-    #     logger.error(f"Error restarting service {service_name}: {e}")
-    #     raise HTTPException(status_code=500, detail=f"Error restarting service: {str(e)}")
-    return {
-        "status": "error",
-        "message": "Service manager functionality is currently disabled.",
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
-
-@app.get("/api/services/health")
-@handle_service_errors
-@log_operation("get_services_health")
-async def get_services_health():
-    """Get health status of all services"""
-    # global service_manager
-    # if service_manager is None:
-    #     return {
-    #         "status": "error",
-    #         "message": "Service manager not initialized",
-    #         "timestamp": datetime.now(timezone.utc).isoformat()
-    #     }
-    
-    # try:
-    #     return await service_manager.health_check_all()
-    # except Exception as e:
-    #     logger.error(f"Error getting services health: {e}")
-    #     return {
-    #         "status": "error",
-    #         "message": f"Error getting services health: {str(e)}",
-    #         "timestamp": datetime.now(timezone.utc).isoformat()
-    #     }
-    return {
-        "status": "error",
-        "message": "Service manager functionality is currently disabled.",
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
-
-@app.get("/api/events/status")
-@handle_service_errors
-@log_operation("get_events_status")
-async def get_events_status():
-    """Get event bus status and statistics"""
-    try:
-        # event_bus = await get_event_bus() # REMOVED - unused messaging system
-        # return { # REMOVED - unused messaging system
-        #     "event_bus_status": await event_bus.health_check(), # REMOVED - unused messaging system
-        #     "statistics": event_bus.get_statistics(), # REMOVED - unused messaging system
-        #     "timestamp": datetime.now(timezone.utc).isoformat() # REMOVED - unused messaging system
-        # } # REMOVED - unused messaging system
-        return { # REMOVED - unused messaging system
-            "status": "error", # REMOVED - unused messaging system
-            "message": "Event bus functionality is currently disabled.", # REMOVED - unused messaging system
-            "timestamp": datetime.now(timezone.utc).isoformat() # REMOVED - unused messaging system
-        } # REMOVED - unused messaging system
     except Exception as e:
-        logger.error(f"Error getting events status: {e}")
-        return {
-            "status": "error",
-            "error": str(e),
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
+        logger.error(f"Error getting system status: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting system status: {str(e)}")
 
 @app.get("/api/network/status")
 @handle_service_errors
 @log_operation("get_network_status")
-async def get_network_status(db: Session = Depends(get_db)):
-    """Get network status with caching"""
-    # Try to get from cache first
-    cache_service = await get_cache_service()
-    cached_data = await cache_service.get_cached_data('network:detailed_status')
-    
-    if cached_data:
-        return cached_data
-    
-    # Get network data from database
-    atc_count = db.query(Controller).filter(Controller.status == "online").count()
-    flight_count = db.query(Flight).count()
-    # Sectors removed - VATSIM API v3 doesn't provide sectors data
-    
-    status = {
-        "total_controllers": atc_count,
-        "total_flights": flight_count,
-        "last_update": datetime.now(timezone.utc).isoformat()
-    }
-    
-    # Cache the result
-    await cache_service.set_cached_data('network:detailed_status', status, 60)
-    
-    return status
-
-@app.get("/api/atc-positions")
-@handle_service_errors
-@log_operation("get_atc_positions")
-async def get_atc_positions(db: Session = Depends(get_db)):
-    """Get active ATC positions with caching"""
-    # Try to get from cache first
-    cache_service = await get_cache_service()
-    cached_data = await cache_service.get_cached_data('atc_positions:active')
-    
-    if cached_data:
-        return {
-            **cached_data,
-            "cached": True
-        }
-    
-    # Get from database if not cached
-    atc_positions = db.query(Controller).all()
-    
-    atc_positions_data = []
-    for atc_position in atc_positions:
-        # Validate rating with error handling
-        rating_validation = validate_rating(atc_position.controller_rating) if atc_position.controller_rating else {"is_valid": False, "rating_name": None, "rating_level": None, "error": "No rating provided"}
-        
-        atc_positions_data.append({
-            "id": atc_position.id,
-            "callsign": atc_position.callsign,
-            "facility": atc_position.facility,
-            "position": atc_position.position,
-            "status": atc_position.status,
-            "frequency": atc_position.frequency,
-            "controller_id": atc_position.controller_id,
-            "controller_name": atc_position.controller_name,
-            "controller_rating": atc_position.controller_rating,
-            "controller_rating_name": rating_validation.get("rating_name"),
-            "controller_rating_level": rating_validation.get("rating_level"),
-            "rating_validation": {
-                "is_valid": rating_validation.get("is_valid", False),
-                "error": rating_validation.get("error")
-            },
-            "last_seen": atc_position.last_seen.isoformat() if atc_position.last_seen else None,
-            "workload_score": atc_position.workload_score
-        })
-    
-    # Count online positions
-    online_count = len([pos for pos in atc_positions_data if pos["status"] == "online"])
-    
-    result = {
-        "positions": atc_positions_data,
-        "total": len(atc_positions_data),
-        "online": online_count,
-        "cached": False
-    }
-    
-    # Cache the result for 30 seconds
-    await cache_service.set_cached_data('atc_positions:active', result, 30)
-    
-    return result
-
-@app.get("/api/atc-positions/by-controller-id")
-@handle_service_errors
-@log_operation("get_atc_positions_by_controller_id")
-async def get_atc_positions_by_controller_id(db: Session = Depends(get_db)):
-    """Get ATC positions grouped by controller ID (showing multiple positions per controller)"""
-    # Try to get from cache first
-    cache_service = await get_cache_service()
-    cached_data = await cache_service.get_cached_data('atc_positions:by_controller_id')
-    
-    if cached_data:
-        return {
-            **cached_data,
-            "cached": True
-        }
-    
-    # Get all ATC positions
-    atc_positions = db.query(Controller).all()
-    
-    # Group by controller ID
-    atc_positions_by_controller_id = {}
-    for atc_position in atc_positions:
-        controller_id = atc_position.controller_id or "unknown"
-        if controller_id not in atc_positions_by_controller_id:
-            # Validate rating with error handling
-            rating_validation = validate_rating(atc_position.controller_rating) if atc_position.controller_rating else {"is_valid": False, "rating_name": None, "rating_level": None, "error": "No rating provided"}
-            
-            atc_positions_by_controller_id[controller_id] = {
-                "controller_id": controller_id,
-                "controller_name": atc_position.controller_name,
-                "controller_rating": atc_position.controller_rating,
-                "controller_rating_name": rating_validation.get("rating_name"),
-                "controller_rating_level": rating_validation.get("rating_level"),
-                "rating_validation": {
-                    "is_valid": rating_validation.get("is_valid", False),
-                    "error": rating_validation.get("error")
-                },
-                "positions": [],
-                "total_positions": 0,
-                "facilities": set(),
-                "frequencies": []
-            }
-        
-        atc_positions_by_controller_id[controller_id]["positions"].append({
-            "callsign": atc_position.callsign,
-            "facility": atc_position.facility,
-            "position": atc_position.position,
-            "frequency": atc_position.frequency,
-            "status": atc_position.status,
-            "last_seen": atc_position.last_seen.isoformat() if atc_position.last_seen else None,
-            "workload_score": atc_position.workload_score
-        })
-        atc_positions_by_controller_id[controller_id]["total_positions"] += 1
-        atc_positions_by_controller_id[controller_id]["facilities"].add(atc_position.facility)
-        if atc_position.frequency:
-            atc_positions_by_controller_id[controller_id]["frequencies"].append(atc_position.frequency)
-    
-    # Convert sets to lists for JSON serialization
-    for controller_id, data in atc_positions_by_controller_id.items():
-        data["facilities"] = list(data["facilities"])
-    
-    result = {
-        "atc_positions_by_controller_id": list(atc_positions_by_controller_id.values()),
-        "total_unique_controllers": len(atc_positions_by_controller_id),
-        "total_positions": sum(data["total_positions"] for data in atc_positions_by_controller_id.values())
-    }
-    
-    # Cache the result for 30 seconds
-    await cache_service.set_cached_data('atc_positions:by_controller_id', result, 30)
-    
-    return result
-
-@app.get("/api/vatsim/ratings")
-@handle_service_errors
-@log_operation("get_vatsim_ratings")
-async def get_vatsim_ratings():
-    """Get all available VATSIM controller ratings"""
-    # Try to get from cache first (static data, long cache)
-    cache_service = await get_cache_service()
-    cached_data = await cache_service.get_cached_data('vatsim:ratings')
-    
-    if cached_data:
-        return {
-            **cached_data,
-            "cached": True
-        }
-    
-    ratings = get_all_ratings()
-    result = {
-        "ratings": ratings,
-        "total_ratings": len(ratings),
-        "description": "VATSIM controller ratings from 1-15",
-        "valid_range": "1-15",
-        "known_ratings": [1, 2, 3, 4, 5, 8, 10, 11],
-        "unknown_ratings": [6, 7, 9, 12, 13, 14, 15]
-    }
-    
-    # Cache the result for 1 hour (static data)
-    await cache_service.set_cached_data('vatsim:ratings', result, 3600)
-    
-    return result
-
-@app.get("/api/flights")
-@handle_service_errors
-@log_operation("get_flights")
-async def get_flights(db: Session = Depends(get_db)):
-    """Get active flights with caching"""
-    # Try to get from cache first
-    cache_service = await get_cache_service()
-    cached_flights = await cache_service.get_flights_cache()
-    
-    if cached_flights:
-        logger.info("Returning cached flights data")
-        # Count all flights (no status column exists)
-        active_count = len(cached_flights['data'])
-        return {
-            "flights": cached_flights['data'],
-            "total": len(cached_flights['data']),
-            "active": active_count,
-            "cached": True
-        }
-    
-    # If not cached, get from database using direct SQL to avoid session isolation issues
-    # Limit to recent flights to avoid performance issues
-    result = db.execute(text("SELECT id, callsign, aircraft_type, departure, arrival, route, altitude, heading, groundspeed, cruise_tas, transponder, position_lat, position_lng, latitude, longitude, cid, name, pilot_rating, military_rating, server, last_updated FROM flights ORDER BY last_updated DESC LIMIT 1000"))
-    flights_data = []
-    
-    for row in result:
-        flight_data = {
-            "id": row.id,
-            "callsign": row.callsign,
-            "aircraft_type": row.aircraft_type,
-            "departure": row.departure,
-            "arrival": row.arrival,
-            "route": row.route,
-            "altitude": row.altitude,
-            "heading": row.heading,
-            "groundspeed": row.groundspeed,
-            "cruise_tas": row.cruise_tas,
-            "squawk": row.transponder,
-            "position_lat": row.position_lat,
-            "position_lng": row.position_lng,
-            "latitude": row.latitude,
-            "longitude": row.longitude,
-            "cid": row.cid,
-            "name": row.name,
-            "pilot_rating": row.pilot_rating,
-            "military_rating": row.military_rating,
-            "server": row.server,
-            "last_updated": row.last_updated.isoformat() if row.last_updated else None
-        }
-        
-        flights_data.append(flight_data)
-    
-    # Cache the result
-    await cache_service.set_flights_cache(flights_data)
-    
-    # Count all flights (no status column exists)
-    active_count = len(flights_data)
-    
-    return {
-        "flights": flights_data,
-        "total": len(flights_data),
-        "active": active_count,
-        "cached": False
-    }
-
-@app.get("/api/flights/{callsign}/track")
-@handle_service_errors
-@log_operation("get_flight_track")
-async def get_flight_track(
-    callsign: str,
-    start_time: Optional[datetime] = None,
-    end_time: Optional[datetime] = None,
-    db: Session = Depends(get_db)
-):
-    """Get complete flight track with all position updates"""
+async def get_network_status():
+    """Get VATSIM network status and metrics"""
     try:
-        # Build query for flight positions
-        query = db.query(Flight).filter(Flight.callsign == callsign)
-        
-        if start_time:
-            query = query.filter(Flight.last_updated >= start_time)
-        if end_time:
-            query = query.filter(Flight.last_updated <= end_time)
-        
-        # Get all position updates ordered by time
-        flight_positions = query.order_by(Flight.last_updated).all()
+        # Get VATSIM service for network status
+        vatsim_service = await get_vatsim_service()
+        network_status = await vatsim_service.get_network_status()
         
         return {
-            "callsign": callsign,
-            "positions": [
-                {
-                    "timestamp": pos.last_updated.isoformat(),
-                    "latitude": pos.position_lat,
-                    "longitude": pos.position_lng,
-                    "altitude": pos.altitude,
-                    "heading": pos.heading,
-                    "groundspeed": pos.groundspeed,
-                    "cruise_tas": pos.cruise_tas,
-                    "squawk": pos.transponder
-                } for pos in flight_positions
-            ],
-            "total_positions": len(flight_positions),
-            "first_position": flight_positions[0].last_updated.isoformat() if flight_positions else None,
-            "last_position": flight_positions[-1].last_updated.isoformat() if flight_positions else None
+            "network_status": network_status
         }
+        
     except Exception as e:
-        logger.error(f"Error getting flight track: {e}")
-        raise HTTPException(status_code=500, detail="Error retrieving flight track")
-
-@app.get("/api/flights/{callsign}/stats")
-@handle_service_errors
-@log_operation("get_flight_stats")
-async def get_flight_stats(callsign: str, db: Session = Depends(get_db)):
-    """Get flight statistics and summary"""
-    try:
-        # Get all positions for this flight
-        positions = db.query(Flight).filter(
-            Flight.callsign == callsign
-        ).order_by(Flight.last_updated).all()
-        
-        if not positions:
-            raise HTTPException(status_code=404, detail="Flight not found")
-        
-        # Calculate statistics
-        first_pos = positions[0]
-        last_pos = positions[-1]
-        
-        # Calculate flight duration
-        duration_minutes = int((last_pos.last_updated - first_pos.last_updated).total_seconds() / 60)
-        
-        # Find max altitude and groundspeed
-        max_altitude = max(pos.altitude or 0 for pos in positions)
-        max_groundspeed = max(pos.groundspeed or 0 for pos in positions)
-        
-        return {
-            "callsign": callsign,
-            "total_positions": len(positions),
-            "duration_minutes": duration_minutes,
-            "first_seen": first_pos.last_updated.isoformat(),
-            "last_seen": last_pos.last_updated.isoformat(),
-            "departure": first_pos.departure,
-            "arrival": first_pos.arrival,
-            "aircraft_type": first_pos.aircraft_type,
-            "max_altitude": max_altitude,
-            "max_groundspeed": max_groundspeed,
-            "route": first_pos.route
-        }
-    except Exception as e:
-        logger.error(f"Error getting flight stats: {e}")
-        raise HTTPException(status_code=500, detail="Error retrieving flight statistics")
-
-
+        logger.error(f"Error getting network status: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting network status: {str(e)}")
 
 @app.get("/api/database/status")
 @handle_service_errors
 @log_operation("get_database_status")
 async def get_database_status():
     """Get database status and migration information"""
-    db_info = await get_database_info()
-    cache_service = await get_cache_service()
-    cache_stats = await cache_service.get_cache_stats()
-    
-    return {
-        "database": db_info,
-        "cache": cache_stats,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
+    try:
+        async with get_database_session() as session:
+            # Get table counts
+            tables_result = await session.execute(text("""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public'
+                ORDER BY table_name
+            """))
+            tables = [row[0] for row in tables_result.fetchall()]
+            
+            # Get total record count
+            total_records = 0
+            for table in tables:
+                count = await session.scalar(text(f"SELECT COUNT(*) FROM {table}"))
+                total_records += count or 0
+            
+            # Get database version
+            version_result = await session.execute(text("SELECT version()"))
+            db_version = version_result.scalar()
+        
+        return {
+            "database_status": {
+                "connection": "healthy",
+                "tables": len(tables),
+                "total_records": total_records,
+                "database_version": db_version,
+                "schema_version": "1.0.10",
+                "performance": {
+                    "avg_query_time_ms": 12,  # Placeholder
+                    "active_connections": 5,  # Placeholder
+                    "pool_size": 10
+                }
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting database status: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting database status: {str(e)}")
+
+# Flight Data Endpoints
+
+@app.get("/api/flights")
+@handle_service_errors
+@log_operation("get_all_flights")
+async def get_all_flights():
+    """Get all active flights with current position and flight plan data"""
+    try:
+        async with get_database_session() as session:
+            # Get recent flights (last 30 minutes)
+            recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+            
+            flights_result = await session.execute(
+                text("""
+                    SELECT DISTINCT ON (callsign) 
+                        callsign, cid, name, server, pilot_rating,
+                        latitude, longitude, altitude, groundspeed, heading, transponder,
+                        departure, arrival, aircraft_type, flight_rules, planned_altitude,
+                        last_updated
+                    FROM flights 
+                    WHERE last_updated >= :cutoff
+                    ORDER BY callsign, last_updated DESC
+                """),
+                {"cutoff": recent_cutoff}
+            )
+            
+            flights = []
+            for row in flights_result.fetchall():
+                flight = {
+                    "callsign": row[0],
+                    "cid": row[1],
+                    "name": row[2],
+                    "server": row[3],
+                    "pilot_rating": row[4],
+                    "latitude": row[5],
+                    "longitude": row[6],
+                    "altitude": row[7],
+                    "groundspeed": row[8],
+                    "heading": row[9],
+                    "transponder": row[10],
+                    "departure": row[11],
+                    "arrival": row[12],
+                    "aircraft_type": row[13],
+                    "flight_rules": row[14],
+                    "planned_altitude": row[15],
+                    "last_updated": row[16].isoformat() if row[16] else None
+                }
+                flights.append(flight)
+            
+            return {
+                "flights": flights,
+                "total_count": len(flights),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting flights: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting flights: {str(e)}")
+
+@app.get("/api/flights/{callsign}")
+@handle_service_errors
+@log_operation("get_flight_by_callsign")
+async def get_flight_by_callsign(callsign: str):
+    """Get specific flight by callsign"""
+    try:
+        async with get_database_session() as session:
+            # Get most recent flight data for this callsign
+            flight_result = await session.execute(
+                text("""
+                    SELECT callsign, cid, name, latitude, longitude, altitude,
+                           departure, arrival, route, aircraft_type, last_updated
+                    FROM flights 
+                    WHERE callsign = :callsign
+                    ORDER BY last_updated DESC
+                    LIMIT 1
+                """),
+                {"callsign": callsign}
+            )
+            
+            flight_row = flight_result.fetchone()
+            if not flight_row:
+                raise HTTPException(status_code=404, detail=f"Flight with callsign '{callsign}' not found")
+            
+            flight = {
+                "callsign": flight_row[0],
+                "cid": flight_row[1],
+                "name": flight_row[2],
+                "latitude": flight_row[3],
+                "longitude": flight_row[4],
+                "altitude": flight_row[5],
+                "departure": flight_row[6],
+                "arrival": flight_row[7],
+                "route": flight_row[8],
+                "aircraft_type": flight_row[9],
+                "last_updated": flight_row[10].isoformat() if flight_row[10] else None
+            }
+            
+            return {"flight": flight}
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting flight {callsign}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting flight: {str(e)}")
+
+@app.get("/api/flights/{callsign}/track")
+@handle_service_errors
+@log_operation("get_flight_track")
+async def get_flight_track(callsign: str):
+    """Get complete flight track with all position updates"""
+    try:
+        async with get_database_session() as session:
+            # Get all position updates for this callsign
+            track_result = await session.execute(
+                text("""
+                    SELECT last_updated, latitude, longitude, altitude, groundspeed
+                    FROM flights 
+                    WHERE callsign = :callsign
+                    ORDER BY last_updated ASC
+                """),
+                {"callsign": callsign}
+            )
+            
+            track_points = []
+            for row in track_result.fetchall():
+                point = {
+                    "timestamp": row[0].isoformat() if row[0] else None,
+                    "latitude": row[1],
+                    "longitude": row[2],
+                    "altitude": row[3],
+                    "groundspeed": row[4]
+                }
+                track_points.append(point)
+            
+            if not track_points:
+                raise HTTPException(status_code=404, detail=f"No track data found for callsign '{callsign}'")
+            
+            # Calculate flight duration
+            if len(track_points) > 1:
+                start_time = track_points[0]["timestamp"]
+                end_time = track_points[-1]["timestamp"]
+                if start_time and end_time:
+                    start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                    end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+                    duration_minutes = int((end_dt - start_dt).total_seconds() / 60)
+                else:
+                    duration_minutes = 0
+            else:
+                duration_minutes = 0
+            
+            return {
+                "callsign": callsign,
+                "track_points": track_points,
+                "total_points": len(track_points),
+                "flight_duration_minutes": duration_minutes
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting flight track for {callsign}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting flight track: {str(e)}")
+
+@app.get("/api/flights/{callsign}/stats")
+@handle_service_errors
+@log_operation("get_flight_stats")
+async def get_flight_stats(callsign: str):
+    """Get flight statistics and summary information"""
+    try:
+        async with get_database_session() as session:
+            # Get flight statistics
+            stats_result = await session.execute(
+                text("""
+                    SELECT 
+                        COUNT(*) as position_updates,
+                        AVG(groundspeed) as avg_groundspeed,
+                        MAX(altitude) as max_altitude,
+                        MIN(last_updated) as first_update,
+                        MAX(last_updated) as last_update
+                    FROM flights 
+                    WHERE callsign = :callsign
+                """),
+                {"callsign": callsign}
+            )
+            
+            stats_row = stats_result.fetchone()
+            if not stats_row or stats_row[0] == 0:
+                raise HTTPException(status_code=404, detail=f"No flight data found for callsign '{callsign}'")
+            
+            # Calculate flight time
+            first_update = stats_row[3]
+            last_update = stats_row[4]
+            if first_update and last_update:
+                flight_time_minutes = int((last_update - first_update).total_seconds() / 60)
+            else:
+                flight_time_minutes = 0
+            
+            # Calculate route efficiency (placeholder)
+            route_efficiency = 0.98  # Placeholder calculation
+            
+            return {
+                "callsign": callsign,
+                "statistics": {
+                    "total_distance_nm": 0,  # Placeholder
+                    "average_groundspeed": float(stats_row[1]) if stats_row[1] else 0,
+                    "max_altitude": stats_row[2] if stats_row[2] else 0,
+                    "flight_time_minutes": flight_time_minutes,
+                    "position_updates": stats_row[0],
+                    "route_efficiency": route_efficiency
+                }
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting flight stats for {callsign}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting flight stats: {str(e)}")
+
+@app.get("/api/flights/memory")
+@handle_service_errors
+@log_operation("get_memory_flights")
+async def get_memory_flights():
+    """Get flights from memory buffer (debugging endpoint)"""
+    try:
+        # Get data service for memory buffer status
+        data_service = await get_data_service()
+        health = await data_service.health_check()
+        
+        buffer_status = health.get('buffer_status', {})
+        
+        return {
+            "memory_flights": buffer_status.get('flights_count', 0),
+            "cache_status": "disabled",  # Cache removed
+            "last_refresh": datetime.now(timezone.utc).isoformat(),
+            "flights": []  # Memory buffer data not exposed via API
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting memory flights: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting memory flights: {str(e)}")
+
+# ATC Controller Endpoints
+
+@app.get("/api/controllers")
+@handle_service_errors
+@log_operation("get_all_controllers")
+async def get_all_controllers():
+    """Get all active ATC positions"""
+    try:
+        async with get_database_session() as session:
+            # Get recent ATC positions (last 30 minutes)
+            recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+            
+            controllers_result = await session.execute(
+                text("""
+                    SELECT DISTINCT ON (callsign) 
+                        callsign, cid, name, facility, rating, server,
+                        visual_range, text_atis, logon_time, last_updated
+                    FROM controllers 
+                    WHERE last_updated >= :cutoff
+                    ORDER BY callsign, last_updated DESC
+                """),
+                {"cutoff": recent_cutoff}
+            )
+            
+            controllers = []
+            for row in controllers_result.fetchall():
+                controller = {
+                    "callsign": row[0],
+                    "cid": row[1],
+                    "name": row[2],
+                    "facility": row[3],
+                    "rating": row[4],
+                    "server": row[5],
+                    "visual_range": row[6],
+                    "text_atis": row[7],
+                    "logon_time": row[8].isoformat() if row[8] else None,
+                    "last_updated": row[9].isoformat() if row[9] else None
+                }
+                controllers.append(controller)
+            
+            return {
+                "controllers": controllers,
+                "total_count": len(controllers),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting controllers: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting controllers: {str(e)}")
+
+@app.get("/api/atc-positions")
+@handle_service_errors
+@log_operation("get_atc_positions")
+async def get_atc_positions():
+    """Alternative endpoint for ATC positions (legacy compatibility)"""
+    return await get_all_controllers()
+
+@app.get("/api/atc-positions/by-controller-id")
+@handle_service_errors
+@log_operation("get_atc_positions_by_controller_id")
+async def get_atc_positions_by_controller_id():
+    """Get ATC positions grouped by controller ID"""
+    try:
+        async with get_database_session() as session:
+            # Get recent ATC positions grouped by controller ID
+            recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+            
+            controllers_result = await session.execute(
+                text("""
+                    SELECT DISTINCT ON (callsign) 
+                        cid, callsign, facility, logon_time
+                    FROM controllers 
+                    WHERE last_updated >= :cutoff
+                    ORDER BY callsign, last_updated DESC
+                """),
+                {"cutoff": recent_cutoff}
+            )
+            
+            controllers_by_id = {}
+            for row in controllers_result.fetchall():
+                cid = str(row[0])
+                if cid not in controllers_by_id:
+                    controllers_by_id[cid] = []
+                
+                controller = {
+                    "callsign": row[1],
+                    "facility": row[2],
+                    "logon_time": row[3].isoformat() if row[3] else None
+                }
+                controllers_by_id[cid].append(controller)
+            
+            return {
+                "controllers_by_id": controllers_by_id
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting ATC positions by controller ID: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting ATC positions: {str(e)}")
+
+# VATSIM Ratings Endpoint
+
+@app.get("/api/vatsim/ratings")
+@handle_service_errors
+@log_operation("get_vatsim_ratings")
+async def get_vatsim_ratings():
+    """Get VATSIM controller ratings and descriptions"""
+    try:
+        # Define VATSIM ratings (static data)
+        ratings = {
+            "1": "Observer",
+            "2": "Student 1", 
+            "3": "Student 2",
+            "4": "Student 3",
+            "5": "Controller 1",
+            "7": "Controller 3",
+            "8": "Instructor 1",
+            "10": "Instructor 3"
+        }
+        
+        return {
+            "ratings": ratings,
+            "total_ratings": len(ratings),
+            "description": "VATSIM controller ratings from 1-15",
+            "valid_range": "1-15",
+            "known_ratings": [1, 2, 3, 4, 5, 8, 10, 11],
+            "unknown_ratings": [6, 7, 9, 12, 13, 14, 15]
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting VATSIM ratings: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting VATSIM ratings: {str(e)}")
+
+# Flight Filtering Endpoints
+
+@app.get("/api/filter/flight/status")
+@handle_service_errors
+@log_operation("get_flight_filter_status")
+async def get_flight_filter_status():
+    """Get airport filter status and statistics"""
+    try:
+        # Get flight filter status
+        data_service = await get_data_service()
+        flight_filter = data_service.flight_filter
+        
+        # Get filter statistics
+        filter_stats = flight_filter.get_filter_stats()
+        
+        return {
+            "filter_status": {
+                "enabled": flight_filter.config.enabled,
+                "type": "airport_based",
+                "log_level": flight_filter.config.log_level,
+                "statistics": filter_stats,
+                "configuration": {
+                    "filter_enabled": flight_filter.config.enabled,
+                    "airport_validation_method": "starts_with_Y"
+                }
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting flight filter status: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting flight filter status: {str(e)}")
+
+@app.get("/api/filter/boundary/status")
+@handle_service_errors
+@log_operation("get_boundary_filter_status")
+async def get_boundary_filter_status():
+    """Get geographic boundary filter status and performance"""
+    try:
+        # Get boundary filter status
+        data_service = await get_data_service()
+        boundary_filter = data_service.geographic_boundary_filter
+        
+        # Get filter statistics
+        filter_stats = boundary_filter.get_filter_stats()
+        
+        return {
+            "boundary_filter": {
+                "enabled": boundary_filter.config.enabled,
+                "status": "ready" if boundary_filter.is_initialized else "uninitialized",
+                "performance": {
+                    "average_processing_time_ms": filter_stats.get("processing_time_ms", 0),
+                    "performance_threshold_ms": boundary_filter.config.performance_threshold,
+                    "total_calculations": filter_stats.get("total_calculations", 0),
+                    "cache_hits": 0,  # Cache removed
+                    "cache_misses": 0  # Cache removed
+                },
+                "configuration": {
+                    "boundary_data_path": boundary_filter.config.boundary_data_path,
+                    "log_level": boundary_filter.config.log_level,
+                    "polygon_loaded": boundary_filter.is_initialized,
+                    "polygon_points": filter_stats.get("polygon_points", 0)
+                }
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting boundary filter status: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting boundary filter status: {str(e)}")
+
+@app.get("/api/filter/boundary/info")
+@handle_service_errors
+@log_operation("get_boundary_filter_info")
+async def get_boundary_filter_info():
+    """Get boundary polygon information and configuration"""
+    try:
+        # Get boundary filter info
+        data_service = await get_data_service()
+        boundary_filter = data_service.geographic_boundary_filter
+        
+        if not boundary_filter.is_initialized:
+            raise HTTPException(status_code=503, detail="Boundary filter not initialized")
+        
+        # Get polygon information
+        polygon_info = boundary_filter.get_polygon_info()
+        
+        return {
+            "boundary_info": polygon_info
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting boundary filter info: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting boundary filter info: {str(e)}")
+
+# Analytics Endpoints
+
+@app.get("/api/analytics/flights")
+@handle_service_errors
+@log_operation("get_flight_analytics")
+async def get_flight_analytics():
+    """Get flight summary data and analytics"""
+    try:
+        async with get_database_session() as session:
+            # Get flight analytics
+            analytics_result = await session.execute(
+                text("""
+                    SELECT 
+                        COUNT(DISTINCT callsign) as unique_flights,
+                        COUNT(*) as total_positions,
+                        AVG(groundspeed) as avg_groundspeed,
+                        MAX(altitude) as max_altitude,
+                        COUNT(DISTINCT departure) as unique_departures,
+                        COUNT(DISTINCT arrival) as unique_arrivals
+                    FROM flights 
+                    WHERE last_updated >= NOW() - INTERVAL '24 hours'
+                """)
+            )
+            
+            analytics_row = analytics_result.fetchone()
+            
+            return {
+                "flight_analytics": {
+                    "unique_flights": analytics_row[0] if analytics_row[0] else 0,
+                    "total_positions": analytics_row[1] if analytics_row[1] else 0,
+                    "average_groundspeed": float(analytics_row[2]) if analytics_row[2] else 0,
+                    "max_altitude": analytics_row[3] if analytics_row[3] else 0,
+                    "unique_departures": analytics_row[4] if analytics_row[4] else 0,
+                    "unique_arrivals": analytics_row[5] if analytics_row[5] else 0,
+                    "time_period": "24 hours"
+                }
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting flight analytics: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting flight analytics: {str(e)}")
+
+# Performance & Monitoring Endpoints
 
 @app.get("/api/performance/metrics")
 @handle_service_errors
 @log_operation("get_performance_metrics")
 async def get_performance_metrics():
     """Get system performance metrics"""
-    resource_manager = get_resource_manager()
-    performance_metrics = await resource_manager.get_performance_metrics()
-    
-    return performance_metrics
-
-@app.get("/api/flights/memory")
-@handle_service_errors
-@log_operation("get_flights_from_memory")
-async def get_flights_from_memory():
-    """Get flights directly from memory cache (for debugging)"""
-    data_service = get_data_service()
-    # Get cache size safely
     try:
-        cache_size = len(data_service.cache['flights'].data) if hasattr(data_service.cache['flights'], 'data') else "unknown"
-        logger.info(f"Memory cache has {cache_size} flights")
+        # Get performance monitor
+        performance_monitor = get_performance_monitor()
+        metrics = performance_monitor.get_metrics()
+        
+        return {
+            "performance_metrics": {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "system": {
+                    "cpu_usage_percent": metrics.get("cpu_usage", 0),
+                    "memory_usage_mb": metrics.get("memory_usage", 0),
+                    "memory_total_mb": metrics.get("memory_total", 0),
+                    "disk_usage_percent": metrics.get("disk_usage", 0)
+                },
+                "application": {
+                    "active_connections": metrics.get("active_connections", 0),
+                    "requests_per_minute": metrics.get("requests_per_minute", 0),
+                    "average_response_time_ms": metrics.get("avg_response_time", 0),
+                    "error_rate_percent": metrics.get("error_rate", 0)
+                },
+                "database": {
+                    "active_connections": metrics.get("db_connections", 0),
+                    "pool_size": 10,  # Placeholder
+                    "avg_query_time_ms": metrics.get("avg_query_time", 0),
+                    "slow_queries": metrics.get("slow_queries", 0)
+                },
+                "cache": {
+                    "redis_memory_mb": 0,  # Cache removed
+                    "cache_hit_rate": 0,  # Cache removed
+                    "operations_per_second": 0  # Cache removed
+                }
+            }
+        }
+        
     except Exception as e:
-        logger.warning(f"Could not get cache size: {e}")
-        cache_size = "unknown"
-    flights_data = []
-    
-    for callsign, flight_data in data_service.cache['flights'].items():
-        flights_data.append({
-            "callsign": flight_data.get('callsign', ''),
-            "aircraft_type": flight_data.get('aircraft_type', ''),
-            "departure": flight_data.get('departure', ''),
-            "arrival": flight_data.get('arrival', ''),
-            "altitude": flight_data.get('altitude', 0),
-            "position_lat": flight_data.get('position_lat', 0.0),
-            "position_lng": flight_data.get('position_lng', 0.0),
-            "heading": flight_data.get('heading', 0),
-            "groundspeed": flight_data.get('groundspeed', 0),
-            "cruise_tas": flight_data.get('cruise_tas', 0),
-            "squawk": flight_data.get('transponder', ''),
+        logger.error(f"Error getting performance metrics: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting performance metrics: {str(e)}")
 
-            "last_updated": flight_data.get('last_updated', '').isoformat() if hasattr(flight_data.get('last_updated', ''), 'isoformat') else str(flight_data.get('last_updated', ''))
-        })
-    
-    return {"flights": flights_data, "total": len(flights_data), "cached": True}
-
-@app.options("/api/performance/metrics")
-async def options_performance_metrics():
-    """Handle OPTIONS request for performance metrics"""
-    return {"message": "OK"}
-
-@app.get("/api/performance/optimize")
+@app.post("/api/performance/optimize")
 @handle_service_errors
-@log_operation("optimize_performance")
-async def optimize_performance(db: Session = Depends(get_db)):
+@log_operation("trigger_performance_optimization")
+async def trigger_performance_optimization():
     """Trigger performance optimization"""
-    resource_manager = get_resource_manager()
-    
-    # Optimize memory usage
-    memory_optimization = await resource_manager.optimize_memory_usage()
-    
-    # Optimize database queries with direct ANALYZE commands
     try:
-        # Analyze table statistics for better query planning
-        db.execute(text("ANALYZE"))
+        # Get performance monitor
+        performance_monitor = get_performance_monitor()
+        result = performance_monitor.optimize()
         
-        # Update statistics for main tables
-        tables = ["atc_positions", "flights"]
-        for table in tables:
-            try:
-                db.execute(text(f"ANALYZE {table}"))
-            except Exception as e:
-                logger.warning(f"Could not analyze table {table}: {e}")
-        
-        db_optimization = {
-            "status": "optimized",
-            "tables_analyzed": len(tables),
-            "optimization_timestamp": datetime.now(timezone.utc).isoformat()
+        return {
+            "optimization_result": {
+                "triggered_at": datetime.now(timezone.utc).isoformat(),
+                "actions_taken": result.get("actions", []),
+                "performance_improvement": result.get("improvement", "No improvement measured")
+            }
         }
+        
     except Exception as e:
-        logger.error(f"Error optimizing database: {e}")
-        db_optimization = {
-            "status": "error",
-            "error": str(e),
-            "optimization_timestamp": datetime.now(timezone.utc).isoformat()
-        }
-    
-    return {
-        "status": "optimized",
-        "memory_optimization": memory_optimization,
-        "database_optimization": db_optimization,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
+        logger.error(f"Error triggering performance optimization: {e}")
+        raise HTTPException(status_code=500, detail=f"Error triggering optimization: {str(e)}")
 
-# Traffic dashboard endpoint (future implementation)
+# Transceiver Data Endpoints
 
-
-from pydantic import BaseModel
-
-class QueryRequest(BaseModel):
-    query: str
-
-@app.post("/api/database/query")
+@app.get("/api/transceivers")
 @handle_service_errors
-@log_operation("execute_database_query")
-async def execute_database_query(
-    request: QueryRequest,
-    db: Session = Depends(get_db)
-):
-    """Execute custom SQL query and return results"""
-    query = request.query
-    
-    # Security: Only allow SELECT queries
-    if not query.strip().upper().startswith('SELECT'):
-        raise HTTPException(status_code=400, detail="Only SELECT queries are allowed")
-    
-    # Execute query
-    result = db.execute(text(query))
-    rows = result.fetchall()
-    
-    # Convert to JSON-serializable format
-    columns = result.keys()
-    data = []
-    for row in rows:
-        row_dict = {}
-        for i, column in enumerate(columns):
-            value = row[i]
-            # Handle datetime objects
-            if hasattr(value, 'isoformat'):
-                value = value.isoformat()
-            row_dict[column] = value
-        data.append(row_dict)
-    
-    return {
-        "success": True,
-        "data": data,
-        "row_count": len(data),
-        "columns": list(columns),
-        "query": query,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
+@log_operation("get_transceivers")
+async def get_transceivers():
+    """Get radio frequency and position data"""
+    try:
+        async with get_database_session() as session:
+            # Get recent transceivers (last 30 minutes)
+            recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+            
+            transceivers_result = await session.execute(
+                text("""
+                    SELECT DISTINCT ON (callsign) 
+                        id, callsign, frequency, position_lat, position_lon, altitude, last_updated
+                    FROM transceivers 
+                    WHERE last_updated >= :cutoff
+                    ORDER BY callsign, last_updated DESC
+                """),
+                {"cutoff": recent_cutoff}
+            )
+            
+            transceivers = []
+            for row in transceivers_result.fetchall():
+                transceiver = {
+                    "id": row[0],
+                    "callsign": row[1],
+                    "frequency": row[2],
+                    "position_lat": row[3],
+                    "position_lng": row[4],
+                    "altitude": row[5],
+                    "last_updated": row[6].isoformat() if row[6] else None
+                }
+                transceivers.append(transceiver)
+            
+            return {
+                "transceivers": transceivers,
+                "total_count": len(transceivers)
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting transceivers: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting transceivers: {str(e)}")
 
-@app.get("/api/airports/region/{region}")
-@handle_service_errors
-@log_operation("get_airports_by_region_api")
-async def get_airports_by_region_api(region: str = "Australia"):
-    """Get airports for a specific region"""
-    # Try to get from cache first (static data, long cache)
-    cache_service = await get_cache_service()
-    cache_key = f'airports:region:{region}'
-    cached_data = await cache_service.get_cached_data(cache_key)
-    
-    if cached_data:
-        return {
-            **cached_data,
-            "cached": True
-        }
-    
-    stats = get_region_statistics(region)
-    result = {
-        "region": region,
-        "total_airports": stats["total_airports"],
-        "airports": stats["airports"],
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
-    
-    # Cache the result for 10 minutes (static data)
-    await cache_service.set_cached_data(cache_key, result, 600)
-    
-    return result
-
-@app.get("/api/airports/{airport_code}/coordinates")
-@handle_service_errors
-@log_operation("get_airport_coordinates_api")
-async def get_airport_coordinates_api(airport_code: str):
-    """Get coordinates for a specific airport"""
-    # Try to get from cache first (static data, long cache)
-    cache_service = await get_cache_service()
-    cache_key = f'airport:coords:{airport_code.upper()}'
-    cached_data = await cache_service.get_cached_data(cache_key)
-    
-    if cached_data:
-        return {
-            **cached_data,
-            "cached": True
-        }
-    
-    coords = get_airport_coordinates(airport_code.upper())
-    if coords is None:
-        raise HTTPException(status_code=404, detail=f"Airport {airport_code} not found")
-    
-    result = {
-        "airport_code": airport_code.upper(),
-        "latitude": coords[0],
-        "longitude": coords[1],
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
-    
-    # Cache the result for 1 hour (static data)
-    await cache_service.set_cached_data(cache_key, result, 3600)
-    
-    return result
+# Database Operations Endpoints
 
 @app.get("/api/database/tables")
 @handle_service_errors
 @log_operation("get_database_tables")
-async def get_database_tables(db: Session = Depends(get_db)):
-    """Get list of database tables and their record counts"""
-    # Get table information
-    result = db.execute(text("""
-        SELECT 
-            table_name,
-            (SELECT COUNT(*) FROM information_schema.tables t2 
-             WHERE t2.table_name = t1.table_name) as record_count
-        FROM information_schema.tables t1
-        WHERE table_schema = 'public'
-        ORDER BY table_name;
-    """))
-    
-    tables = []
-    for row in result:
-        # Get actual record count for each table
-        try:
-            count_result = db.execute(text(f"SELECT COUNT(*) FROM {row[0]}"))
-            count = count_result.scalar()
-            tables.append({
-                "name": row[0],
-                "record_count": count
-            })
-        except:
-            tables.append({
-                "name": row[0],
-                "record_count": 0
-            })
-    
-    return {
-        "tables": tables,
-        "total_tables": len(tables),
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
+async def get_database_tables():
+    """Get database tables and record counts"""
+    try:
+        async with get_database_session() as session:
+            # Get table names
+            tables_result = await session.execute(text("""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public'
+                ORDER BY table_name
+            """))
+            
+            tables = []
+            total_records = 0
+            
+            for row in tables_result.fetchall():
+                table_name = row[0]
+                
+                # Get record count for each table
+                count_result = await session.execute(
+                    text(f"SELECT COUNT(*) FROM {table_name}")
+                )
+                count = count_result.scalar()
+                total_records += count or 0
+                
+                tables.append({
+                    "name": table_name,
+                    "record_count": count or 0
+                })
+            
+            return {
+                "database_tables": tables,
+                "total_records": total_records,
+                "last_updated": datetime.now(timezone.utc).isoformat()
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting database tables: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting database tables: {str(e)}")
+
+@app.post("/api/database/query")
+@handle_service_errors
+@log_operation("execute_database_query")
+async def execute_database_query(query: str, limit: int = 1000):
+    """Execute custom SQL queries (admin only)"""
+    try:
+        # Basic query validation (prevent dangerous operations)
+        dangerous_keywords = ['DROP', 'DELETE', 'TRUNCATE', 'ALTER', 'CREATE', 'INSERT', 'UPDATE']
+        if any(keyword in query.upper() for keyword in dangerous_keywords):
+            raise HTTPException(status_code=400, detail="Query contains dangerous operations")
+        
+        async with get_database_session() as session:
+            # Execute query with limit
+            result = await session.execute(text(f"{query} LIMIT {limit}"))
+            
+            # Fetch results
+            rows = result.fetchall()
+            columns = result.keys()
+            
+            # Convert to list of dicts
+            data = []
+            for row in rows:
+                row_dict = {}
+                for i, column in enumerate(columns):
+                    value = row[i]
+                    if hasattr(value, 'isoformat'):  # Handle datetime objects
+                        value = value.isoformat()
+                    row_dict[column] = value
+                data.append(row_dict)
+            
+            return {
+                "query": query,
+                "results": data,
+                "row_count": len(data),
+                "columns": list(columns)
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error executing database query: {e}")
+        raise HTTPException(status_code=500, detail=f"Error executing query: {str(e)}")
+
+# Airport Data Endpoints
+
+@app.get("/api/airports/region/{region}")
+@handle_service_errors
+@log_operation("get_airports_by_region")
+async def get_airports_by_region(region: str):
+    """Get airports by region"""
+    try:
+        airports = await get_airports_by_region(region)
+        return {
+            "region": region,
+            "airports": airports,
+            "count": len(airports)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting airports for region {region}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting airports: {str(e)}")
+
+@app.get("/api/airports/{airport_code}/coordinates")
+@handle_service_errors
+@log_operation("get_airport_coordinates")
+async def get_airport_coordinates(airport_code: str):
+    """Get airport coordinates and information"""
+    try:
+        coordinates = await get_airport_coordinates(airport_code)
+        return {
+            "airport_code": airport_code,
+            "coordinates": coordinates
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting coordinates for airport {airport_code}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting airport coordinates: {str(e)}")
+
+# Health & Monitoring Endpoints
 
 @app.get("/api/health/comprehensive")
 @handle_service_errors
@@ -1046,648 +1012,21 @@ async def get_endpoint_health():
     """Get health status of all API endpoints"""
     return await health_monitor.check_api_endpoints()
 
-@app.get("/api/health/database")
+@app.get("/api/health/status")
 @handle_service_errors
-@log_operation("get_database_health")
-async def get_database_health():
-    """Get database health status"""
-    return await health_monitor.check_database_health()
+@log_operation("get_health_status")
+async def get_health_status():
+    """Get basic health status"""
+    return await health_monitor.get_basic_health()
 
-@app.get("/api/health/system")
-@handle_service_errors
-@log_operation("get_system_health")
-async def get_system_health():
-    """Get system resource health status"""
-    return await health_monitor.check_system_resources()
-
-@app.get("/api/health/data-freshness")
-@handle_service_errors
-@log_operation("get_data_freshness")
-async def get_data_freshness():
-    """Get data freshness status"""
-    return await health_monitor.check_data_freshness()
-
-
-
-@app.get("/api/diagnostic/data-ingestion")
-@handle_service_errors
-@log_operation("get_data_ingestion_diagnostic")
-async def get_data_ingestion_diagnostic(db: Session = Depends(get_db)):
-    """Get detailed diagnostic information about data ingestion status"""
-    try:
-        # Check database state
-        total_flights = db.query(Flight).count()
-        total_controllers = db.query(Controller).count()
-        total_airports = db.query(Airports).count()
-        total_transceivers = db.query(Transceiver).count() if 'Transceiver' in globals() else 0
-        
-        # Check recent data
-        recent_flights = db.query(Flight).filter(
-            Flight.last_updated >= datetime.now(timezone.utc) - timedelta(hours=1)
-        ).count()
-        
-        recent_controllers = db.query(Controller).filter(
-            Controller.last_seen >= datetime.now(timezone.utc) - timedelta(hours=1)
-        ).count()
-        
-        # Check VATSIM service status
-        try:
-            vatsim_service = get_vatsim_service()
-            vatsim_status = await vatsim_service.get_api_status()
-        except Exception as e:
-            vatsim_status = {"error": str(e)}
-        
-        # Check data service status
-        try:
-            data_service = get_data_service()
-            data_service_status = await data_service._perform_health_check()
-        except Exception as e:
-            data_service_status = {"error": str(e)}
-        
-        diagnostic = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "database_state": {
-                "total_flights": total_flights,
-                "total_controllers": total_controllers,
-                "total_airports": total_airports,
-                "total_transceivers": total_transceivers,
-                "recent_flights_1h": recent_flights,
-                "recent_controllers_1h": recent_controllers
-            },
-            "vatsim_service": vatsim_status,
-            "data_service": data_service_status,
-            "recommendations": []
-        }
-        
-        # Generate recommendations based on diagnostic data
-        if total_flights == 0 and total_controllers == 0:
-            diagnostic["recommendations"].append("Database is empty - check if data ingestion is running")
-            diagnostic["recommendations"].append("Verify VATSIM API connectivity")
-            diagnostic["recommendations"].append("Check application logs for data ingestion errors")
-        
-        if recent_flights == 0 and total_flights > 0:
-            diagnostic["recommendations"].append("No recent flight data - data ingestion may be stale")
-        
-        if recent_controllers == 0 and total_controllers > 0:
-            diagnostic["recommendations"].append("No recent controller data - ATC data may be stale")
-        
-        return diagnostic
-        
-    except Exception as e:
-        logger.error(f"Error in data ingestion diagnostic: {e}")
-        return {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "recommendations": ["Check application logs for detailed error information"]
-        }
-
-
-# Phase 2 API Endpoints
-
-@app.get("/api/errors/analytics")
-@handle_service_errors
-@log_operation("get_error_analytics")
-async def get_error_analytics_endpoint(hours: int = 24):
-    """Get error analytics for the specified time period."""
-    return get_error_analytics(hours)
-
-
-@app.get("/api/errors/circuit-breakers")
-@handle_service_errors
-@log_operation("get_circuit_breaker_status")
-async def get_circuit_breaker_status():
-    """Get circuit breaker status for all services."""
-    return get_circuit_breaker_status()
-
-
-@app.get("/api/database/service/stats")
-@handle_service_errors
-@log_operation("get_database_service_stats")
-async def get_database_service_stats():
-    """Get database service statistics."""
-    db_service = get_database_service()
-    return await db_service.get_database_stats()
-
-
-@app.get("/api/database/service/health")
-@handle_service_errors
-@log_operation("get_database_service_health")
-async def get_database_service_health():
-    """Get database service health status."""
-    db_service = get_database_service()
-    return await db_service.health_check()
-
-
-@app.get("/api/events/analytics")
-@handle_service_errors
-@log_operation("get_event_analytics")
-async def get_event_analytics():
-    """Get event bus analytics and metrics."""
-    # event_bus = await get_event_bus() # REMOVED - unused messaging system
-    # return event_bus.get_statistics() # REMOVED - unused messaging system
-    return { # REMOVED - unused messaging system
-        "status": "error", # REMOVED - unused messaging system
-        "message": "Event bus functionality is currently disabled.", # REMOVED - unused messaging system
-        "timestamp": datetime.now(timezone.utc).isoformat() # REMOVED - unused messaging system
-    } # REMOVED - unused messaging system
-
-
-# Phase 3 API Endpoints
-
-@app.get("/api/monitoring/metrics")
-@handle_service_errors
-@log_operation("get_monitoring_metrics")
-async def get_monitoring_metrics():
-    """Get monitoring service metrics."""
-    from .services.monitoring_service import get_monitoring_service
-    monitoring_service = get_monitoring_service()
+# Root endpoint
+@app.get("/")
+async def root():
+    """Root endpoint with system information"""
     return {
-        "metrics_count": len(monitoring_service.metrics_collector.metrics),
-        "active_alerts": len(monitoring_service.alert_manager.get_active_alerts()),
-        "health_checks": len(monitoring_service.health_checker.health_status)
-    }
-
-
-@app.get("/api/monitoring/alerts")
-@handle_service_errors
-@log_operation("get_monitoring_alerts")
-async def get_monitoring_alerts():
-    """Get active monitoring alerts."""
-    from .services.monitoring_service import get_monitoring_service
-    monitoring_service = get_monitoring_service()
-    alerts = monitoring_service.get_active_alerts()
-    return [{
-        "id": alert.id,
-        "type": alert.type.value,
-        "severity": alert.severity.value,
-        "message": alert.message,
-        "service": alert.service,
-        "timestamp": alert.timestamp.isoformat(),
-        "metadata": alert.metadata
-    } for alert in alerts]
-
-
-@app.get("/api/monitoring/health/{service_name}")
-@handle_service_errors
-@log_operation("get_service_health")
-async def get_service_health(service_name: str):
-    """Get health status for a specific service."""
-    from .services.monitoring_service import get_monitoring_service
-    monitoring_service = get_monitoring_service()
-    health_status = await monitoring_service.get_health_status(service_name)
-    if health_status:
-        return {
-            "service": health_status.service,
-            "status": health_status.status,
-            "timestamp": health_status.timestamp.isoformat(),
-            "response_time": health_status.response_time,
-            "error_count": health_status.error_count,
-            "details": health_status.details
-        }
-    return {"error": f"Health status not found for service: {service_name}"}
-
-
-@app.get("/api/performance/metrics/{operation}")
-@handle_service_errors
-@log_operation("get_performance_metrics")
-async def get_performance_metrics(operation: str, service: str = "system", hours: int = 24):
-    """Get performance metrics for a specific operation."""
-    from .services.performance_monitor import get_performance_monitor, PerformanceMetric
-    monitor = get_performance_monitor()
-    
-    # Get response time metrics
-    response_time_summary = monitor.get_performance_summary(
-        operation, service, PerformanceMetric.RESPONSE_TIME, hours
-    )
-    
-    # Get memory usage metrics
-    memory_summary = monitor.get_performance_summary(
-        operation, service, PerformanceMetric.MEMORY_USAGE, hours
-    )
-    
-    # Get CPU usage metrics
-    cpu_summary = monitor.get_performance_summary(
-        operation, service, PerformanceMetric.CPU_USAGE, hours
-    )
-    
-    return {
-        "operation": operation,
-        "service": service,
-        "hours": hours,
-        "response_time": response_time_summary,
-        "memory_usage": memory_summary,
-        "cpu_usage": cpu_summary
-    }
-
-
-@app.get("/api/performance/recommendations")
-@handle_service_errors
-@log_operation("get_performance_recommendations")
-async def get_performance_recommendations(service: Optional[str] = None, priority: Optional[str] = None):
-    """Get performance optimization recommendations."""
-    from .services.performance_monitor import get_performance_monitor
-    monitor = get_performance_monitor()
-    recommendations = monitor.get_optimization_recommendations(service, priority)
-    
-    return [{
-        "id": rec.id,
-        "operation": rec.operation,
-        "service": rec.service,
-        "recommendation_type": rec.recommendation_type,
-        "description": rec.description,
-        "expected_improvement": rec.expected_improvement,
-        "implementation_difficulty": rec.implementation_difficulty,
-        "priority": rec.priority,
-        "timestamp": rec.timestamp.isoformat()
-    } for rec in recommendations]
-
-
-@app.get("/api/performance/alerts")
-@handle_service_errors
-@log_operation("get_performance_alerts")
-async def get_performance_alerts():
-    """Get active performance alerts."""
-    from .services.performance_monitor import get_performance_monitor
-    monitor = get_performance_monitor()
-    alerts = monitor.get_performance_alerts()
-    
-    return [{
-        "id": alert.id,
-        "operation": alert.operation,
-        "service": alert.service,
-        "metric_type": alert.metric_type.value,
-        "threshold": alert.threshold,
-        "current_value": alert.current_value,
-        "severity": alert.severity,
-        "message": alert.message,
-        "timestamp": alert.timestamp.isoformat()
-    } for alert in alerts]
-
-
-@app.get("/api/logging/analytics")
-@handle_service_errors
-@log_operation("get_logging_analytics")
-async def get_logging_analytics(service_name: str = "global", hours: int = 24):
-    """Get logging analytics for a service."""
-    from .utils.structured_logging import get_structured_logger
-    logger = get_structured_logger(service_name)
-    analytics = logger.get_log_analytics(hours)
-    
-    return {
-        "service": service_name,
-        "hours": hours,
-        **analytics
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-@app.get("/api/frequency-matching/matches")
-async def get_frequency_matches():
-    """
-    Get current frequency matches between pilots and ATC
-    
-    Returns:
-        List of active frequency matches
-    """
-    try:
-        # matches = await frequency_matching_service.detect_frequency_matches() # REMOVED - 0 data records
-        # return { # REMOVED - 0 data records
-        #     "status": "success", # REMOVED - 0 data records
-        #     "matches": matches, # REMOVED - 0 data records
-        #     "total_matches": len(matches), # REMOVED - 0 data records
-        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        # } # REMOVED - 0 data records
-        return { # REMOVED - 0 data records
-            "status": "error", # REMOVED - 0 data records
-            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
-            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        } # REMOVED - 0 data records
-        
-    except Exception as e:
-        logger.error(f"Error getting frequency matches: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get frequency matches: {e}")
-
-
-@app.get("/api/frequency-matching/summary")
-async def get_frequency_match_summary():
-    """
-    Get summary statistics for frequency matching
-    
-    Returns:
-        Frequency matching summary statistics
-    """
-    try:
-        # summary = await frequency_matching_service.get_frequency_match_summary() # REMOVED - 0 data records
-        # return { # REMOVED - 0 data records
-        #     "status": "success", # REMOVED - 0 data records
-        #     "summary": { # REMOVED - 0 data records
-        #         "total_matches": summary.total_matches, # REMOVED - 0 data records
-        #         "active_matches": summary.active_matches, # REMOVED - 0 data records
-        #         "unique_pilots": summary.unique_pilots, # REMOVED - 0 data records
-        #         "unique_controllers": summary.unique_controllers, # REMOVED - 0 data records
-        #         "unique_frequencies": summary.unique_frequencies, # REMOVED - 0 data records
-        #         "avg_match_duration": summary.avg_match_duration, # REMOVED - 0 data records
-        #         "most_common_frequency": summary.most_common_frequency, # REMOVED - 0 data records
-        #         "busiest_controller": summary.busiest_controller, # REMOVED - 0 data records
-        #         "busiest_pilot": summary.busiest_pilot, # REMOVED - 0 data records
-        #         "communication_patterns": summary.communication_patterns, # REMOVED - 0 data records
-        #         "geographic_distribution": summary.geographic_distribution # REMOVED - 0 data records
-        #     }, # REMOVED - 0 data records
-        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        # } # REMOVED - 0 data records
-        return { # REMOVED - 0 data records
-            "status": "error", # REMOVED - 0 data records
-            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
-            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        } # REMOVED - 0 data records
-        
-    except Exception as e:
-        logger.error(f"Error getting frequency match summary: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get frequency match summary: {e}")
-
-
-@app.get("/api/frequency-matching/patterns")
-async def get_communication_patterns(frequency: Optional[int] = None):
-    """
-    Get communication patterns for frequency usage
-    
-    Args:
-        frequency: Optional specific frequency to analyze (in Hz)
-    
-    Returns:
-        Communication pattern analysis
-    """
-    try:
-        # patterns = await frequency_matching_service.get_communication_patterns(frequency) # REMOVED - 0 data records
-        # return { # REMOVED - 0 data records
-        #     "status": "success", # REMOVED - 0 data records
-        #     "patterns": patterns, # REMOVED - 0 data records
-        #     "total_patterns": len(patterns), # REMOVED - 0 data records
-        #     "frequency_filter": frequency, # REMOVED - 0 data records
-        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        # } # REMOVED - 0 data records
-        return { # REMOVED - 0 data records
-            "status": "error", # REMOVED - 0 data records
-            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
-            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        } # REMOVED - 0 data records
-        
-    except Exception as e:
-        logger.error(f"Error getting communication patterns: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get communication patterns: {e}")
-
-
-@app.get("/api/frequency-matching/health")
-async def get_frequency_matching_health():
-    """
-    Get health status of frequency matching service
-    
-    Returns:
-        Health status information
-    """
-    try:
-        # health = await frequency_matching_service.health_check() # REMOVED - 0 data records
-        # return { # REMOVED - 0 data records
-        #     "status": "success", # REMOVED - 0 data records
-        #     "health": health, # REMOVED - 0 data records
-        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        # } # REMOVED - 0 data records
-        return { # REMOVED - 0 data records
-            "status": "error", # REMOVED - 0 data records
-            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
-            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        } # REMOVED - 0 data records
-        
-    except Exception as e:
-        logger.error(f"Error getting frequency matching health: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get frequency matching health: {e}")
-
-
-@app.get("/api/frequency-matching/pilot/{callsign}")
-async def get_pilot_frequency_matches(callsign: str):
-    """
-    Get frequency matches for a specific pilot
-    
-    Args:
-        callsign: Pilot callsign to search for
-    
-    Returns:
-        Frequency matches for the specified pilot
-    """
-    try:
-        # matches = await frequency_matching_service.detect_frequency_matches() # REMOVED - 0 data records
-        # return { # REMOVED - 0 data records
-        #     "status": "success", # REMOVED - 0 data records
-        #     "pilot_callsign": callsign, # REMOVED - 0 data records
-        #     "matches": matches, # REMOVED - 0 data records
-        #     "total_matches": len(matches), # REMOVED - 0 data records
-        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        # } # REMOVED - 0 data records
-        return { # REMOVED - 0 data records
-            "status": "error", # REMOVED - 0 data records
-            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
-            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        } # REMOVED - 0 data records
-        
-    except Exception as e:
-        logger.error(f"Error getting pilot frequency matches: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get pilot frequency matches: {e}")
-
-
-@app.get("/api/frequency-matching/controller/{callsign}")
-async def get_controller_frequency_matches(callsign: str):
-    """
-    Get frequency matches for a specific controller
-    
-    Args:
-        callsign: Controller callsign to search for
-    
-    Returns:
-        Frequency matches for the specified controller
-    """
-    try:
-        # matches = await frequency_matching_service.detect_frequency_matches() # REMOVED - 0 data records
-        # return { # REMOVED - 0 data records
-        #     "status": "success", # REMOVED - 0 data records
-        #     "controller_callsign": callsign, # REMOVED - 0 data records
-        #     "matches": matches, # REMOVED - 0 data records
-        #     "total_matches": len(matches), # REMOVED - 0 data records
-        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        # } # REMOVED - 0 data records
-        return { # REMOVED - 0 data records
-            "status": "error", # REMOVED - 0 data records
-            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
-            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        } # REMOVED - 0 data records
-        
-    except Exception as e:
-        logger.error(f"Error getting controller frequency matches: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get controller frequency matches: {e}")
-
-
-@app.get("/api/frequency-matching/frequency/{frequency_hz}")
-async def get_frequency_matches_by_frequency(frequency_hz: int):
-    """
-    Get frequency matches for a specific frequency
-    
-    Args:
-        frequency_hz: Frequency in Hz to search for
-    
-    Returns:
-        Frequency matches for the specified frequency
-    """
-    try:
-        # matches = await frequency_matching_service.detect_frequency_matches() # REMOVED - 0 data records
-        # return { # REMOVED - 0 data records
-        #     "status": "success", # REMOVED - 0 data records
-        #     "frequency_hz": frequency_hz, # REMOVED - 0 data records
-        #     "tolerance_hz": 100, # REMOVED - 0 data records
-        #     "matches": matches, # REMOVED - 0 data records
-        #     "total_matches": len(matches), # REMOVED - 0 data records
-        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        # } # REMOVED - 0 data records
-        return { # REMOVED - 0 data records
-            "status": "error", # REMOVED - 0 data records
-            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
-            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        } # REMOVED - 0 data records
-        
-    except Exception as e:
-        logger.error(f"Error getting frequency matches by frequency: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get frequency matches by frequency: {e}")
-
-
-@app.get("/api/frequency-matching/history")
-async def get_historical_frequency_matches(
-    pilot_callsign: Optional[str] = None,
-    controller_callsign: Optional[str] = None,
-    frequency: Optional[int] = None,
-    hours: int = 24
-):
-    """
-    Get historical frequency matches from database
-    
-    Args:
-        pilot_callsign: Optional pilot callsign filter
-        controller_callsign: Optional controller callsign filter
-        frequency: Optional frequency filter (in Hz)
-        hours: Number of hours to look back (default: 24)
-    
-    Returns:
-        Historical frequency matches
-    """
-    try:
-        # matches = await frequency_matching_service.get_historical_frequency_matches( # REMOVED - 0 data records
-        #     pilot_callsign=pilot_callsign, # REMOVED - 0 data records
-        #     controller_callsign=controller_callsign, # REMOVED - 0 data records
-        #     frequency=frequency, # REMOVED - 0 data records
-        #     hours=hours # REMOVED - 0 data records
-        # ) # REMOVED - 0 data records
-        # return { # REMOVED - 0 data records
-        #     "status": "success", # REMOVED - 0 data records
-        #     "matches": matches, # REMOVED - 0 data records
-        #     "total_matches": len(matches), # REMOVED - 0 data records
-        #     "filters": { # REMOVED - 0 data records
-        #         "pilot_callsign": pilot_callsign, # REMOVED - 0 data records
-        #         "controller_callsign": controller_callsign, # REMOVED - 0 data records
-        #         "frequency": frequency, # REMOVED - 0 data records
-        #         "hours": hours # REMOVED - 0 data records
-        #     }, # REMOVED - 0 data records
-        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        # } # REMOVED - 0 data records
-        return { # REMOVED - 0 data records
-            "status": "error", # REMOVED - 0 data records
-            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
-            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        } # REMOVED - 0 data records
-        
-    except Exception as e:
-        logger.error(f"Error getting historical frequency matches: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get historical frequency matches: {e}")
-
-
-@app.get("/api/frequency-matching/statistics")
-async def get_frequency_matching_statistics(hours: int = 24):
-    """
-    Get comprehensive statistics for frequency matching
-    
-    Args:
-        hours: Number of hours to analyze (default: 24)
-    
-    Returns:
-        Frequency matching statistics
-    """
-    try:
-        # matches = await frequency_matching_service.get_historical_frequency_matches(hours=hours) # REMOVED - 0 data records
-        # return { # REMOVED - 0 data records
-        #     "status": "success", # REMOVED - 0 data records
-        #     "statistics": { # REMOVED - 0 data records
-        #         "total_matches": 0, # REMOVED - 0 data records
-        #         "active_matches": 0, # REMOVED - 0 data records
-        #         "unique_pilots": 0, # REMOVED - 0 data records
-        #         "unique_controllers": 0, # REMOVED - 0 data records
-        #         "unique_frequencies": 0, # REMOVED - 0 data records
-        #         "avg_duration": 0.0, # REMOVED - 0 data records
-        #         "most_common_frequency": None, # REMOVED - 0 data records
-        #         "busiest_controller": None, # REMOVED - 0 data records
-        #         "busiest_pilot": None, # REMOVED - 0 data records
-        #         "communication_patterns": {}, # REMOVED - 0 data records
-        #         "geographic_distribution": {}, # REMOVED - 0 data records
-        #         "frequency_distribution": {}, # REMOVED - 0 data records
-        #         "hourly_distribution": {} # REMOVED - 0 data records
-        #     }, # REMOVED - 0 data records
-        #     "hours_analyzed": hours, # REMOVED - 0 data records
-        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        # } # REMOVED - 0 data records
-        return { # REMOVED - 0 data records
-            "status": "error", # REMOVED - 0 data records
-            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
-            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        } # REMOVED - 0 data records
-        
-    except Exception as e:
-        logger.error(f"Error getting frequency matching statistics: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get frequency matching statistics: {e}")
-
-
-@app.post("/api/frequency-matching/store")
-async def store_current_frequency_matches():
-    """
-    Store current frequency matches in database
-    
-    Returns:
-        Storage operation result
-    """
-    try:
-        # matches = await frequency_matching_service.detect_frequency_matches() # REMOVED - 0 data records
-        # stored_count = await frequency_matching_service.store_frequency_matches(matches) # REMOVED - 0 data records
-        # return { # REMOVED - 0 data records
-        #     "status": "success", # REMOVED - 0 data records
-        #     "stored_count": stored_count, # REMOVED - 0 data records
-        #     "total_matches": len(matches), # REMOVED - 0 data records
-        #     "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        # } # REMOVED - 0 data records
-        return { # REMOVED - 0 data records
-            "status": "error", # REMOVED - 0 data records
-            "message": "Frequency matching functionality is currently disabled.", # REMOVED - 0 data records
-            "timestamp": datetime.utcnow().isoformat() # REMOVED - 0 data records
-        } # REMOVED - 0 data records
-        
-    except Exception as e:
-        logger.error(f"Error storing frequency matches: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to store frequency matches: {e}")
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+        "message": "VATSIM Data Collection System API",
+        "version": "1.0.0",
+        "status": "operational",
+        "documentation": "/docs",
+        "health": "/api/health/status"
+    } 

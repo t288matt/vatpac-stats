@@ -2,132 +2,69 @@
 """
 Data Service for VATSIM Data Collection System
 
-This service handles the core data ingestion, processing, and storage operations
-for the VATSIM data collection system. It coordinates between VATSIM API data
-fetching, data filtering, and database storage with SSD wear optimization.
+This module provides the core data processing and storage functionality
+for the VATSIM data collection system.
 
 INPUTS:
-- VATSIM API data (controllers, flights, transceivers)
-- Flight filter configurations
-- Geographic boundary filter settings
-- Database connection and session management
+- VATSIM API data from VATSIM service
+- Configuration settings
+- Database connection
 
 OUTPUTS:
-- Processed and filtered flight data
-- ATC position data with validation
-- Transceiver frequency data
-- Network status and statistics
-- Memory-optimized data caching
-
-FEATURES:
-- SSD wear optimization through batch writing
-- Memory-efficient data processing
-- Real-time data filtering and validation
-- Automatic data persistence scheduling
-- Health monitoring and error handling
+- Processed and stored flight data
+- Processed and stored ATC position data
+- Processed and stored transceiver data
+- System health and status information
 """
 
 import os
 import time
-import asyncio
-import logging
 from typing import Dict, Any, List, Optional
-from collections import defaultdict
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
-from ..config import get_config
 from ..utils.logging import get_logger_for_module
 from ..utils.error_handling import handle_service_errors, log_operation
-from ..database import SessionLocal
-from ..models import Flight, Controller, Transceiver
-from .vatsim_service import VATSIMService
-from .database_service import get_database_service
+from ..services.vatsim_service import VATSIMService
 from ..filters.flight_filter import FlightFilter
 from ..filters.geographic_boundary_filter import GeographicBoundaryFilter
-from sqlalchemy.dialects.postgresql import insert as postgresql_insert
-
-
-class BoundedCache:
-    """Bounded cache with LRU eviction to prevent memory leaks."""
-    
-    def __init__(self, max_size: int = 10000):
-        self.max_size = max_size
-        self.cache = {}
-        self.access_times = {}
-        self.access_counter = 0
-    
-    def set(self, key: str, value: Any) -> None:
-        """Set a value in the cache with LRU eviction."""
-        if len(self.cache) >= self.max_size:
-            # Evict least recently used
-            oldest_key = min(self.access_times, key=self.access_times.get)
-            del self.cache[oldest_key]
-            del self.access_times[oldest_key]
-        
-        self.cache[key] = value
-        self.access_times[key] = self.access_counter
-        self.access_counter += 1
-    
-    def get(self, key: str) -> Optional[Any]:
-        """Get a value from the cache and update access time."""
-        if key in self.cache:
-            self.access_times[key] = self.access_counter
-            self.access_counter += 1
-            return self.cache[key]
-        return None
-    
-    def has_key(self, key: str) -> bool:
-        """Check if key exists in cache."""
-        return key in self.cache
-    
-    def clear(self) -> None:
-        """Clear all cache entries."""
-        self.cache.clear()
-        self.access_times.clear()
-    
-    def size(self) -> int:
-        """Get current cache size."""
-        return len(self.cache)
-    
-    def keys(self):
-        """Get all cache keys."""
-        return list(self.cache.keys())
-    
-    def items(self):
-        """Get all cache items."""
-        return list(self.cache.items())
-
+from ..config_package.vatsim import VATSIMConfig
+from ..database import get_database_session
+from ..models import Flight, Controller, Transceiver
 
 class DataService:
+    """Data service for processing and storing VATSIM data"""
+    
     def __init__(self):
         self.service_name = "data_service"
-        self.config = get_config()
         self.logger = get_logger_for_module(f"services.{self.service_name}")
         self._initialized = False
         
+        # Initialize configuration
+        self.vatsim_config = VATSIMConfig.load_from_env()
+        
+        # Initialize VATSIM service
         self.vatsim_service = VATSIMService()
-        # REMOVED: Traffic Analysis Service - Phase 2
         
         # Initialize both filters independently
         self.flight_filter = FlightFilter()
         self.geographic_boundary_filter = GeographicBoundaryFilter()
         
         # Get intervals from configuration system
-        self.vatsim_polling_interval = self.config.vatsim.polling_interval
-        self.vatsim_write_interval = self.config.vatsim.write_interval  # Uses config with 10-minute fallback
+        self.vatsim_polling_interval = self.vatsim_config.polling_interval
+        # Use the configured write interval from docker-compose.yml (30 seconds)
+        self.vatsim_write_interval = self.vatsim_config.write_interval
         
         # Log the configured intervals and filter status
         self.logger.info(f"Data service configured with polling interval: {self.vatsim_polling_interval}s, write interval: {self.vatsim_write_interval}s")
         self.logger.info(f"Flight filters initialized - Airport filter: {self.flight_filter.config.enabled}, Geographic filter: {self.geographic_boundary_filter.config.enabled}")
         
-        # Use bounded caches to prevent memory leaks
-        max_cache_size = int(os.getenv('CACHE_MAX_SIZE', 10000))
-        self.cache = {
-            'flights': BoundedCache(max_cache_size),
-            'atc_positions': BoundedCache(max_cache_size),
+        # Simple memory buffer for batching writes
+        self.memory_buffer = {
+            'flights': [],
+            'atc_positions': [],
+            'transceivers': [],
             'last_write': 0,
-            'write_interval': self.vatsim_write_interval,
-            'memory_buffer': defaultdict(list)
+            'write_interval': self.vatsim_write_interval
         }
         self.write_count = 0
     
@@ -154,17 +91,22 @@ class DataService:
             # Check VATSIM service
             vatsim_health = await self.vatsim_service.health_check()
             
-            # Check cache status
-            cache_status = {
-                'flights_count': self.cache['flights'].size(),
-                'atc_positions_count': self.cache['atc_positions'].size(),
-                'memory_buffer_size': len(self.cache['memory_buffer']),
-                'cache_max_size': self.cache['flights'].max_size
+            # Check memory buffer status
+            buffer_status = {
+                'flights_count': len(self.memory_buffer['flights']),
+                'atc_positions_count': len(self.memory_buffer['atc_positions']),
+                'transceivers_count': len(self.memory_buffer['transceivers']),
+                'memory_buffer_size': sum([
+                    len(self.memory_buffer['flights']),
+                    len(self.memory_buffer['atc_positions']),
+                    len(self.memory_buffer['transceivers'])
+                ]),
+                'write_interval': self.memory_buffer['write_interval']
             }
             
             return {
                 'vatsim_service': vatsim_health,
-                'cache_status': cache_status,
+                'buffer_status': buffer_status,
                 'write_count': self.write_count
             }
         except Exception as e:
@@ -173,10 +115,10 @@ class DataService:
     
     async def cleanup(self):
         """Cleanup data service resources."""
-        # Clear memory cache
-        self.cache['flights'].clear()
-        self.cache['atc_positions'].clear()
-        self.cache['memory_buffer'].clear()
+        # Clear memory buffer
+        self.memory_buffer['flights'].clear()
+        self.memory_buffer['atc_positions'].clear()
+        self.memory_buffer['transceivers'].clear()
         
         self.logger.info("Data service cleanup completed")
     
@@ -184,94 +126,104 @@ class DataService:
         """Start the data ingestion process with SSD wear optimization"""
         self.logger.info("Starting data ingestion process with SSD wear optimization")
         
-        while True:
-            try:
-                # Fetch VATSIM data
-                vatsim_data = await self.vatsim_service.get_current_data()
+        try:
+            # Fetch VATSIM data
+            self.logger.info("Fetching VATSIM data...")
+            vatsim_data = await self.vatsim_service.get_current_data()
+            
+            if vatsim_data:
+                self.logger.info(f"Received VATSIM data: {len(vatsim_data.flights) if hasattr(vatsim_data, 'flights') else 0} flights, {len(vatsim_data.controllers) if hasattr(vatsim_data, 'controllers') else 0} controllers")
                 
-                if vatsim_data:
-                    # Process data in memory first
-                    await self._process_data_in_memory(vatsim_data)
-                    
-                    # Only write to disk periodically to reduce SSD wear
-                    current_time = time.time()
-                    if current_time - self.cache['last_write'] >= self.cache['write_interval']:
-                        await self._flush_memory_to_disk()
-                        self.cache['last_write'] = current_time
-                        self.logger.info(f"Flushed memory cache to disk. Write count: {self.write_count}")
-                    
-                    # Wait before next
-                    await asyncio.sleep(self.vatsim_polling_interval)
+                # Process data in memory first
+                await self._process_data_in_memory(vatsim_data)
                 
-            except Exception as e:
-                self.logger.error(f"Error in data ingestion: {e}")
-                await asyncio.sleep(self.vatsim_polling_interval)
+                # Only write to disk periodically to reduce SSD wear
+                current_time = time.time()
+                if current_time - self.memory_buffer['last_write'] >= self.memory_buffer['write_interval']:
+                    self.logger.info("Flushing memory buffer to disk...")
+                    await self._flush_memory_to_disk()
+                    self.memory_buffer['last_write'] = current_time
+                    self.logger.info(f"Flushed memory buffer to disk. Write count: {self.write_count}")
+                else:
+                    self.logger.debug(f"Buffer write interval not reached yet. Next write in {self.memory_buffer['write_interval'] - (current_time - self.memory_buffer['last_write']):.1f}s")
+                
+                self.logger.info("Data ingestion cycle completed successfully")
+                return True
+            else:
+                self.logger.warning("No VATSIM data received")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error in data ingestion: {e}")
+            return False
     
     async def _process_data_in_memory(self, vatsim_data):
-        """Process data in memory to reduce disk writes"""
+        """Process VATSIM data in memory buffer"""
         try:
-            # Import dataclasses for proper conversion
-            from dataclasses import asdict
-            
-            # Convert VATSIMData object to dictionary format
+            # Process ATC positions directly from VATSIM dataclass objects
             if hasattr(vatsim_data, 'controllers'):
-                atc_positions_data = [asdict(atc_position) for atc_position in vatsim_data.controllers]
+                atc_positions_count = await self._process_atc_positions_in_memory(vatsim_data.controllers)
             else:
-                atc_positions_data = []
+                atc_positions_count = 0
                 
+            # Process flights directly from VATSIM dataclass objects
             if hasattr(vatsim_data, 'flights'):
-                flights_data = [asdict(flight) for flight in vatsim_data.flights]
+                flights_count = await self._process_flights_in_memory(vatsim_data.flights)
             else:
-                flights_data = []
-                
+                flights_count = 0
+            
             # Sectors removed - VATSIM API v3 doesn't provide sectors data
             
+            # Process transceivers directly from VATSIM dataclass objects
             if hasattr(vatsim_data, 'transceivers'):
-                transceivers_data = [asdict(transceiver) for transceiver in vatsim_data.transceivers]
+                transceivers_count = await self._process_transceivers_in_memory(vatsim_data.transceivers)
             else:
-                transceivers_data = []
+                transceivers_count = 0
             
-            # Process ATC positions in memory
-            atc_positions_count = await self._process_atc_positions_in_memory(atc_positions_data)
-            
-            # Process flights in memory
-            flights_count = await self._process_flights_in_memory(flights_data)
-            
-            # Sectors processing removed - table no longer exists
-            
-            # Process transceivers in memory
-            transceivers_count = await self._process_transceivers_in_memory(transceivers_data)
-            
-            self.logger.info(f"Processed {len(flights_data)} flights, {len(atc_positions_data)} ATC positions, {len(transceivers_data)} transceivers")
+            self.logger.info(f"Processed {flights_count} flights, {atc_positions_count} ATC positions, {transceivers_count} transceivers")
             
         except Exception as e:
             self.logger.error(f"Error processing data in memory: {e}")
     
-    async def _process_atc_positions_in_memory(self, atc_positions_data: List[Dict[str, Any]]) -> int:
-        """Process ATC positions in memory cache"""
+    async def _process_atc_positions_in_memory(self, atc_positions_data) -> int:
+        """Process ATC positions in memory buffer - EXACT API field mapping from VATSIM dataclass"""
         try:
             processed_count = 0
             
-            for atc_position_data in atc_positions_data:
-                callsign = atc_position_data.get('callsign', '')
-                
-                # Update memory cache with correct API field mapping
-                self.cache['atc_positions'].set(callsign, {
-                    'callsign': callsign,
-                    'facility': atc_position_data.get('facility', ''),
-                    'position': atc_position_data.get('position', ''),
-                    'status': 'online',
-                    'frequency': atc_position_data.get('frequency', ''),
-                    'controller_id': atc_position_data.get('cid', None),  # API "cid" → DB "controller_id"
-                    'controller_name': atc_position_data.get('name', ''),  # API "name" → DB "controller_name"
-                    'controller_rating': atc_position_data.get('rating', 0),  # API "rating" → DB "controller_rating"
-                    'last_seen': datetime.now(timezone.utc),
-                    'workload_score': 0.0,
-                    'preferences': {}
-                })
-                processed_count += 1
+            for controller_data in atc_positions_data:
+                try:
+                    # Convert dataclass to dict for processing
+                    controller_dict = {
+                        'callsign': controller_data.callsign,
+                        'cid': controller_data.cid,
+                        'name': controller_data.name,
+                        'facility': controller_data.facility,
+                        'rating': controller_data.rating,
+                        'server': controller_data.server,
+                        'visual_range': controller_data.visual_range,
+                        'text_atis': controller_data.text_atis,
+                        'logon_time': controller_data.logon_time,
+                        'last_updated': controller_data.last_updated
+                    }
+                    
+                    # Validate controller data
+                    if self._validate_controller_data(controller_dict):
+                        # Apply filters if enabled
+                        if self.flight_filter.config.enabled:
+                            # ATC positions are not filtered by flight filters
+                            pass
+                        
+                        # Add to memory buffer
+                        self.memory_buffer['atc_positions'].append(controller_dict)
+                        processed_count += 1
+                    else:
+                        self.logger.warning(f"Invalid controller data for {controller_dict.get('callsign', 'unknown')}")
+                        
+                except Exception as e:
+                    self.logger.error(f"Error processing controller {getattr(controller_data, 'callsign', 'unknown')}: {e}")
+                    continue
             
-            self.logger.info(f"Processed {processed_count} ATC positions in memory")
+            self.logger.info(f"Processed {processed_count} ATC positions into memory buffer")
             return processed_count
             
         except Exception as e:
@@ -279,168 +231,122 @@ class DataService:
             return 0
     
     def _validate_controller_data(self, controller_data: Dict[str, Any]) -> bool:
-        """Validate controller data types before database insert"""
+        """Validate controller data before processing"""
         try:
+            required_fields = ['callsign', 'cid', 'facility']
+            
+            for field in required_fields:
+                if not controller_data.get(field):
+                    return False
+            
             # Convert controller_id to integer
-            if controller_data.get('controller_id'):
-                controller_data['controller_id'] = int(controller_data['controller_id'])
-            else:
-                controller_data['controller_id'] = None
-                
-            # Convert controller_rating to integer
-            if controller_data.get('controller_rating'):
-                controller_data['controller_rating'] = int(controller_data['controller_rating'])
-            else:
-                controller_data['controller_rating'] = None
-                
-            # Convert preferences to JSON string
-            if controller_data.get('preferences'):
-                if isinstance(controller_data['preferences'], dict):
-                    import json
-                    controller_data['preferences'] = json.dumps(controller_data['preferences'])
-                elif not isinstance(controller_data['preferences'], str):
-                    controller_data['preferences'] = None
-            else:
-                controller_data['preferences'] = None
-                
+            if controller_data.get('cid'):
+                controller_data['cid'] = int(controller_data['cid'])
+            
+            # Convert rating to integer
+            if controller_data.get('rating'):
+                controller_data['rating'] = int(controller_data['rating'])
+            
             return True
-        except (ValueError, TypeError) as e:
-            self.logger.error(f"Controller data validation failed: {e}")
+            
+        except Exception as e:
+            self.logger.error(f"Error validating controller data: {e}")
             return False
     
-    async def _process_flights_in_memory(self, flights_data: List[Dict[str, Any]]) -> int:
-        """Process flights in memory cache"""
+    async def _process_flights_in_memory(self, flights_data) -> int:
+        """Process flights in memory buffer - EXACT API field mapping from VATSIM dataclass"""
         try:
             processed_count = 0
             
-            # Import flight filter configuration
-            from ..config import get_config
-            config = get_config()
-            
-            # Apply filter pipeline: Airport Filter → Geographic Filter → Processing
-            # Each filter can be enabled/disabled independently
-            
-            # Step 1: Apply Airport Filter (if enabled)
-            filtered_flights = flights_data
-            if self.flight_filter.config.enabled:
-                filtered_flights = self.flight_filter.filter_flights_list(filtered_flights)
-                self.logger.debug(f"Airport filter: {len(flights_data)} → {len(filtered_flights)} flights")
-            
-            # Step 2: Apply Geographic Boundary Filter (if enabled)  
-            if self.geographic_boundary_filter.config.enabled:
-                pre_geo_count = len(filtered_flights)
-                filtered_flights = self.geographic_boundary_filter.filter_flights_list(filtered_flights)
-                self.logger.debug(f"Geographic filter: {pre_geo_count} → {len(filtered_flights)} flights")
-            
-            # Step 3: Process filtered flights
-            for flight_data in filtered_flights:
-                callsign = flight_data.get('callsign', '')
-                departure = flight_data.get('departure', '')
-                arrival = flight_data.get('arrival', '')
-                
-                if not callsign:
+            for flight_data in flights_data:
+                try:
+                    # Convert dataclass to dict for processing
+                    flight_dict = {
+                        'callsign': flight_data.callsign,
+                        'cid': flight_data.cid,
+                        'name': flight_data.name,
+                        'server': flight_data.server,
+                        'pilot_rating': flight_data.pilot_rating,
+                        'military_rating': flight_data.military_rating,
+                        'latitude': flight_data.latitude,
+                        'longitude': flight_data.longitude,
+                        'altitude': flight_data.altitude,
+                        'groundspeed': flight_data.groundspeed,
+                        'transponder': flight_data.transponder,
+                        'heading': flight_data.heading,
+                        'qnh_i_hg': flight_data.qnh_i_hg,
+                        'qnh_mb': flight_data.qnh_mb,
+                        'logon_time': flight_data.logon_time,
+                        'last_updated': flight_data.last_updated,
+                        'departure': flight_data.departure,
+                        'arrival': flight_data.arrival,
+                        'route': flight_data.route,
+                        'aircraft_type': flight_data.aircraft_type,
+                        'flight_rules': flight_data.flight_rules,
+                        'aircraft_faa': flight_data.aircraft_faa,
+                        'aircraft_short': flight_data.aircraft_short,
+                        'alternate': flight_data.alternate,
+                        'cruise_tas': flight_data.cruise_tas,
+                        'planned_altitude': flight_data.planned_altitude,
+                        'deptime': flight_data.deptime,
+                        'enroute_time': flight_data.enroute_time,
+                        'fuel_time': flight_data.fuel_time,
+                        'remarks': flight_data.remarks,
+                        'revision_id': flight_data.revision_id,
+                        'assigned_transponder': flight_data.assigned_transponder
+                    }
+                    
+                    # Apply flight filters if enabled
+                    if self.flight_filter.config.enabled:
+                        if not self.flight_filter.filter_flights_list([flight_dict]):
+                            continue  # Skip filtered flights
+                    
+                    # Apply geographic boundary filter if enabled
+                    if self.geographic_boundary_filter.config.enabled:
+                        if not self.geographic_boundary_filter.filter_flights_list([flight_dict]):
+                            continue  # Skip filtered flights
+                    
+                    # Add to memory buffer
+                    self.memory_buffer['flights'].append(flight_dict)
+                    processed_count += 1
+                    
+                except Exception as e:
+                    self.logger.error(f"Error processing flight {getattr(flight_data, 'callsign', 'unknown')}: {e}")
                     continue
-                
-                # Get position data
-                position_data = {
-                    'lat': flight_data.get('latitude', 0.0),
-                    'lng': flight_data.get('longitude', 0.0)
-                }
-                
-                # Create flight record
-                flight_record = {
-                    'callsign': callsign,
-                    'aircraft_type': flight_data.get('aircraft_type', ''),
-                    'departure': departure,
-                    'arrival': arrival,
-                    'route': flight_data.get('route', ''),
-                    'altitude': flight_data.get('altitude', 0),
-                    'heading': flight_data.get('heading', 0),
-                    'transponder': flight_data.get('transponder', ''),
-                    'position_lat': position_data.get('lat', 0.0) if position_data else 0.0,
-                    'position_lng': position_data.get('lng', 0.0) if position_data else 0.0,
-                    'groundspeed': flight_data.get('groundspeed', 0),
-                    'cruise_tas': flight_data.get('cruise_tas', 0),
-                    
-                    # VATSIM API fields
-                    'cid': flight_data.get('cid'),
-                    'name': flight_data.get('name'),
-                    'server': flight_data.get('server'),
-                    'pilot_rating': flight_data.get('pilot_rating'),
-                    'military_rating': flight_data.get('military_rating'),
-                    'latitude': flight_data.get('latitude'),
-                    'longitude': flight_data.get('longitude'),
-                    'qnh_i_hg': flight_data.get('qnh_i_hg'),
-                    'qnh_mb': flight_data.get('qnh_mb'),
-                    'logon_time': flight_data.get('logon_time'),
-                    'last_updated': flight_data.get('last_updated'),
-                    
-                    # Flight plan fields
-                    'flight_rules': flight_data.get('flight_rules'),
-                    'aircraft_faa': flight_data.get('aircraft_faa'),
-                    'aircraft_short': flight_data.get('aircraft_short'),
-                    'alternate': flight_data.get('alternate'),
-                    'planned_altitude': flight_data.get('planned_altitude'),
-                    'deptime': flight_data.get('deptime'),
-                    'enroute_time': flight_data.get('enroute_time'),
-                    'fuel_time': flight_data.get('fuel_time'),
-                    'remarks': flight_data.get('remarks'),
-                    'revision_id': flight_data.get('revision_id'),
-                    'assigned_transponder': flight_data.get('assigned_transponder'),
-        
-                    'last_updated_api': datetime.now(timezone.utc)
-                }
-                
-                # Store flight data with timestamp to create multiple records
-                timestamp_key = f"{callsign}_{int(time.time())}"
-                self.cache['flights'].set(timestamp_key, flight_record)
-                processed_count += 1
             
-            # Log filtering results
-            airport_filter_status = "enabled" if self.flight_filter.config.enabled else "disabled"
-            geo_filter_status = "enabled" if self.geographic_boundary_filter.config.enabled else "disabled"
-            
-            self.logger.info(f"Processed {processed_count} flights out of {len(flights_data)} total flights")
-            self.logger.info(f"Filter pipeline: Airport filter ({airport_filter_status}), Geographic filter ({geo_filter_status})")
-            
-            if self.flight_filter.config.enabled or self.geographic_boundary_filter.config.enabled:
-                self.logger.info(f"Final filtered count: {len(filtered_flights)} flights after filter pipeline")
+            self.logger.info(f"Processed {processed_count} flights into memory buffer")
             return processed_count
             
         except Exception as e:
             self.logger.error(f"Error processing flights in memory: {e}")
             return 0
     
-    # Sectors processing method removed - table no longer exists
-    
-    async def _process_transceivers_in_memory(self, transceivers_data: List[Dict[str, Any]]) -> int:
-        """Process transceivers in memory cache"""
+    async def _process_transceivers_in_memory(self, transceivers_data) -> int:
+        """Process transceivers in memory buffer - EXACT API field mapping from VATSIM dataclass"""
         try:
             processed_count = 0
             
             for transceiver_data in transceivers_data:
-                callsign = transceiver_data.get('callsign', '')
-                transceiver_id = transceiver_data.get('transceiver_id', 0)
-                
-                # Create unique key for transceiver
-                transceiver_key = f"{callsign}_{transceiver_id}"
-                
-                # Update memory cache
-                self.cache['memory_buffer']['transceivers'].append({
-                    'callsign': callsign,
-                    'transceiver_id': transceiver_id,
-                    'frequency': transceiver_data.get('frequency', 0),
-                    'position_lat': transceiver_data.get('position_lat'),
-                    'position_lon': transceiver_data.get('position_lon'),
-                    'height_msl': transceiver_data.get('height_msl'),
-                    'height_agl': transceiver_data.get('height_agl'),
-                    'entity_type': transceiver_data.get('entity_type', 'flight'),
-                    'entity_id': transceiver_data.get('entity_id'),
-                    'timestamp': datetime.now(timezone.utc)
-                })
-                processed_count += 1
+                try:
+                    # Convert dataclass to dict for processing
+                    transceiver_dict = {
+                        'callsign': transceiver_data.callsign,
+                        'frequency': transceiver_data.frequency,
+                        'position_lat': transceiver_data.position_lat,
+                        'position_lon': transceiver_data.position_lon,
+                        'altitude': transceiver_data.altitude,
+                        'last_updated': transceiver_data.last_updated
+                    }
+                    
+                    # Add to memory buffer
+                    self.memory_buffer['transceivers'].append(transceiver_dict)
+                    processed_count += 1
+                    
+                except Exception as e:
+                    self.logger.error(f"Error processing transceiver {getattr(transceiver_data, 'callsign', 'unknown')}: {e}")
+                    continue
             
-            self.logger.info(f"Processed {processed_count} transceivers in memory")
+            self.logger.info(f"Processed {processed_count} transceivers into memory buffer")
             return processed_count
             
         except Exception as e:
@@ -448,116 +354,100 @@ class DataService:
             return 0
     
     async def _flush_memory_to_disk(self):
-        """Flush memory cache to disk with SSD wear optimization"""
+        """Flush memory buffer to database"""
         try:
-            db = SessionLocal()
-            try:
-                # Process ATC positions from memory cache
-                atc_positions_data = list(self.cache['atc_positions'].items())
-                if atc_positions_data:
-                    for callsign, atc_data in atc_positions_data:
-                        # Validate controller data before insert
-                        if self._validate_controller_data(atc_data):
-                            # Use upsert to handle existing records
-                            stmt = postgresql_insert(Controller).values(**atc_data)
-                            stmt = stmt.on_conflict_do_update(
-                                index_elements=['callsign'],
-                                set_=atc_data
-                            )
-                            db.execute(stmt)
+            async with get_database_session() as session:
+                # Process flights
+                if self.memory_buffer['flights']:
+                    for flight_data in self.memory_buffer['flights']:
+                        try:
+                            # Create flight object
+                            flight = Flight(**flight_data)
+                            session.add(flight)
+                        except Exception as e:
+                            self.logger.error(f"Error adding flight {flight_data.get('callsign', 'unknown')}: {e}")
+                            continue
                     
-                    self.logger.info(f"Flushed {len(atc_positions_data)} ATC positions to disk")
+                    self.logger.info(f"Added {len(self.memory_buffer['flights'])} flights to database")
+                    self.memory_buffer['flights'].clear()
                 
-                # Process flights from memory cache
-                flights_data = list(self.cache['flights'].items())
-                if flights_data:
-                    for timestamp_key, flight_data in flights_data:
-                        # Use simple insert for flight records
-                        stmt = postgresql_insert(Flight).values(**flight_data)
-                        db.execute(stmt)
+                # Process ATC positions
+                if self.memory_buffer['atc_positions']:
+                    for atc_data in self.memory_buffer['atc_positions']:
+                        try:
+                            # Create controller object
+                            controller = Controller(**atc_data)
+                            session.add(controller)
+                        except Exception as e:
+                            self.logger.error(f"Error adding controller {atc_data.get('callsign', 'unknown')}: {e}")
+                            continue
                     
-                    self.logger.info(f"Flushed {len(flights_data)} flights to disk")
+                    self.logger.info(f"Added {len(self.memory_buffer['atc_positions'])} controllers to database")
+                    self.memory_buffer['atc_positions'].clear()
                 
-                # Process transceivers from memory buffer
-                transceivers_data = self.cache['memory_buffer'].get('transceivers', [])
-                if transceivers_data:
-                    for transceiver_data in transceivers_data:
-                        stmt = postgresql_insert(Transceiver).values(**transceiver_data)
-                        db.execute(stmt)
+                # Process transceivers
+                if self.memory_buffer['transceivers']:
+                    for transceiver_data in self.memory_buffer['transceivers']:
+                        try:
+                            # Create transceiver object
+                            transceiver = Transceiver(**transceiver_data)
+                            session.add(transceiver)
+                        except Exception as e:
+                            self.logger.error(f"Error adding transceiver {transceiver_data.get('callsign', 'unknown')}: {e}")
+                            continue
                     
-                    self.logger.info(f"Flushed {len(transceivers_data)} transceivers to disk")
+                    self.logger.info(f"Added {len(self.memory_buffer['transceivers'])} transceivers to database")
+                    self.memory_buffer['transceivers'].clear()
                 
-                # Sectors processing removed - table no longer exists
-                
-                # VATSIM status processing removed (unused table)
-                
-                db.commit()
+                # Commit all changes
+                await session.commit()
                 self.write_count += 1
                 
-                # Clear memory buffers after successful write
-                self.cache['memory_buffer']['transceivers'].clear()
-                # Sectors buffer removed - table no longer exists
-                
-            except Exception as e:
-                db.rollback()
-                self.logger.error(f"Error flushing memory to disk: {e}")
-            finally:
-                db.close()
+                self.logger.info("Successfully flushed memory buffer to database")
                 
         except Exception as e:
-            self.logger.error(f"Error in memory flush process: {e}")
+            self.logger.error(f"Error flushing memory buffer to database: {e}")
     
-    # _store_flight_summary method removed (FlightSummary table unused)
-    
-    def get_network_status(self) -> Dict[str, Any]:
-        """
-        Get current network status from database.
-        
-        Returns:
-            Dict[str, Any]: Network status information
-        """
-        db = SessionLocal()
+    async def get_network_status(self) -> Dict[str, Any]:
+        """Get current network status and statistics"""
         try:
-            # Count active ATC positions
-            active_atc_positions = db.query(Controller).filter(
-                Controller.status == "online"
-            ).count()
+            # Get current VATSIM data for status
+            vatsim_data = await self.vatsim_service.get_current_data()
             
-            # Count all flights (no status filtering)
-            total_flights = db.query(Flight).count()
+            if not vatsim_data:
+                return {
+                    "status": "no_data",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "message": "No VATSIM data available"
+                }
             
-            # Get recent activity
-            recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
-            recent_flights = db.query(Flight).filter(
-                Flight.last_updated >= recent_cutoff
-            ).count()
-            
-            return {
-                'active_atc_positions': active_atc_positions,
-                'total_flights': total_flights,
-                'recent_flights': recent_flights,
-                'last_update': datetime.now(timezone.utc).isoformat()
+            # Extract status information
+            status_info = {
+                "status": "operational",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "data_freshness": "real-time",
+                "statistics": {
+                    "flights_count": len(vatsim_data.flights) if hasattr(vatsim_data, 'flights') else 0,
+                    "controllers_count": len(vatsim_data.controllers) if hasattr(vatsim_data, 'controllers') else 0,
+                    "transceivers_count": len(vatsim_data.transceivers) if hasattr(vatsim_data, 'transceivers') else 0
+                },
+                "data_ingestion": {
+                    "last_vatsim_update": vatsim_data.update_timestamp if hasattr(vatsim_data, 'update_timestamp') else "unknown",
+                    "update_interval_seconds": self.vatsim_polling_interval,
+                    "write_interval_seconds": self.vatsim_write_interval
+                }
             }
+            
+            return status_info
             
         except Exception as e:
             self.logger.error(f"Error getting network status: {e}")
-            return {'error': str(e)}
-        finally:
-            db.close()
+            return {
+                "status": "error",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "error": str(e)
+            }
 
-
-# Global service instance
-_data_service: Optional[DataService] = None
-
-
-def get_data_service() -> DataService:
-    """
-    Get the global data service instance.
-    
-    Returns:
-        DataService: The global data service instance
-    """
-    global _data_service
-    if _data_service is None:
-        _data_service = DataService()
-    return _data_service 
+async def get_data_service() -> DataService:
+    """Get or create data service instance"""
+    return DataService() 

@@ -41,8 +41,6 @@ import json
 
 from ..utils.logging import get_logger_for_module
 from ..utils.error_handling import handle_service_errors, log_operation
-from ..utils.health_monitor import HealthMonitor
-from ..config_package.service import ServiceConfig
 
 
 class AlertSeverity(Enum):
@@ -160,7 +158,6 @@ class HealthChecker:
     """Performs health checks on all services."""
     
     def __init__(self):
-        self.health_monitor = HealthMonitor()
         self.health_status: Dict[str, HealthStatus] = {}
     
     async def check_service_health(self, service_name: str, health_func: Callable) -> HealthStatus:

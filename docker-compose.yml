@@ -33,7 +33,6 @@ services:
       DATABASE_URL: postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data
       
       # Simplified Architecture - Sprint 2 Completed
-      # Service management simplified - direct service calls without abstraction layers
       LOG_LEVEL: "INFO"
       
       # Production Settings

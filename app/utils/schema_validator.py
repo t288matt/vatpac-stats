@@ -25,7 +25,7 @@ REQUIRED_TABLES = {
         'last_seen', 'workload_score', 'preferences', 'created_at', 'updated_at'
     ],
     'flights': [
-        'id', 'callsign', 'aircraft_type', 'position_lat', 'position_lng',
+        'id', 'callsign', 'aircraft_type',
         'altitude', 'heading',
         'transponder', 'last_updated', 'created_at',
         'departure', 'arrival', 'route', 'status', 'updated_at'

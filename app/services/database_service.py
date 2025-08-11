@@ -98,14 +98,17 @@ class DatabaseService:
                     self.logger.warning(f"Failed to store flight {flight_data.get('callsign', 'unknown')}: {e}")
                     continue
             
-            await session.commit()
+            session.commit()
             session.close()
+            self.query_count += 1
             
-            self.logger.info(f"Stored {stored_count} flights")
             return stored_count
             
         except Exception as e:
             self.logger.error(f"Failed to store flights: {e}")
+            if session:
+                session.rollback()
+                session.close()
             raise
     
     @handle_service_errors
@@ -125,14 +128,17 @@ class DatabaseService:
                     self.logger.warning(f"Failed to store controller {controller_data.get('callsign', 'unknown')}: {e}")
                     continue
             
-            await session.commit()
+            session.commit()
             session.close()
+            self.query_count += 1
             
-            self.logger.info(f"Stored {stored_count} controllers")
             return stored_count
             
         except Exception as e:
             self.logger.error(f"Failed to store controllers: {e}")
+            if session:
+                session.rollback()
+                session.close()
             raise
     
     @handle_service_errors
@@ -152,21 +158,24 @@ class DatabaseService:
                     self.logger.warning(f"Failed to store transceiver {transceiver_data.get('callsign', 'unknown')}: {e}")
                     continue
             
-            await session.commit()
+            session.commit()
             session.close()
+            self.query_count += 1
             
-            self.logger.info(f"Stored {stored_count} transceivers")
             return stored_count
             
         except Exception as e:
             self.logger.error(f"Failed to store transceivers: {e}")
+            if session:
+                session.rollback()
+                session.close()
             raise
     
     @handle_service_errors
     @log_operation("get_flight_track")
     async def get_flight_track(self, callsign: str, start_time: Optional[datetime] = None, 
                               end_time: Optional[datetime] = None) -> List[Dict[str, Any]]:
-        """Get complete flight track using existing Flight model."""
+        """Get flight track data for a specific callsign."""
         try:
             session = SessionLocal()
             
@@ -179,188 +188,30 @@ class DatabaseService:
             
             flights = query.order_by(Flight.last_updated).all()
             
+            # Convert to dict format
             track_data = []
             for flight in flights:
                 track_data.append({
-                    "callsign": flight.callsign,
-                    "latitude": flight.latitude,
-                    "longitude": flight.longitude,
-                    "altitude": flight.altitude,
-                    "groundspeed": flight.groundspeed,
-                    "heading": flight.heading,
-                    "last_updated": flight.last_updated.isoformat() if flight.last_updated else None,
-                    "aircraft_type": flight.aircraft_type,
-                    "departure": flight.departure,
-                    "arrival": flight.arrival
+                    'callsign': flight.callsign,
+                    'latitude': flight.latitude,
+                    'longitude': flight.longitude,
+                    'altitude': flight.altitude,
+                    'heading': flight.heading,
+                    'groundspeed': flight.groundspeed,
+                    'timestamp': flight.last_updated.isoformat() if flight.last_updated else None
                 })
             
             session.close()
+            self.query_count += 1
             
-            self.logger.debug(f"Retrieved {len(track_data)} position updates for {callsign}")
             return track_data
             
         except Exception as e:
             self.logger.error(f"Failed to get flight track for {callsign}: {e}")
-            raise
-    
-    @handle_service_errors
-    @log_operation("get_flight_stats")
-    async def get_flight_stats(self, callsign: str) -> Dict[str, Any]:
-        """Get flight statistics using existing Flight model."""
-        try:
-            session = SessionLocal()
-            
-            flights = session.query(Flight).filter(Flight.callsign == callsign).all()
-            
-            if not flights:
+            if session:
                 session.close()
-                return {"error": "Flight not found"}
-            
-            total_positions = len(flights)
-            first_position = min(flights, key=lambda f: f.last_updated) if flights else None
-            last_position = max(flights, key=lambda f: f.last_updated) if flights else None
-            
-            duration = None
-            if first_position and last_position:
-                duration = (last_position.last_updated - first_position.last_updated).total_seconds() / 60
-            
-            altitudes = [f.altitude for f in flights if f.altitude is not None]
-            max_altitude = max(altitudes) if altitudes else None
-            min_altitude = min(altitudes) if altitudes else None
-            avg_altitude = sum(altitudes) / len(altitudes) if altitudes else None
-            
-            speeds = [f.groundspeed for f in flights if f.groundspeed is not None]
-            max_speed = max(speeds) if speeds else None
-            avg_speed = sum(speeds) / len(speeds) if speeds else None
-            
-            stats = {
-                "callsign": callsign,
-                "total_positions": total_positions,
-                "first_position": first_position.last_updated.isoformat() if first_position else None,
-                "last_position": last_position.last_updated.isoformat() if last_position else None,
-                "duration_minutes": duration,
-                "max_altitude": max_altitude,
-                "min_altitude": min_altitude,
-                "avg_altitude": avg_altitude,
-                "max_speed": max_speed,
-                "avg_speed": avg_speed,
-                "aircraft_type": first_position.aircraft_type if first_position else None,
-                "departure": first_position.departure if first_position else None,
-                "arrival": first_position.arrival if first_position else None
-            }
-            
-            session.close()
-            return stats
-            
-        except Exception as e:
-            self.logger.error(f"Failed to get flight stats for {callsign}: {e}")
             raise
-    
-    @handle_service_errors
-    @log_operation("get_active_flights")
-    async def get_active_flights(self) -> List[Dict[str, Any]]:
-        """Get active flights using existing Flight model."""
-        try:
-            session = SessionLocal()
-            
-            active_flights = session.query(Flight).all()
-            
-            flights_data = []
-            for flight in active_flights:
-                flights_data.append({
-                    "callsign": flight.callsign,
-                    "latitude": flight.latitude,
-                    "longitude": flight.longitude,
-                    "altitude": flight.altitude,
-                    "groundspeed": flight.groundspeed,
-                    "heading": flight.heading,
-                    "aircraft_type": flight.aircraft_type,
-                    "departure": flight.departure,
-                    "arrival": flight.arrival,
-                    "last_updated": flight.last_updated.isoformat() if flight.last_updated else None
-                })
-            
-            session.close()
-            
-            self.logger.debug(f"Retrieved {len(flights_data)} active flights")
-            return flights_data
-            
-        except Exception as e:
-            self.logger.error(f"Failed to get active flights: {e}")
-            raise
-    
-    @handle_service_errors
-    @log_operation("get_active_controllers")
-    async def get_active_controllers(self) -> List[Dict[str, Any]]:
-        """Get active controllers using existing Controller model."""
-        try:
-            session = SessionLocal()
-            
-            active_controllers = session.query(Controller).filter(
-                Controller.status == "online"
-            ).all()
-            
-            controllers_data = []
-            for controller in active_controllers:
-                controllers_data.append({
-                    "callsign": controller.callsign,
-                    "facility": controller.facility,
-                    "position": controller.position,
-                    "frequency": controller.frequency,
-                    "controller_name": controller.controller_name,
-                    "controller_rating": controller.controller_rating,
-                    "last_seen": controller.last_seen.isoformat() if controller.last_seen else None
-                })
-            
-            session.close()
-            
-            self.logger.debug(f"Retrieved {len(controllers_data)} active controllers")
-            return controllers_data
-            
-        except Exception as e:
-            self.logger.error(f"Failed to get active controllers: {e}")
-            raise
-    
-    @handle_service_errors
-    @log_operation("get_database_stats")
-    async def get_database_stats(self) -> Dict[str, Any]:
-        """Get database statistics and health information."""
-        try:
-            session = SessionLocal()
-            
-            flight_count = session.query(Flight).count()
-            controller_count = session.query(Controller).count()
-            transceiver_count = session.query(Transceiver).count()
-            
-            active_flights = session.query(Flight).count()
-            active_controllers = session.query(Controller).filter(Controller.status == "online").count()
-            
-            recent_cutoff = datetime.now(timezone.utc) - timedelta(hours=1)
-            recent_flights = session.query(Flight).filter(
-                Flight.last_updated >= recent_cutoff
-            ).count()
-            
-            stats = {
-                "total_flights": flight_count,
-                "total_controllers": controller_count,
-                "total_transceivers": transceiver_count,
-                "active_flights": active_flights,
-                "active_controllers": active_controllers,
-                "recent_flights": recent_flights,
-                "last_cleanup": self.last_cleanup.isoformat(),
-                "query_count": self.query_count
-            }
-            
-            session.close()
-            return stats
-            
-        except Exception as e:
-            self.logger.error(f"Failed to get database stats: {e}")
-            raise
-
-# Global database service instance
-database_service = DatabaseService()
 
 def get_database_service() -> DatabaseService:
-    """Get the global database service instance."""
-    return database_service 
+    """Get database service instance."""
+    return DatabaseService() 

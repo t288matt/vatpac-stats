@@ -71,19 +71,19 @@ class FlightFilter:
         """Setup logging for the filter"""
         logging.basicConfig(level=getattr(logging, self.config.log_level))
     
-    def _extract_airport_codes(self, flight_data: Dict) -> Tuple[Optional[str], Optional[str]]:
+    def _extract_airport_codes(self, flight_data) -> Tuple[Optional[str], Optional[str]]:
         """
         Extract departure and arrival airport codes from flight data
         
         Args:
-            flight_data: Flight data from VATSIM API
+            flight_data: Flight data from VATSIM API (VATSIM dataclass object)
             
         Returns:
             Tuple of (departure_code, arrival_code) or (None, None) if not found
         """
-        # Extract direct fields (new VATSIM API v3 structure)
-        departure = flight_data.get("departure")
-        arrival = flight_data.get("arrival")
+        # Extract direct fields from VATSIM dataclass object
+        departure = flight_data.departure
+        arrival = flight_data.arrival
         
         return departure, arrival
     
@@ -100,22 +100,18 @@ class FlightFilter:
         # Use the centralized Australian airport validation from config
         return is_australian_airport(airport_code)
     
-    def _is_australian_flight(self, flight_data: Dict) -> bool:
+    def _is_australian_flight(self, flight_data) -> bool:
         """
-        Check if a flight has either Australian origin or destination
+        Check if a flight has Australian origin or destination
         
         Args:
-            flight_data: Flight data from VATSIM API
+            flight_data: Flight data from VATSIM API (VATSIM dataclass object)
             
         Returns:
-            True if flight has Australian origin OR destination, False otherwise
+            True if flight has Australian origin or destination, False otherwise
         """
+        # Extract airport codes
         departure, arrival = self._extract_airport_codes(flight_data)
-        
-        # If we can't determine airports, filter out the flight
-        if not departure and not arrival:
-            logger.debug(f"Flight {flight_data.get('callsign', 'UNKNOWN')} has no airport codes, filtering out")
-            return False
         
         # Check if either departure or arrival is Australian
         departure_australian = departure and self._is_australian_airport(departure)
@@ -123,7 +119,7 @@ class FlightFilter:
         
         is_australian = departure_australian or arrival_australian
         
-        callsign = flight_data.get('callsign', 'UNKNOWN')
+        callsign = flight_data.callsign or 'UNKNOWN'
         if is_australian:
             logger.debug(f"Flight {callsign} included - departure: {departure} ({departure_australian}), arrival: {arrival} ({arrival_australian})")
         else:
@@ -131,15 +127,15 @@ class FlightFilter:
         
         return is_australian
     
-    def filter_flights_list(self, flights: List[Dict]) -> List[Dict]:
+    def filter_flights_list(self, flights) -> List:
         """
         Filter a list of flight objects to only include Australian flights
         
         Args:
-            flights: List of flight data dictionaries
+            flights: List of flight data (VATSIM dataclass objects)
             
         Returns:
-            Filtered list of flight data dictionaries
+            Filtered list of flight data (VATSIM dataclass objects)
         """
         if not self.config.enabled:
             logger.debug("Flight filter is disabled, returning original flights")

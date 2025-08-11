@@ -184,43 +184,6 @@ class ResourceManager:
             logger.info(f"Cleanup performed - Collected objects: {collected}, Cache size: {cache_size / 1024:.1f} KB")
     
     @handle_service_errors
-    @log_operation("get_system_stats")
-    async def get_system_stats(self) -> Dict[str, Any]:
-        """Get current system statistics"""
-        memory = psutil.virtual_memory()
-        cpu = psutil.cpu_percent(interval=1)
-        disk = psutil.disk_usage('/')
-        process = psutil.Process()
-        
-        return {
-            "memory": {
-                "total_gb": memory.total / 1024 / 1024 / 1024,
-                "available_gb": memory.available / 1024 / 1024 / 1024,
-                "used_percent": memory.percent,
-                "free_percent": 100 - memory.percent
-            },
-            "cpu": {
-                "system_percent": cpu,
-                "process_percent": process.cpu_percent(),
-                "core_count": psutil.cpu_count()
-            },
-            "disk": {
-                "total_gb": disk.total / 1024 / 1024 / 1024,
-                "free_gb": disk.free / 1024 / 1024 / 1024,
-                "used_percent": disk.percent,
-                "free_percent": 100 - disk.percent
-            },
-            "process": {
-                "memory_mb": process.memory_info().rss / 1024 / 1024,
-                "cpu_percent": process.cpu_percent(),
-                "threads": process.num_threads(),
-                "open_files": len(process.open_files()),
-                "connections": len(process.connections())
-            },
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
-    
-    @handle_service_errors
     @log_operation("optimize_memory_usage")
     async def optimize_memory_usage(self) -> Dict[str, Any]:
         """Optimize memory usage"""
