@@ -81,9 +81,9 @@ class FlightFilter:
         Returns:
             Tuple of (departure_code, arrival_code) or (None, None) if not found
         """
-        # Extract direct fields from VATSIM dataclass object
-        departure = flight_data.departure
-        arrival = flight_data.arrival
+        # Extract fields from flight data dictionary
+        departure = flight_data.get('departure')
+        arrival = flight_data.get('arrival')
         
         return departure, arrival
     
@@ -119,7 +119,7 @@ class FlightFilter:
         
         is_australian = departure_australian or arrival_australian
         
-        callsign = flight_data.callsign or 'UNKNOWN'
+        callsign = flight_data.get('callsign') or 'UNKNOWN'
         if is_australian:
             logger.debug(f"Flight {callsign} included - departure: {departure} ({departure_australian}), arrival: {arrival} ({arrival_australian})")
         else:
