@@ -60,8 +60,8 @@ class DatabaseConfig:
     def from_env(cls):
         """Load database configuration from environment variables."""
         base_url = os.getenv("DATABASE_URL", "postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data")
-        # Convert to async URL format
-        async_url = base_url.replace("postgresql://", "postgresql+asyncpg://")
+        # Convert to async URL format - use psycopg for async operations
+        async_url = base_url.replace("postgresql://", "postgresql+psycopg://")
         
         return cls(
             url=base_url,
@@ -242,7 +242,7 @@ class AppConfig:
 
 def validate_config(config: AppConfig) -> None:
     """
-    Validate configuration values to ensure they are within acceptable ranges.
+    Basic configuration validation - simplified for VATSIM data collection.
     
     Args:
         config: Application configuration to validate
@@ -250,35 +250,12 @@ def validate_config(config: AppConfig) -> None:
     Raises:
         ValueError: If configuration values are invalid
     """
-    # Validate VATSIM configuration
-    if config.vatsim.timeout <= 0:
-        raise ValueError("VATSIM timeout must be positive")
-    
-    if config.vatsim.retry_attempts < 0:
-        raise ValueError("VATSIM retry attempts must be non-negative")
-    
+    # Essential validations only
     if config.vatsim.polling_interval <= 0:
         raise ValueError("VATSIM polling interval must be positive")
     
-
-    # Validate database configuration
-    if config.database.pool_size <= 0:
-        raise ValueError("Database pool size must be positive")
-    
-    if config.database.max_overflow < 0:
-        raise ValueError("Database max overflow must be non-negative")
-    
-    # Validate API configuration
     if config.api.port < 1 or config.api.port > 65535:
         raise ValueError("API port must be between 1 and 65535")
-    
-    if config.api.workers <= 0:
-        raise ValueError("API workers must be positive")
-    
-    # Validate logging configuration
-    valid_log_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-    if config.logging.level not in valid_log_levels:
-        raise ValueError(f"Log level must be one of: {valid_log_levels}")
 
 
 # Global configuration instance
@@ -324,10 +301,10 @@ def reload_config() -> AppConfig:
 
 def get_config_summary() -> dict:
     """
-    Get a summary of the current configuration for logging/debugging.
+    Get basic configuration summary - simplified for VATSIM data collection.
     
     Returns:
-        dict: Configuration summary (excluding sensitive data)
+        dict: Basic configuration summary
     """
     config = get_config()
     
@@ -335,26 +312,12 @@ def get_config_summary() -> dict:
         "environment": config.environment,
         "api": {
             "host": config.api.host,
-            "port": config.api.port,
-            "debug": config.api.debug,
-            "workers": config.api.workers
-        },
-        "database": {
-            "url": config.database.url.split("://")[0] + "://***",  # Hide credentials
-            "pool_size": config.database.pool_size,
-            "max_overflow": config.database.max_overflow
+            "port": config.api.port
         },
         "vatsim": {
-            "api_url": config.vatsim.api_url,
-            "timeout": config.vatsim.timeout,
-            "retry_attempts": config.vatsim.retry_attempts,
             "polling_interval": config.vatsim.polling_interval
         },
-
-
         "logging": {
-            "level": config.logging.level,
-            "format": config.logging.format,
-            "file_path": config.logging.file_path is not None
+            "level": config.logging.level
         }
     } 

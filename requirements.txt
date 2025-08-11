@@ -5,18 +5,12 @@ uvicorn[standard]==0.24.0
 # Database
 sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
-asyncpg==0.29.0
+psycopg==3.1.13
 
 # HTTP Client
-aiohttp==3.9.1
 httpx==0.25.2
 
-# System monitoring - simplified
-
-# Validation
-pydantic==2.5.0
-
-# Geographic calculations (with compatible numpy version)
+# Geographic calculations
 numpy<2.0
 shapely==2.0.2
 
@@ -25,11 +19,5 @@ pytest==7.4.3
 pytest-asyncio==0.21.1
 pytest-cov==4.1.0
 pytest-mock==3.12.0
-httpx==0.25.2
-
-# Code Quality
-black==23.11.0
-flake8==6.1.0
-mypy==1.7.1
 
  

@@ -489,7 +489,7 @@ async def get_all_controllers():
             # Get recent ATC positions (last 30 minutes)
             recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
             
-            controllers_result = session.execute(
+            controllers_result = await session.execute(
                 text("""
                     SELECT DISTINCT ON (callsign) 
                         callsign, cid, name, facility, rating, server,
@@ -544,7 +544,7 @@ async def get_atc_positions_by_controller_id():
             # Get recent ATC positions grouped by controller ID
             recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
             
-            controllers_result = session.execute(
+            controllers_result = await session.execute(
                 text("""
                     SELECT DISTINCT ON (callsign) 
                         cid, callsign, facility, logon_time

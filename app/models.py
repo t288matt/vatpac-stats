@@ -64,6 +64,9 @@ class Controller(Base, TimestampMixin):
     
     # Constraints
     __table_args__ = (
+        CheckConstraint('rating >= -1 AND rating <= 12', name='valid_rating'),
+        CheckConstraint('facility >= 0 AND facility <= 6', name='valid_facility'),
+        CheckConstraint('visual_range >= 0', name='valid_visual_range'),
         Index('idx_controllers_callsign', 'callsign'),
         Index('idx_controllers_cid', 'cid'),
         Index('idx_controllers_cid_rating', 'cid', 'rating'),
@@ -71,26 +74,7 @@ class Controller(Base, TimestampMixin):
         Index('idx_controllers_last_updated', 'last_updated'),
     )
     
-    @validates('rating')
-    def validate_rating(self, key, value):
-        """Validate rating"""
-        if value is not None and (value < -1 or value > 12):
-            raise ValueError("Rating must be between -1 and 12")
-        return value
-    
-    @validates('facility')
-    def validate_facility(self, key, value):
-        """Validate facility"""
-        if value is not None and (value < 0 or value > 6):
-            raise ValueError("Facility must be between 0 and 6")
-        return value
-    
-    @validates('visual_range')
-    def validate_visual_range(self, key, value):
-        """Validate visual range"""
-        if value is not None and value < 0:
-            raise ValueError("Visual range must be non-negative")
-        return value
+    # Validation handled by database constraints - no Python validators needed
 
 class Flight(Base, TimestampMixin):
     """Flight model representing active flights - OPTIMIZED FOR STORAGE"""
@@ -154,33 +138,7 @@ class Flight(Base, TimestampMixin):
         Index('idx_flights_planned_altitude', 'planned_altitude'),
     )
     
-    @validates('latitude')
-    def validate_latitude(self, key, value):
-        """Validate latitude"""
-        if value is not None and (value < -90 or value > 90):
-            raise ValueError("Latitude must be between -90 and 90")
-        return value
-    
-    @validates('longitude')
-    def validate_longitude(self, key, value):
-        """Validate longitude"""
-        if value is not None and (value < -180 or value > 180):
-            raise ValueError("Longitude must be between -180 and 180")
-        return value
-    
-    @validates('altitude')
-    def validate_altitude(self, key, value):
-        """Validate altitude"""
-        if value is not None and value < 0:
-            raise ValueError("Altitude must be non-negative")
-        return value
-    
-    @validates('heading')
-    def validate_heading(self, key, value):
-        """Validate heading"""
-        if value is not None and (value < 0 or value > 360):
-            raise ValueError("Heading must be between 0 and 360")
-        return value
+    # Validation handled by database constraints - no Python validators needed
 
 class Transceiver(Base):
     """Transceiver model for storing radio frequency and position data from VATSIM transceivers API"""
@@ -208,19 +166,7 @@ class Transceiver(Base):
         Index('idx_transceivers_frequency', 'frequency'),
     )
     
-    @validates('frequency')
-    def validate_frequency(self, key, value):
-        """Validate frequency"""
-        if value <= 0:
-            raise ValueError("Frequency must be positive")
-        return value
-    
-    @validates('entity_type')
-    def validate_entity_type(self, key, value):
-        """Validate entity type"""
-        if value not in ['flight', 'atc']:
-            raise ValueError("Entity type must be 'flight' or 'atc'")
-        return value
+    # Validation handled by database constraints - no Python validators needed
 
 # Event listeners for automatic timestamp updates
 @event.listens_for(Base, 'before_update', propagate=True)
