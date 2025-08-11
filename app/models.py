@@ -32,16 +32,13 @@ OPTIMIZATIONS:
 - Audit fields for data tracking
 """
 
-from sqlalchemy import (
-    Column, Integer, String, DateTime, Float, ForeignKey, Text, Boolean, 
-    SmallInteger, Index, DECIMAL, JSON, TIMESTAMP, CheckConstraint, UniqueConstraint,
-    BigInteger, event, func
-)
-from sqlalchemy.orm import relationship, validates
-from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy import Column, Integer, String, Float, Text, TIMESTAMP, BigInteger, CheckConstraint, Index, event
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.sql import func
+from sqlalchemy.orm import validates
 from datetime import datetime, timezone
-from .database import Base
-import json
+
+Base = declarative_base()
 
 class TimestampMixin:
     """Mixin to add timestamp fields to models"""
@@ -57,11 +54,11 @@ class Controller(Base, TimestampMixin):
     frequency = Column(String(20), nullable=True)
     cid = Column(Integer, nullable=True, index=True)  # From API "cid"
     name = Column(String(100), nullable=True)  # From API "name"
-    rating = Column(Integer, nullable=True)  # From API "rating" - matches database schema
-    facility = Column(Integer, nullable=True)  # From API "facility" - matches database schema
-    visual_range = Column(Integer, nullable=True)  # From API "visual_range"
+    rating = Column(Integer, nullable=True, index=True)  # From API "rating" - matches database schema
+    facility = Column(Integer, nullable=True, index=True)  # From API "facility" - matches database schema
+    visual_range = Column(Integer, nullable=True, index=True)  # From API "visual_range"
     text_atis = Column(Text, nullable=True)  # From API "text_atis"
-    server = Column(String(50), nullable=True)  # From API "server"
+    server = Column(String(50), nullable=True, index=True)  # From API "server"
     last_updated = Column(TIMESTAMP(timezone=True), nullable=True, index=True)  # From API "last_updated"
     logon_time = Column(TIMESTAMP(timezone=True), nullable=True)  # From API "logon_time"
     
@@ -70,6 +67,8 @@ class Controller(Base, TimestampMixin):
         CheckConstraint('rating >= -1 AND rating <= 12', name='valid_rating'),
         CheckConstraint('facility >= 0 AND facility <= 6', name='valid_facility'),
         CheckConstraint('visual_range >= 0', name='valid_visual_range'),
+        Index('idx_controllers_callsign', 'callsign'),
+        Index('idx_controllers_cid', 'cid'),
         Index('idx_controllers_cid_rating', 'cid', 'rating'),
         Index('idx_controllers_facility_server', 'facility', 'server'),
         Index('idx_controllers_last_updated', 'last_updated'),
@@ -77,14 +76,14 @@ class Controller(Base, TimestampMixin):
     
     @validates('rating')
     def validate_rating(self, key, value):
-        """Validate controller rating"""
+        """Validate rating"""
         if value is not None and (value < -1 or value > 12):
             raise ValueError("Rating must be between -1 and 12")
         return value
     
     @validates('facility')
     def validate_facility(self, key, value):
-        """Validate facility type"""
+        """Validate facility"""
         if value is not None and (value < 0 or value > 6):
             raise ValueError("Facility must be between 0 and 6")
         return value
@@ -148,6 +147,7 @@ class Flight(Base, TimestampMixin):
         CheckConstraint('heading >= 0 AND heading <= 360', name='valid_heading'),
         CheckConstraint('groundspeed >= 0', name='valid_groundspeed'),
         CheckConstraint('pilot_rating >= 0 AND pilot_rating <= 63', name='valid_pilot_rating'),
+        Index('idx_flights_callsign', 'callsign'),
         Index('idx_flights_callsign_status', 'callsign', 'last_updated'),
         Index('idx_flights_position', 'latitude', 'longitude'),
         Index('idx_flights_departure_arrival', 'departure', 'arrival'),
@@ -185,44 +185,7 @@ class Flight(Base, TimestampMixin):
             raise ValueError("Heading must be between 0 and 360")
         return value
 
-class Airports(Base, TimestampMixin):
-    """Global airports table - single source of truth for all airport data"""
-    __tablename__ = "airports"
-    
-    id = Column(Integer, primary_key=True)
-    icao_code = Column(String(10), unique=True, nullable=False, index=True)
-    name = Column(String(200), nullable=True)
-    latitude = Column(Float, nullable=False)
-    longitude = Column(Float, nullable=False)
-    elevation = Column(Integer, nullable=True)  # Feet above sea level
-    country = Column(String(100), nullable=True)
-    region = Column(String(100), nullable=True)  # State/province
-    
-    # Constraints
-    __table_args__ = (
-        CheckConstraint('latitude >= -90 AND latitude <= 90', name='valid_airport_latitude'),
-        CheckConstraint('longitude >= -180 AND longitude <= 180', name='valid_airport_longitude'),
-        CheckConstraint('elevation >= -1000', name='valid_elevation'),  # Allow negative for below sea level
-        Index('idx_airports_region', 'region', 'country'),
-        Index('idx_airports_coordinates', 'latitude', 'longitude'),
-        Index('idx_airports_country', 'country'),
-    )
-    
-    @validates('latitude')
-    def validate_latitude(self, key, value):
-        """Validate latitude"""
-        if value < -90 or value > 90:
-            raise ValueError("Latitude must be between -90 and 90")
-        return value
-    
-    @validates('longitude')
-    def validate_longitude(self, key, value):
-        """Validate longitude"""
-        if value < -180 or value > 180:
-            raise ValueError("Longitude must be between -180 and 180")
-        return value
-
-class Transceiver(Base, TimestampMixin):
+class Transceiver(Base):
     """Transceiver model for storing radio frequency and position data from VATSIM transceivers API"""
     __tablename__ = "transceivers"
     
