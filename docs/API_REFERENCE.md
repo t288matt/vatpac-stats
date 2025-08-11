@@ -6,6 +6,8 @@ The VATSIM Data Collection System provides a comprehensive RESTful API for acces
 
 **Base URL**: `http://localhost:8001` (development) or `https://api.yourdomain.com` (production)
 
+> 📚 **Field Mapping Reference**: For detailed field mappings from VATSIM API to database to API responses, see [API_FIELD_MAPPING.md](./API_FIELD_MAPPING.md)
+
 ## 🔐 Authentication
 
 ### **Development Mode:**

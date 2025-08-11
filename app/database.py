@@ -78,7 +78,7 @@ engine = create_engine(
     connect_args={
         "connect_timeout": 30,      # PostgreSQL connection timeout
         "application_name": "vatsim_data_collector",  # Application name for monitoring
-        "options": "-c timezone=utc -c synchronous_commit=off -c shared_preload_libraries='pg_stat_statements'",  # SSD optimization + monitoring
+        "options": "-c timezone=utc -c synchronous_commit=off",  # SSD optimization
         "keepalives": 1,            # Enable TCP keepalives
         "keepalives_idle": 30,      # Start keepalives after 30 seconds of inactivity
         "keepalives_interval": 10,  # Send keepalives every 10 seconds

@@ -42,7 +42,6 @@ import asyncio
 import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone, timedelta
-from dataclasses import dataclass, field
 
 from ..config import get_config
 from ..utils.logging import get_logger_for_module
@@ -50,103 +49,6 @@ from ..utils.error_handling import handle_service_errors, log_operation, retry_o
 from ..filters.flight_filter import FlightFilter
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class VATSIMController:
-    """VATSIM controller data structure - EXACT API mapping"""
-    
-    callsign: str
-    frequency: Optional[str] = None
-    cid: Optional[int] = None
-    name: Optional[str] = None
-    rating: Optional[int] = None
-    facility: Optional[int] = None
-    visual_range: Optional[int] = None
-    text_atis: Optional[str] = None
-    server: Optional[str] = None
-    last_updated: Optional[str] = None
-    logon_time: Optional[str] = None
-
-
-@dataclass
-class VATSIMFlight:
-    """VATSIM flight data structure.
-    
-    VATSIM API v3 Compliance:
-    - Aircraft type: Extracted from flight_plan.aircraft_short
-    - Flight plan: Nested under flight_plan object
-    - Position data: Latitude/longitude/altitude from pilot object
-    """
-    
-    callsign: str
-    pilot_name: str
-    aircraft_type: str
-    departure: str
-    arrival: str
-    route: str
-    altitude: int
-    position: Optional[Dict[str, float]] = None
-    
-    # Missing VATSIM API fields - 1:1 mapping with API field names
-    cid: Optional[int] = None  # VATSIM user ID
-    name: Optional[str] = None  # Pilot name
-    server: Optional[str] = None  # Network server
-    pilot_rating: Optional[int] = None  # Pilot rating
-    military_rating: Optional[int] = None  # Military rating
-    latitude: Optional[float] = None  # Position latitude
-    longitude: Optional[float] = None  # Position longitude
-    groundspeed: Optional[int] = None  # Ground speed
-    transponder: Optional[str] = None  # Transponder code
-    heading: Optional[int] = None  # Aircraft heading
-    qnh_i_hg: Optional[float] = None  # QNH in inches Hg
-    qnh_mb: Optional[int] = None  # QNH in millibars
-    logon_time: Optional[datetime] = None  # When pilot connected
-    last_updated: Optional[datetime] = None  # API last_updated timestamp
-    
-    # Flight plan fields (nested object)
-    flight_rules: Optional[str] = None  # IFR/VFR
-    aircraft_faa: Optional[str] = None  # FAA aircraft code
-    aircraft_short: Optional[str] = None  # Short aircraft code
-    alternate: Optional[str] = None  # Alternate airport
-    cruise_tas: Optional[int] = None  # True airspeed
-    planned_altitude: Optional[int] = None  # Planned cruise altitude
-    deptime: Optional[str] = None  # Departure time
-    enroute_time: Optional[str] = None  # Enroute time
-    fuel_time: Optional[str] = None  # Fuel time
-    remarks: Optional[str] = None  # Flight plan remarks
-    revision_id: Optional[int] = None  # Flight plan revision
-    assigned_transponder: Optional[str] = None  # Assigned transponder
-
-
-@dataclass
-class VATSIMTransceiver:
-    """VATSIM transceiver data structure."""
-    
-    callsign: str
-    transceiver_id: int
-    frequency: int  # Frequency in Hz
-    position_lat: Optional[float] = None
-    position_lon: Optional[float] = None
-    height_msl: Optional[float] = None  # Height above mean sea level in meters
-    height_agl: Optional[float] = None  # Height above ground level in meters
-    entity_type: str = "flight"  # 'flight' or 'atc'
-    entity_id: Optional[int] = None
-
-
-@dataclass
-class VATSIMData:
-    """Complete VATSIM network data."""
-    
-    controllers: List[VATSIMController]
-    flights: List[VATSIMFlight]
-    sectors: List[Dict[str, Any]]
-    transceivers: List[VATSIMTransceiver]
-    timestamp: datetime
-    total_controllers: int
-    total_flights: int
-    total_sectors: int
-    total_transceivers: int
 
 
 class VATSIMAPIError(Exception):
@@ -270,17 +172,16 @@ class VATSIMService:
     @handle_service_errors
     @retry_on_failure(max_retries=3, delay=1.0)
     @log_operation("fetch_vatsim_data")
-    async def get_current_data(self) -> VATSIMData:
+    async def get_current_data(self) -> Dict[str, Any]:
         """
         Fetch current VATSIM network data.
         
         Returns:
-            VATSIMData: Parsed VATSIM network data
+            Dict[str, Any]: Parsed VATSIM network data as dictionary
             
         Raises:
             VATSIMAPIError: When API request fails
         """
-        from typing import Union
         await self._create_client()
         
         try:
@@ -331,24 +232,24 @@ class VATSIMService:
                 })
                 transceivers = []
             
-            # Create VATSIM data object
-            vatsim_data = VATSIMData(
-                controllers=controllers,
-                flights=flights,
-                sectors=sectors,
-                transceivers=transceivers,
-                timestamp=datetime.now(timezone.utc),
-                total_controllers=len(controllers),
-                total_flights=len(flights),
-                total_sectors=len(sectors),
-                total_transceivers=len(transceivers)
-            )
+            # Return dictionary directly instead of dataclass
+            vatsim_data = {
+                "controllers": controllers,
+                "flights": flights,
+                "sectors": sectors,
+                "transceivers": transceivers,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "total_controllers": len(controllers),
+                "total_flights": len(flights),
+                "total_sectors": len(sectors),
+                "total_transceivers": len(transceivers)
+            }
             
             self.logger.info("Successfully fetched VATSIM data", extra={
-                "controllers_count": vatsim_data.total_controllers,
-                "flights_count": vatsim_data.total_flights,
-                "sectors_count": vatsim_data.total_sectors,
-                "transceivers_count": vatsim_data.total_transceivers
+                "controllers_count": vatsim_data["total_controllers"],
+                "flights_count": vatsim_data["total_flights"],
+                "sectors_count": vatsim_data["total_sectors"],
+                "transceivers_count": vatsim_data["total_transceivers"]
             })
             
             return vatsim_data
@@ -372,7 +273,7 @@ class VATSIMService:
             })
             raise VATSIMAPIError(f"Unexpected error: {e}")
     
-    def _parse_controllers(self, controllers_data: List[Dict[str, Any]]) -> List[VATSIMController]:
+    def _parse_controllers(self, controllers_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Parse controller data from VATSIM API response - EXACT field mapping.
         
@@ -380,25 +281,25 @@ class VATSIMService:
             controllers_data: Raw controller data from API
             
         Returns:
-            List[VATSIMController]: Parsed controller objects
+            List[Dict[str, Any]]: Parsed controller dictionaries
         """
         controllers = []
         
         for controller_data in controllers_data:
             try:
-                controller = VATSIMController(
-                    callsign=controller_data.get("callsign", ""),
-                    frequency=controller_data.get("frequency", ""),
-                    cid=controller_data.get("cid"),
-                    name=controller_data.get("name", ""),
-                    rating=controller_data.get("rating"),
-                    facility=controller_data.get("facility"),
-                    visual_range=controller_data.get("visual_range"),
-                    text_atis=controller_data.get("text_atis"),
-                    server=controller_data.get("server", ""),
-                    last_updated=controller_data.get("last_updated"),
-                    logon_time=controller_data.get("logon_time")
-                )
+                controller = {
+                    "callsign": controller_data.get("callsign", ""),
+                    "frequency": controller_data.get("frequency", ""),
+                    "cid": controller_data.get("cid"),
+                    "name": controller_data.get("name", ""),
+                    "rating": controller_data.get("rating"),
+                    "facility": controller_data.get("facility"),
+                    "visual_range": controller_data.get("visual_range"),
+                    "text_atis": controller_data.get("text_atis"),
+                    "server": controller_data.get("server", ""),
+                    "last_updated": controller_data.get("last_updated"),
+                    "logon_time": controller_data.get("logon_time")
+                }
                 controllers.append(controller)
                 
             except Exception as e:
@@ -412,7 +313,7 @@ class VATSIMService:
         
         return controllers
     
-    def _parse_flights(self, flights_data: List[Dict[str, Any]]) -> List[VATSIMFlight]:
+    def _parse_flights(self, flights_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Parse flight data from VATSIM API response.
         
@@ -420,7 +321,7 @@ class VATSIMService:
             flights_data: Raw flight data from API
             
         Returns:
-            List[VATSIMFlight]: Parsed flight objects
+            List[Dict[str, Any]]: Parsed flight dictionaries
         """
         flights = []
         
@@ -454,46 +355,46 @@ class VATSIMService:
                     except:
                         last_updated = None
                 
-                flight = VATSIMFlight(
-                    callsign=flight_data.get("callsign", ""),
-                    pilot_name=flight_data.get("name", ""),
-                    aircraft_type=flight_plan.get("aircraft_short", ""),  # Fixed: API provides aircraft type in flight_plan.aircraft_short
-                    departure=flight_plan.get("departure", ""),
-                    arrival=flight_plan.get("arrival", ""),
-                    route=flight_plan.get("route", ""),
-                    altitude=int(flight_data.get("altitude", 0)),
-                    position=position,
+                flight = {
+                    "callsign": flight_data.get("callsign", ""),
+                    "pilot_name": flight_data.get("name", ""),
+                    "aircraft_type": flight_plan.get("aircraft_short", ""),  # Fixed: API provides aircraft type in flight_plan.aircraft_short
+                    "departure": flight_plan.get("departure", ""),
+                    "arrival": flight_plan.get("arrival", ""),
+                    "route": flight_plan.get("route", ""),
+                    "altitude": int(flight_data.get("altitude", 0)),
+                    "position": position,
                     
                     # Missing VATSIM API fields - 1:1 mapping with API field names
-                    cid=flight_data.get("cid"),
-                    name=flight_data.get("name"),
-                    server=flight_data.get("server"),
-                    pilot_rating=flight_data.get("pilot_rating"),
-                    military_rating=flight_data.get("military_rating"),
-                    latitude=flight_data.get("latitude"),
-                    longitude=flight_data.get("longitude"),
-                    groundspeed=flight_data.get("groundspeed"),
-                    transponder=flight_data.get("transponder"),
-                    heading=flight_data.get("heading"),
-                    qnh_i_hg=flight_data.get("qnh_i_hg"),
-                    qnh_mb=flight_data.get("qnh_mb"),
-                    logon_time=logon_time,
-                    last_updated=last_updated,
+                    "cid": flight_data.get("cid"),
+                    "name": flight_data.get("name"),
+                    "server": flight_data.get("server"),
+                    "pilot_rating": flight_data.get("pilot_rating"),
+                    "military_rating": flight_data.get("military_rating"),
+                    "latitude": flight_data.get("latitude"),
+                    "longitude": flight_data.get("longitude"),
+                    "groundspeed": flight_data.get("groundspeed"),
+                    "transponder": flight_data.get("transponder"),
+                    "heading": flight_data.get("heading"),
+                    "qnh_i_hg": flight_data.get("qnh_i_hg"),
+                    "qnh_mb": flight_data.get("qnh_mb"),
+                    "logon_time": logon_time,
+                    "last_updated": last_updated,
                     
                     # Flight plan fields (nested object)
-                    flight_rules=flight_plan.get("flight_rules"),
-                    aircraft_faa=flight_plan.get("aircraft_faa"),
-                    aircraft_short=flight_plan.get("aircraft_short"),
-                    alternate=flight_plan.get("alternate"),
-                    cruise_tas=flight_plan.get("cruise_tas"),
-                    planned_altitude=flight_plan.get("altitude"),
-                    deptime=flight_plan.get("deptime"),
-                    enroute_time=flight_plan.get("enroute_time"),
-                    fuel_time=flight_plan.get("fuel_time"),
-                    remarks=flight_plan.get("remarks"),
-                    revision_id=flight_plan.get("revision_id"),
-                    assigned_transponder=flight_plan.get("assigned_transponder")
-                )
+                    "flight_rules": flight_plan.get("flight_rules"),
+                    "aircraft_faa": flight_plan.get("aircraft_faa"),
+                    "aircraft_short": flight_plan.get("aircraft_short"),
+                    "alternate": flight_plan.get("alternate"),
+                    "cruise_tas": flight_plan.get("cruise_tas"),
+                    "planned_altitude": flight_plan.get("altitude"),
+                    "deptime": flight_plan.get("deptime"),
+                    "enroute_time": flight_plan.get("enroute_time"),
+                    "fuel_time": flight_plan.get("fuel_time"),
+                    "remarks": flight_plan.get("remarks"),
+                    "revision_id": flight_plan.get("revision_id"),
+                    "assigned_transponder": flight_plan.get("assigned_transponder")
+                }
                 flights.append(flight)
                 
             except Exception as e:
@@ -548,7 +449,7 @@ class VATSIMService:
             })
             raise VATSIMAPIError(f"Failed to fetch transceivers data: {e}")
     
-    def _parse_transceivers(self, transceivers_data: List[Dict[str, Any]]) -> List[VATSIMTransceiver]:
+    def _parse_transceivers(self, transceivers_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Parse transceivers data from VATSIM API response.
         
@@ -556,7 +457,7 @@ class VATSIMService:
             transceivers_data: Raw transceivers data from API
             
         Returns:
-            List[VATSIMTransceiver]: Parsed transceivers data
+            List[Dict[str, Any]]: Parsed transceivers data as dictionaries
         """
         transceivers = []
         
@@ -566,16 +467,16 @@ class VATSIMService:
                 transceivers_list = entry.get("transceivers", [])
                 
                 for transceiver_data in transceivers_list:
-                    transceiver = VATSIMTransceiver(
-                        callsign=callsign,
-                        transceiver_id=transceiver_data.get("id", 0),
-                        frequency=transceiver_data.get("frequency", 0),
-                        position_lat=transceiver_data.get("latDeg"),
-                        position_lon=transceiver_data.get("lonDeg"),
-                        height_msl=transceiver_data.get("heightMslM"),
-                        height_agl=transceiver_data.get("heightAglM"),
-                        entity_type="flight"  # Default to flight, will be updated later
-                    )
+                    transceiver = {
+                        "callsign": callsign,
+                        "transceiver_id": transceiver_data.get("id", 0),
+                        "frequency": transceiver_data.get("frequency", 0),
+                        "position_lat": transceiver_data.get("latDeg"),
+                        "position_lon": transceiver_data.get("lonDeg"),
+                        "height_msl": transceiver_data.get("heightMslM"),
+                        "height_agl": transceiver_data.get("heightAglM"),
+                        "entity_type": "flight"  # Default to flight, will be updated later
+                    }
                     transceivers.append(transceiver)
                 
             except Exception as e:
@@ -589,9 +490,9 @@ class VATSIMService:
         
         return transceivers
     
-    def _link_transceivers_to_entities(self, transceivers: List[VATSIMTransceiver], 
-                                      flights: List[VATSIMFlight], 
-                                      controllers: List[VATSIMController]) -> List[VATSIMTransceiver]:
+    def _link_transceivers_to_entities(self, transceivers: List[Dict[str, Any]], 
+                                      flights: List[Dict[str, Any]], 
+                                      controllers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Link transceivers to flights and ATC positions based on callsign.
         
@@ -601,20 +502,20 @@ class VATSIMService:
             controllers: List of controllers
             
         Returns:
-            List[VATSIMTransceiver]: Transceivers with entity links
+            List[Dict[str, Any]]: Transceivers with entity links
         """
         # Create lookup dictionaries
-        flight_lookup = {flight.callsign: flight for flight in flights}
-        controller_lookup = {controller.callsign: controller for controller in controllers}
+        flight_lookup = {flight["callsign"]: flight for flight in flights}
+        controller_lookup = {controller["callsign"]: controller for controller in controllers}
         
         for transceiver in transceivers:
             # Check if callsign matches a flight
-            if transceiver.callsign in flight_lookup:
-                transceiver.entity_type = "flight"
+            if transceiver["callsign"] in flight_lookup:
+                transceiver["entity_type"] = "flight"
                 # Note: entity_id would be set when storing to database
             # Check if callsign matches a controller
-            elif transceiver.callsign in controller_lookup:
-                transceiver.entity_type = "atc"
+            elif transceiver["callsign"] in controller_lookup:
+                transceiver["entity_type"] = "atc"
                 # Note: entity_id would be set when storing to database
             # If no match, keep as "flight" (default)
         

@@ -5,14 +5,12 @@ FROM python:3.11-slim as builder
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Install build dependencies including GEOS for Shapely
+# Install build dependencies - simplified to essential only
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     libpq-dev \
     libgeos-dev \
-    libproj-dev \
-    libgdal-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Set work directory
@@ -33,13 +31,11 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PATH=/home/app/.local/bin:$PATH
 
-# Install runtime dependencies including GEOS runtime libraries
+# Install runtime dependencies - simplified to essential only
 RUN apt-get update && apt-get install -y \
     libpq5 \
     curl \
     libgeos-c1v5 \
-    libproj25 \
-    libgdal32 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set work directory

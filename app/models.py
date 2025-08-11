@@ -35,7 +35,7 @@ OPTIMIZATIONS:
 from sqlalchemy import (
     Column, Integer, String, DateTime, Float, ForeignKey, Text, Boolean, 
     SmallInteger, Index, DECIMAL, JSON, TIMESTAMP, CheckConstraint, UniqueConstraint,
-    event, func
+    BigInteger, event, func
 )
 from sqlalchemy.orm import relationship, validates
 from sqlalchemy.ext.declarative import declared_attr
@@ -229,9 +229,11 @@ class Transceiver(Base, TimestampMixin):
     id = Column(Integer, primary_key=True)
     callsign = Column(String(50), nullable=False, index=True)
     transceiver_id = Column(Integer, nullable=False)  # ID from VATSIM API
-    frequency = Column(Integer, nullable=False, index=True)  # Frequency in Hz
+    frequency = Column(BigInteger, nullable=False, index=True)  # Frequency in Hz
     position_lat = Column(Float, nullable=True)
     position_lon = Column(Float, nullable=True)
+    height_msl = Column(Float, nullable=True)  # Height above mean sea level in meters from VATSIM API
+    height_agl = Column(Float, nullable=True)  # Height above ground level in meters from VATSIM API
     entity_type = Column(String(20), nullable=False, index=True)  # 'flight' or 'atc'
     entity_id = Column(Integer, nullable=True, index=True)  # Foreign key to flights.id or controllers.id
     timestamp = Column(TIMESTAMP(timezone=True), default=func.now(), nullable=False, index=True)

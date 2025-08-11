@@ -132,7 +132,15 @@ class DataService:
             vatsim_data = await self.vatsim_service.get_current_data()
             
             if vatsim_data:
-                self.logger.info(f"Received VATSIM data: {len(vatsim_data.flights) if hasattr(vatsim_data, 'flights') else 0} flights, {len(vatsim_data.controllers) if hasattr(vatsim_data, 'controllers') else 0} controllers")
+                # Handle dictionary responses from VATSIM API
+                if isinstance(vatsim_data, dict):
+                    flights_count = len(vatsim_data.get('flights', []))
+                    controllers_count = len(vatsim_data.get('controllers', []))
+                else:
+                    flights_count = 0
+                    controllers_count = 0
+                
+                self.logger.info(f"Received VATSIM data: {flights_count} flights, {controllers_count} controllers")
                 
                 # Process data in memory first
                 await self._process_data_in_memory(vatsim_data)
@@ -158,25 +166,25 @@ class DataService:
             return False
     
     async def _process_data_in_memory(self, vatsim_data):
-        """Process VATSIM data in memory buffer"""
+        """Process VATSIM data in memory buffer - Direct dictionary processing"""
         try:
-            # Process ATC positions directly from VATSIM dataclass objects
-            if hasattr(vatsim_data, 'controllers'):
-                atc_positions_count = await self._process_atc_positions_in_memory(vatsim_data.controllers)
+            # Process ATC positions directly from VATSIM dictionary data
+            if isinstance(vatsim_data, dict) and 'controllers' in vatsim_data:
+                atc_positions_count = await self._process_atc_positions_in_memory(vatsim_data['controllers'])
             else:
                 atc_positions_count = 0
                 
-            # Process flights directly from VATSIM dataclass objects
-            if hasattr(vatsim_data, 'flights'):
-                flights_count = await self._process_flights_in_memory(vatsim_data.flights)
+            # Process flights directly from VATSIM dictionary data
+            if isinstance(vatsim_data, dict) and 'flights' in vatsim_data:
+                flights_count = await self._process_flights_in_memory(vatsim_data['flights'])
             else:
                 flights_count = 0
             
             # Sectors removed - VATSIM API v3 doesn't provide sectors data
             
-            # Process transceivers directly from VATSIM dataclass objects
-            if hasattr(vatsim_data, 'transceivers'):
-                transceivers_count = await self._process_transceivers_in_memory(vatsim_data.transceivers)
+            # Process transceivers directly from VATSIM dictionary data
+            if isinstance(vatsim_data, dict) and 'transceivers' in vatsim_data:
+                transceivers_count = await self._process_transceivers_in_memory(vatsim_data['transceivers'])
             else:
                 transceivers_count = 0
             
@@ -186,24 +194,24 @@ class DataService:
             self.logger.error(f"Error processing data in memory: {e}")
     
     async def _process_atc_positions_in_memory(self, atc_positions_data) -> int:
-        """Process ATC positions in memory buffer - EXACT API field mapping from VATSIM dataclass"""
+        """Process ATC positions in memory buffer - Direct dictionary processing from VATSIM API"""
         try:
             processed_count = 0
             
             for controller_data in atc_positions_data:
                 try:
-                    # Convert dataclass to dict for processing
+                    # Process controller data directly as dictionary - no conversion needed
                     controller_dict = {
-                        'callsign': controller_data.callsign,
-                        'cid': controller_data.cid,
-                        'name': controller_data.name,
-                        'facility': controller_data.facility,
-                        'rating': controller_data.rating,
-                        'server': controller_data.server,
-                        'visual_range': controller_data.visual_range,
-                        'text_atis': controller_data.text_atis,
-                        'logon_time': controller_data.logon_time,
-                        'last_updated': controller_data.last_updated
+                        'callsign': controller_data.get('callsign'),
+                        'cid': controller_data.get('cid'),
+                        'name': controller_data.get('name'),
+                        'facility': controller_data.get('facility'),
+                        'rating': controller_data.get('rating'),
+                        'server': controller_data.get('server'),
+                        'visual_range': controller_data.get('visual_range'),
+                        'text_atis': controller_data.get('text_atis'),
+                        'logon_time': controller_data.get('logon_time'),
+                        'last_updated': controller_data.get('last_updated')
                     }
                     
                     # Validate controller data
@@ -220,7 +228,7 @@ class DataService:
                         self.logger.warning(f"Invalid controller data for {controller_dict.get('callsign', 'unknown')}")
                         
                 except Exception as e:
-                    self.logger.error(f"Error processing controller {getattr(controller_data, 'callsign', 'unknown')}: {e}")
+                    self.logger.error(f"Error processing controller {controller_data.get('callsign', 'unknown')}: {e}")
                     continue
             
             self.logger.info(f"Processed {processed_count} ATC positions into memory buffer")
@@ -254,46 +262,49 @@ class DataService:
             return False
     
     async def _process_flights_in_memory(self, flights_data) -> int:
-        """Process flights in memory buffer - EXACT API field mapping from VATSIM dataclass"""
+        """Process flights in memory buffer - Direct dictionary processing from VATSIM API"""
         try:
             processed_count = 0
             
             for flight_data in flights_data:
                 try:
-                    # Convert dataclass to dict for processing
+                    # Process flight data directly as dictionary - no conversion needed
+                    # Extract flight plan data if nested
+                    flight_plan = flight_data.get('flight_plan', {})
+                    
                     flight_dict = {
-                        'callsign': flight_data.callsign,
-                        'cid': flight_data.cid,
-                        'name': flight_data.name,
-                        'server': flight_data.server,
-                        'pilot_rating': flight_data.pilot_rating,
-                        'military_rating': flight_data.military_rating,
-                        'latitude': flight_data.latitude,
-                        'longitude': flight_data.longitude,
-                        'altitude': flight_data.altitude,
-                        'groundspeed': flight_data.groundspeed,
-                        'transponder': flight_data.transponder,
-                        'heading': flight_data.heading,
-                        'qnh_i_hg': flight_data.qnh_i_hg,
-                        'qnh_mb': flight_data.qnh_mb,
-                        'logon_time': flight_data.logon_time,
-                        'last_updated': flight_data.last_updated,
-                        'departure': flight_data.departure,
-                        'arrival': flight_data.arrival,
-                        'route': flight_data.route,
-                        'aircraft_type': flight_data.aircraft_type,
-                        'flight_rules': flight_data.flight_rules,
-                        'aircraft_faa': flight_data.aircraft_faa,
-                        'aircraft_short': flight_data.aircraft_short,
-                        'alternate': flight_data.alternate,
-                        'cruise_tas': flight_data.cruise_tas,
-                        'planned_altitude': flight_data.planned_altitude,
-                        'deptime': flight_data.deptime,
-                        'enroute_time': flight_data.enroute_time,
-                        'fuel_time': flight_data.fuel_time,
-                        'remarks': flight_data.remarks,
-                        'revision_id': flight_data.revision_id,
-                        'assigned_transponder': flight_data.assigned_transponder
+                        'callsign': flight_data.get('callsign'),
+                        'cid': flight_data.get('cid'),
+                        'name': flight_data.get('name'),
+                        'server': flight_data.get('server'),
+                        'pilot_rating': flight_data.get('pilot_rating'),
+                        'military_rating': flight_data.get('military_rating'),
+                        'latitude': flight_data.get('latitude'),
+                        'longitude': flight_data.get('longitude'),
+                        'altitude': flight_data.get('altitude'),
+                        'groundspeed': flight_data.get('groundspeed'),
+                        'transponder': flight_data.get('transponder'),
+                        'heading': flight_data.get('heading'),
+                        'qnh_i_hg': flight_data.get('qnh_i_hg'),
+                        'qnh_mb': flight_data.get('qnh_mb'),
+                        'logon_time': flight_data.get('logon_time'),
+                        'last_updated': flight_data.get('last_updated'),
+                        'departure': flight_plan.get('departure'),
+                        'arrival': flight_plan.get('arrival'),
+                        'route': flight_plan.get('route'),
+                        'aircraft_type': flight_plan.get('aircraft_short'),
+                        'flight_rules': flight_plan.get('flight_rules'),
+                        'aircraft_faa': flight_plan.get('aircraft_faa'),
+                        'aircraft_short': flight_plan.get('aircraft_short'),
+                        'alternate': flight_plan.get('alternate'),
+                        'cruise_tas': flight_plan.get('cruise_tas'),
+                        'planned_altitude': flight_plan.get('altitude'),
+                        'deptime': flight_plan.get('deptime'),
+                        'enroute_time': flight_plan.get('enroute_time'),
+                        'fuel_time': flight_plan.get('fuel_time'),
+                        'remarks': flight_plan.get('remarks'),
+                        'revision_id': flight_plan.get('revision_id'),
+                        'assigned_transponder': flight_plan.get('assigned_transponder')
                     }
                     
                     # Apply flight filters if enabled
@@ -311,7 +322,7 @@ class DataService:
                     processed_count += 1
                     
                 except Exception as e:
-                    self.logger.error(f"Error processing flight {getattr(flight_data, 'callsign', 'unknown')}: {e}")
+                    self.logger.error(f"Error processing flight {flight_data.get('callsign', 'unknown')}: {e}")
                     continue
             
             self.logger.info(f"Processed {processed_count} flights into memory buffer")
@@ -322,20 +333,22 @@ class DataService:
             return 0
     
     async def _process_transceivers_in_memory(self, transceivers_data) -> int:
-        """Process transceivers in memory buffer - EXACT API field mapping from VATSIM dataclass"""
+        """Process transceivers in memory buffer - Direct dictionary processing from VATSIM API"""
         try:
             processed_count = 0
             
             for transceiver_data in transceivers_data:
                 try:
-                    # Convert dataclass to dict for processing
+                    # Process transceiver data directly as dictionary - no conversion needed
                     transceiver_dict = {
-                        'callsign': transceiver_data.callsign,
-                        'frequency': transceiver_data.frequency,
-                        'position_lat': transceiver_data.position_lat,
-                        'position_lon': transceiver_data.position_lon,
-                        'altitude': transceiver_data.altitude,
-                        'last_updated': transceiver_data.last_updated
+                        'callsign': transceiver_data.get('callsign'),
+                        'transceiver_id': transceiver_data.get('transceiver_id'),
+                        'frequency': transceiver_data.get('frequency'),
+                        'position_lat': transceiver_data.get('position_lat'),
+                        'position_lon': transceiver_data.get('position_lon'),
+                        'height_msl': transceiver_data.get('height_msl'),
+                        'height_agl': transceiver_data.get('height_agl'),
+                        'entity_type': transceiver_data.get('entity_type')
                     }
                     
                     # Add to memory buffer
@@ -343,7 +356,7 @@ class DataService:
                     processed_count += 1
                     
                 except Exception as e:
-                    self.logger.error(f"Error processing transceiver {getattr(transceiver_data, 'callsign', 'unknown')}: {e}")
+                    self.logger.error(f"Error processing transceiver {transceiver_data.get('callsign', 'unknown')}: {e}")
                     continue
             
             self.logger.info(f"Processed {processed_count} transceivers into memory buffer")
@@ -427,12 +440,12 @@ class DataService:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "data_freshness": "real-time",
                 "statistics": {
-                    "flights_count": len(vatsim_data.flights) if hasattr(vatsim_data, 'flights') else 0,
-                    "controllers_count": len(vatsim_data.controllers) if hasattr(vatsim_data, 'controllers') else 0,
-                    "transceivers_count": len(vatsim_data.transceivers) if hasattr(vatsim_data, 'transceivers') else 0
+                    "flights_count": len(vatsim_data.get('flights', [])) if isinstance(vatsim_data, dict) else 0,
+                    "controllers_count": len(vatsim_data.get('controllers', [])) if isinstance(vatsim_data, dict) else 0,
+                    "transceivers_count": len(vatsim_data.get('transceivers', [])) if isinstance(vatsim_data, dict) else 0
                 },
                 "data_ingestion": {
-                    "last_vatsim_update": vatsim_data.update_timestamp if hasattr(vatsim_data, 'update_timestamp') else "unknown",
+                    "last_vatsim_update": vatsim_data.get('update_timestamp', 'unknown') if isinstance(vatsim_data, dict) else "unknown",
                     "update_interval_seconds": self.vatsim_polling_interval,
                     "write_interval_seconds": self.vatsim_write_interval
                 }

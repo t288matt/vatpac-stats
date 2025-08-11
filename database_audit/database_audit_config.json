@@ -184,7 +184,7 @@
         "id": "SERIAL",
         "callsign": "VARCHAR(50)",
         "transceiver_id": "INTEGER",
-        "frequency": "INTEGER",
+        "frequency": "BIGINT",
         "position_lat": "DOUBLE PRECISION",
         "position_lon": "DOUBLE PRECISION",
         "height_msl": "DOUBLE PRECISION",

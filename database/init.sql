@@ -69,6 +69,9 @@ CREATE TABLE IF NOT EXISTS flights (
     enroute_time VARCHAR(10),       -- Enroute time from flight_plan.enroute_time
     fuel_time VARCHAR(10),          -- Fuel time from flight_plan.fuel_time
     remarks TEXT,                   -- Flight plan remarks from flight_plan.remarks
+    aircraft_short VARCHAR(20),     -- Short aircraft code from flight_plan.aircraft_short
+    revision_id INTEGER,            -- Flight plan revision from flight_plan.revision_id
+    assigned_transponder VARCHAR(10), -- Assigned transponder from flight_plan.assigned_transponder
     
     -- Timestamps
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -80,6 +83,8 @@ CREATE TABLE IF NOT EXISTS flights (
     pilot_rating INTEGER,           -- From API "pilot_rating" - Pilot rating
     military_rating INTEGER,        -- From API "military_rating" - Military rating
     transponder VARCHAR(10),        -- From API "transponder" - Transponder code
+    qnh_i_hg DOUBLE PRECISION,      -- QNH pressure in inches Hg from VATSIM API
+    qnh_mb INTEGER,                 -- QNH pressure in millibars from VATSIM API
     logon_time TIMESTAMP WITH TIME ZONE,    -- From API "logon_time"
     last_updated_api TIMESTAMP WITH TIME ZONE,  -- From API "last_updated"
     
@@ -109,6 +114,8 @@ CREATE TABLE IF NOT EXISTS transceivers (
     frequency BIGINT NOT NULL,        -- Frequency in Hz
     position_lat DOUBLE PRECISION,    -- Position latitude
     position_lon DOUBLE PRECISION,    -- Position longitude
+    height_msl DOUBLE PRECISION,      -- Height above mean sea level in meters from VATSIM API
+    height_agl DOUBLE PRECISION,      -- Height above ground level in meters from VATSIM API
     entity_type VARCHAR(20) NOT NULL, -- 'flight' or 'atc'
     entity_id INTEGER,                -- Foreign key to flights.id or controllers.id
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
@@ -133,6 +140,8 @@ CREATE INDEX IF NOT EXISTS idx_flights_cid_server ON flights(cid, server);
 CREATE INDEX IF NOT EXISTS idx_flights_altitude ON flights(altitude);
 CREATE INDEX IF NOT EXISTS idx_flights_flight_rules ON flights(flight_rules);
 CREATE INDEX IF NOT EXISTS idx_flights_planned_altitude ON flights(planned_altitude);
+CREATE INDEX IF NOT EXISTS idx_flights_aircraft_short ON flights(aircraft_short);
+CREATE INDEX IF NOT EXISTS idx_flights_revision_id ON flights(revision_id);
 
 -- Airports indexes
 CREATE INDEX IF NOT EXISTS idx_airports_icao ON airports(icao_code);
@@ -238,6 +247,11 @@ COMMENT ON COLUMN flights.deptime IS 'Departure time from VATSIM API flight_plan
 COMMENT ON COLUMN flights.enroute_time IS 'Enroute time from VATSIM API flight_plan.enroute_time field';
 COMMENT ON COLUMN flights.fuel_time IS 'Fuel time from VATSIM API flight_plan.fuel_time field';
 COMMENT ON COLUMN flights.remarks IS 'Flight plan remarks from VATSIM API flight_plan.remarks field';
+COMMENT ON COLUMN flights.aircraft_short IS 'Short aircraft code from VATSIM API flight_plan.aircraft_short field';
+COMMENT ON COLUMN flights.revision_id IS 'Flight plan revision from VATSIM API flight_plan.revision_id field';
+COMMENT ON COLUMN flights.assigned_transponder IS 'Assigned transponder from VATSIM API flight_plan.assigned_transponder field';
+COMMENT ON COLUMN flights.qnh_i_hg IS 'QNH pressure in inches Hg from VATSIM API qnh_i_hg field';
+COMMENT ON COLUMN flights.qnh_mb IS 'QNH pressure in millibars from VATSIM API qnh_mb field';
 
 -- Verify all tables were created successfully
 SELECT 

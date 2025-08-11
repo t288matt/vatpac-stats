@@ -272,7 +272,7 @@ class DatabaseAuditor:
             'transceivers': [
                 ('callsign', 'VARCHAR(50)', 'Entity callsign'),
                 ('transceiver_id', 'INTEGER', 'Transceiver ID'),
-                ('frequency', 'INTEGER', 'Frequency in Hz'),
+                ('frequency', 'BIGINT', 'Frequency in Hz'),
                 ('position_lat', 'DOUBLE PRECISION', 'Latitude'),
                 ('position_lon', 'DOUBLE PRECISION', 'Longitude'),
                 ('height_msl', 'DOUBLE PRECISION', 'Height above sea level'),
