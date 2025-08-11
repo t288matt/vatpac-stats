@@ -16,12 +16,12 @@ OUTPUTS:
 - Stored controller records in database
 - Stored transceiver records in database
 - Flight tracking and statistics
-- Database health and performance metrics
+- Database performance metrics
 
 FEATURES:
 - Connection pooling for performance
 - Comprehensive error handling and logging
-- Health monitoring and statistics
+- Performance statistics
 """
 
 import time
@@ -51,35 +51,7 @@ class DatabaseService:
         """Cleanup database service resources."""
         self.logger.info("Cleaning up database service")
     
-    async def health_check(self) -> Dict[str, Any]:
-        """Perform database service health check."""
-        try:
-            session = SessionLocal()
-            
-            # Test basic connectivity
-            result = session.execute(text("SELECT 1"))
-            result.fetchone()
-            
-            # Get basic stats
-            flight_count = session.query(Flight).count()
-            controller_count = session.query(Controller).count()
-            
-            session.close()
-            
-            return {
-                "database_connected": True,
-                "flight_count": flight_count,
-                "controller_count": controller_count,
-                "last_cleanup": self.last_cleanup.isoformat(),
-                "query_count": self.query_count
-            }
-            
-        except Exception as e:
-            self.logger.error(f"Database health check failed: {e}")
-            return {
-                "database_connected": False,
-                "error": str(e)
-            }
+
     
     @handle_service_errors
     @log_operation("store_flights")

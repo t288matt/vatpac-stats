@@ -131,20 +131,7 @@ class VATSIMService:
         """Check if service is properly initialized."""
         return self._initialized
     
-    async def health_check(self) -> Dict[str, Any]:
-        """Perform VATSIM service health check."""
-        try:
-            if not self.client:
-                return {"status": "no_client", "error": "HTTP client not initialized"}
-            
-            # Test API connectivity
-            response = await self.client.get(self.config.vatsim.api_url, timeout=5.0)
-            if response.status_code == 200:
-                return {"status": "healthy", "api_accessible": True}
-            else:
-                return {"status": "unhealthy", "api_accessible": False, "status_code": response.status_code}
-        except Exception as e:
-            return {"status": "error", "error": str(e)}
+
     
     async def cleanup(self):
         """Cleanup VATSIM service resources."""
@@ -556,28 +543,23 @@ class VATSIMService:
         return transceivers
     
     async def get_api_status(self) -> Dict[str, Any]:
-        """
-        Get detailed API status information.
-        
-        Returns:
-            Dict[str, Any]: API status information
-        """
+        """Get VATSIM API status information."""
         try:
-            await self._create_client()
-            response = await self.client.get(self.config.vatsim.api_url)
-            
-            return {
-                "status": "healthy" if response.status_code == 200 else "unhealthy",
-                "status_code": response.status_code,
-                "response_time": response.elapsed.total_seconds(),
-                "timestamp": datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-            }
-            
+            async with httpx.AsyncClient() as client:
+                response = await client.get(self.config.vatsim.api_url, timeout=self.config.vatsim.timeout)
+                
+                return {
+                    "status": "operational" if response.status_code == 200 else "unhealthy",
+                    "status_code": response.status_code,
+                    "response_time": response.elapsed.total_seconds(),
+                    "last_check": datetime.now(timezone.utc).isoformat()
+                }
+                
         except Exception as e:
             return {
                 "status": "error",
                 "error": str(e),
-                "timestamp": datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+                "last_check": datetime.now(timezone.utc).isoformat()
             }
 
 

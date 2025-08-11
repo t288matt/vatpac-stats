@@ -134,7 +134,7 @@ Get flights from memory cache (debugging endpoint).
 ```json
 {
   "memory_flights": 74,
-  "cache_status": "healthy",
+  "cache_status": "operational",
   "last_refresh": "2025-08-09T09:15:30Z",
   "flights": [...]
 }
@@ -192,7 +192,7 @@ Get ATC positions grouped by controller ID.
 ## 📡 Network & System Status
 
 ### **GET /api/status**
-Get comprehensive system health and statistics.
+Get comprehensive system status and statistics.
 
 **Response Example:**
 ```json
@@ -252,7 +252,7 @@ Get database status and migration information.
 ```json
 {
   "database_status": {
-    "connection": "healthy",
+    "connection": "operational",
     "tables": 6,
     "total_records": 156789,
     "last_migration": "010_remove_flight_status_fields.sql",

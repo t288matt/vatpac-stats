@@ -1,12 +1,12 @@
-# Comprehensive Health Monitoring Dashboard
+# Comprehensive System Status Dashboard
 
-This Grafana dashboard provides real-time monitoring of your VATSIM data application's health status by directly consuming the `/api/health/comprehensive` HTTP endpoint.
+This Grafana dashboard provides real-time monitoring of your VATSIM data application's system status by directly consuming the `/api/status` HTTP endpoint.
 
 ## Features
 
 The dashboard displays the following key metrics:
 
-### System Health
+### System Status
 - **Overall System Health**: Percentage score (95%+ = Green, 80-94% = Orange, <80% = Red)
 - **Database Status**: Connection status (Connected/Disconnected)
 - **Active Controllers**: Current number of active ATC controllers
@@ -18,18 +18,18 @@ The dashboard displays the following key metrics:
 - **Database Size**: Current database size in MB
 
 ### Service Status
-- **Cache Service Status**: Health status of the cache service
+- **Cache Service Status**: Status of the cache service
 - **Cache Hit Rate**: Cache performance metrics
 - **Data Freshness (ATC)**: How recent the ATC data is (seconds)
 - **Data Freshness (Flights)**: How recent the flight data is (seconds)
 
 ### Timestamps
-- **Last Updated**: Timestamp of the most recent health check
+- **Last Updated**: Timestamp of the most recent status check
 
 ## Data Source
 
 The dashboard uses the **Simple JSON Data Source** plugin configured to fetch data from:
-- **URL**: `http://app:8001/api/health/comprehensive`
+- **URL**: `http://app:8001/api/status`
 - **Method**: GET
 - **Refresh Rate**: 30 seconds
 - **Timeout**: 30 seconds
@@ -43,20 +43,20 @@ The dashboard is automatically provisioned when Grafana starts. The datasource c
 
 - **Grafana URL**: http://localhost:3050
 - **Default Credentials**: admin/admin
-- **Dashboard**: Automatically loaded as "VATSIM Comprehensive Health Monitoring"
+- **Dashboard**: Automatically loaded as "VATSIM Comprehensive System Status"
 
 ## Troubleshooting
 
 ### Dashboard Not Loading Data
-1. Verify the health endpoint is accessible: `curl http://localhost:8001/api/health/comprehensive`
+1. Verify the status endpoint is accessible: `curl http://localhost:8001/api/status`
 2. Check Grafana logs: `docker logs vatsim_grafana`
 3. Verify the Simple JSON Data Source plugin is installed
 4. Check datasource configuration in Grafana UI
 
 ### Data Source Issues
-1. Ensure the app container is running and healthy
+1. Ensure the app container is running and operational
 2. Verify network connectivity between Grafana and app containers
-3. Check if the health endpoint returns valid JSON
+3. Check if the status endpoint returns valid JSON
 
 ### Performance Issues
 1. The dashboard refreshes every 30 seconds by default
@@ -66,14 +66,14 @@ The dashboard is automatically provisioned when Grafana starts. The datasource c
 ## Customization
 
 To modify the dashboard:
-1. Edit `grafana/dashboards/comprehensive-health-monitoring.json`
+1. Edit `grafana/dashboards/comprehensive-system-status.json`
 2. Restart Grafana: `docker-compose restart grafana`
 3. Changes will be automatically applied
 
-## Health Endpoint Details
+## Status Endpoint Details
 
-The `/api/health/comprehensive` endpoint provides:
-- Overall system health score
+The `/api/status` endpoint provides:
+- Overall system status score
 - API endpoint status and response times
 - Database connection and performance metrics
 - System resource utilization (CPU, memory, disk)

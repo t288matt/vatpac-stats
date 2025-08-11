@@ -2,11 +2,9 @@
 logs/
 *.log
 data/postgres/pgdata/log/
-data/redis/
 
 # Database files
 data/postgres/pgdata/
-data/redis/
 
 # Python
 __pycache__/

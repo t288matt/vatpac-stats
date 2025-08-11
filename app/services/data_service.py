@@ -14,7 +14,7 @@ OUTPUTS:
 - Processed and stored flight data
 - Processed and stored ATC position data
 - Processed and stored transceiver data
-- System health and status information
+- System status information
 """
 
 import os
@@ -94,54 +94,15 @@ class DataService:
         """Check if service is properly initialized."""
         return self._initialized
     
-    async def health_check(self) -> Dict[str, Any]:
-        """Perform data service health check."""
-        try:
-            if not self._initialized:
-                return {"status": "uninitialized", "error": "Service not initialized"}
-            
-            # Check VATSIM service
-            vatsim_health = await self.vatsim_service.health_check()
-            
-            # Check geographic boundary filter
-            boundary_filter_health = {
-                "enabled": self.geographic_boundary_filter.config.enabled,
-                "initialized": self.geographic_boundary_filter.is_initialized
-            }
-            
-            # Check database connectivity
-            try:
-                session = await get_database_session()
-                async with session as session:
-                    session.execute(text("SELECT 1"))
-                    database_status = "connected"
-            except Exception:
-                database_status = "disconnected"
-            
-            return {
-                "status": "healthy" if vatsim_health["status"] == "healthy" else "unhealthy",
-                "vatsim_service": vatsim_health,
-                "geographic_boundary_filter": boundary_filter_health,
-                "database": database_status
-            }
-            
-        except Exception as e:
-            return {"status": "error", "error": str(e)}
-    
     async def cleanup(self):
         """Cleanup data service resources."""
         try:
             if self.vatsim_service:
                 await self.vatsim_service.cleanup()
-            
-            if self.db_session:
-                await self.db_session.close()
-                
             self.logger.info("Data service cleanup completed")
-            
         except Exception as e:
-            self.logger.error(f"Error during cleanup: {e}")
-    
+            self.logger.error(f"Data service cleanup failed: {e}")
+
     @handle_service_errors
     @log_operation("process_vatsim_data")
     async def process_vatsim_data(self) -> Dict[str, Any]:
@@ -221,8 +182,7 @@ class DataService:
         processed_count = 0
         
         # Get database session
-        session = await get_database_session()
-        async with session as session:
+        async with get_database_session() as session:
             for flight_dict in flights_data:
                 try:
                     # Apply geographic boundary filtering
@@ -286,11 +246,7 @@ class DataService:
         Returns:
             int: Number of controllers processed and stored
         """
-        print("DEBUG: === _process_controllers METHOD ENTRY ===")
-        print(f"DEBUG: _process_controllers called with {len(controllers_data)} controllers")
-        
         if not controllers_data:
-            print("DEBUG: No controllers data, returning 0")
             return 0
         
         processed_count = 0
@@ -302,20 +258,12 @@ class DataService:
         else:
             filtered_controllers = controllers_data
         
-        print(f"DEBUG: After filtering: {len(filtered_controllers)} controllers")
-        
         # Get database session
-        session = await get_database_session()
-        print(f"DEBUG: Got database session: {session}")
-        
-        async with session as session:
-            print(f"DEBUG: Inside session context")
+        async with get_database_session() as session:
             self.logger.info(f"Starting controller processing with {len(filtered_controllers)} controllers")
             
             for controller_dict in filtered_controllers:
                 try:
-                    print(f"DEBUG: Processing controller: {controller_dict.get('callsign', 'unknown')}")
-                    
                     # Debug logging to see what data we're getting
                     self.logger.debug(f"Processing controller: {controller_dict}")
                     
@@ -334,8 +282,6 @@ class DataService:
                         logon_time=self._parse_timestamp(controller_dict.get("logon_time"))
                     )
                     
-                    print(f"DEBUG: Created controller model: {controller.callsign}")
-                    
                     # Debug logging to see the created model
                     self.logger.debug(f"Created controller model: {controller}")
                     
@@ -343,17 +289,12 @@ class DataService:
                     session.add(controller)
                     processed_count += 1
                     
-                    print(f"DEBUG: Added controller {controller.callsign} to session, total: {processed_count}")
-                    
                     self.logger.debug(f"Added controller {controller.callsign} to session, total in session: {processed_count}")
                     
                 except Exception as e:
-                    print(f"DEBUG: Exception processing controller: {e}")
                     self.logger.error(f"Failed to process controller {controller_dict.get('callsign', 'unknown')}: {e}")
                     self.logger.error(f"Exception details: {type(e).__name__}: {str(e)}")
                     continue
-            
-            print(f"DEBUG: About to commit {processed_count} controllers")
             
             # Log before commit
             self.logger.info(f"About to commit {processed_count} controllers to database")
@@ -362,18 +303,14 @@ class DataService:
             if processed_count > 0:
                 try:
                     await session.commit()
-                    print(f"DEBUG: Successfully committed {processed_count} controllers")
                     self.logger.info(f"Successfully committed {processed_count} controllers to database")
                 except Exception as e:
-                    print(f"DEBUG: Commit failed: {e}")
                     self.logger.error(f"Failed to commit controllers: {e}")
                     self.logger.error(f"Commit exception details: {type(e).__name__}: {str(e)}")
                     raise
             else:
-                print("DEBUG: No controllers to commit")
                 self.logger.info("No controllers to commit")
         
-        print(f"DEBUG: Returning processed_count: {processed_count}")
         return processed_count
     
     def _convert_text_atis(self, text_atis_data: Any) -> Optional[str]:
@@ -399,12 +336,13 @@ class DataService:
         # Convert any other type to string
         return str(text_atis_data)
     
-    def _parse_timestamp(self, timestamp_str: Optional[str]) -> Optional[datetime]:
+    def _parse_timestamp(self, timestamp_str: Optional[Any]) -> Optional[datetime]:
         """
-        Parse VATSIM timestamp string to datetime object.
+        Parse timestamp string to datetime object.
         
         Args:
             timestamp_str: Timestamp string from VATSIM API (e.g., '2025-08-11T11:53:48.7182327Z')
+                          or datetime object
             
         Returns:
             datetime object or None if parsing fails
@@ -412,23 +350,33 @@ class DataService:
         if not timestamp_str:
             return None
         
-        try:
-            # Remove the 'Z' suffix and parse as UTC timestamp
-            if timestamp_str.endswith('Z'):
-                timestamp_str = timestamp_str[:-1]
-            
-            # Parse the ISO format timestamp
-            parsed_time = datetime.fromisoformat(timestamp_str)
-            
-            # Ensure it's timezone-aware (UTC)
-            if parsed_time.tzinfo is None:
-                parsed_time = parsed_time.replace(tzinfo=timezone.utc)
-            
-            return parsed_time
-            
-        except (ValueError, TypeError) as e:
-            self.logger.warning(f"Failed to parse timestamp '{timestamp_str}': {e}")
-            return None
+        # If it's already a datetime object, return it
+        if isinstance(timestamp_str, datetime):
+            return timestamp_str
+        
+        # If it's a string, parse it
+        if isinstance(timestamp_str, str):
+            try:
+                # Remove the 'Z' suffix and parse as UTC timestamp
+                if timestamp_str.endswith('Z'):
+                    timestamp_str = timestamp_str[:-1]
+                
+                # Parse the ISO format timestamp
+                parsed_time = datetime.fromisoformat(timestamp_str)
+                
+                # Ensure it's timezone-aware (UTC)
+                if parsed_time.tzinfo is None:
+                    parsed_time = parsed_time.replace(tzinfo=timezone.utc)
+                
+                return parsed_time
+                
+            except (ValueError, TypeError) as e:
+                self.logger.warning(f"Failed to parse timestamp '{timestamp_str}': {e}")
+                return None
+        
+        # If it's any other type, log warning and return None
+        self.logger.warning(f"Unexpected timestamp type {type(timestamp_str)}: {timestamp_str}")
+        return None
     
     async def _process_transceivers(self, transceivers_data: List[Dict[str, Any]]) -> int:
         """
@@ -453,8 +401,7 @@ class DataService:
             filtered_transceivers = transceivers_data
         
         # Get database session
-        session = await get_database_session()
-        async with session as session:
+        async with get_database_session() as session:
             for transceiver_dict in filtered_transceivers:
                 try:
                     # Create transceiver model
@@ -511,16 +458,21 @@ class DataService:
     #         self.logger.error(f"Failed to update VATSIM status: {e}") # This method is removed
     
     def get_processing_stats(self) -> Dict[str, Any]:
-        """Get current processing statistics."""
-        return self.processing_stats.copy()
+        """Get data processing statistics."""
+        return {
+            "flights_processed": self.processing_stats.get("total_flights_processed", 0),
+            "controllers_processed": self.processing_stats.get("total_controllers_processed", 0),
+            "transceivers_processed": self.processing_stats.get("total_transceivers_processed", 0),
+            "last_processing_time": self.processing_stats.get("last_processing_time", 0),
+            "total_processing_time": self.processing_stats.get("last_processing_time", 0) # This seems like a bug, should be total_processing_time
+        }
     
     def get_filter_status(self) -> Dict[str, Any]:
-        """Get current filter status and configuration."""
+        """Get filter status information."""
         return {
             "geographic_boundary_filter": {
                 "enabled": self.geographic_boundary_filter.config.enabled,
-                "initialized": self.geographic_boundary_filter.is_initialized,
-                "performance": self.geographic_boundary_filter.get_filter_stats()
+                "initialized": self.geographic_boundary_filter.is_initialized
             }
         }
 

@@ -13,7 +13,7 @@ This service provides [specific functionality] for the VATSIM data collection sy
 
 ## Outputs
 - **Data Outputs**: What data the service produces
-- **Status Information**: Health and status data
+- **Status Information**: System status data
 - **Performance Metrics**: Monitoring and performance data
 
 ## Key Features
@@ -46,7 +46,7 @@ This service uses configuration from the centralized configuration system. See `
 - **Scalability**: How the service scales with load
 
 ## Monitoring
-- **Health Checks**: Available health check endpoints
+- **Status Checks**: Available status check endpoints
 - **Metrics**: Performance metrics collected
 - **Alerts**: Alert conditions and thresholds
 

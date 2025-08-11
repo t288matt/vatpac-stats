@@ -159,7 +159,7 @@ The filter processes VATSIM data in the following sequence:
 - **Memory Usage**: Polygon cached in memory for performance
 - **Accuracy**: Sub-meter precision using Shapely geometric calculations
 
-## Monitoring and Health Checks
+## Monitoring and System Status
 
 ### Filter Statistics
 
@@ -184,13 +184,13 @@ The filter provides real-time statistics for all entity types:
 }
 ```
 
-### Health Check
+### System Status Check
 
 Filter health can be monitored via:
 
 ```json
 {
-  "status": "healthy",
+  "status": "operational",
   "enabled": true,
   "initialized": true,
   "issues": []
@@ -275,7 +275,7 @@ from app.filters.geographic_boundary_filter import GeographicBoundaryFilter
 filter_obj = GeographicBoundaryFilter()
 print('Enabled:', filter_obj.config.enabled)
 print('Initialized:', filter_obj.is_initialized)
-print('Health:', filter_obj.health_check())
+print('Status:', filter_obj.get_filter_stats())
 "
 
 # Monitor filter logs
@@ -297,8 +297,8 @@ The geographic boundary filter integrates with the existing VATSIM data processi
 
 Filter status can be monitored via API endpoints:
 
-- `/api/health/filters` - Overall filter health
-- `/api/health/boundary-filter` - Specific boundary filter status
+- `/api/filter/boundary/status` - Overall filter status
+- `/api/filter/boundary/info` - Specific boundary filter information
 
 ### Grafana Dashboards
 
@@ -306,7 +306,7 @@ Filter metrics are available for Grafana visualization:
 
 - Entity filtering statistics (flights, transceivers, controllers)
 - Processing performance metrics
-- Filter health status
+- Filter status information
 
 ## Testing
 
@@ -349,7 +349,7 @@ The filter has been tested and validated with:
 
 ### Maintenance
 
-1. **Regular health checks** of filter status
+1. **Regular status checks** of filter status
 2. **Monitor log files** for warnings or errors
 3. **Update boundary data** as needed
 4. **Performance tuning** based on metrics

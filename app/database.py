@@ -166,8 +166,8 @@ class DatabaseConnection:
         self.session.rollback()
 
 # Database session functions
-async def get_database_session() -> AsyncSession:
-    """Get an async database session."""
+def get_database_session():
+    """Get an async database session context manager."""
     return AsyncSessionLocal()
 
 def get_sync_session() -> Session:

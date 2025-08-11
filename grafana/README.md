@@ -42,7 +42,7 @@ This directory contains the Grafana configuration for visualizing VATSIM data in
 - **Real-time Network Activity**: Live graphs of controller and flight counts
 - **System Statistics**: Total controllers, flights, data freshness
 - **ATC Position Analysis**: Breakdown by facility type
-- **Performance Metrics**: System health and response times
+- **Performance Metrics**: System status and response times
 
 ### Australian Flights Dashboard
 - **Australian Flights by Date**: Time series of Australian flights (last 7 & 30 days)

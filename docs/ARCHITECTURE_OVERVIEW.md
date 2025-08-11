@@ -90,7 +90,7 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 │  │  • /api/flights/{callsign}/stats                      │   │
 │  │  • /api/database/*                                    │   │
 │  │  • /api/performance/*                                 │   │
-│  │  • /api/health/*                                      │   │
+│  │  • /api/status/*                                      │   │
 │  │  • /api/filter/*                                      │   │
 │  │  • /api/transceivers                                  │   │
 │  └─────────────────────────────────────────────────────────┘   │
@@ -117,7 +117,7 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - Memory caching for batch processing
 - SSD wear optimization with periodic writes
 - Connection pooling and transaction management
-- Real-time status tracking and health monitoring
+- Real-time status tracking and system monitoring
 - **VATSIM API Compliance**: Fully aligned with current API structure
 - **Complete Field Mapping**: 1:1 mapping of all VATSIM API fields to database columns
 - **Data Integrity**: All API fields preserved without data loss
@@ -149,20 +149,20 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - Memory optimization algorithms
 - Performance bottleneck detection
 - Resource allocation strategies
-- System health monitoring
+- System status monitoring
 
 ### 4. Monitoring Service (`app/services/monitoring_service.py`)
-**Purpose**: System-wide monitoring and health checks
+**Purpose**: System-wide monitoring and status checks
 - **Service health monitoring**
 - **Performance metrics collection**
 - **System status reporting**
-- **Health check endpoints**
+- **Status check endpoints**
 
 **Key Features**:
-- Comprehensive health monitoring
+- Comprehensive system monitoring
 - Performance metrics aggregation
 - System status dashboard
-- Health check API endpoints
+- Status check API endpoints
 
 ### 5. Performance Monitor (`app/services/performance_monitor.py`)
 **Purpose**: Performance optimization and monitoring
@@ -181,13 +181,13 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 **Purpose**: Database operations and management
 - **Database connection management**
 - **Query execution and optimization**
-- **Database health monitoring**
+- **Database status monitoring**
 - **Migration support**
 
 **Key Features**:
 - Connection pooling and management
 - Query optimization and monitoring
-- Database health checks
+- Database status checks
 - Migration tracking and support
 
 ### 7. Geographic Boundary Filter (`app/filters/geographic_boundary_filter.py`) ✅ **FULLY OPERATIONAL**
@@ -256,8 +256,8 @@ VATSIM Raw Data (~120 flights per cycle)
 
 ### REST API Endpoints
 
-#### System Status & Health
-- `GET /api/status` - System health and statistics
+#### System Status
+- `GET /api/status` - System status and statistics
 - `GET /api/network/status` - Network status and metrics
 - `GET /api/database/status` - Database status and migration info
 
@@ -282,10 +282,10 @@ VATSIM Raw Data (~120 flights per cycle)
 - `GET /api/filter/boundary/status` - Geographic boundary filter status and performance
 - `GET /api/filter/boundary/info` - Boundary polygon information and configuration
 
-#### Health & Monitoring
-- `GET /api/health/comprehensive` - Comprehensive system health report
-- `GET /api/health/status` - Basic health status
-- `GET /api/health/endpoints` - Endpoint health status
+#### System Monitoring
+- `GET /api/status` - Comprehensive system status report
+- `GET /api/performance/metrics` - Basic performance metrics
+- `GET /api/database/status` - Database status
 
 #### Database Operations
 - `GET /api/database/tables` - Database tables and record counts
@@ -485,7 +485,7 @@ app/
 ├── utils/            # Utility functions and helpers
 │   ├── error_handling.py      # Centralized error handling
 │   ├── logging.py             # Structured logging
-│   ├── health_monitor.py      # Health monitoring
+│   ├── health_monitor.py      # Health monitoring (REMOVED)
 │   ├── geographic_utils.py    # Geographic calculations
 │   ├── airport_utils.py       # Airport utilities
 │   ├── rating_utils.py        # VATSIM rating utilities
@@ -507,7 +507,7 @@ app/
 - **Data Service**: Complete VATSIM data ingestion pipeline
 - **VATSIM Service**: Full API v3 integration with field mapping
 - **Database Service**: Connection management and operations
-- **Monitoring Service**: System health and performance monitoring
+- **Monitoring Service**: System status and performance monitoring (REMOVED)
 - **Resource Manager**: Memory and CPU monitoring
 - **Performance Monitor**: Response time and optimization tracking
 
@@ -519,7 +519,7 @@ app/
 - **Flight Data**: `/api/flights`, `/api/flights/{callsign}/*`, `/api/flights/memory`
 - **ATC Data**: `/api/controllers`, `/api/atc-positions/*`, `/api/vatsim/ratings`
 - **Filtering**: `/api/filter/boundary/*` (geographic boundary filter only)
-- **Performance**: `/api/performance/*`, `/api/health/*`
+- **Performance**: `/api/performance/*`, `/api/status/*`
 - **Database**: `/api/database/*`
 - **Transceivers**: `/api/transceivers`
 - **Analytics**: `/api/analytics/flights`
@@ -801,7 +801,7 @@ def parse_sectors(self, data: Dict) -> List[Dict]:
 - ✅ **Filter System Simplified**: Single, focused filtering approach
 - ✅ **Documentation Updated**: Architecture reflects current system state
 - ✅ **Security Framework**: SSL, authentication, and rate limiting support
-- ✅ **Monitoring Integration**: Grafana dashboards and health checks
+- ✅ **Monitoring Integration**: Grafana dashboards and system status
 - ✅ **Backup & Recovery**: Database backup and restore procedures
 - ✅ **Environment Configuration**: Comprehensive environment variable documentation
 

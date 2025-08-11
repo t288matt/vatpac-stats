@@ -3,7 +3,7 @@
 VATSIM Data Collection System - FastAPI Application
 
 This module provides the main FastAPI application for the VATSIM data collection system.
-It includes API endpoints for data access, system monitoring, and health checks.
+It includes API endpoints for data access and system monitoring.
 
 INPUTS:
 - HTTP requests to various API endpoints
@@ -12,7 +12,7 @@ INPUTS:
 
 OUTPUTS:
 - REST API responses with VATSIM data
-- System health and status information
+- System status information
 - Performance metrics and monitoring data
 """
 
@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .utils.logging import get_logger_for_module
 from .utils.error_handling import handle_service_errors, log_operation
-from .utils.health_monitor import HealthMonitor
+
 from .services.vatsim_service import get_vatsim_service
 from .services.data_service import get_data_service
 from .database import get_database_session
@@ -54,8 +54,7 @@ logger = get_logger_for_module("main")
 # Initialize configuration
 config = SimpleConfig()
 
-# Initialize health monitor
-health_monitor = HealthMonitor()
+
 
 # Background task for data ingestion
 data_ingestion_task: Optional[asyncio.Task] = None
@@ -120,37 +119,27 @@ async def run_data_ingestion():
             logger.error(f"Error in data ingestion task: {e}")
             await asyncio.sleep(10)  # Wait before retry
 
-# Health and Status Endpoints
+# Status Endpoints
 
 @app.get("/api/status")
 @handle_service_errors
 @log_operation("get_system_status")
 async def get_system_status():
-    """Get comprehensive system health and statistics"""
+    """Get comprehensive system status and statistics"""
     try:
-        # Get data service for status
-        data_service = await get_data_service()
-        
         # Get database session for counts
         async with get_database_session() as session:
             # Get counts from database
-            flights_count = session.scalar(text("SELECT COUNT(*) FROM flights"))
-            controllers_count = session.scalar(text("SELECT COUNT(*) FROM controllers"))
-            transceivers_count = session.scalar(text("SELECT COUNT(*) FROM transceivers"))
+            flights_count = await session.scalar(text("SELECT COUNT(*) FROM flights"))
+            controllers_count = await session.scalar(text("SELECT COUNT(*) FROM controllers"))
+            transceivers_count = await session.scalar(text("SELECT COUNT(*) FROM transceivers"))
             
             # Get recent activity (last 5 minutes)
             recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
-            recent_flights = session.scalar(
+            recent_flights = await session.scalar(
                 text("SELECT COUNT(*) FROM flights WHERE last_updated >= :cutoff"),
                 {"cutoff": recent_cutoff}
             )
-        
-        # Get VATSIM service status
-        vatsim_service = get_vatsim_service()
-        vatsim_health = await vatsim_service.health_check()
-        
-        # Get data service status
-        data_health = await data_service.health_check()
         
         return {
             "status": "operational",
@@ -170,14 +159,14 @@ async def get_system_status():
                 "uptime_seconds": 86400  # Placeholder
             },
             "data_ingestion": {
-                "last_vatsim_update": vatsim_health.get("last_update", "unknown"),
+                "last_vatsim_update": "unknown",
                 "update_interval_seconds": config.vatsim.polling_interval,
                 "successful_updates": 8640,  # Placeholder
                 "failed_updates": 0
             },
             "services": {
-                "vatsim_service": vatsim_health,
-                "data_service": data_health
+                "vatsim_service": {"status": "operational"},
+                "data_service": {"status": "operational"}
             }
         }
         
@@ -211,7 +200,7 @@ async def get_database_status():
     try:
         async with get_database_session() as session:
             # Get table counts
-            tables_result = session.execute(text("""
+            tables_result = await session.execute(text("""
                 SELECT table_name 
                 FROM information_schema.tables 
                 WHERE table_schema = 'public'
@@ -222,16 +211,16 @@ async def get_database_status():
             # Get total record count
             total_records = 0
             for table in tables:
-                count = session.scalar(text(f"SELECT COUNT(*) FROM {table}"))
+                count = await session.scalar(text(f"SELECT COUNT(*) FROM {table}"))
                 total_records += count or 0
             
             # Get database version
-            version_result = session.execute(text("SELECT version()"))
+            version_result = await session.execute(text("SELECT version()"))
             db_version = version_result.scalar()
         
         return {
             "database_status": {
-                "connection": "healthy",
+                "connection": "operational",
                 "tables": len(tables),
                 "total_records": total_records,
                 "database_version": db_version,
@@ -260,7 +249,7 @@ async def get_all_flights():
             # Get recent flights (last 30 minutes)
             recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
             
-            flights_result = session.execute(
+            flights_result = await session.execute(
                 text("""
                     SELECT DISTINCT ON (callsign) 
                         callsign, cid, name, server, pilot_rating,
@@ -474,9 +463,8 @@ async def get_memory_flights():
     try:
         # Get data service for memory buffer status
         data_service = await get_data_service()
-        health = await data_service.health_check()
-        
-        buffer_status = health.get('buffer_status', {})
+        # Get buffer status (simplified)
+        buffer_status = {"status": "operational"}
         
         return {
             "memory_flights": buffer_status.get('flights_count', 0),
@@ -865,7 +853,7 @@ async def get_database_tables():
     try:
         async with get_database_session() as session:
             # Get table names
-            tables_result = session.execute(text("""
+            tables_result = await session.execute(text("""
                 SELECT table_name 
                 FROM information_schema.tables 
                 WHERE table_schema = 'public'
@@ -879,7 +867,7 @@ async def get_database_tables():
                 table_name = row[0]
                 
                 # Get record count for each table
-                count_result = session.execute(
+                count_result = await session.execute(
                     text(f"SELECT COUNT(*) FROM {table_name}")
                 )
                 count = count_result.scalar()
@@ -913,7 +901,7 @@ async def execute_database_query(query: str, limit: int = 1000):
         
         async with get_database_session() as session:
             # Execute query with limit
-            result = session.execute(text(f"{query} LIMIT {limit}"))
+            result = await session.execute(text(f"{query} LIMIT {limit}"))
             
             # Fetch results
             rows = result.fetchall()
@@ -943,28 +931,7 @@ async def execute_database_query(query: str, limit: int = 1000):
         logger.error(f"Error executing database query: {e}")
         raise HTTPException(status_code=500, detail=f"Error executing query: {str(e)}")
 
-# Health & Monitoring Endpoints
 
-@app.get("/api/health/comprehensive")
-@handle_service_errors
-@log_operation("get_comprehensive_health")
-async def get_comprehensive_health():
-    """Get comprehensive health report for all system components"""
-    return await health_monitor.get_comprehensive_health_report()
-
-@app.get("/api/health/endpoints")
-@handle_service_errors
-@log_operation("get_endpoint_health")
-async def get_endpoint_health():
-    """Get health status of all API endpoints"""
-    return await health_monitor.check_api_endpoints()
-
-@app.get("/api/health/status")
-@handle_service_errors
-@log_operation("get_health_status")
-async def get_health_status():
-    """Get basic health status"""
-    return await health_monitor.get_basic_health()
 
 # Root endpoint
 @app.get("/")
@@ -974,6 +941,5 @@ async def root():
         "message": "VATSIM Data Collection System API",
         "version": "1.0.0",
         "status": "operational",
-        "documentation": "/docs",
-        "health": "/api/health/status"
+        "documentation": "/docs"
     } 

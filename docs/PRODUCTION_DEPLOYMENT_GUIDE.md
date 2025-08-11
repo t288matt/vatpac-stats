@@ -277,7 +277,7 @@ sudo ufw status verbose
 
 ## 📊 Monitoring & Alerting
 
-### **1. Health Check Script:**
+### **1. System Status Check Script:**
 ```bash
 #!/bin/bash
 # /opt/vatsim/scripts/health_check.sh
@@ -285,7 +285,7 @@ sudo ufw status verbose
 API_URL="https://api.yourdomain.com"
 API_KEY="your_api_key_here"
 
-# Check API health
+# Check API status
 response=$(curl -s -H "Authorization: Bearer $API_KEY" "$API_URL/api/status")
 if [[ $? -ne 0 ]]; then
     echo "CRITICAL: API is down"
@@ -305,7 +305,7 @@ if [[ $diff -gt 300 ]]; then  # 5 minutes
     exit 1
 fi
 
-echo "OK: System healthy"
+echo "OK: System operational"
 exit 0
 ```
 
@@ -389,7 +389,7 @@ docker-compose -f docker-compose.prod.yml ps
 
 ### **3. Verify Deployment:**
 ```bash
-# Check all services are healthy
+# Check all services are operational
 docker-compose -f docker-compose.prod.yml ps
 
 # Test API endpoints
@@ -418,7 +418,7 @@ docker logs vatsim_postgres --tail 20
 - [ ] VATSIM data ingestion working
 - [ ] Grafana dashboards accessible
 - [ ] Backup script tested
-- [ ] Health check script working
+- [ ] System status check script working
 - [ ] SSL certificates valid and auto-renewing
 
 ## 🔍 Troubleshooting

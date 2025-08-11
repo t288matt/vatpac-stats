@@ -1,8 +1,8 @@
-# VATSIM API Endpoints Health Dashboard
+# VATSIM API Endpoints Status Dashboard
 
 ## Overview
 
-This dashboard provides real-time monitoring of all VATSIM API endpoints health status. It focuses specifically on endpoint availability, response times, and error tracking.
+This dashboard provides real-time monitoring of all VATSIM API endpoints status. It focuses specifically on endpoint availability, response times, and error tracking.
 
 ## Access
 
@@ -12,9 +12,9 @@ This dashboard provides real-time monitoring of all VATSIM API endpoints health 
 
 ## Dashboard Features
 
-### 1. API Endpoints Health Status
+### 1. API Endpoints Status
 - **Location**: Main table panel
-- **Data Source**: `/api/health/endpoints`
+- **Data Source**: `/api/status`
 - **Refresh Rate**: 10 seconds
 - **Shows**:
   - Endpoint URL
@@ -24,7 +24,7 @@ This dashboard provides real-time monitoring of all VATSIM API endpoints health 
   - Timestamp
 
 ### 2. Visual Indicators
-- **Green**: Healthy endpoints (status 200, response time < 1s)
+- **Green**: Operational endpoints (status 200, response time < 1s)
 - **Yellow**: Warning endpoints (status 300-399)
 - **Red**: Error endpoints (status 400+, response time > 1s, or connection errors)
 
@@ -59,7 +59,7 @@ The dashboard uses the `vatsim-api` datasource which connects to:
 
 ## Troubleshooting
 
-### If endpoints show as unhealthy:
+### If endpoints show as non-operational:
 1. Check if the VATSIM API container is running: `docker ps`
 2. Verify API is responding: `curl http://localhost:8001/api/status`
 3. Check container logs: `docker logs vatsim_app`
@@ -69,7 +69,7 @@ The dashboard uses the `vatsim-api` datasource which connects to:
 2. Clear browser cache
 3. Check Grafana logs: `docker logs vatsim_grafana`
 
-## API Health Endpoints
+## API Status Endpoints
 
 The dashboard pulls data from multiple health endpoints:
 

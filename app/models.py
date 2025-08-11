@@ -42,8 +42,8 @@ Base = declarative_base()
 
 class TimestampMixin:
     """Mixin to add timestamp fields to models"""
-    created_at = Column(TIMESTAMP(0, timezone=True), default=func.now(), nullable=False)
-    updated_at = Column(TIMESTAMP(0, timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), default=func.now(), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
 
 class Controller(Base, TimestampMixin):
     """Controller model representing ATC positions - EXACT API mapping"""
@@ -59,8 +59,8 @@ class Controller(Base, TimestampMixin):
     visual_range = Column(Integer, nullable=True, index=True)  # From API "visual_range"
     text_atis = Column(Text, nullable=True)  # From API "text_atis"
     server = Column(String(50), nullable=True, index=True)  # From API "server"
-    last_updated = Column(TIMESTAMP(0, timezone=True), nullable=True, index=True)  # From API "last_updated"
-    logon_time = Column(TIMESTAMP(0, timezone=True), nullable=True)  # From API "logon_time"
+    last_updated = Column(TIMESTAMP(timezone=True), nullable=True, index=True)  # From API "last_updated"
+    logon_time = Column(TIMESTAMP(timezone=True), nullable=True)  # From API "logon_time"
     
     # Constraints
     __table_args__ = (
@@ -124,7 +124,7 @@ class Flight(Base, TimestampMixin):
     remarks = Column(Text, nullable=True)  # Flight plan remarks from flight_plan.remarks
     
     # Timestamps
-    last_updated = Column(TIMESTAMP(0, timezone=True), default=func.now(), index=True)
+    last_updated = Column(TIMESTAMP(timezone=True), default=func.now(), index=True)
     
     # VATSIM API fields - 1:1 mapping with API field names (simplified)
     cid = Column(Integer, nullable=True, index=True)  # VATSIM user ID
@@ -133,8 +133,8 @@ class Flight(Base, TimestampMixin):
     pilot_rating = Column(Integer, nullable=True)  # Pilot rating - using Integer for consistency
     military_rating = Column(Integer, nullable=True)  # Military rating from VATSIM API
     transponder = Column(String(10), nullable=True)  # Transponder code
-    logon_time = Column(TIMESTAMP(0, timezone=True), nullable=True)  # When pilot connected
-    last_updated_api = Column(TIMESTAMP(0, timezone=True), nullable=True)  # API last_updated timestamp
+    logon_time = Column(TIMESTAMP(timezone=True), nullable=True)  # When pilot connected
+    last_updated_api = Column(TIMESTAMP(timezone=True), nullable=True)  # API last_updated timestamp
     
     # Constraints
     __table_args__ = (
@@ -196,8 +196,8 @@ class Transceiver(Base):
     height_agl = Column(Float, nullable=True)  # Height above ground level in meters from VATSIM API
     entity_type = Column(String(20), nullable=False, index=True)  # 'flight' or 'atc'
     entity_id = Column(Integer, nullable=True, index=True)  # Foreign key to flights.id or controllers.id
-    timestamp = Column(TIMESTAMP(0, timezone=True), default=func.now(), nullable=False, index=True)
-    updated_at = Column(TIMESTAMP(0, timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+    timestamp = Column(TIMESTAMP(timezone=True), default=func.now(), nullable=False, index=True)
+    updated_at = Column(TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
     
     # Constraints
     __table_args__ = (

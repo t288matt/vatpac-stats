@@ -130,6 +130,6 @@ Configuration can be updated at runtime through:
 Configuration monitoring is available through:
 
 - `/api/status` endpoint
-- Health check endpoints
+- System status endpoints
 - Logging of configuration changes
 - Performance metrics collection 
