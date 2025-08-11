@@ -224,45 +224,35 @@ class TestCompleteDataFlow:
         filter_test_data = {
             "general": {"version": 8, "reload": 1, "connected_clients": 100},
             "pilots": [
-                # Case 1: Australian airports + Australian coordinates → PASS
+                # Case 1: Australian coordinates → PASS
                 {
                     "cid": 111111,
-                    "name": "Pass Both Filters",
+                    "name": "Pass Geographic Filter",
                     "callsign": "TEST001",
                     "latitude": -33.8688,  # Sydney
                     "longitude": 151.2093,
                     "flight_plan": {"departure": "YSSY", "arrival": "YBBN"},
                     "last_updated": "2024-01-01T12:00:00Z"
                 },
-                # Case 2: Non-Australian airports + Non-Australian coordinates → FAIL
+                # Case 2: Non-Australian coordinates → FAIL
                 {
                     "cid": 222222,
-                    "name": "Fail Both Filters",
+                    "name": "Fail Geographic Filter",
                     "callsign": "TEST002", 
                     "latitude": 51.5074,  # London
                     "longitude": -0.1278,
                     "flight_plan": {"departure": "EGLL", "arrival": "KLAX"},
-                    "last_updated": "2024-01-01T12:00:00Z"
+                    "last_updated": "2024-01-01T12:00:01Z"
                 },
-                # Case 3: Australian airports + Non-Australian coordinates → PASS (airport filter wins)
+                # Case 3: Missing coordinates → FAIL (conservative)
                 {
                     "cid": 333333,
-                    "name": "Pass Airport Filter",
-                    "callsign": "TEST003",
-                    "latitude": 51.5074,  # London coordinates
-                    "longitude": -0.1278,
-                    "flight_plan": {"departure": "YSSY", "arrival": "EGLL"},  # Australian origin
-                    "last_updated": "2024-01-01T12:00:00Z"
-                },
-                # Case 4: Australian airports + Missing coordinates → PASS (conservative)
-                {
-                    "cid": 444444,
                     "name": "Missing Coordinates",
-                    "callsign": "TEST004",
+                    "callsign": "TEST003",
                     "latitude": None,
                     "longitude": None,
                     "flight_plan": {"departure": "YSSY", "arrival": "YBBN"},
-                    "last_updated": "2024-01-01T12:00:00Z"
+                    "last_updated": "2024-01-01T12:00:02Z"
                 }
             ],
             "controllers": [],
@@ -293,15 +283,14 @@ class TestCompleteDataFlow:
             # Verify filter results
             flights = db_session.query(Flight).all()
             
-            # Should have 3 flights (TEST001, TEST003, TEST004)
-            # TEST002 should be filtered out
-            assert len(flights) == 3, f"Expected 3 flights after filtering, got {len(flights)}"
+            # Should have 1 flight (TEST001)
+            # TEST002 and TEST003 should be filtered out
+            assert len(flights) == 1, f"Expected 1 flight after filtering, got {len(flights)}"
             
             flight_callsigns = [f.callsign for f in flights]
-            assert "TEST001" in flight_callsigns  # Pass both filters
-            assert "TEST002" not in flight_callsigns  # Fail both filters
-            assert "TEST003" in flight_callsigns  # Pass airport filter (wins over geo filter)
-            assert "TEST004" in flight_callsigns  # Pass conservative handling
+            assert "TEST001" in flight_callsigns  # Pass geographic filter
+            assert "TEST002" not in flight_callsigns  # Fail geographic filter
+            assert "TEST003" not in flight_callsigns  # Fail due to missing coordinates
     
     @pytest.mark.asyncio
     async def test_database_relationship_integrity(

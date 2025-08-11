@@ -1,4 +1,4 @@
-# Flight filters package
-from .flight_filter import FlightFilter
+# Geographic boundary filter package
+from .geographic_boundary_filter import GeographicBoundaryFilter
 
-__all__ = ['FlightFilter'] 
+__all__ = ['GeographicBoundaryFilter'] 

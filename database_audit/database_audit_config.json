@@ -193,33 +193,7 @@
         "entity_id": "INTEGER"
       }
     },
-    "airports": {
-      "description": "Airport configuration and data",
-      "required_fields": [
-        "id",
-        "icao_code",
-        "name",
-        "latitude",
-        "longitude",
-        "is_active",
-        "created_at"
-      ],
-      "indexes": [
-        "idx_airports_icao"
-      ],
-      "constraints": {
-        "unique": ["icao_code"],
-        "not_null": ["icao_code", "name"]
-      },
-      "data_types": {
-        "id": "SERIAL",
-        "icao_code": "VARCHAR(10)",
-        "name": "VARCHAR(200)",
-        "latitude": "DOUBLE PRECISION",
-        "longitude": "DOUBLE PRECISION",
-        "is_active": "BOOLEAN"
-      }
-    },
+
     "vatsim_status": {
       "description": "VATSIM network status and metrics",
       "required_fields": [

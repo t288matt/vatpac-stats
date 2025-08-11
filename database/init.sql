@@ -92,20 +92,6 @@ CREATE TABLE IF NOT EXISTS flights (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Airports table - global airport database
-CREATE TABLE IF NOT EXISTS airports (
-    id SERIAL PRIMARY KEY,
-    icao_code VARCHAR(10) UNIQUE NOT NULL,
-    name VARCHAR(200),
-    latitude DOUBLE PRECISION NOT NULL,
-    longitude DOUBLE PRECISION NOT NULL,
-    elevation INTEGER,              -- Feet above sea level
-    country VARCHAR(100),
-    region VARCHAR(100),            -- State/province
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
 -- Transceivers table for radio frequency and position data
 CREATE TABLE IF NOT EXISTS transceivers (
     id SERIAL PRIMARY KEY,
@@ -143,12 +129,6 @@ CREATE INDEX IF NOT EXISTS idx_flights_planned_altitude ON flights(planned_altit
 CREATE INDEX IF NOT EXISTS idx_flights_aircraft_short ON flights(aircraft_short);
 CREATE INDEX IF NOT EXISTS idx_flights_revision_id ON flights(revision_id);
 
--- Airports indexes
-CREATE INDEX IF NOT EXISTS idx_airports_icao ON airports(icao_code);
-CREATE INDEX IF NOT EXISTS idx_airports_region ON airports(region, country);
-CREATE INDEX IF NOT EXISTS idx_airports_coordinates ON airports(latitude, longitude);
-CREATE INDEX IF NOT EXISTS idx_airports_country ON airports(country);
-
 -- Transceivers indexes
 CREATE INDEX IF NOT EXISTS idx_transceivers_callsign ON transceivers(callsign);
 CREATE INDEX IF NOT EXISTS idx_transceivers_callsign_timestamp ON transceivers(callsign, timestamp);
@@ -163,10 +143,6 @@ CREATE TRIGGER update_controllers_updated_at
 
 CREATE TRIGGER update_flights_updated_at 
     BEFORE UPDATE ON flights 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_airports_updated_at 
-    BEFORE UPDATE ON airports 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_transceivers_updated_at 
@@ -195,14 +171,6 @@ ALTER TABLE flights ADD CONSTRAINT IF NOT EXISTS valid_groundspeed
     CHECK (groundspeed >= 0);
 ALTER TABLE flights ADD CONSTRAINT IF NOT EXISTS valid_pilot_rating 
     CHECK (pilot_rating >= 0 AND pilot_rating <= 63);
-
--- Airports constraints
-ALTER TABLE airports ADD CONSTRAINT IF NOT EXISTS valid_airport_latitude 
-    CHECK (latitude >= -90 AND latitude <= 90);
-ALTER TABLE airports ADD CONSTRAINT IF NOT EXISTS valid_airport_longitude 
-    CHECK (longitude >= -180 AND longitude <= 180);
-ALTER TABLE airports ADD CONSTRAINT IF NOT EXISTS valid_elevation 
-    CHECK (elevation >= -1000);
 
 -- Transceivers constraints
 ALTER TABLE transceivers ADD CONSTRAINT IF NOT EXISTS valid_frequency 
@@ -262,5 +230,5 @@ SELECT
     column_default
 FROM information_schema.columns 
 WHERE table_schema = 'public' 
-    AND table_name IN ('controllers', 'flights', 'airports', 'transceivers')
+    AND table_name IN ('controllers', 'flights', 'transceivers')
 ORDER BY table_name, ordinal_position; 

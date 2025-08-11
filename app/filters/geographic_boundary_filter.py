@@ -55,7 +55,6 @@ class GeographicBoundaryConfig:
     enabled: bool = False
     boundary_data_path: str = ""
     log_level: str = "INFO"
-    performance_threshold_ms: float = 10.0
 
 class GeographicBoundaryFilter:
     """
@@ -91,8 +90,7 @@ class GeographicBoundaryFilter:
         return GeographicBoundaryConfig(
             enabled=os.getenv("ENABLE_BOUNDARY_FILTER", "false").lower() == "true",
             boundary_data_path=os.getenv("BOUNDARY_DATA_PATH", ""),
-            log_level=os.getenv("BOUNDARY_FILTER_LOG_LEVEL", "INFO"),
-            performance_threshold_ms=float(os.getenv("BOUNDARY_FILTER_PERFORMANCE_THRESHOLD", "10.0"))
+            log_level=os.getenv("BOUNDARY_FILTER_LOG_LEVEL", "INFO")
         )
     
     def _setup_logging(self):
@@ -220,10 +218,9 @@ class GeographicBoundaryFilter:
         logger.info(f"Geographic boundary filter: {original_count} flights -> {filtered_count} flights "
                    f"({original_count - filtered_count} filtered out) in {processing_time_ms:.2f}ms")
         
-        # Check performance threshold
-        if processing_time_ms > self.config.performance_threshold_ms:
-            logger.warning(f"Geographic boundary filter exceeded performance threshold: "
-                          f"{processing_time_ms:.2f}ms > {self.config.performance_threshold_ms}ms")
+        # Log processing time
+        if processing_time_ms > 10.0:  # Log warning if processing takes more than 10ms
+            logger.warning(f"Geographic boundary filter processing time: {processing_time_ms:.2f}ms")
         
         return filtered_flights
     
@@ -278,7 +275,6 @@ class GeographicBoundaryFilter:
             "enabled": self.config.enabled,
             "initialized": self.is_initialized,
             "log_level": self.config.log_level,
-            "performance_threshold_ms": self.config.performance_threshold_ms,
             "filter_type": "Geographic boundary (point-in-polygon)",
             "inclusion_criteria": "Flights physically within the defined geographic boundary",
             "validation_method": "Shapely point-in-polygon calculations",

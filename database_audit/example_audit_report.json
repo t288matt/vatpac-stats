@@ -95,7 +95,7 @@
     }
   },
   "recommendations": [
-    "Consider adding more indexes to airports table (currently 1)",
+
     "Monitor table size growth for flights table",
     "Drop unused index idx_flights_temp_field",
     "Add index on flights.departure_time for better query performance"

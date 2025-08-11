@@ -46,7 +46,6 @@ from datetime import datetime, timezone, timedelta
 from ..config import get_config
 from ..utils.logging import get_logger_for_module
 from ..utils.error_handling import handle_service_errors, log_operation, retry_on_failure
-from ..filters.flight_filter import FlightFilter
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +106,6 @@ class VATSIMService:
         self._initialized = False
         
         self.client: Optional[httpx.AsyncClient] = None
-        self.flight_filter = FlightFilter()
     
     async def __aenter__(self):
         """Async context manager entry."""
@@ -217,7 +215,7 @@ class VATSIMService:
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 })
             
-            # Parse all flights - filtering is handled separately by the flight filter
+            # Parse all flights - no filtering applied here
             flights = self._parse_flights(parsed_data.get("pilots", []))
             
             # Fetch transceivers data

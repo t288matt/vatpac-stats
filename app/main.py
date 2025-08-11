@@ -31,7 +31,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .utils.logging import get_logger_for_module
 from .utils.error_handling import handle_service_errors, log_operation
 from .utils.health_monitor import HealthMonitor
-from .utils.airport_utils import get_airports_by_region, get_airport_coordinates
 from .services.vatsim_service import get_vatsim_service
 from .services.data_service import get_data_service
 from .services.monitoring_service import get_monitoring_service
@@ -107,12 +106,14 @@ app.add_middleware(
 
 # Background task for continuous data ingestion
 async def run_data_ingestion():
-    """Run continuous data ingestion in background"""
+    """Run the data ingestion process"""
+    logger.info("Starting data ingestion task")
+    config = SimpleConfig()
     data_service = await get_data_service()
     
     while True:
         try:
-            await data_service.start_data_ingestion()
+            await data_service.process_vatsim_data()
             await asyncio.sleep(config.vatsim.polling_interval)
         except asyncio.CancelledError:
             logger.info("Data ingestion task cancelled")
@@ -134,21 +135,20 @@ async def get_system_status():
         
         # Get database session for counts
         async with get_database_session() as session:
-            # Count records in each table
-            flights_count = await session.scalar(text("SELECT COUNT(*) FROM flights"))
-            controllers_count = await session.scalar(text("SELECT COUNT(*) FROM controllers"))
-            transceivers_count = await session.scalar(text("SELECT COUNT(*) FROM transceivers"))
-            airports_count = await session.scalar(text("SELECT COUNT(*) FROM airports"))
+            # Get counts from database
+            flights_count = session.scalar(text("SELECT COUNT(*) FROM flights"))
+            controllers_count = session.scalar(text("SELECT COUNT(*) FROM controllers"))
+            transceivers_count = session.scalar(text("SELECT COUNT(*) FROM transceivers"))
             
             # Get recent activity (last 5 minutes)
             recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
-            recent_flights = await session.scalar(
+            recent_flights = session.scalar(
                 text("SELECT COUNT(*) FROM flights WHERE last_updated >= :cutoff"),
                 {"cutoff": recent_cutoff}
             )
         
         # Get VATSIM service status
-        vatsim_service = await get_vatsim_service()
+        vatsim_service = get_vatsim_service()
         vatsim_health = await vatsim_service.health_check()
         
         # Get data service status
@@ -163,7 +163,6 @@ async def get_system_status():
                 "flights_count": flights_count or 0,
                 "controllers_count": controllers_count or 0,
                 "transceivers_count": transceivers_count or 0,
-                "airports_count": airports_count or 0,
                 "recent_flights": recent_flights or 0
             },
             "performance": {
@@ -195,8 +194,8 @@ async def get_network_status():
     """Get VATSIM network status and metrics"""
     try:
         # Get VATSIM service for network status
-        vatsim_service = await get_vatsim_service()
-        network_status = await vatsim_service.get_network_status()
+        vatsim_service = get_vatsim_service()
+        network_status = await vatsim_service.get_api_status()
         
         return {
             "network_status": network_status
@@ -214,7 +213,7 @@ async def get_database_status():
     try:
         async with get_database_session() as session:
             # Get table counts
-            tables_result = await session.execute(text("""
+            tables_result = session.execute(text("""
                 SELECT table_name 
                 FROM information_schema.tables 
                 WHERE table_schema = 'public'
@@ -225,11 +224,11 @@ async def get_database_status():
             # Get total record count
             total_records = 0
             for table in tables:
-                count = await session.scalar(text(f"SELECT COUNT(*) FROM {table}"))
+                count = session.scalar(text(f"SELECT COUNT(*) FROM {table}"))
                 total_records += count or 0
             
             # Get database version
-            version_result = await session.execute(text("SELECT version()"))
+            version_result = session.execute(text("SELECT version()"))
             db_version = version_result.scalar()
         
         return {
@@ -263,7 +262,7 @@ async def get_all_flights():
             # Get recent flights (last 30 minutes)
             recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
             
-            flights_result = await session.execute(
+            flights_result = session.execute(
                 text("""
                     SELECT DISTINCT ON (callsign) 
                         callsign, cid, name, server, pilot_rating,
@@ -318,7 +317,7 @@ async def get_flight_by_callsign(callsign: str):
     try:
         async with get_database_session() as session:
             # Get most recent flight data for this callsign
-            flight_result = await session.execute(
+            flight_result = session.execute(
                 text("""
                     SELECT callsign, cid, name, latitude, longitude, altitude,
                            departure, arrival, route, aircraft_type, last_updated
@@ -364,7 +363,7 @@ async def get_flight_track(callsign: str):
     try:
         async with get_database_session() as session:
             # Get all position updates for this callsign
-            track_result = await session.execute(
+            track_result = session.execute(
                 text("""
                     SELECT last_updated, latitude, longitude, altitude, groundspeed
                     FROM flights 
@@ -422,7 +421,7 @@ async def get_flight_stats(callsign: str):
     try:
         async with get_database_session() as session:
             # Get flight statistics
-            stats_result = await session.execute(
+            stats_result = session.execute(
                 text("""
                     SELECT 
                         COUNT(*) as position_updates,
@@ -504,7 +503,7 @@ async def get_all_controllers():
             # Get recent ATC positions (last 30 minutes)
             recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
             
-            controllers_result = await session.execute(
+            controllers_result = session.execute(
                 text("""
                     SELECT DISTINCT ON (callsign) 
                         callsign, cid, name, facility, rating, server,
@@ -559,7 +558,7 @@ async def get_atc_positions_by_controller_id():
             # Get recent ATC positions grouped by controller ID
             recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
             
-            controllers_result = await session.execute(
+            controllers_result = session.execute(
                 text("""
                     SELECT DISTINCT ON (callsign) 
                         cid, callsign, facility, logon_time
@@ -675,7 +674,6 @@ async def get_boundary_filter_status():
                 "status": "ready" if boundary_filter.is_initialized else "uninitialized",
                 "performance": {
                     "average_processing_time_ms": filter_stats.get("processing_time_ms", 0),
-                    "performance_threshold_ms": boundary_filter.config.performance_threshold,
                     "total_calculations": filter_stats.get("total_calculations", 0),
                     "cache_hits": 0,  # Cache removed
                     "cache_misses": 0  # Cache removed
@@ -729,7 +727,7 @@ async def get_flight_analytics():
     try:
         async with get_database_session() as session:
             # Get flight analytics
-            analytics_result = await session.execute(
+            analytics_result = session.execute(
                 text("""
                     SELECT 
                         COUNT(DISTINCT callsign) as unique_flights,
@@ -840,7 +838,7 @@ async def get_transceivers():
             # Get recent transceivers (last 30 minutes)
             recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
             
-            transceivers_result = await session.execute(
+            transceivers_result = session.execute(
                 text("""
                     SELECT DISTINCT ON (callsign) 
                         id, callsign, frequency, position_lat, position_lon, altitude, last_updated
@@ -883,7 +881,7 @@ async def get_database_tables():
     try:
         async with get_database_session() as session:
             # Get table names
-            tables_result = await session.execute(text("""
+            tables_result = session.execute(text("""
                 SELECT table_name 
                 FROM information_schema.tables 
                 WHERE table_schema = 'public'
@@ -897,7 +895,7 @@ async def get_database_tables():
                 table_name = row[0]
                 
                 # Get record count for each table
-                count_result = await session.execute(
+                count_result = session.execute(
                     text(f"SELECT COUNT(*) FROM {table_name}")
                 )
                 count = count_result.scalar()
@@ -931,7 +929,7 @@ async def execute_database_query(query: str, limit: int = 1000):
         
         async with get_database_session() as session:
             # Execute query with limit
-            result = await session.execute(text(f"{query} LIMIT {limit}"))
+            result = session.execute(text(f"{query} LIMIT {limit}"))
             
             # Fetch results
             rows = result.fetchall()
@@ -960,41 +958,6 @@ async def execute_database_query(query: str, limit: int = 1000):
     except Exception as e:
         logger.error(f"Error executing database query: {e}")
         raise HTTPException(status_code=500, detail=f"Error executing query: {str(e)}")
-
-# Airport Data Endpoints
-
-@app.get("/api/airports/region/{region}")
-@handle_service_errors
-@log_operation("get_airports_by_region")
-async def get_airports_by_region(region: str):
-    """Get airports by region"""
-    try:
-        airports = await get_airports_by_region(region)
-        return {
-            "region": region,
-            "airports": airports,
-            "count": len(airports)
-        }
-        
-    except Exception as e:
-        logger.error(f"Error getting airports for region {region}: {e}")
-        raise HTTPException(status_code=500, detail=f"Error getting airports: {str(e)}")
-
-@app.get("/api/airports/{airport_code}/coordinates")
-@handle_service_errors
-@log_operation("get_airport_coordinates")
-async def get_airport_coordinates(airport_code: str):
-    """Get airport coordinates and information"""
-    try:
-        coordinates = await get_airport_coordinates(airport_code)
-        return {
-            "airport_code": airport_code,
-            "coordinates": coordinates
-        }
-        
-    except Exception as e:
-        logger.error(f"Error getting coordinates for airport {airport_code}: {e}")
-        raise HTTPException(status_code=500, detail=f"Error getting airport coordinates: {str(e)}")
 
 # Health & Monitoring Endpoints
 

@@ -62,8 +62,7 @@ class HealthMonitor:
             "/api/flights/memory",
             "/api/database/status",
             "/api/database/tables",
-            "/api/airports/region/Australia",
-            "/api/airports/YSSY/coordinates"
+            
             # Explicitly excluded to prevent circular dependencies:
             # "/api/health/comprehensive" - would create infinite loop
             # "/api/health/endpoints" - would create infinite loop  

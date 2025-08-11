@@ -488,19 +488,7 @@ Execute custom SQL queries (admin only).
 }
 ```
 
-## 🏢 Airport Data
 
-### **GET /api/airports/region/{region}**
-Get airports by region.
-
-**Parameters:**
-- `region` (string): Region name (e.g., "Australia")
-
-### **GET /api/airports/{airport_code}/coordinates**
-Get airport coordinates and information.
-
-**Parameters:**
-- `airport_code` (string): Airport ICAO code (e.g., "YSSY")
 
 ## 📈 VATSIM Ratings
 

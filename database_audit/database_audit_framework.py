@@ -207,13 +207,13 @@ class DatabaseAuditor:
         
         try:
             # Import models dynamically
-            from app.models import Flight, Controller, Transceiver, Airports
+            from app.models import Flight, Controller, Transceiver
             
             model_map = {
                 'flights': Flight,
                 'controllers': Controller,
                 'transceivers': Transceiver,
-                'airports': Airports
+        
             }
             
             if table_name in model_map:

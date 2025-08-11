@@ -14,7 +14,7 @@ from app.main import app
 
 from app.services.vatsim_service import VATSIMService
 from app.services.data_service import DataService
-from app.services.cache_service import CacheService
+
 from app.services.monitoring_service import MonitoringService
 from app.services.performance_monitor import PerformanceMonitor
 from app.services.database_service import DatabaseService
@@ -229,16 +229,7 @@ def mock_data_service() -> Mock:
     return mock_service
 
 
-@pytest.fixture
-def mock_cache_service() -> Mock:
-    """Mock cache service for testing."""
-    mock_service = Mock(spec=CacheService)
-    mock_service.get = Mock(return_value=None)
-    mock_service.set = Mock()
-    mock_service.delete = Mock()
-    mock_service.is_healthy = Mock(return_value=True)
-    mock_service.get_service_info = Mock(return_value={"status": "healthy"})
-    return mock_service
+
 
 
 @pytest.fixture

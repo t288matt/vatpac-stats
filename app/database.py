@@ -148,52 +148,57 @@ async def get_db() -> AsyncGenerator[Session, None]:
     finally:
         db.close()
 
-class DatabaseSession:
-    """Enhanced async context manager for database sessions with error handling"""
+async def get_async_session():
+    """Get async database session as context manager"""
+    session = SessionLocal()
+    try:
+        yield session
+    except SQLAlchemyError as e:
+        logger.error(f"Database error: {e}")
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+class AsyncDatabaseSession:
+    """Async context manager for database sessions (wraps synchronous sessions)"""
     def __init__(self):
         self.session = None
-        self.retry_count = 0
-        self.max_retries = 3
     
     async def __aenter__(self):
-        """Get database session with retry logic"""
-        while self.retry_count < self.max_retries:
-            try:
-                self.session = SessionLocal()
-                # Test connection
-                self.session.execute(text("SELECT 1"))
-                return self.session
-            except (DisconnectionError, OperationalError) as e:
-                self.retry_count += 1
-                logger.warning(f"Database connection attempt {self.retry_count} failed: {e}")
-                if self.session:
-                    self.session.close()
-                if self.retry_count >= self.max_retries:
-                    raise SQLAlchemyError(f"Failed to connect to database after {self.max_retries} attempts")
-                await asyncio.sleep(1)  # Wait before retry
-        raise SQLAlchemyError("Failed to establish database connection")
+        """Get database session"""
+        self.session = SessionLocal()
+        return self.session
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Clean up database session"""
         if self.session:
             try:
                 if exc_type is not None:
-                    # Rollback on exception
                     self.session.rollback()
-                    logger.error(f"Database session rolled back due to error: {exc_val}")
                 else:
-                    # Commit on success
                     self.session.commit()
-                    logger.debug("Database session committed successfully")
             except SQLAlchemyError as e:
                 logger.error(f"Error during session cleanup: {e}")
                 self.session.rollback()
             finally:
                 self.session.close()
+    
+    def execute(self, query, params=None):
+        """Execute query (synchronous, no await needed)"""
+        return self.session.execute(query, params)
+    
+    def commit(self):
+        """Commit session (synchronous, no await needed)"""
+        return self.session.commit()
+    
+    def rollback(self):
+        """Rollback session (synchronous, no await needed)"""
+        return self.session.rollback()
 
 def get_database_session():
     """Get database session as async context manager"""
-    return DatabaseSession()
+    return AsyncDatabaseSession()
 
 @contextmanager
 def get_sync_session():
@@ -215,7 +220,7 @@ def init_db():
     """Initialize database tables with enhanced error handling"""
     try:
         # Import models to ensure they are registered with Base
-        from .models import Controller, Flight, Transceiver, Airports
+        from .models import Controller, Flight, Transceiver
         
         # Create all tables
         Base.metadata.create_all(bind=engine)
@@ -227,7 +232,7 @@ def init_db():
                 SELECT table_name 
                 FROM information_schema.tables 
                 WHERE table_schema = 'public' 
-                AND table_name IN ('controllers', 'flights', 'transceivers', 'airports')
+                AND table_name IN ('controllers', 'flights', 'transceivers')
                 ORDER BY table_name
             """))
             tables = [row[0] for row in result.fetchall()]
@@ -296,8 +301,7 @@ async def health_check():
                 SELECT 
                     (SELECT COUNT(*) FROM controllers) as controllers_count,
                     (SELECT COUNT(*) FROM flights) as flights_count,
-                    (SELECT COUNT(*) FROM transceivers) as transceivers_count,
-                    (SELECT COUNT(*) FROM airports) as airports_count
+                    (SELECT COUNT(*) FROM transceivers) as transceivers_count
             """))
             counts = result.fetchone()
             
@@ -307,8 +311,7 @@ async def health_check():
                 "table_counts": {
                     "controllers": counts[0] or 0,
                     "flights": counts[1] or 0,
-                    "transceivers": counts[2] or 0,
-                    "airports": counts[3] or 0
+                    "transceivers": counts[2] or 0
                 },
                 "pool_status": {
                     "size": engine.pool.size(),
