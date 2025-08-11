@@ -26,6 +26,7 @@ from ..utils.logging import get_logger_for_module
 from ..utils.error_handling import handle_service_errors, log_operation
 from ..services.vatsim_service import VATSIMService
 from ..filters.geographic_boundary_filter import GeographicBoundaryFilter
+from ..filters.callsign_pattern_filter import CallsignPatternFilter
 from ..database import get_database_session
 from ..models import Flight, Controller, Transceiver
 from ..config import get_config
@@ -55,6 +56,7 @@ class DataService:
         
         # Initialize filters
         self.geographic_boundary_filter = GeographicBoundaryFilter()
+        self.callsign_pattern_filter = CallsignPatternFilter()
         
         # Initialize services
         self.vatsim_service = None
@@ -83,6 +85,7 @@ class DataService:
             self.db_session = None
             
             self.logger.info(f"Geographic filter initialized: {self.geographic_boundary_filter.config.enabled}")
+            self.logger.info(f"Callsign pattern filter initialized: {self.callsign_pattern_filter.config.enabled}")
             self._initialized = True
             return True
             
@@ -181,58 +184,69 @@ class DataService:
         
         processed_count = 0
         
+        # Apply geographic boundary filtering first (if enabled)
+        if self.geographic_boundary_filter.config.enabled:
+            filtered_flights = self.geographic_boundary_filter.filter_flights_list(flights_data)
+            self.logger.info(f"Geographic filtering: {len(flights_data)} flights -> {len(filtered_flights)} flights")
+        else:
+            filtered_flights = flights_data
+        
         # Get database session
         async with get_database_session() as session:
-            for flight_dict in flights_data:
+            if filtered_flights:
                 try:
-                    # Apply geographic boundary filtering
-                    if self.geographic_boundary_filter.config.enabled:
-                        if not self.geographic_boundary_filter.filter_flights_list([flight_dict]):
-                            # Flight filtered out by geographic boundary
+                    # Prepare bulk data
+                    bulk_flights = []
+                    
+                    for flight_dict in filtered_flights:
+                        try:
+                            # Create data dictionary for bulk insert
+                            flight_data = {
+                                "callsign": flight_dict.get("callsign", ""),
+                                "name": flight_dict.get("name", ""),
+                                "aircraft_type": flight_dict.get("aircraft_type", ""),
+                                "departure": flight_dict.get("departure", ""),
+                                "arrival": flight_dict.get("arrival", ""),
+                                "route": flight_dict.get("route", ""),
+                                "altitude": flight_dict.get("altitude", 0),
+                                "latitude": flight_dict.get("latitude"),
+                                "longitude": flight_dict.get("longitude"),
+                                "groundspeed": flight_dict.get("groundspeed"),
+                                "heading": flight_dict.get("heading"),
+                                "cid": flight_dict.get("cid"),
+                                "server": flight_dict.get("server", ""),
+                                "pilot_rating": flight_dict.get("pilot_rating"),
+                                "military_rating": flight_dict.get("military_rating"),
+                                "transponder": flight_dict.get("transponder", ""),
+                                "logon_time": flight_dict.get("logon_time"),
+                                "last_updated_api": flight_dict.get("last_updated"),
+                                "flight_rules": flight_dict.get("flight_rules", ""),
+                                "aircraft_faa": flight_dict.get("aircraft_faa", ""),
+                                "alternate": flight_dict.get("alternate", ""),
+                                "cruise_tas": flight_dict.get("cruise_tas", ""),
+                                "planned_altitude": flight_dict.get("planned_altitude", ""),
+                                "deptime": flight_dict.get("deptime", ""),
+                                "enroute_time": flight_dict.get("enroute_time", ""),
+                                "fuel_time": flight_dict.get("fuel_time", ""),
+                                "remarks": flight_dict.get("remarks", "")
+                            }
+                            bulk_flights.append(flight_data)
+                            
+                        except Exception as e:
+                            self.logger.warning(f"Failed to prepare flight data for {flight_dict.get('callsign', 'unknown')}: {e}")
                             continue
                     
-                    # Create flight model - simplified field mapping
-                    flight = Flight(
-                        callsign=flight_dict.get("callsign", ""),
-                        name=flight_dict.get("name", ""),
-                        aircraft_type=flight_dict.get("aircraft_type", ""),
-                        departure=flight_dict.get("departure", ""),
-                        arrival=flight_dict.get("arrival", ""),
-                        route=flight_dict.get("route", ""),
-                        altitude=flight_dict.get("altitude", 0),
-                        latitude=flight_dict.get("latitude"),
-                        longitude=flight_dict.get("longitude"),
-                        groundspeed=flight_dict.get("groundspeed"),
-                        heading=flight_dict.get("heading"),
-                        cid=flight_dict.get("cid"),
-                        server=flight_dict.get("server", ""),
-                        pilot_rating=flight_dict.get("pilot_rating"),
-                        military_rating=flight_dict.get("military_rating"),
-                        transponder=flight_dict.get("transponder", ""),
-                        logon_time=flight_dict.get("logon_time"),
-                        last_updated_api=flight_dict.get("last_updated"),
-                        flight_rules=flight_dict.get("flight_rules", ""),
-                        aircraft_faa=flight_dict.get("aircraft_faa", ""),
-                        alternate=flight_dict.get("alternate", ""),
-                        cruise_tas=flight_dict.get("cruise_tas", ""),
-                        planned_altitude=flight_dict.get("planned_altitude", ""),
-                        deptime=flight_dict.get("deptime", ""),
-                        enroute_time=flight_dict.get("enroute_time", ""),
-                        fuel_time=flight_dict.get("fuel_time", ""),
-                        remarks=flight_dict.get("remarks", "")
-                    )
-                    
-                    # Store to database
-                    session.add(flight)
-                    processed_count += 1
+                    # Bulk insert all flights
+                    if bulk_flights:
+                        session.bulk_insert_mappings(Flight, bulk_flights)
+                        await session.commit()
+                        processed_count = len(bulk_flights)
+                        self.logger.info(f"Bulk inserted {processed_count} flights")
                     
                 except Exception as e:
-                    self.logger.warning(f"Failed to process flight {flight_dict.get('callsign', 'unknown')}: {e}")
-                    continue
-            
-            # Commit all flights
-            if processed_count > 0:
-                await session.commit()
+                    self.logger.error(f"Failed to bulk insert flights: {e}")
+                    await session.rollback()
+                    raise
         
         return processed_count
     
@@ -260,52 +274,44 @@ class DataService:
         
         # Get database session
         async with get_database_session() as session:
-            for controller_dict in filtered_controllers:
+            if filtered_controllers:
                 try:
+                    # Prepare bulk data
+                    bulk_controllers = []
                     
-                    # Create controller model using SQLAlchemy ORM
-                    controller = Controller(
-                        callsign=controller_dict.get("callsign", ""),
-                        frequency=controller_dict.get("frequency", ""),
-                        cid=controller_dict.get("cid"),
-                        name=controller_dict.get("name", ""),
-                        rating=controller_dict.get("rating"),
-                        facility=controller_dict.get("facility"),
-                        visual_range=controller_dict.get("visual_range"),
-                        text_atis=self._convert_text_atis(controller_dict.get("text_atis")),
-                        server=controller_dict.get("server", ""),
-                        last_updated=self._parse_timestamp(controller_dict.get("last_updated")),
-                        logon_time=self._parse_timestamp(controller_dict.get("logon_time"))
-                    )
+                    for controller_dict in filtered_controllers:
+                        try:
+                            # Create data dictionary for bulk insert
+                            controller_data = {
+                                "callsign": controller_dict.get("callsign", ""),
+                                "frequency": controller_dict.get("frequency", ""),
+                                "cid": controller_dict.get("cid"),
+                                "name": controller_dict.get("name", ""),
+                                "rating": controller_dict.get("rating"),
+                                "facility": controller_dict.get("facility"),
+                                "visual_range": controller_dict.get("visual_range"),
+                                "text_atis": self._convert_text_atis(controller_dict.get("text_atis")),
+                                "server": controller_dict.get("server", ""),
+                                "last_updated": self._parse_timestamp(controller_dict.get("last_updated")),
+                                "logon_time": self._parse_timestamp(controller_dict.get("logon_time"))
+                            }
+                            bulk_controllers.append(controller_data)
+                            
+                        except Exception as e:
+                            self.logger.warning(f"Failed to prepare controller data for {controller_dict.get('callsign', 'unknown')}: {e}")
+                            continue
                     
-                    # Debug logging to see the created model
-                    self.logger.debug(f"Created controller model: {controller}")
-                    
-                    # Store to database
-                    session.add(controller)
-                    processed_count += 1
-                    
-                    self.logger.debug(f"Added controller {controller.callsign} to session, total in session: {processed_count}")
+                    # Bulk insert all controllers
+                    if bulk_controllers:
+                        session.bulk_insert_mappings(Controller, bulk_controllers)
+                        await session.commit()
+                        processed_count = len(bulk_controllers)
+                        self.logger.info(f"Bulk inserted {processed_count} controllers")
                     
                 except Exception as e:
-                    self.logger.error(f"Failed to process controller {controller_dict.get('callsign', 'unknown')}: {e}")
-                    self.logger.error(f"Exception details: {type(e).__name__}: {str(e)}")
-                    continue
-            
-            # Log before commit
-            self.logger.info(f"About to commit {processed_count} controllers to database")
-            
-            # Commit all controllers
-            if processed_count > 0:
-                try:
-                    await session.commit()
-                    self.logger.info(f"Successfully committed {processed_count} controllers to database")
-                except Exception as e:
-                    self.logger.error(f"Failed to commit controllers: {e}")
-                    self.logger.error(f"Commit exception details: {type(e).__name__}: {str(e)}")
+                    self.logger.error(f"Failed to bulk insert controllers: {e}")
+                    await session.rollback()
                     raise
-            else:
-                self.logger.info("No controllers to commit")
         
         return processed_count
     
@@ -316,7 +322,7 @@ class DataService:
         return str(text_atis_data) if not isinstance(text_atis_data, str) else text_atis_data
     
     def _parse_timestamp(self, timestamp_str: Optional[Any]) -> Optional[datetime]:
-        """Parse timestamp string to datetime object - simplified"""
+        """Parse timestamp string to datetime object - optimized for bulk operations"""
         if not timestamp_str:
             return None
         
@@ -349,43 +355,56 @@ class DataService:
         
         processed_count = 0
         
+        # Apply callsign pattern filtering first (always enabled)
+        filtered_transceivers = self.callsign_pattern_filter.filter_transceivers_list(transceivers_data)
+        self.logger.info(f"Callsign pattern filtering: {len(transceivers_data)} transceivers -> {len(filtered_transceivers)} transceivers")
+        
         # Apply geographic boundary filtering
         if self.geographic_boundary_filter.config.enabled:
-            filtered_transceivers = self.geographic_boundary_filter.filter_transceivers_list(transceivers_data)
-            self.logger.info(f"Geographic filtering: {len(transceivers_data)} transceivers -> {len(filtered_transceivers)} transceivers")
-        else:
-            filtered_transceivers = transceivers_data
+            filtered_transceivers = self.geographic_boundary_filter.filter_transceivers_list(filtered_transceivers)
+            self.logger.info(f"Geographic filtering: {len(filtered_transceivers)} transceivers -> {len(filtered_transceivers)} transceivers")
         
         # Get database session
         async with get_database_session() as session:
-            for transceiver_dict in filtered_transceivers:
+            if filtered_transceivers:
                 try:
-                    # Create transceiver model
-                    transceiver = Transceiver(
-                        callsign=transceiver_dict.get("callsign", ""),
-                        transceiver_id=transceiver_dict.get("transceiver_id", 0),
-                        frequency=transceiver_dict.get("frequency", 0),
-                        position_lat=transceiver_dict.get("position_lat"),
-                        position_lon=transceiver_dict.get("position_lon"),
-                        height_msl=transceiver_dict.get("height_msl"),
-                        height_agl=transceiver_dict.get("height_agl"),
-                        entity_type=transceiver_dict.get("entity_type", ""),
-                        entity_id=transceiver_dict.get("entity_id"),
-                        timestamp=datetime.now(timezone.utc),
-                        updated_at=datetime.now(timezone.utc)
-                    )
+                    # Prepare bulk data with current timestamp
+                    current_time = datetime.now(timezone.utc)
+                    bulk_transceivers = []
                     
-                    # Store to database
-                    session.add(transceiver)
-                    processed_count += 1
+                    for transceiver_dict in filtered_transceivers:
+                        try:
+                            # Create data dictionary for bulk insert
+                            transceiver_data = {
+                                "callsign": transceiver_dict.get("callsign", ""),
+                                "transceiver_id": transceiver_dict.get("transceiver_id", 0),
+                                "frequency": transceiver_dict.get("frequency", 0),
+                                "position_lat": transceiver_dict.get("position_lat"),
+                                "position_lon": transceiver_dict.get("position_lon"),
+                                "height_msl": transceiver_dict.get("height_msl"),
+                                "height_agl": transceiver_dict.get("height_agl"),
+                                "entity_type": transceiver_dict.get("entity_type", ""),
+                                "entity_id": transceiver_dict.get("entity_id"),
+                                "timestamp": current_time,
+                                "updated_at": current_time
+                            }
+                            bulk_transceivers.append(transceiver_data)
+                            
+                        except Exception as e:
+                            self.logger.warning(f"Failed to prepare transceiver data for {transceiver_dict.get('callsign', 'unknown')}: {e}")
+                            continue
+                    
+                    # Bulk insert all transceivers
+                    if bulk_transceivers:
+                        session.bulk_insert_mappings(Transceiver, bulk_transceivers)
+                        await session.commit()
+                        processed_count = len(bulk_transceivers)
+                        self.logger.info(f"Bulk inserted {processed_count} transceivers")
                     
                 except Exception as e:
-                    self.logger.warning(f"Failed to process transceiver for {transceiver_dict.get('callsign', 'unknown')}: {e}")
-                    continue
-            
-            # Commit all transceivers
-            if processed_count > 0:
-                await session.commit()
+                    self.logger.error(f"Failed to bulk insert transceivers: {e}")
+                    await session.rollback()
+                    raise
         
         return processed_count
     
@@ -428,6 +447,10 @@ class DataService:
             "geographic_boundary_filter": {
                 "enabled": self.geographic_boundary_filter.config.enabled,
                 "initialized": self.geographic_boundary_filter.is_initialized
+            },
+            "callsign_pattern_filter": {
+                "enabled": self.callsign_pattern_filter.config.enabled,
+                "patterns": self.callsign_pattern_filter.config.excluded_patterns
             }
         }
 
