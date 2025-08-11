@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 """
-Basic Error Handling for VATSIM Data Collection System
+Simplified Error Handling for VATSIM Data Collection System
 
-This module provides simple error handling patterns for the core VATSIM data collection system.
+This module provides basic error handling decorators without complex
+custom exception hierarchies.
 """
 
-import logging
 import asyncio
+import logging
 from typing import Callable
 from functools import wraps
 
 from .logging import get_logger_for_module
-from .exceptions import (
-    VATSIMSystemError, create_error
-)
 
 logger = get_logger_for_module(__name__)
 
@@ -50,23 +48,17 @@ def handle_service_errors(func: Callable) -> Callable:
     async def async_wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
-        except VATSIMSystemError as e:
-            logger.error(f"Service error: {e.message}")
-            raise
         except Exception as e:
-            logger.error(f"Unexpected error in {func.__name__}: {e}", exc_info=True)
-            raise create_error("service", f"Unexpected error: {e}", operation=func.__name__)
+            logger.error(f"Service error in {func.__name__}: {e}", exc_info=True)
+            raise
     
     @wraps(func)
     def sync_wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except VATSIMSystemError as e:
-            logger.error(f"Service error: {e.message}")
-            raise
         except Exception as e:
-            logger.error(f"Unexpected error in {func.__name__}: {e}", exc_info=True)
-            raise create_error("service", f"Unexpected error: {e}", operation=func.__name__)
+            logger.error(f"Service error in {func.__name__}: {e}", exc_info=True)
+            raise
     
     # Return async wrapper for async functions, sync wrapper for sync functions
     if asyncio.iscoroutinefunction(func):
@@ -108,6 +100,7 @@ def log_operation(operation_name: str, log_args: bool = False, log_result: bool 
             return async_wrapper
         else:
             return sync_wrapper
+    
     return decorator
 
 
