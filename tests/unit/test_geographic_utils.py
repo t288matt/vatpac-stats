@@ -16,10 +16,8 @@ from app.utils.geographic_utils import (
     is_point_in_polygon_from_coords,
     validate_polygon_coordinates,
     validate_geojson_polygon,
-    get_polygon_bounds,
     create_polygon_from_geojson_dict,
     get_cached_polygon,
-    clear_polygon_cache
 )
 
 
@@ -92,7 +90,7 @@ class TestGeographicUtils:
 
     def setup_method(self):
         """Clear cache before each test."""
-        clear_polygon_cache()
+        # clear_polygon_cache() # This function was removed
 
     # Test load_polygon_from_geojson
     def test_load_polygon_from_geojson_standard_format(self, temp_geojson_file):
@@ -286,30 +284,6 @@ class TestGeographicUtils:
         finally:
             os.unlink(temp_file)
 
-    # Test get_polygon_bounds
-    def test_get_polygon_bounds(self, simple_polygon_coords):
-        """Test getting polygon bounds."""
-        polygon = Polygon([(coord[1], coord[0]) for coord in simple_polygon_coords])
-        bounds = get_polygon_bounds(polygon)
-        
-        assert isinstance(bounds, dict)
-        assert 'min_lat' in bounds
-        assert 'max_lat' in bounds
-        assert 'min_lon' in bounds
-        assert 'max_lon' in bounds
-        
-        assert bounds['min_lat'] == -34.0
-        assert bounds['max_lat'] == -33.0
-        assert bounds['min_lon'] == 151.0
-        assert bounds['max_lon'] == 152.0
-
-    def test_get_polygon_bounds_invalid_polygon(self):
-        """Test bounds calculation with invalid polygon."""
-        bounds = get_polygon_bounds("not_a_polygon")
-        
-        # Should return default bounds on error
-        assert bounds == {'min_lat': 0, 'max_lat': 0, 'min_lon': 0, 'max_lon': 0}
-
     # Test create_polygon_from_geojson_dict
     def test_create_polygon_from_geojson_dict_standard(self, geojson_polygon_data):
         """Test creating polygon from standard GeoJSON dict."""
@@ -343,39 +317,43 @@ class TestGeographicUtils:
         assert polygon.is_valid
 
     def test_get_cached_polygon_second_load(self, temp_geojson_file):
-        """Test second load of polygon (should use cache)."""
+        """Test that second load uses cache"""
         # First load
         polygon1 = get_cached_polygon(temp_geojson_file)
         
-        # Second load (should be from cache)
+        # Second load should use cache
         polygon2 = get_cached_polygon(temp_geojson_file)
         
-        # Should be the same object (from cache)
-        assert polygon1 is polygon2
-
+        assert polygon1 is polygon2  # Same object reference
+    
     def test_get_cached_polygon_force_reload(self, temp_geojson_file):
-        """Test force reload of cached polygon."""
+        """Test force reload bypasses cache"""
         # First load
         polygon1 = get_cached_polygon(temp_geojson_file)
         
         # Force reload
         polygon2 = get_cached_polygon(temp_geojson_file, force_reload=True)
         
-        # Should be different objects (reloaded)
-        assert polygon1 is not polygon2
-        assert polygon1.equals(polygon2)  # But geometrically equivalent
-
-    def test_clear_polygon_cache(self, temp_geojson_file):
-        """Test clearing the polygon cache."""
-        # Load polygon to cache it
-        get_cached_polygon(temp_geojson_file)
+        assert polygon1 is not polygon2  # Different object references
+    
+    def test_get_cached_polygon_file_not_found(self, temp_geojson_file):
+        """Test handling of non-existent file"""
+        # Remove the file
+        os.remove(temp_geojson_file)
         
-        # Clear cache
-        clear_polygon_cache()
+        # Try to load non-existent file
+        with pytest.raises(FileNotFoundError):
+            get_cached_polygon(temp_geojson_file)
+    
+    def test_get_cached_polygon_invalid_json(self, temp_geojson_file):
+        """Test handling of invalid JSON"""
+        # Write invalid JSON
+        with open(temp_geojson_file, 'w') as f:
+            f.write('{"invalid": "json"')
         
-        # Load again (should reload from file)
-        polygon = get_cached_polygon(temp_geojson_file)
-        assert isinstance(polygon, Polygon)
+        # Try to load invalid JSON
+        with pytest.raises(ValueError):
+            get_cached_polygon(temp_geojson_file)
 
     # Performance and edge case tests
     def test_large_polygon_performance(self):

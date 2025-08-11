@@ -1,49 +1,27 @@
 #!/usr/bin/env python3
 """
-Geographic Boundary Filter for VATSIM Data Collection
+Geographic Boundary Filter Module
 
-This module implements a geographic boundary filter to only include flights that are
-physically located within a specified geographic polygon boundary (e.g., Australian airspace).
+This module provides geographic boundary filtering for VATSIM data,
+allowing users to filter flights, controllers, and transceivers
+based on whether they are within a defined geographic boundary.
 
-INPUTS:
-- Raw VATSIM API data (JSON structure)
-- Geographic boundary polygon data (GeoJSON format)
-- Flight position data (latitude, longitude)
-
-OUTPUTS:
-- Filtered VATSIM API data with identical structure
-- Flights outside the geographic boundary completely discarded
-- All other data (controllers, servers, etc.) unchanged
-
-FEATURES:
-- Shapely-based point-in-polygon calculations for accuracy
-- GeoJSON polygon support with coordinate validation
-- Performance monitoring with configurable thresholds
-- Comprehensive logging of filtering decisions
-- Conservative approach: includes flights with missing position data
-- Environment-based configuration
-- Real-time filtering statistics
-- Independent operation from other filters
-
-USAGE:
-    filter = GeographicBoundaryFilter()
-    filtered_data = filter.filter_vatsim_data(raw_vatsim_data)
-    stats = filter.get_filter_stats()
+Author: VATSIM Data System
+Created: 2025-01-08
+Status: Sprint 1, Task 1.4 - Geographic Boundary Filter
 """
 
 import os
 import time
 import logging
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
+from shapely.geometry import Polygon
 
 # Import our geographic utilities
-from ..utils.geographic_utils import (
-    load_polygon_from_geojson,
+from app.utils.geographic_utils import (
     is_point_in_polygon,
-    validate_geojson_polygon,
-    get_polygon_bounds,
-    get_cached_polygon
+    get_cached_polygon,
 )
 
 # Configure logging
@@ -108,26 +86,19 @@ class GeographicBoundaryFilter:
             logger.setLevel(getattr(logging, self.config.log_level))
     
     def _load_boundary_data(self):
-        """Load boundary polygon data from file"""
+        """
+        Load boundary data from the configured file path
+        """
         try:
             if not self.config.boundary_data_path:
-                logger.error("Boundary data path not configured")
-                return
-            
-            # Validate file exists and is valid GeoJSON
-            if not validate_geojson_polygon(self.config.boundary_data_path):
-                logger.error(f"Invalid boundary data file: {self.config.boundary_data_path}")
+                logger.warning("No boundary data path configured")
                 return
             
             # Load polygon using cached loading for performance
             self.polygon = get_cached_polygon(self.config.boundary_data_path)
             
-            # Get polygon bounds for logging
-            bounds = get_polygon_bounds(self.polygon)
-            
             self.is_initialized = True
             logger.info(f"✅ Loaded boundary polygon from {self.config.boundary_data_path}")
-            logger.info(f"📍 Polygon bounds: {bounds}")
             logger.info(f"📊 Polygon points: {len(self.polygon.exterior.coords)}")
             
         except Exception as e:
@@ -428,10 +399,8 @@ class GeographicBoundaryFilter:
         """
         polygon_info = {}
         if self.is_initialized and self.polygon:
-            bounds = get_polygon_bounds(self.polygon)
             polygon_info = {
                 "polygon_points": len(self.polygon.exterior.coords),
-                "polygon_bounds": bounds,
                 "boundary_file": self.config.boundary_data_path
             }
         
@@ -470,12 +439,9 @@ class GeographicBoundaryFilter:
         if not self.is_initialized or not self.polygon:
             return None
         
-        bounds = get_polygon_bounds(self.polygon)
-        
         return {
             "file_path": self.config.boundary_data_path,
             "polygon_points": len(self.polygon.exterior.coords),
-            "bounds": bounds,
             "area_sq_degrees": self.polygon.area,  # Approximate area in square degrees
             "is_valid": self.polygon.is_valid
         }

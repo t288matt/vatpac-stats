@@ -280,28 +280,6 @@ def validate_geojson_polygon(json_file_path: str) -> bool:
         logger.error(f"Error validating GeoJSON file: {e}")
         return False
 
-def get_polygon_bounds(polygon: Polygon) -> Dict[str, float]:
-    """
-    Get the bounding box of a polygon.
-    
-    Args:
-        polygon: Shapely Polygon object
-        
-    Returns:
-        Dictionary with 'min_lat', 'max_lat', 'min_lon', 'max_lon'
-    """
-    try:
-        bounds = polygon.bounds  # Returns (minx, miny, maxx, maxy)
-        return {
-            'min_lon': bounds[0],
-            'min_lat': bounds[1], 
-            'max_lon': bounds[2],
-            'max_lat': bounds[3]
-        }
-    except Exception as e:
-        logger.error(f"Error getting polygon bounds: {e}")
-        return {'min_lat': 0, 'max_lat': 0, 'min_lon': 0, 'max_lon': 0}
-
 def create_polygon_from_geojson_dict(geojson_data: Dict[str, Any]) -> Polygon:
     """
     Create a Shapely Polygon from a GeoJSON dictionary.
@@ -358,9 +336,3 @@ def get_cached_polygon(json_file_path: str, force_reload: bool = False) -> Polyg
     _polygon_cache[cache_key] = polygon
     
     return polygon
-
-def clear_polygon_cache():
-    """Clear the polygon cache."""
-    global _polygon_cache
-    _polygon_cache.clear()
-    logger.info("Polygon cache cleared")

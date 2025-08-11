@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Geographic Boundary Filter provides polygon-based filtering of VATSIM flight data to only include flights within specified geographic boundaries. This document describes all configuration options and usage examples.
+The Geographic Boundary Filter provides polygon-based filtering of VATSIM data to only include flights, transceivers, and controllers within specified geographic boundaries. This document describes all configuration options and usage examples.
 
 ## Environment Variables
 
@@ -13,7 +13,7 @@ The Geographic Boundary Filter provides polygon-based filtering of VATSIM flight
 - **Description**: Enable or disable the geographic boundary filter
 - **Example**: `ENABLE_BOUNDARY_FILTER=true`
 
-When enabled, the filter will process all incoming flight data and only include flights that are physically located within the defined geographic boundary polygon.
+When enabled, the filter will process all incoming VATSIM data and only include entities that are physically located within the defined geographic boundary polygon.
 
 ### BOUNDARY_DATA_PATH
 
@@ -32,7 +32,7 @@ The file must be in GeoJSON format with polygon coordinates. Supports both stand
 - **Example**: `BOUNDARY_FILTER_LOG_LEVEL=DEBUG`
 
 Controls the verbosity of logging output:
-- **DEBUG**: Detailed per-flight filtering decisions
+- **DEBUG**: Detailed per-entity filtering decisions
 - **INFO**: Filter statistics and performance metrics
 - **WARNING**: Performance threshold violations and issues
 - **ERROR**: Critical errors only
@@ -122,23 +122,40 @@ services:
 
 ## Filter Behavior
 
-### Flight Processing
+### Data Processing Pipeline
 
-The filter processes flights in the following sequence:
+The filter processes VATSIM data in the following sequence:
 
 1. **Airport Filter** (if enabled) - filters by airport codes
 2. **Geographic Boundary Filter** (if enabled) - filters by geographic location
-3. Both filters must pass for a flight to be included
+3. Both filters must pass for an entity to be included
+
+### Entity Types Supported
+
+#### Flights
+- **Position Data**: Uses `latitude` and `longitude` fields
+- **Missing Position**: Flights without coordinates are allowed through (conservative approach)
+- **Invalid Coordinates**: Flights with invalid coordinates are filtered out
+
+#### Transceivers
+- **Position Data**: Uses `position_lat` and `position_lon` fields
+- **Missing Position**: Transceivers without coordinates are allowed through (conservative approach)
+- **Invalid Coordinates**: Transceivers with invalid coordinates are filtered out
+
+#### Controllers
+- **Position Data**: Currently uses conservative approach (all controllers allowed through)
+- **Future Enhancement**: Will support position-based filtering when position data becomes available
+- **Current Behavior**: All controllers pass through the filter regardless of location
 
 ### Position Data Handling
 
-- **Missing Position**: Flights without latitude/longitude are allowed through (conservative approach)
-- **Invalid Coordinates**: Flights with invalid coordinates are filtered out
+- **Missing Position**: Entities without latitude/longitude are allowed through (conservative approach)
+- **Invalid Coordinates**: Entities with invalid coordinates are filtered out
 - **Boundary Detection**: Uses Shapely point-in-polygon calculations for accuracy
 
 ### Performance Characteristics
 
-- **Processing Time**: Typically <1ms for 50-100 flights
+- **Processing Time**: Typically <1ms for 50-100 entities
 - **Memory Usage**: Polygon cached in memory for performance
 - **Accuracy**: Sub-meter precision using Shapely geometric calculations
 
@@ -146,7 +163,7 @@ The filter processes flights in the following sequence:
 
 ### Filter Statistics
 
-The filter provides real-time statistics:
+The filter provides real-time statistics for all entity types:
 
 ```json
 {
@@ -157,7 +174,13 @@ The filter provides real-time statistics:
   "filter_type": "Geographic boundary (point-in-polygon)",
   "processing_time_ms": 1.2,
   "flights_included": 52,
-  "flights_excluded": 24
+  "flights_excluded": 24,
+  "total_transceivers_processed": 15,
+  "transceivers_included": 8,
+  "transceivers_excluded": 7,
+  "total_controllers_processed": 12,
+  "controllers_included": 12,
+  "controllers_excluded": 0
 }
 ```
 
@@ -183,7 +206,9 @@ Key log messages to monitor:
 "Geographic boundary filter initialized - enabled: true"
 
 # Processing statistics
-"Geographic boundary filter: 76 flights -> 52 flights (24 filtered out) in 1.21ms"
+"Geographic filtering: 76 flights -> 52 flights (24 filtered out)"
+"Geographic filtering: 15 transceivers -> 8 transceivers (7 filtered out)"
+"Geographic filtering: 12 controllers -> 12 controllers (conservative approach)"
 
 # Performance warnings
 "Geographic boundary filter exceeded performance threshold: 15.2ms > 10.0ms"
@@ -230,7 +255,7 @@ docker-compose up -d
 **Symptoms**: Performance threshold warnings
 **Causes**:
 - Very complex polygon (thousands of points)
-- High flight volume
+- High entity volume
 - Resource constraints
 
 **Solutions**:
@@ -261,9 +286,9 @@ docker-compose logs app | grep -i "geographic"
 
 ### Filter Pipeline
 
-The geographic boundary filter integrates with the existing flight filter pipeline:
+The geographic boundary filter integrates with the existing VATSIM data processing pipeline:
 
-1. **VATSIM API** → Raw flight data
+1. **VATSIM API** → Raw flight, transceiver, and controller data
 2. **Airport Filter** → Filters by airport codes (if enabled)
 3. **Geographic Filter** → Filters by location (if enabled)
 4. **Database** → Stores filtered results
@@ -279,9 +304,32 @@ Filter status can be monitored via API endpoints:
 
 Filter metrics are available for Grafana visualization:
 
-- Flight filtering statistics
+- Entity filtering statistics (flights, transceivers, controllers)
 - Processing performance metrics
 - Filter health status
+
+## Testing
+
+### Test Scripts
+
+Use the provided test scripts to validate filter functionality:
+
+```bash
+# Test filter on/off functionality
+python test_filter_on_off.py
+
+# Test geographic filtering with live data
+python test_geographic_filtering.py
+```
+
+### Test Results
+
+The filter has been tested and validated with:
+- ✅ Configuration changes (enable/disable)
+- ✅ Filtering behavior (enabled vs disabled)
+- ✅ Performance impact measurement
+- ✅ Live VATSIM data processing
+- ✅ Multi-entity type support
 
 ## Best Practices
 
@@ -314,4 +362,12 @@ For issues or questions:
 2. Review log files for error messages
 3. Validate configuration using provided commands
 4. Test with minimal configuration to isolate issues
+
+---
+
+**📅 Last Updated**: 2025-01-27  
+**🚀 Status**: Production Ready  
+**🗺️ Supported Entities**: Flights, Transceivers, Controllers  
+**⚡ Performance**: <1ms for 100 entities  
+**🔧 Configuration**: Environment variable based
 

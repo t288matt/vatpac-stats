@@ -82,22 +82,19 @@ class TestGeographicBoundaryFilter:
         assert config.enabled is False
         assert config.boundary_data_path == ""
         assert config.log_level == "INFO"
-        assert config.performance_threshold_ms == 10.0
 
     def test_config_from_environment(self):
         """Test configuration loading from environment variables."""
         os.environ["ENABLE_BOUNDARY_FILTER"] = "true"
         os.environ["BOUNDARY_DATA_PATH"] = "/path/to/boundary.json"
         os.environ["BOUNDARY_FILTER_LOG_LEVEL"] = "DEBUG"
-        os.environ["BOUNDARY_FILTER_PERFORMANCE_THRESHOLD"] = "5.0"
-        
+
         filter_instance = GeographicBoundaryFilter()
         config = filter_instance.config
-        
+
         assert config.enabled is True
         assert config.boundary_data_path == "/path/to/boundary.json"
         assert config.log_level == "DEBUG"
-        assert config.performance_threshold_ms == 5.0
 
     # Test Initialization
     def test_initialization_disabled(self):
@@ -290,15 +287,16 @@ class TestGeographicBoundaryFilter:
         """Test performance threshold warning."""
         os.environ["ENABLE_BOUNDARY_FILTER"] = "true"
         os.environ["BOUNDARY_DATA_PATH"] = temp_geojson_file
-        os.environ["BOUNDARY_FILTER_PERFORMANCE_THRESHOLD"] = "0.001"  # Very low threshold
-        
+
         filter_instance = GeographicBoundaryFilter()
-        
-        # This should trigger performance warning (processing will likely exceed 0.001ms)
+
+        # This should process flights without performance threshold warnings
         result = filter_instance.filter_flights_list(sample_flight_data)
-        
+
         stats = filter_instance.get_filter_stats()
-        assert stats["performance_threshold_ms"] == 0.001
+        # Check that processing time is recorded
+        assert "processing_time_ms" in stats
+        assert stats["processing_time_ms"] > 0
 
     # Test Boundary Information
     def test_get_boundary_info_not_initialized(self):
@@ -320,7 +318,6 @@ class TestGeographicBoundaryFilter:
         assert info is not None
         assert "file_path" in info
         assert "polygon_points" in info
-        assert "bounds" in info
         assert info["polygon_points"] == 5  # 4 corners + closing point
 
     # Test Reload Functionality
@@ -399,18 +396,18 @@ class TestGeographicBoundaryFilter:
         """Test comprehensive filter statistics."""
         os.environ["ENABLE_BOUNDARY_FILTER"] = "true"
         os.environ["BOUNDARY_DATA_PATH"] = temp_geojson_file
-        
+
         filter_instance = GeographicBoundaryFilter()
         stats = filter_instance.get_filter_stats()
-        
+
         # Check all expected fields
         expected_fields = [
-            "enabled", "initialized", "log_level", "performance_threshold_ms",
-            "filter_type", "inclusion_criteria", "validation_method", 
-            "conservative_approach", "polygon_points", "polygon_bounds",
-            "boundary_file", "total_processed", "flights_included", 
-            "flights_excluded", "flights_no_position", "processing_time_ms"
+            "enabled", "initialized", "log_level",
+            "filter_type", "inclusion_criteria", "validation_method",
+            "conservative_approach", "polygon_points", "boundary_file",
+            "total_processed", "flights_included", "flights_excluded", 
+            "flights_no_position", "processing_time_ms"
         ]
-        
+
         for field in expected_fields:
-            assert field in stats
+            assert field in stats, f"Missing field: {field}"

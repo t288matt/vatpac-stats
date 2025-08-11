@@ -42,12 +42,9 @@ This document provides a comprehensive mapping of fields from the VATSIM API v3 
   "transponder": "2000",
   "logon_time": "2025-08-09T08:30:00Z",
   "last_updated": "2025-08-09T09:15:30Z",
-  "qnh_i_hg": 29.92,
-  "qnh_mb": 1013,
   "flight_plan": {
     "flight_rules": "I",
     "aircraft_faa": "B789",
-    "aircraft_short": "B789",
     "departure": "VTBS",
     "arrival": "YBBN",
     "alternate": "YSSY",
@@ -57,9 +54,7 @@ This document provides a comprehensive mapping of fields from the VATSIM API v3 
     "enroute_time": "1045",
     "fuel_time": "1145",
     "route": "VTBS DCT YBBN",
-    "remarks": "PBN/A1B1C1D1L1O1S1",
-    "revision_id": 1,
-    "assigned_transponder": "2000"
+    "remarks": "PBN/A1B1C1D1L1O1S1"
   }
 }
 ```
@@ -117,18 +112,15 @@ This document provides a comprehensive mapping of fields from the VATSIM API v3 
 | `transponder` | `transponder` | VARCHAR(10) | NULL |
 | `logon_time` | `logon_time` | TIMESTAMP | NULL |
 | `last_updated` | `last_updated_api` | TIMESTAMP | NULL |
-| `qnh_i_hg` | `qnh_i_hg` | FLOAT | NULL |
-| `qnh_mb` | `qnh_mb` | INTEGER | NULL |
 
 **Flight Plan Fields (Nested Object):**
 | VATSIM API Field | Database Column | Type | Constraints |
 |------------------|-----------------|------|-------------|
-| `flight_plan.aircraft_short` | `aircraft_type` | VARCHAR(20) | NULL |
+| `flight_plan.aircraft_faa` | `aircraft_type` | VARCHAR(20) | NULL |
 | `flight_plan.departure` | `departure` | VARCHAR(10) | NULL |
 | `flight_plan.arrival` | `arrival` | VARCHAR(10) | NULL |
 | `flight_plan.route` | `route` | TEXT | NULL |
 | `flight_plan.flight_rules` | `flight_rules` | VARCHAR(10) | NULL |
-| `flight_plan.aircraft_faa` | `aircraft_faa` | VARCHAR(20) | NULL |
 | `flight_plan.alternate` | `alternate` | VARCHAR(10) | NULL |
 | `flight_plan.cruise_tas` | `cruise_tas` | VARCHAR(10) | NULL |
 | `flight_plan.altitude` | `planned_altitude` | VARCHAR(10) | NULL |
@@ -136,9 +128,6 @@ This document provides a comprehensive mapping of fields from the VATSIM API v3 
 | `flight_plan.enroute_time` | `enroute_time` | VARCHAR(10) | NULL |
 | `flight_plan.fuel_time` | `fuel_time` | VARCHAR(10) | NULL |
 | `flight_plan.remarks` | `remarks` | TEXT | NULL |
-| `flight_plan.aircraft_short` | `aircraft_short` | VARCHAR(20) | NULL |
-| `flight_plan.revision_id` | `revision_id` | INTEGER | NULL |
-| `flight_plan.assigned_transponder` | `assigned_transponder` | VARCHAR(10) | NULL |
 
 ### **Transceivers Table**
 
@@ -223,9 +212,22 @@ This document provides a comprehensive mapping of fields from the VATSIM API v3 
 4. **Coordinate Validation**: Latitude/longitude validated against geographic constraints
 5. **Rating Validation**: Controller and pilot ratings validated against VATSIM ranges
 
+## 🚫 Removed Fields
+
+The following fields were removed from the Flight model to match the current database schema:
+
+- `aircraft_short` - Short aircraft code from flight plan
+- `revision_id` - Flight plan revision ID  
+- `assigned_transponder` - Assigned transponder code
+- `qnh_i_hg` - QNH pressure in inches Hg
+- `qnh_mb` - QNH pressure in millibars
+
+These fields are no longer stored or processed by the system.
+
 ---
 
 **📅 Last Updated**: 2025-01-27  
 **🔄 Data Flow**: VATSIM API v3 → Database → API Response  
-**📚 Total Fields Mapped**: 50+  
-**🚀 Production Ready**: Yes
+**📚 Total Fields Mapped**: 43+  
+**🚀 Production Ready**: Yes  
+**🗺️ Geographic Filtering**: Enabled for flights, transceivers, and controllers
