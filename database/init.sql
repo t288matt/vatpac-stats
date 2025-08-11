@@ -59,6 +59,17 @@ CREATE TABLE IF NOT EXISTS flights (
     arrival VARCHAR(10),            -- From API flight plan
     route TEXT,                     -- From API flight plan
     
+    -- Additional flight plan fields from VATSIM API
+    flight_rules VARCHAR(10),       -- IFR/VFR from flight_plan.flight_rules
+    aircraft_faa VARCHAR(20),       -- FAA aircraft code from flight_plan.aircraft_faa
+    alternate VARCHAR(10),          -- Alternate airport from flight_plan.alternate
+    cruise_tas VARCHAR(10),         -- True airspeed from flight_plan.cruise_tas
+    planned_altitude VARCHAR(10),   -- Planned cruise altitude from flight_plan.altitude
+    deptime VARCHAR(10),            -- Departure time from flight_plan.deptime
+    enroute_time VARCHAR(10),       -- Enroute time from flight_plan.enroute_time
+    fuel_time VARCHAR(10),          -- Fuel time from flight_plan.fuel_time
+    remarks TEXT,                   -- Flight plan remarks from flight_plan.remarks
+    
     -- Timestamps
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     
@@ -67,6 +78,7 @@ CREATE TABLE IF NOT EXISTS flights (
     name VARCHAR(100),              -- From API "name" - Pilot name
     server VARCHAR(50),             -- From API "server" - Network server
     pilot_rating INTEGER,           -- From API "pilot_rating" - Pilot rating
+    military_rating INTEGER,        -- From API "military_rating" - Military rating
     transponder VARCHAR(10),        -- From API "transponder" - Transponder code
     logon_time TIMESTAMP WITH TIME ZONE,    -- From API "logon_time"
     last_updated_api TIMESTAMP WITH TIME ZONE,  -- From API "last_updated"
@@ -119,6 +131,8 @@ CREATE INDEX IF NOT EXISTS idx_flights_position ON flights(latitude, longitude);
 CREATE INDEX IF NOT EXISTS idx_flights_departure_arrival ON flights(departure, arrival);
 CREATE INDEX IF NOT EXISTS idx_flights_cid_server ON flights(cid, server);
 CREATE INDEX IF NOT EXISTS idx_flights_altitude ON flights(altitude);
+CREATE INDEX IF NOT EXISTS idx_flights_flight_rules ON flights(flight_rules);
+CREATE INDEX IF NOT EXISTS idx_flights_planned_altitude ON flights(planned_altitude);
 
 -- Airports indexes
 CREATE INDEX IF NOT EXISTS idx_airports_icao ON airports(icao_code);
@@ -206,6 +220,7 @@ COMMENT ON COLUMN flights.cid IS 'VATSIM user ID from API "cid" field';
 COMMENT ON COLUMN flights.name IS 'Pilot name from VATSIM API "name" field';
 COMMENT ON COLUMN flights.server IS 'Network server from VATSIM API "server" field';
 COMMENT ON COLUMN flights.pilot_rating IS 'Pilot rating from VATSIM API "pilot_rating" field';
+COMMENT ON COLUMN flights.military_rating IS 'Military rating from VATSIM API "military_rating" field';
 COMMENT ON COLUMN flights.latitude IS 'Position latitude from VATSIM API "latitude" field';
 COMMENT ON COLUMN flights.longitude IS 'Position longitude from VATSIM API "longitude" field';
 COMMENT ON COLUMN flights.altitude IS 'Current altitude from VATSIM API "altitude" field';
@@ -214,6 +229,15 @@ COMMENT ON COLUMN flights.groundspeed IS 'Ground speed from VATSIM API "groundsp
 COMMENT ON COLUMN flights.transponder IS 'Transponder code from VATSIM API "transponder" field';
 COMMENT ON COLUMN flights.logon_time IS 'When pilot connected from VATSIM API "logon_time" field';
 COMMENT ON COLUMN flights.last_updated_api IS 'API last_updated timestamp from VATSIM API "last_updated" field';
+COMMENT ON COLUMN flights.flight_rules IS 'IFR/VFR from VATSIM API flight_plan.flight_rules field';
+COMMENT ON COLUMN flights.aircraft_faa IS 'FAA aircraft code from VATSIM API flight_plan.aircraft_faa field';
+COMMENT ON COLUMN flights.alternate IS 'Alternate airport from VATSIM API flight_plan.alternate field';
+COMMENT ON COLUMN flights.cruise_tas IS 'True airspeed from VATSIM API flight_plan.cruise_tas field';
+COMMENT ON COLUMN flights.planned_altitude IS 'Planned cruise altitude from VATSIM API flight_plan.altitude field';
+COMMENT ON COLUMN flights.deptime IS 'Departure time from VATSIM API flight_plan.deptime field';
+COMMENT ON COLUMN flights.enroute_time IS 'Enroute time from VATSIM API flight_plan.enroute_time field';
+COMMENT ON COLUMN flights.fuel_time IS 'Fuel time from VATSIM API flight_plan.fuel_time field';
+COMMENT ON COLUMN flights.remarks IS 'Flight plan remarks from VATSIM API flight_plan.remarks field';
 
 -- Verify all tables were created successfully
 SELECT 

@@ -116,6 +116,17 @@ class Flight(Base, TimestampMixin):
     arrival = Column(String(10), nullable=True, index=True)
     route = Column(Text, nullable=True)
     
+    # Additional flight plan fields from VATSIM API
+    flight_rules = Column(String(10), nullable=True)  # IFR/VFR from flight_plan.flight_rules
+    aircraft_faa = Column(String(20), nullable=True)  # FAA aircraft code from flight_plan.aircraft_faa
+    alternate = Column(String(10), nullable=True)  # Alternate airport from flight_plan.alternate
+    cruise_tas = Column(String(10), nullable=True)  # True airspeed from flight_plan.cruise_tas
+    planned_altitude = Column(String(10), nullable=True)  # Planned cruise altitude from flight_plan.altitude
+    deptime = Column(String(10), nullable=True)  # Departure time from flight_plan.deptime
+    enroute_time = Column(String(10), nullable=True)  # Enroute time from flight_plan.enroute_time
+    fuel_time = Column(String(10), nullable=True)  # Fuel time from flight_plan.fuel_time
+    remarks = Column(Text, nullable=True)  # Flight plan remarks from flight_plan.remarks
+    
     # Timestamps
     last_updated = Column(TIMESTAMP(timezone=True), default=func.now(), index=True)
     
@@ -124,6 +135,7 @@ class Flight(Base, TimestampMixin):
     name = Column(String(100), nullable=True)  # Pilot name
     server = Column(String(50), nullable=True)  # Network server
     pilot_rating = Column(Integer, nullable=True)  # Pilot rating - using Integer for consistency
+    military_rating = Column(Integer, nullable=True)  # Military rating from VATSIM API
     transponder = Column(String(10), nullable=True)  # Transponder code
     logon_time = Column(TIMESTAMP(timezone=True), nullable=True)  # When pilot connected
     last_updated_api = Column(TIMESTAMP(timezone=True), nullable=True)  # API last_updated timestamp
@@ -141,6 +153,8 @@ class Flight(Base, TimestampMixin):
         Index('idx_flights_departure_arrival', 'departure', 'arrival'),
         Index('idx_flights_cid_server', 'cid', 'server'),
         Index('idx_flights_altitude', 'altitude'),
+        Index('idx_flights_flight_rules', 'flight_rules'),
+        Index('idx_flights_planned_altitude', 'planned_altitude'),
     )
     
     @validates('latitude')
