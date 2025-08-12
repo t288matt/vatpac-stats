@@ -10,4 +10,22 @@ datasources:
       httpMethod: GET
       keepAlive: 60
     secureJsonData: {}
+    editable: true
+  - name: vatsim_postgres
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    uid: vatsim_postgres
+    database: vatsim_data
+    user: vatsim_user
+    jsonData:
+      sslmode: disable
+      maxOpenConns: 100
+      maxIdleConns: 100
+      maxIdleConnsAuto: true
+      connMaxLifetime: 14400
+      postgresVersion: 1500
+      timescaledb: false
+    secureJsonData:
+      password: vatsim_password
     editable: true 

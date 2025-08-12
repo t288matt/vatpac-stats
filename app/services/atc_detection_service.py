@@ -20,16 +20,16 @@ logger = logging.getLogger(__name__)
 class ATCDetectionService:
     """Service for detecting ATC interactions with flights."""
     
-    def __init__(self, time_window_seconds: int = 180, proximity_threshold: float = 300.0):
+    def __init__(self, time_window_seconds: int = 180, proximity_threshold_nm: float = 300.0):
         """
         Initialize ATC detection service.
         
         Args:
             time_window_seconds: Time window for frequency matching (default: 180s)
-            proximity_threshold: Geographic proximity threshold in coordinate units (default: 300)
+            proximity_threshold_nm: Geographic proximity threshold in nautical miles (default: 300nm)
         """
         self.time_window_seconds = time_window_seconds
-        self.proximity_threshold = proximity_threshold
+        self.proximity_threshold_nm = proximity_threshold_nm
         self.logger = logging.getLogger(__name__)
         
     async def detect_flight_atc_interactions(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime) -> Dict[str, Any]:
@@ -202,7 +202,12 @@ class ATCDetectionService:
                     SELECT t.callsign, t.frequency/1000000.0 as frequency_mhz, t.timestamp, t.position_lat, t.position_lon 
                     FROM transceivers t 
                     WHERE t.entity_type = 'atc' 
-                    AND t.callsign IN (SELECT DISTINCT c.callsign FROM controllers c WHERE c.facility != 0)
+                    AND t.callsign IN (
+                        SELECT DISTINCT c.callsign 
+                        FROM controllers c 
+                        WHERE c.facility != 0 
+                        AND c.callsign NOT LIKE '%OBS%'
+                    )
                 ),
                 frequency_matches AS (
                     SELECT ft.callsign as flight_callsign, ft.frequency_mhz, ft.timestamp as flight_time,
@@ -212,7 +217,16 @@ class ATCDetectionService:
                     FROM flight_transceivers ft 
                     JOIN atc_transceivers at ON ft.frequency_mhz = at.frequency_mhz 
                     AND ABS(EXTRACT(EPOCH FROM (ft.timestamp - at.timestamp))) <= :time_window
-                    WHERE (SQRT(POWER(ft.position_lat - at.position_lat, 2) + POWER(ft.position_lon - at.position_lon, 2))) <= :proximity_threshold
+                    WHERE (
+                        -- Haversine formula for distance in nautical miles
+                        (3440.065 * ACOS(
+                            LEAST(1, GREATEST(-1, 
+                                SIN(RADIANS(ft.position_lat)) * SIN(RADIANS(at.position_lat)) +
+                                COS(RADIANS(ft.position_lat)) * COS(RADIANS(at.position_lat)) * 
+                                COS(RADIANS(ft.position_lon - at.position_lon))
+                            ))
+                        )) <= :proximity_threshold_nm
+                    )
                 )
                 SELECT 
                     flight_callsign,
@@ -236,7 +250,7 @@ class ATCDetectionService:
                     "arrival": arrival,
                     "logon_time": logon_time,
                     "time_window": self.time_window_seconds,
-                    "proximity_threshold": self.proximity_threshold
+                    "proximity_threshold_nm": self.proximity_threshold_nm
                 })
                 
                 matches = []
