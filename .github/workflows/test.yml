@@ -1,9 +1,9 @@
-name: Stage 1 - Foundation Tests
+name: VATSIM Data Collection System Tests
 on: [push, pull_request]
 
 jobs:
   test:
-    name: Foundation Tests
+    name: Foundation + Core Functionality Tests
     runs-on: ubuntu-latest
     
     steps:
@@ -19,39 +19,108 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pytest requests
+          echo "✅ Dependencies installed"
+          
+      - name: List test files
+        run: |
+          echo "🔍 Checking test files..."
+          ls -la tests/
+          echo "📁 Test directory contents:"
+          find tests/ -type f -name "*.py"
+          
+      - name: Verify Python environment
+        run: |
+          echo "🐍 Python version:"
+          python --version
+          echo "📦 Python path:"
+          python -c "import sys; print('\\n'.join(sys.path))"
+          echo "🔧 Current directory:"
+          pwd
+          
+      - name: Check Docker availability
+        run: |
+          echo "🐳 Checking Docker..."
+          docker --version
+          docker-compose --version || echo "docker-compose not found, trying alternative"
+          which docker-compose || echo "docker-compose not in PATH"
           
       - name: Start Docker services
         run: |
-          docker-compose up -d postgres
-          echo "Waiting for PostgreSQL to be ready..."
+          echo "🐳 Starting Docker services..."
+          # Try docker-compose first, fallback to docker compose
+          if command -v docker-compose &> /dev/null; then
+            echo "Using docker-compose"
+            docker-compose up -d postgres
+          else
+            echo "Using docker compose (newer syntax)"
+            docker compose up -d postgres
+          fi
+          echo "⏳ Waiting for PostgreSQL to be ready..."
           sleep 30
           
       - name: Start application
         run: |
-          docker-compose up -d app
-          echo "Waiting for application to be ready..."
+          echo "🚀 Starting VATSIM application..."
+          # Try docker-compose first, fallback to docker compose
+          if command -v docker-compose &> /dev/null; then
+            echo "Using docker-compose"
+            docker-compose up -d app
+          else
+            echo "Using docker compose (newer syntax)"
+            docker compose up -d app
+          fi
+          echo "⏳ Waiting for application to be ready..."
           sleep 45
           
       - name: Verify services are running
         run: |
-          docker-compose ps
-          echo "Checking service health..."
-          docker-compose logs app --tail=20
+          echo "🔍 Checking service status..."
+          # Try docker-compose first, fallback to docker compose
+          if command -v docker-compose &> /dev/null; then
+            docker-compose ps
+            docker-compose logs app --tail=20
+          else
+            docker compose ps
+            docker compose logs app --tail=20
+          fi
           
       - name: Run Stage 1 Foundation Tests
         run: |
           echo "🧪 Running Stage 1 Foundation Tests..."
-          python tests/test_system_health.py
+          cd tests
+          python test_system_health.py
           
       - name: Run Stage 2 Core Functionality Tests
         run: |
           echo "🧪 Running Stage 2 Core Functionality Tests..."
-          python tests/test_user_workflows.py
+          cd tests
+          python test_user_workflows.py
           
       - name: Run pytest (both stages)
         run: |
           echo "🧪 Running tests with pytest..."
           python -m pytest tests/ -v --tb=short
+          
+      - name: Fallback Tests (if Docker fails)
+        if: failure()
+        run: |
+          echo "🔄 Running fallback tests without Docker services..."
+          echo "⚠️ Docker services failed, running basic validation tests"
+          cd tests
+          echo "🧪 Testing Python imports..."
+          python -c "
+          import sys
+          import os
+          sys.path.insert(0, os.getcwd())
+          try:
+              from test_system_health import SystemHealthTester
+              from test_user_workflows import UserWorkflowTester
+              print('✅ Test modules imported successfully')
+          except Exception as e:
+              print(f'❌ Test module import failed: {e}')
+              sys.exit(1)
+          "
+          echo "✅ Fallback tests completed"
           
       - name: Test Results Summary
         if: always()
@@ -67,4 +136,11 @@ jobs:
         if: always()
         run: |
           echo "🧹 Cleaning up Docker services..."
-          docker-compose down
+          # Try docker-compose first, fallback to docker compose
+          if command -v docker-compose &> /dev/null; then
+            echo "Using docker-compose for cleanup"
+            docker-compose down || echo "docker-compose down failed, continuing..."
+          else
+            echo "Using docker compose for cleanup"
+            docker compose down || echo "docker compose down failed, continuing..."
+          fi
