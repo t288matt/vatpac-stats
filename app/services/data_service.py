@@ -673,6 +673,9 @@ class DataService:
     async def start_scheduled_flight_processing(self):
         """Start automatic scheduled flight summary processing."""
         try:
+            # Validate configuration before starting
+            self._validate_flight_summary_config()
+            
             # Get interval from config (convert minutes to seconds)
             interval_minutes = getattr(self.config, 'flight_summary_interval_minutes', 60)
             interval_seconds = interval_minutes * 60
@@ -684,6 +687,33 @@ class DataService:
             
         except Exception as e:
             self.logger.error(f"Failed to start scheduled flight processing: {e}")
+
+    def _validate_flight_summary_config(self):
+        """Validate flight summary configuration before starting scheduled processing."""
+        try:
+            if not hasattr(self.config, 'flight_summary'):
+                raise ValueError("Flight summary configuration not found")
+            
+            config = self.config.flight_summary
+            
+            if not config.enabled:
+                self.logger.info("Flight summary processing is disabled")
+                return
+            
+            if config.summary_interval_minutes < 1:
+                raise ValueError("FLIGHT_SUMMARY_INTERVAL must be at least 1 minute")
+            
+            if config.completion_hours < 1:
+                raise ValueError("FLIGHT_COMPLETION_HOURS must be at least 1 hour")
+            
+            if config.retention_hours < config.completion_hours:
+                raise ValueError("FLIGHT_RETENTION_HOURS must be greater than FLIGHT_COMPLETION_HOURS")
+            
+            self.logger.info(f"✅ Flight summary configuration validated: interval={config.summary_interval_minutes}min, completion={config.completion_hours}h, retention={config.retention_hours}h")
+            
+        except Exception as e:
+            self.logger.error(f"❌ Flight summary configuration validation failed: {e}")
+            raise
 
     async def _scheduled_processing_loop(self, interval_seconds: int):
         """Background loop for scheduled flight summary processing."""
