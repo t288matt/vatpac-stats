@@ -32,6 +32,7 @@ from ..filters.callsign_pattern_filter import CallsignPatternFilter
 from ..database import get_database_session
 from ..models import Flight, Controller, Transceiver
 from ..config import get_config
+from .atc_detection_service import ATCDetectionService
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -64,6 +65,9 @@ class DataService:
         # Initialize services
         self.vatsim_service = None
         self.db_session = None
+        
+        # Initialize ATC detection service
+        self.atc_detection_service = ATCDetectionService()
         
         # Performance tracking - simplified
         self.stats = {
@@ -574,6 +578,11 @@ class DataService:
                         time_diff = last_record.last_updated - first_record.last_updated
                         total_minutes = int(time_diff.total_seconds() / 60)
                     
+                    # Detect ATC interactions for this flight with timeout protection
+                    atc_data = await self.atc_detection_service.detect_flight_atc_interactions_with_timeout(
+                        callsign, departure, arrival, logon_time, timeout_seconds=30.0
+                    )
+                    
                     # Create summary data
                     summary_data = {
                         "callsign": callsign,
@@ -591,8 +600,8 @@ class DataService:
                         "server": first_record.server,
                         "pilot_rating": first_record.pilot_rating,
                         "military_rating": first_record.military_rating,
-                        "controller_callsigns": json.dumps({}),  # Convert dict to JSON string
-                        "controller_time_percentage": 0.0,  # TODO: Calculate from transceivers
+                        "controller_callsigns": json.dumps(atc_data["controller_callsigns"]),
+                        "controller_time_percentage": atc_data["controller_time_percentage"],
                         "time_online_minutes": total_minutes,
                         "primary_enroute_sector": None,  # TODO: Implement sector tracking
                         "total_enroute_sectors": 0,

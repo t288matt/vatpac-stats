@@ -206,3 +206,54 @@ def get_cached_polygon(json_file_path: str, force_reload: bool = False) -> Polyg
     _polygon_cache[cache_key] = polygon
     
     return polygon
+
+def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calculate distance between two points using Euclidean distance.
+    
+    Args:
+        lat1: Latitude of first point
+        lon1: Longitude of first point  
+        lat2: Latitude of second point
+        lon2: Longitude of second point
+        
+    Returns:
+        float: Distance in coordinate units
+    """
+    try:
+        # Basic validation
+        if not all(-90 <= lat <= 90 for lat in [lat1, lat2]):
+            raise ValueError("Latitude must be between -90 and 90 degrees")
+        if not all(-180 <= lon <= 180 for lon in [lon1, lon2]):
+            raise ValueError("Longitude must be between -180 and 180 degrees")
+        
+        # Calculate Euclidean distance
+        lat_diff = lat2 - lat1
+        lon_diff = lon2 - lon1
+        distance = (lat_diff ** 2 + lon_diff ** 2) ** 0.5
+        
+        return distance
+        
+    except Exception as e:
+        logger.error(f"Error calculating distance between ({lat1}, {lon1}) and ({lat2}, {lon2}): {e}")
+        raise
+
+def is_within_proximity(lat1: float, lon1: float, lat2: float, lon2: float, threshold: float) -> bool:
+    """Check if two points are within a specified proximity threshold.
+    
+    Args:
+        lat1: Latitude of first point
+        lon1: Longitude of first point
+        lat2: Latitude of second point  
+        lon2: Longitude of second point
+        threshold: Maximum allowed distance
+        
+    Returns:
+        bool: True if points are within threshold, False otherwise
+    """
+    try:
+        distance = calculate_distance(lat1, lon1, lat2, lon2)
+        return distance <= threshold
+        
+    except Exception as e:
+        logger.error(f"Error checking proximity: {e}")
+        return False

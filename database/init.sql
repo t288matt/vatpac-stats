@@ -136,6 +136,21 @@ CREATE INDEX IF NOT EXISTS idx_transceivers_frequency ON transceivers(frequency)
 CREATE INDEX IF NOT EXISTS idx_transceivers_entity ON transceivers(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_transceivers_position ON transceivers(position_lat, position_lon);
 
+-- ATC Detection Performance Indexes
+-- These indexes dramatically improve ATC interaction detection query performance
+CREATE INDEX IF NOT EXISTS idx_transceivers_entity_type_callsign ON transceivers(entity_type, callsign);
+CREATE INDEX IF NOT EXISTS idx_transceivers_entity_type_timestamp ON transceivers(entity_type, timestamp);
+
+-- Composite index for the main ATC detection query
+CREATE INDEX IF NOT EXISTS idx_transceivers_atc_detection ON transceivers(entity_type, callsign, timestamp, frequency, position_lat, position_lon);
+
+-- Indexes for flights table JOIN conditions in ATC detection
+CREATE INDEX IF NOT EXISTS idx_flights_callsign_departure_arrival ON flights(callsign, departure, arrival);
+CREATE INDEX IF NOT EXISTS idx_flights_callsign_logon ON flights(callsign, logon_time);
+
+-- Indexes for controllers table ATC detection filtering
+CREATE INDEX IF NOT EXISTS idx_controllers_callsign_facility ON controllers(callsign, facility);
+
 -- Create triggers for updated_at columns
 CREATE TRIGGER update_controllers_updated_at 
     BEFORE UPDATE ON controllers 

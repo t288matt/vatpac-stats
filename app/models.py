@@ -72,6 +72,9 @@ class Controller(Base, TimestampMixin):
         Index('idx_controllers_cid_rating', 'cid', 'rating'),
         Index('idx_controllers_facility_server', 'facility', 'server'),
         Index('idx_controllers_last_updated', 'last_updated'),
+        
+        # ATC Detection Performance Indexes
+        Index('idx_controllers_callsign_facility', 'callsign', 'facility'),
     )
     
     # Validation handled by database constraints - no Python validators needed
@@ -136,6 +139,10 @@ class Flight(Base, TimestampMixin):
         Index('idx_flights_altitude', 'altitude'),
         Index('idx_flights_flight_rules', 'flight_rules'),
         Index('idx_flights_planned_altitude', 'planned_altitude'),
+        
+        # ATC Detection Performance Indexes
+        Index('idx_flights_callsign_departure_arrival', 'callsign', 'departure', 'arrival'),
+        Index('idx_flights_callsign_logon', 'callsign', 'logon_time'),
     )
     
     # Validation handled by database constraints - no Python validators needed
@@ -164,6 +171,11 @@ class Transceiver(Base):
         Index('idx_transceivers_callsign_timestamp', 'callsign', 'timestamp'),
         Index('idx_transceivers_entity', 'entity_type', 'entity_id'),
         Index('idx_transceivers_frequency', 'frequency'),
+        
+        # ATC Detection Performance Indexes
+        Index('idx_transceivers_entity_type_callsign', 'entity_type', 'callsign'),
+        Index('idx_transceivers_entity_type_timestamp', 'entity_type', 'timestamp'),
+        Index('idx_transceivers_atc_detection', 'entity_type', 'callsign', 'timestamp', 'frequency', 'position_lat', 'position_lon'),
     )
     
     # Validation handled by database constraints - no Python validators needed
