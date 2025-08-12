@@ -129,6 +129,7 @@ class FlightFilterConfig:
     """Flight filtering configuration - simplified"""
     enabled: bool = True
     excluded_patterns: list = None
+    validate_flight_plans: bool = True  # New: Enable/disable flight plan validation
     
     @classmethod
     def from_env(cls):
@@ -137,7 +138,8 @@ class FlightFilterConfig:
         patterns = patterns_str.split(",") if patterns_str else []
         return cls(
             enabled=os.getenv("FLIGHT_FILTER_ENABLED", "true").lower() == "true",
-            excluded_patterns=patterns
+            excluded_patterns=patterns,
+            validate_flight_plans=os.getenv("FLIGHT_PLAN_VALIDATION_ENABLED", "true").lower() == "true"
         )
 
 
