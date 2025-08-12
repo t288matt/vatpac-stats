@@ -27,6 +27,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
 
 from .utils.logging import get_logger_for_module
 from .utils.error_handling import handle_service_errors, log_operation
@@ -110,6 +111,7 @@ async def run_data_ingestion():
     
     while True:
         try:
+            # Process VATSIM data without verbose logging
             await data_service.process_vatsim_data()
             await asyncio.sleep(config.vatsim.polling_interval)
         except asyncio.CancelledError:
@@ -304,7 +306,7 @@ async def get_flight_by_callsign(callsign: str):
     try:
         async with get_database_session() as session:
             # Get most recent flight data for this callsign
-            flight_result = session.execute(
+            flight_result = await session.execute(
                 text("""
                     SELECT callsign, cid, name, latitude, longitude, altitude,
                            departure, arrival, route, aircraft_type, last_updated
@@ -350,7 +352,7 @@ async def get_flight_track(callsign: str):
     try:
         async with get_database_session() as session:
             # Get all position updates for this callsign
-            track_result = session.execute(
+            track_result = await session.execute(
                 text("""
                     SELECT last_updated, latitude, longitude, altitude, groundspeed
                     FROM flights 
@@ -408,7 +410,7 @@ async def get_flight_stats(callsign: str):
     try:
         async with get_database_session() as session:
             # Get flight statistics
-            stats_result = session.execute(
+            stats_result = await session.execute(
                 text("""
                     SELECT 
                         COUNT(*) as position_updates,
@@ -541,8 +543,8 @@ async def get_atc_positions_by_controller_id():
     """Get ATC positions grouped by controller ID"""
     try:
         async with get_database_session() as session:
-            # Get recent ATC positions grouped by controller ID
-            recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+            # Get recent ATC positions grouped by controller ID (last 24 hours)
+            recent_cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
             
             controllers_result = await session.execute(
                 text("""
@@ -615,24 +617,26 @@ async def get_vatsim_ratings():
 @handle_service_errors
 @log_operation("get_flight_filter_status")
 async def get_flight_filter_status():
-    """Get airport filter status and statistics"""
+    """Get flight filter status and statistics"""
     try:
-        # Get flight filter status
+        # Get data service for filter status
         data_service = await get_data_service()
-        flight_filter = data_service.flight_filter
         
-        # Get filter statistics
-        filter_stats = flight_filter.get_filter_stats()
+        # Flight filtering is handled by geographic boundary filter
+        boundary_filter = data_service.geographic_boundary_filter
         
         return {
             "filter_status": {
-                "enabled": flight_filter.config.enabled,
-                "type": "airport_based",
-                "log_level": flight_filter.config.log_level,
-                "statistics": filter_stats,
+                "enabled": boundary_filter.config.enabled,
+                "type": "geographic_boundary",
+                "description": "Flights are filtered by geographic boundary (Australian airspace)",
+                "statistics": {
+                    "total_flights_processed": data_service.stats.get("flights", 0),
+                    "filter_enabled": boundary_filter.config.enabled
+                },
                 "configuration": {
-                    "filter_enabled": flight_filter.config.enabled,
-                    "airport_validation_method": "starts_with_Y"
+                    "filter_enabled": boundary_filter.config.enabled,
+                    "filter_type": "geographic_boundary"
                 }
             }
         }
@@ -691,7 +695,7 @@ async def get_boundary_filter_info():
             raise HTTPException(status_code=503, detail="Boundary filter not initialized")
         
         # Get polygon information
-        polygon_info = boundary_filter.get_polygon_info()
+        polygon_info = boundary_filter.get_boundary_info()
         
         return {
             "boundary_info": polygon_info
@@ -772,16 +776,16 @@ async def get_transceivers():
     """Get radio frequency and position data"""
     try:
         async with get_database_session() as session:
-            # Get recent transceivers (last 30 minutes)
-            recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+            # Get recent transceivers (last 5 minutes for fresh data)
+            recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
             
-            transceivers_result = session.execute(
+            transceivers_result = await session.execute(
                 text("""
                     SELECT DISTINCT ON (callsign) 
-                        id, callsign, frequency, position_lat, position_lon, altitude, last_updated
+                        id, callsign, frequency, position_lat, position_lon, height_msl, timestamp
                     FROM transceivers 
-                    WHERE last_updated >= :cutoff
-                    ORDER BY callsign, last_updated DESC
+                    WHERE timestamp >= :cutoff
+                    ORDER BY callsign, timestamp DESC
                 """),
                 {"cutoff": recent_cutoff}
             )
@@ -794,8 +798,8 @@ async def get_transceivers():
                     "frequency": row[2],
                     "position_lat": row[3],
                     "position_lng": row[4],
-                    "altitude": row[5],
-                    "last_updated": row[6].isoformat() if row[6] else None
+                    "height_msl": row[5],
+                    "timestamp": row[6].isoformat() if row[6] else None
                 }
                 transceivers.append(transceiver)
             
@@ -840,19 +844,31 @@ async def get_database_tables():
         logger.error(f"Database tables error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+class DatabaseQueryRequest(BaseModel):
+    query: str
+    limit: int = 1000
+
 @app.post("/api/database/query")
 @handle_service_errors
 @log_operation("execute_database_query")
-async def execute_database_query(query: str, limit: int = 1000):
+async def execute_database_query(request: DatabaseQueryRequest):
     """Execute custom SQL queries (admin only) - simplified"""
     # Basic query validation
     dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'ALTER', 'CREATE', 'INSERT', 'UPDATE']
-    if any(keyword in query.upper() for keyword in dangerous):
+    if any(keyword in request.query.upper() for keyword in dangerous):
         raise HTTPException(status_code=400, detail="Dangerous query")
+    
+    # Additional validation
+    if not request.query.strip():
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
+    
+    if request.limit < 1 or request.limit > 10000:
+        raise HTTPException(status_code=400, detail="Limit must be between 1 and 10000")
     
     try:
         async with get_database_session() as session:
-            result = await session.execute(text(f"{query} LIMIT {limit}"))
+            result = await session.execute(text(f"{request.query} LIMIT {request.limit}"))
             rows = result.fetchall()
             columns = result.keys()
             

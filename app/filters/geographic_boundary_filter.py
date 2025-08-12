@@ -146,7 +146,11 @@ class GeographicBoundaryFilter:
         filtered_flights = [flight for flight in flights if self._is_flight_in_boundary(flight)]
         
         # Log basic filtering results
-        logger.info(f"Geographic filter: {len(flights)} flights -> {len(filtered_flights)} flights")
+        # Only log when filtering actually removes flights
+        if len(flights) != len(filtered_flights):
+            logger.info(f"Geographic filter: {len(flights)} flights -> {len(filtered_flights)} flights (filtered)")
+        else:
+            logger.debug(f"Geographic filter: {len(flights)} flights -> {len(filtered_flights)} flights")
         
         return filtered_flights
     
@@ -201,7 +205,11 @@ class GeographicBoundaryFilter:
         filtered_transceivers = [t for t in transceivers if self._is_transceiver_in_boundary(t)]
         
         # Log basic filtering results
-        logger.info(f"Geographic filter: {len(transceivers)} transceivers -> {len(filtered_transceivers)} transceivers")
+        # Only log when filtering actually removes transceivers
+        if len(transceivers) != len(filtered_transceivers):
+            logger.info(f"Geographic filter: {len(transceivers)} transceivers -> {len(filtered_transceivers)} transceivers (filtered)")
+        else:
+            logger.debug(f"Geographic filter: {len(transceivers)} transceivers -> {len(filtered_transceivers)} transceivers")
         
         return filtered_transceivers
     
@@ -218,7 +226,11 @@ class GeographicBoundaryFilter:
         filtered_controllers = [c for c in controllers if self._is_controller_in_boundary(c)]
         
         # Log basic filtering results
-        logger.info(f"Geographic filter: {len(controllers)} controllers -> {len(filtered_controllers)} controllers")
+        # Only log when filtering actually removes controllers
+        if len(controllers) != len(filtered_controllers):
+            logger.info(f"Geographic filter: {len(controllers)} controllers -> {len(filtered_controllers)} controllers (filtered)")
+        else:
+            logger.debug(f"Geographic filter: {len(controllers)} controllers -> {len(filtered_controllers)} controllers")
         
         return filtered_controllers
     

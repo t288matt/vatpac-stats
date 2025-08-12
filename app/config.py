@@ -65,6 +65,7 @@ class DatabaseConfig:
 class VATSIMConfig:
     """VATSIM API configuration - simplified"""
     api_url: str
+    transceivers_api_url: str
     timeout: int = 30
     polling_interval: int = 60
     
@@ -73,6 +74,7 @@ class VATSIMConfig:
         """Load VATSIM configuration from environment variables."""
         return cls(
             api_url=os.getenv("VATSIM_API_URL", "https://data.vatsim.net/v3/vatsim-data.json"),
+            transceivers_api_url=os.getenv("VATSIM_TRANSCEIVERS_API_URL", "https://data.vatsim.net/v3/transceivers-data.json"),
             timeout=int(os.getenv("VATSIM_API_TIMEOUT", "30")),
             polling_interval=int(os.getenv("VATSIM_POLLING_INTERVAL", "60"))
         )
@@ -124,14 +126,37 @@ class LoggingConfig:
 
 @dataclass
 class FlightFilterConfig:
-    """Flight filter configuration - simplified"""
-    enabled: bool = False
+    """Flight filtering configuration - simplified"""
+    enabled: bool = True
+    excluded_patterns: list = None
     
     @classmethod
     def from_env(cls):
         """Load flight filter configuration from environment variables."""
+        patterns_str = os.getenv("FLIGHT_EXCLUDED_PATTERNS", "")
+        patterns = patterns_str.split(",") if patterns_str else []
         return cls(
-            enabled=os.getenv("FLIGHT_FILTER_ENABLED", "false").lower() == "true"
+            enabled=os.getenv("FLIGHT_FILTER_ENABLED", "true").lower() == "true",
+            excluded_patterns=patterns
+        )
+
+
+@dataclass
+class FlightSummaryConfig:
+    """Flight summary and archiving configuration"""
+    completion_hours: int = 14
+    retention_hours: int = 24
+    summary_interval_minutes: int = 60  # Minutes between summary processing (default: 1 hour)
+    enabled: bool = True
+    
+    @classmethod
+    def from_env(cls):
+        """Load flight summary configuration from environment variables."""
+        return cls(
+            completion_hours=int(os.getenv("FLIGHT_COMPLETION_HOURS", "14")),
+            retention_hours=int(os.getenv("FLIGHT_RETENTION_HOURS", "24")),
+            summary_interval_minutes=int(os.getenv("FLIGHT_SUMMARY_INTERVAL", "60")),  # Now in minutes
+            enabled=os.getenv("FLIGHT_SUMMARY_ENABLED", "true").lower() == "true"
         )
 
 
@@ -178,6 +203,7 @@ class AppConfig:
 
     pilots: PilotConfig
     flight_filter: FlightFilterConfig
+    flight_summary: FlightSummaryConfig
     environment: str = "development"
     
     @classmethod
@@ -193,6 +219,7 @@ class AppConfig:
     
             pilots=PilotConfig.from_env(),
             flight_filter=FlightFilterConfig.from_env(),
+            flight_summary=FlightSummaryConfig.from_env(),
             environment=os.getenv("ENVIRONMENT", "development")
         )
 

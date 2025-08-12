@@ -16,6 +16,87 @@ from pathlib import Path
 # Configure logging
 logger = logging.getLogger(__name__)
 
+def parse_ddmm_coordinate(coord_string: str) -> float:
+    """Convert DDMMSS.SSSS format or decimal degrees to decimal degrees.
+    
+    Args:
+        coord_string: Coordinate in DDMMSS.SSSS format (e.g., "-343848.000") or decimal degrees (e.g., "-23.426358")
+        
+    Returns:
+        float: Coordinate in decimal degrees (e.g., -34.6413, -23.426358)
+        
+    Example:
+        parse_ddmm_coordinate("-343848.000") -> -34.6467
+        parse_ddmm_coordinate("+1494851.000") -> 149.8142
+        parse_ddmm_coordinate("-23.426358") -> -23.426358
+        
+    Format: 
+        DDMMSS.SSSS (6 digits before decimal) or DDDMMSS.SSSS (7 digits before decimal)
+        OR decimal degrees (e.g., -23.426358)
+        where:
+        DD/DDD = degrees (2 or 3 digits)
+        MM = minutes (2 digits) 
+        SS.SSSS = seconds (2 digits + decimal)
+    """
+    try:
+        # Remove any whitespace and convert to string
+        coord_str = str(coord_string).strip()
+        
+        # Handle negative and positive coordinates
+        is_negative = coord_str.startswith('-')
+        if coord_str.startswith('+') or coord_str.startswith('-'):
+            coord_str = coord_str[1:]  # Remove sign
+        
+        # Check if this is already in decimal degrees format
+        # Decimal degrees have 1-3 digits before decimal point (e.g., 23.426358, 133.878056)
+        if '.' in coord_str:
+            digits_before_decimal = len(coord_str.split('.')[0])
+            if digits_before_decimal <= 3:
+                # This is likely decimal degrees (e.g., "23.426358", "133.878056")
+                try:
+                    decimal_degrees = float(coord_str)
+                    if is_negative:
+                        decimal_degrees = -decimal_degrees
+                    return decimal_degrees
+                except ValueError:
+                    # If float conversion fails, continue with DDMMSS parsing
+                    pass
+        
+        # Find decimal point to count digits before it
+        if '.' not in coord_str:
+            raise ValueError(f"Invalid coordinate format: {coord_string}")
+        
+        decimal_pos = coord_str.find('.')
+        digits_before_decimal = len(coord_str[:decimal_pos])
+        
+        if digits_before_decimal not in [6, 7]:
+            raise ValueError(f"Invalid coordinate format: {coord_string} - expected 6 or 7 digits before decimal")
+        
+        # Parse based on number of digits before decimal
+        if digits_before_decimal == 7:
+            # DDDMMSS.SSSS format (3 digits for degrees)
+            degrees = int(coord_str[:3])      # First 3 digits = degrees
+            minutes = int(coord_str[3:5])     # Next 2 digits = minutes
+            seconds = float(coord_str[5:])    # Remaining = seconds
+        else:
+            # DDMMSS.SSSS format (2 digits for degrees)
+            degrees = int(coord_str[:2])      # First 2 digits = degrees
+            minutes = int(coord_str[2:4])     # Next 2 digits = minutes
+            seconds = float(coord_str[4:])    # Remaining = seconds
+        
+        # Convert to decimal degrees: DD + MM/60 + SS/3600
+        decimal_degrees = degrees + (minutes / 60.0) + (seconds / 3600.0)
+        
+        # Apply negative sign if needed
+        if is_negative:
+            decimal_degrees = -decimal_degrees
+            
+        return decimal_degrees
+        
+    except (ValueError, IndexError) as e:
+        logger.error(f"Error parsing coordinate '{coord_string}': {e}")
+        raise ValueError(f"Invalid coordinate format: {coord_string}") from e
+
 def load_polygon_from_geojson(json_file_path: str) -> Polygon:
     """Load polygon from GeoJSON file and return Shapely Polygon object."""
     try:

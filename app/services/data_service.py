@@ -19,8 +19,10 @@ OUTPUTS:
 
 import os
 import time
+import asyncio
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+import json
 
 from ..utils.logging import get_logger_for_module
 from ..utils.error_handling import handle_service_errors, log_operation
@@ -85,6 +87,10 @@ class DataService:
             
             self.logger.info(f"Filters: geo={self.geographic_boundary_filter.config.enabled}, callsign={self.callsign_pattern_filter.config.enabled}")
             self._initialized = True
+            
+            # Start scheduled flight summary processing
+            await self.start_scheduled_flight_processing()
+            
             return True
             
         except Exception as e:
@@ -146,12 +152,12 @@ class DataService:
                 "last_run": datetime.now(timezone.utc)
             })
             
-            self.logger.info("VATSIM data processing completed", extra={
-                "flights_processed": flights_processed,
-                "controllers_processed": controllers_processed,
-                "transceivers_processed": transceivers_processed,
-                "processing_time": processing_time
-            })
+            # Log summary only when there's significant activity or filtering
+            total_processed = flights_processed + controllers_processed + transceivers_processed
+            if total_processed > 0:
+                self.logger.info(f"VATSIM data processed: {flights_processed} flights, {controllers_processed} controllers, {transceivers_processed} transceivers in {processing_time:.2f}s")
+            else:
+                self.logger.debug(f"VATSIM data processed: {flights_processed} flights, {controllers_processed} controllers, {transceivers_processed} transceivers in {processing_time:.2f}s")
             
             return {
                 "status": "success",
@@ -187,7 +193,11 @@ class DataService:
         else:
             filtered_flights = flights_data
         
-        self.logger.info(f"Flights: {len(flights_data)} → {len(filtered_flights)}")
+        # Log only summary, not individual flight details
+        if len(flights_data) != len(filtered_flights):
+            self.logger.info(f"Flights: {len(flights_data)} → {len(filtered_flights)} (filtered)")
+        else:
+            self.logger.debug(f"Flights: {len(flights_data)} → {len(filtered_flights)}")
         
         # Get database session
         async with get_database_session() as session:
@@ -239,7 +249,7 @@ class DataService:
                         session.add_all([Flight(**flight_data) for flight_data in bulk_flights])
                         await session.commit()
                         processed_count = len(bulk_flights)
-                        self.logger.info(f"Bulk inserted {processed_count} flights")
+                        self.logger.debug(f"Bulk inserted {processed_count} flights")
                     
                 except Exception as e:
                     self.logger.error(f"Failed to bulk insert flights: {e}")
@@ -269,7 +279,11 @@ class DataService:
         else:
             filtered_controllers = controllers_data
         
-        self.logger.info(f"Controllers: {len(controllers_data)} → {len(filtered_controllers)}")
+        # Log only summary, not individual controller details
+        if len(controllers_data) != len(filtered_controllers):
+            self.logger.info(f"Controllers: {len(controllers_data)} → {len(filtered_controllers)} (filtered)")
+        else:
+            self.logger.debug(f"Controllers: {len(controllers_data)} → {len(filtered_controllers)}")
         
         # Get database session
         async with get_database_session() as session:
@@ -305,7 +319,7 @@ class DataService:
                         session.add_all([Controller(**controller_data) for controller_data in bulk_controllers])
                         await session.commit()
                         processed_count = len(bulk_controllers)
-                        self.logger.info(f"Bulk inserted {processed_count} controllers")
+                        self.logger.debug(f"Bulk inserted {processed_count} controllers")
                     
                 except Exception as e:
                     self.logger.error(f"Failed to bulk insert controllers: {e}")
@@ -359,7 +373,11 @@ class DataService:
         if self.geographic_boundary_filter.config.enabled:
             filtered_transceivers = self.geographic_boundary_filter.filter_transceivers_list(filtered_transceivers)
         
-        self.logger.info(f"Transceivers: {len(transceivers_data)} → {len(filtered_transceivers)}")
+        # Log only summary, not individual transceiver details
+        if len(transceivers_data) != len(filtered_transceivers):
+            self.logger.info(f"Transceivers: {len(transceivers_data)} → {len(filtered_transceivers)} (filtered)")
+        else:
+            self.logger.debug(f"Transceivers: {len(transceivers_data)} → {len(filtered_transceivers)}")
         
         # Get database session
         async with get_database_session() as session:
@@ -396,7 +414,7 @@ class DataService:
                         session.add_all([Transceiver(**transceiver_data) for transceiver_data in bulk_transceivers])
                         await session.commit()
                         processed_count = len(bulk_transceivers)
-                        self.logger.info(f"Bulk inserted {processed_count} transceivers")
+                        self.logger.debug(f"Bulk inserted {processed_count} transceivers")
                     
                 except Exception as e:
                     self.logger.error(f"Failed to bulk insert transceivers: {e}")
@@ -450,6 +468,254 @@ class DataService:
                 "patterns": self.callsign_pattern_filter.config.excluded_patterns
             }
         }
+    
+    async def process_completed_flights(self) -> Dict[str, Any]:
+        """
+        Process completed flights and create summaries.
+        
+        This method:
+        1. Identifies flights older than completion threshold (14 hours)
+        2. Creates summary records in flight_summaries table
+        3. Archives detailed records to flights_archive table
+        4. Removes old records from main flights table
+        
+        Returns:
+            Dict with processing statistics
+        """
+        try:
+            async with get_database_session() as session:
+                # Get completion threshold from config (default 14 hours)
+                completion_hours = 14  # TODO: Fix config - self.config.flight_summary.completion_hours
+                completion_threshold = datetime.now(timezone.utc) - timedelta(hours=completion_hours)
+                
+                self.logger.info(f"Processing completed flights older than {completion_hours} hours")
+                
+                # Step 1: Find completed flights
+                result = await session.execute(text("""
+                    SELECT DISTINCT callsign, departure, arrival, logon_time
+                    FROM flights 
+                    WHERE last_updated < :threshold
+                    AND callsign NOT IN (
+                        SELECT DISTINCT callsign FROM flight_summaries
+                    )
+                """), {"threshold": completion_threshold})
+                
+                completed_flights = result.fetchall()
+                self.logger.info(f"Found {len(completed_flights)} completed flights to process")
+                
+                if not completed_flights:
+                    return {"processed": 0, "summaries_created": 0, "records_archived": 0}
+                
+                processed_count = 0
+                summaries_created = 0
+                records_archived = 0
+                
+                for flight_key in completed_flights:
+                    callsign, departure, arrival, logon_time = flight_key
+                    
+                    try:
+                        # Step 2: Get all records for this flight
+                        flight_records = await session.execute(text("""
+                            SELECT * FROM flights 
+                            WHERE callsign = :callsign 
+                            AND departure = :departure 
+                            AND arrival = :arrival 
+                            AND logon_time = :logon_time
+                            ORDER BY last_updated
+                        """), {
+                            "callsign": callsign,
+                            "departure": departure,
+                            "arrival": arrival,
+                            "logon_time": logon_time
+                        })
+                        
+                        records = flight_records.fetchall()
+                        if not records:
+                            continue
+                        
+                        # Step 3: Create summary record
+                        first_record = records[0]
+                        last_record = records[-1]
+                        
+                        # Calculate time online (handle gaps)
+                        total_minutes = 0
+                        if len(records) > 1:
+                            # Simple calculation: assume continuous tracking
+                            time_diff = last_record.last_updated - first_record.last_updated
+                            total_minutes = int(time_diff.total_seconds() / 60)
+                        
+                        # Create summary data
+                        summary_data = {
+                            "callsign": callsign,
+                            "aircraft_type": first_record.aircraft_type,
+                            "departure": departure,
+                            "arrival": arrival,
+                            "logon_time": logon_time,
+                            "route": first_record.route,
+                            "flight_rules": first_record.flight_rules,
+                            "aircraft_faa": first_record.aircraft_faa,
+                            "planned_altitude": first_record.planned_altitude,
+                            "aircraft_short": first_record.aircraft_type,
+                            "cid": first_record.cid,
+                            "name": first_record.name,
+                            "server": first_record.server,
+                            "pilot_rating": first_record.pilot_rating,
+                            "military_rating": first_record.military_rating,
+                            "controller_callsigns": json.dumps({}),  # Convert dict to JSON string
+                            "controller_time_percentage": 0.0,  # TODO: Calculate from transceivers
+                            "time_online_minutes": total_minutes,
+                            "primary_enroute_sector": None,  # TODO: Implement sector tracking
+                            "total_enroute_sectors": 0,
+                            "total_enroute_time_minutes": 0,
+                            "sector_breakdown": json.dumps({}),  # Convert dict to JSON string
+                            "completion_time": last_record.last_updated
+                        }
+                        
+                        # Insert summary
+                        await session.execute(text("""
+                            INSERT INTO flight_summaries (
+                                callsign, aircraft_type, departure, arrival, logon_time,
+                                route, flight_rules, aircraft_faa, planned_altitude, aircraft_short,
+                                cid, name, server, pilot_rating, military_rating,
+                                controller_callsigns, controller_time_percentage, time_online_minutes,
+                                primary_enroute_sector, total_enroute_sectors, total_enroute_time_minutes, sector_breakdown,
+                                completion_time
+                            ) VALUES (
+                                :callsign, :aircraft_type, :departure, :arrival, :logon_time,
+                                :route, :flight_rules, :aircraft_faa, :planned_altitude, :aircraft_short,
+                                :cid, :name, :server, :pilot_rating, :military_rating,
+                                :controller_callsigns, :controller_time_percentage, :time_online_minutes,
+                                :primary_enroute_sector, :total_enroute_sectors, :total_enroute_time_minutes, :sector_breakdown,
+                                :completion_time
+                            )
+                        """), summary_data)
+                        
+                        summaries_created += 1
+                        
+                        # Step 4: Archive detailed records
+                        for record in records:
+                            await session.execute(text("""
+                                INSERT INTO flights_archive (
+                                    callsign, aircraft_type, departure, arrival, logon_time,
+                                    route, flight_rules, aircraft_faa, planned_altitude, aircraft_short,
+                                    cid, name, server, pilot_rating, military_rating,
+                                    position_lat, position_lon, altitude, groundspeed, heading,
+                                    last_updated
+                                ) VALUES (
+                                    :callsign, :aircraft_type, :departure, :arrival, :logon_time,
+                                    :route, :flight_rules, :aircraft_faa, :planned_altitude, :aircraft_short,
+                                    :cid, :name, :server, :pilot_rating, :military_rating,
+                                    :position_lat, :position_lon, :altitude, :groundspeed, :heading,
+                                    :last_updated
+                                )
+                            """), {
+                                "callsign": record.callsign,
+                                "aircraft_type": record.aircraft_type,
+                                "departure": record.departure,
+                                "arrival": record.arrival,
+                                "logon_time": record.logon_time,
+                                "route": record.route,
+                                "flight_rules": record.flight_rules,
+                                "aircraft_faa": record.aircraft_faa,
+                                "planned_altitude": record.planned_altitude,
+                                "aircraft_short": record.aircraft_type,
+                                "cid": record.cid,
+                                "name": record.name,
+                                "server": record.server,
+                                "pilot_rating": record.pilot_rating,
+                                "military_rating": record.military_rating,
+                                "position_lat": record.latitude,
+                                "position_lon": record.longitude,
+                                "altitude": record.altitude,
+                                "groundspeed": record.groundspeed,
+                                "heading": record.heading,
+                                "last_updated": record.last_updated
+                            })
+                        
+                        records_archived += len(records)
+                        
+                        # Step 5: Remove from main flights table
+                        await session.execute(text("""
+                            DELETE FROM flights 
+                            WHERE callsign = :callsign 
+                            AND departure = :departure 
+                            AND arrival = :arrival 
+                            AND logon_time = :logon_time
+                        """), {
+                            "callsign": callsign,
+                            "departure": departure,
+                            "arrival": arrival,
+                            "logon_time": logon_time
+                        })
+                        
+                        processed_count += 1
+                        
+                    except Exception as e:
+                        self.logger.error(f"Failed to process flight {callsign}: {e}")
+                        continue
+                
+                # Commit all changes
+                await session.commit()
+                
+                self.logger.info(f"Flight summarization completed: {processed_count} flights processed, "
+                               f"{summaries_created} summaries created, {records_archived} records archived")
+                
+                return {
+                    "processed": processed_count,
+                    "summaries_created": summaries_created,
+                    "records_archived": records_archived
+                }
+                
+        except Exception as e:
+            self.logger.error(f"Failed to process completed flights: {e}")
+            raise
+
+    async def start_scheduled_flight_processing(self):
+        """Start automatic scheduled flight summary processing."""
+        try:
+            # Get interval from config (convert minutes to seconds)
+            interval_minutes = getattr(self.config, 'flight_summary_interval_minutes', 60)
+            interval_seconds = interval_minutes * 60
+            
+            self.logger.info(f"🚀 Starting scheduled flight summary processing - interval: {interval_minutes} minutes ({interval_seconds} seconds)")
+            
+            # Start background task
+            asyncio.create_task(self._scheduled_processing_loop(interval_seconds))
+            
+        except Exception as e:
+            self.logger.error(f"Failed to start scheduled flight processing: {e}")
+
+    async def _scheduled_processing_loop(self, interval_seconds: int):
+        """Background loop for scheduled flight summary processing."""
+        while True:
+            try:
+                # Log the scheduled run
+                self.logger.info(f"⏰ Scheduled flight summary processing started at {datetime.now(timezone.utc)}")
+                
+                # Process completed flights
+                result = await self.process_completed_flights()
+                
+                # Log the results
+                self.logger.info(f"✅ Scheduled processing completed: {result['summaries_created']} summaries created, {result['records_archived']} records archived")
+                
+                # Wait for next interval
+                await asyncio.sleep(interval_seconds)
+                
+            except Exception as e:
+                self.logger.error(f"❌ Error in scheduled flight processing: {e}")
+                # Wait a bit before retrying
+                await asyncio.sleep(60)  # Wait 1 minute before retry
+
+    async def trigger_flight_summary_processing(self) -> Dict[str, Any]:
+        """Manually trigger flight summary processing (for testing/admin use)."""
+        try:
+            self.logger.info("🔧 Manual flight summary processing triggered")
+            result = await self.process_completed_flights()
+            self.logger.info(f"✅ Manual processing completed: {result}")
+            return result
+        except Exception as e:
+            self.logger.error(f"❌ Manual processing failed: {e}")
+            raise
 
 
 # Global service instance

@@ -153,7 +153,12 @@ class VATSIMService:
                 "total_transceivers": len(transceivers)
             }
             
-            self.logger.info(f"VATSIM data: {len(controllers)} controllers, {len(flights)} flights, {len(transceivers)} transceivers")
+            # Log only when there's significant data or changes
+            total_entities = len(controllers) + len(flights) + len(transceivers)
+            if total_entities > 0:
+                self.logger.debug(f"VATSIM data fetched: {len(controllers)} controllers, {len(flights)} flights, {len(transceivers)} transceivers")
+            else:
+                self.logger.warning("No VATSIM data received from API")
             
             return vatsim_data
             
@@ -331,7 +336,7 @@ class VATSIMService:
     
     async def _fetch_transceivers_data(self) -> List[Dict[str, Any]]:
         """
-        Fetch transceivers data from VATSIM API.
+        Fetch transceivers data from VATSIM transceivers API.
         
         Returns:
             List[Dict[str, Any]]: Raw transceivers data
