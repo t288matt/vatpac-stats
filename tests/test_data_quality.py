@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 # Test configuration
 BASE_URL = os.getenv("TEST_BASE_URL", "http://localhost:8001")
 API_TIMEOUT = int(os.getenv("TEST_API_TIMEOUT", "30"))
-DATA_QUALITY_THRESHOLD = float(os.getenv("TEST_DATA_QUALITY_THRESHOLD", "95.0"))
+DATA_QUALITY_THRESHOLD = float(os.getenv("TEST_DATA_QUALITY_THRESHOLD", "99.0"))
 
 # Global test session
 test_session = requests.Session()
