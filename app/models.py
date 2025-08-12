@@ -102,6 +102,7 @@ class Flight(Base, TimestampMixin):
     # Additional flight plan fields from VATSIM API
     flight_rules = Column(String(10), nullable=True)  # IFR/VFR from flight_plan.flight_rules
     aircraft_faa = Column(String(20), nullable=True)  # FAA aircraft code from flight_plan.aircraft_faa
+    aircraft_short = Column(String(20), nullable=True)  # Short aircraft code from flight_plan.aircraft_short
     alternate = Column(String(10), nullable=True)  # Alternate airport from flight_plan.alternate
     cruise_tas = Column(String(10), nullable=True)  # True airspeed from flight_plan.cruise_tas
     planned_altitude = Column(String(10), nullable=True)  # Planned cruise altitude from flight_plan.altitude
@@ -109,6 +110,10 @@ class Flight(Base, TimestampMixin):
     enroute_time = Column(String(10), nullable=True)  # Enroute time from flight_plan.enroute_time
     fuel_time = Column(String(10), nullable=True)  # Fuel time from flight_plan.fuel_time
     remarks = Column(Text, nullable=True)  # Flight plan remarks from flight_plan.remarks
+    
+    # Additional VATSIM API fields
+    revision_id = Column(Integer, nullable=True)  # Flight plan revision from flight_plan.revision_id
+    assigned_transponder = Column(String(10), nullable=True)  # Assigned transponder from flight_plan.assigned_transponder
     
     # Timestamps
     last_updated = Column(TIMESTAMP(timezone=True), default=func.now(), index=True)
@@ -120,6 +125,8 @@ class Flight(Base, TimestampMixin):
     pilot_rating = Column(Integer, nullable=True)  # Pilot rating - using Integer for consistency
     military_rating = Column(Integer, nullable=True)  # Military rating from VATSIM API
     transponder = Column(String(10), nullable=True)  # Transponder code
+    qnh_i_hg = Column(Float, nullable=True)  # QNH pressure in inches Hg from VATSIM API
+    qnh_mb = Column(Integer, nullable=True)  # QNH pressure in millibars from VATSIM API
     logon_time = Column(TIMESTAMP(timezone=True), nullable=True)  # When pilot connected
     last_updated_api = Column(TIMESTAMP(timezone=True), nullable=True)  # API last_updated timestamp
     
@@ -139,6 +146,8 @@ class Flight(Base, TimestampMixin):
         Index('idx_flights_altitude', 'altitude'),
         Index('idx_flights_flight_rules', 'flight_rules'),
         Index('idx_flights_planned_altitude', 'planned_altitude'),
+        Index('idx_flights_aircraft_short', 'aircraft_short'),
+        Index('idx_flights_revision_id', 'revision_id'),
         
         # ATC Detection Performance Indexes
         Index('idx_flights_callsign_departure_arrival', 'callsign', 'departure', 'arrival'),

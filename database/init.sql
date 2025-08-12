@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS flights (
     -- Additional flight plan fields from VATSIM API
     flight_rules VARCHAR(10),       -- IFR/VFR from flight_plan.flight_rules
     aircraft_faa VARCHAR(20),       -- FAA aircraft code from flight_plan.aircraft_faa
+    aircraft_short VARCHAR(20),     -- Short aircraft code from flight_plan.aircraft_short
     alternate VARCHAR(10),          -- Alternate airport from flight_plan.alternate
     cruise_tas VARCHAR(10),         -- True airspeed from flight_plan.cruise_tas
     planned_altitude VARCHAR(10),   -- Planned cruise altitude from flight_plan.altitude
@@ -69,7 +70,8 @@ CREATE TABLE IF NOT EXISTS flights (
     enroute_time VARCHAR(10),       -- Enroute time from flight_plan.enroute_time
     fuel_time VARCHAR(10),          -- Fuel time from flight_plan.fuel_time
     remarks TEXT,                   -- Flight plan remarks from flight_plan.remarks
-    aircraft_short VARCHAR(20),     -- Short aircraft code from flight_plan.aircraft_short
+    
+    -- Additional VATSIM API fields
     revision_id INTEGER,            -- Flight plan revision from flight_plan.revision_id
     assigned_transponder VARCHAR(10), -- Assigned transponder from flight_plan.assigned_transponder
     
@@ -105,7 +107,6 @@ CREATE TABLE IF NOT EXISTS transceivers (
     entity_type VARCHAR(20) NOT NULL, -- 'flight' or 'atc'
     entity_id INTEGER,                -- Foreign key to flights.id or controllers.id
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -116,6 +117,9 @@ CREATE INDEX IF NOT EXISTS idx_controllers_cid ON controllers(cid);
 CREATE INDEX IF NOT EXISTS idx_controllers_cid_rating ON controllers(cid, rating);
 CREATE INDEX IF NOT EXISTS idx_controllers_facility_server ON controllers(facility, server);
 CREATE INDEX IF NOT EXISTS idx_controllers_last_updated ON controllers(last_updated);
+
+-- ATC Detection Performance Indexes for controllers
+CREATE INDEX IF NOT EXISTS idx_controllers_callsign_facility ON controllers(callsign, facility);
 
 -- Flights indexes
 CREATE INDEX IF NOT EXISTS idx_flights_callsign ON flights(callsign);
@@ -129,27 +133,20 @@ CREATE INDEX IF NOT EXISTS idx_flights_planned_altitude ON flights(planned_altit
 CREATE INDEX IF NOT EXISTS idx_flights_aircraft_short ON flights(aircraft_short);
 CREATE INDEX IF NOT EXISTS idx_flights_revision_id ON flights(revision_id);
 
+-- ATC Detection Performance Indexes for flights
+CREATE INDEX IF NOT EXISTS idx_flights_callsign_departure_arrival ON flights(callsign, departure, arrival);
+CREATE INDEX IF NOT EXISTS idx_flights_callsign_logon ON flights(callsign, logon_time);
+
 -- Transceivers indexes
 CREATE INDEX IF NOT EXISTS idx_transceivers_callsign ON transceivers(callsign);
 CREATE INDEX IF NOT EXISTS idx_transceivers_callsign_timestamp ON transceivers(callsign, timestamp);
 CREATE INDEX IF NOT EXISTS idx_transceivers_frequency ON transceivers(frequency);
 CREATE INDEX IF NOT EXISTS idx_transceivers_entity ON transceivers(entity_type, entity_id);
-CREATE INDEX IF NOT EXISTS idx_transceivers_position ON transceivers(position_lat, position_lon);
 
--- ATC Detection Performance Indexes
--- These indexes dramatically improve ATC interaction detection query performance
+-- ATC Detection Performance Indexes for transceivers
 CREATE INDEX IF NOT EXISTS idx_transceivers_entity_type_callsign ON transceivers(entity_type, callsign);
 CREATE INDEX IF NOT EXISTS idx_transceivers_entity_type_timestamp ON transceivers(entity_type, timestamp);
-
--- Composite index for the main ATC detection query
 CREATE INDEX IF NOT EXISTS idx_transceivers_atc_detection ON transceivers(entity_type, callsign, timestamp, frequency, position_lat, position_lon);
-
--- Indexes for flights table JOIN conditions in ATC detection
-CREATE INDEX IF NOT EXISTS idx_flights_callsign_departure_arrival ON flights(callsign, departure, arrival);
-CREATE INDEX IF NOT EXISTS idx_flights_callsign_logon ON flights(callsign, logon_time);
-
--- Indexes for controllers table ATC detection filtering
-CREATE INDEX IF NOT EXISTS idx_controllers_callsign_facility ON controllers(callsign, facility);
 
 -- Create triggers for updated_at columns
 CREATE TRIGGER update_controllers_updated_at 
@@ -189,11 +186,7 @@ ALTER TABLE flights ADD CONSTRAINT IF NOT EXISTS valid_pilot_rating
 
 -- Transceivers constraints
 ALTER TABLE transceivers ADD CONSTRAINT IF NOT EXISTS valid_frequency 
-    CHECK (frequency > 0);
-ALTER TABLE transceivers ADD CONSTRAINT IF NOT EXISTS valid_transceiver_latitude 
-    CHECK (position_lat >= -90 AND position_lat <= 90);
-ALTER TABLE transceivers ADD CONSTRAINT IF NOT EXISTS valid_transceiver_longitude 
-    CHECK (position_lon >= -180 AND position_lon <= 180);
+    CHECK (frequency >= 0);
 ALTER TABLE transceivers ADD CONSTRAINT IF NOT EXISTS valid_entity_type 
     CHECK (entity_type IN ('flight', 'atc'));
 
