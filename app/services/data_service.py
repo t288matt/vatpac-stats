@@ -33,6 +33,7 @@ from ..database import get_database_session
 from ..models import Flight, Controller, Transceiver
 from ..config import get_config
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger_for_module("services.data_service")
 
@@ -469,205 +470,301 @@ class DataService:
             }
         }
     
-    async def process_completed_flights(self) -> Dict[str, Any]:
-        """
-        Process completed flights and create summaries.
-        
-        This method:
-        1. Identifies flights older than completion threshold (14 hours)
-        2. Creates summary records in flight_summaries table
-        3. Archives detailed records to flights_archive table
-        4. Removes old records from main flights table
-        
-        Returns:
-            Dict with processing statistics
-        """
+    async def process_completed_flights(self) -> dict:
+        """Process completed flights by creating summaries and archiving old records."""
         try:
+            # Get configuration
+            completion_hours = self.config.flight_summary.completion_hours
+            retention_hours = self.config.flight_summary.retention_hours
+            
+            # Identify completed flights
+            completed_flights = await self._identify_completed_flights(completion_hours)
+            
+            if not completed_flights:
+                self.logger.info("No completed flights found for processing")
+                return {"summaries_created": 0, "records_archived": 0, "records_deleted": 0}
+            
+            self.logger.info(f"Found {len(completed_flights)} completed flights to process")
+            
+            # Create flight summaries
+            summaries_created = await self._create_flight_summaries(completed_flights)
+            
+            # Archive completed flights
+            records_archived = await self._archive_completed_flights(completed_flights)
+            
+            # Delete completed flights from main flights table
+            records_deleted = await self._delete_completed_flights(completed_flights)
+            
+            # Delete old archived records beyond retention period
+            old_records_cleaned = await self._cleanup_old_archived_records(retention_hours)
+            
+            self.logger.info(f"Flight summary processing completed: {summaries_created} summaries, {records_archived} archived, {records_deleted} deleted from flights, {old_records_cleaned} old records cleaned up")
+            
+            return {
+                "summaries_created": summaries_created,
+                "records_archived": records_archived,
+                "records_deleted": records_deleted,
+                "old_records_cleaned": old_records_cleaned
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error processing completed flights: {e}")
+            raise
+
+    async def _identify_completed_flights(self, completion_hours: int) -> List[dict]:
+        """Identify flights that have been completed for the specified number of hours."""
+        try:
+            completion_threshold = datetime.now(timezone.utc) - timedelta(hours=completion_hours)
+            
+            query = """
+                SELECT DISTINCT callsign, departure, arrival, logon_time
+                FROM flights 
+                WHERE last_updated < :completion_threshold
+                AND callsign NOT IN (
+                    SELECT DISTINCT callsign FROM flight_summaries
+                )
+            """
+            
             async with get_database_session() as session:
-                # Get completion threshold from config (default 14 hours)
-                completion_hours = 14  # TODO: Fix config - self.config.flight_summary.completion_hours
-                completion_threshold = datetime.now(timezone.utc) - timedelta(hours=completion_hours)
-                
-                self.logger.info(f"Processing completed flights older than {completion_hours} hours")
-                
-                # Step 1: Find completed flights
-                result = await session.execute(text("""
-                    SELECT DISTINCT callsign, departure, arrival, logon_time
-                    FROM flights 
-                    WHERE last_updated < :threshold
-                    AND callsign NOT IN (
-                        SELECT DISTINCT callsign FROM flight_summaries
-                    )
-                """), {"threshold": completion_threshold})
-                
+                result = await session.execute(text(query), {"completion_threshold": completion_threshold})
                 completed_flights = result.fetchall()
-                self.logger.info(f"Found {len(completed_flights)} completed flights to process")
                 
-                if not completed_flights:
-                    return {"processed": 0, "summaries_created": 0, "records_archived": 0}
+                self.logger.debug(f"Identified {len(completed_flights)} completed flights older than {completion_hours} hours")
+                return completed_flights
+            
+        except Exception as e:
+            self.logger.error(f"Error identifying completed flights: {e}")
+            raise
+
+    async def _create_flight_summaries(self, completed_flights: List[dict]) -> int:
+        """Create summary records for completed flights."""
+        processed_count = 0
+        async with get_database_session() as session:
+            for flight_key in completed_flights:
+                callsign, departure, arrival, logon_time = flight_key
                 
-                processed_count = 0
-                summaries_created = 0
-                records_archived = 0
-                
-                for flight_key in completed_flights:
-                    callsign, departure, arrival, logon_time = flight_key
+                try:
+                    # Step 2: Get all records for this flight
+                    flight_records = await session.execute(text("""
+                        SELECT * FROM flights 
+                        WHERE callsign = :callsign 
+                        AND departure = :departure 
+                        AND arrival = :arrival 
+                        AND logon_time = :logon_time
+                        ORDER BY last_updated
+                    """), {
+                        "callsign": callsign,
+                        "departure": departure,
+                        "arrival": arrival,
+                        "logon_time": logon_time
+                    })
                     
-                    try:
-                        # Step 2: Get all records for this flight
-                        flight_records = await session.execute(text("""
-                            SELECT * FROM flights 
-                            WHERE callsign = :callsign 
-                            AND departure = :departure 
-                            AND arrival = :arrival 
-                            AND logon_time = :logon_time
-                            ORDER BY last_updated
-                        """), {
-                            "callsign": callsign,
-                            "departure": departure,
-                            "arrival": arrival,
-                            "logon_time": logon_time
-                        })
-                        
-                        records = flight_records.fetchall()
-                        if not records:
-                            continue
-                        
-                        # Step 3: Create summary record
-                        first_record = records[0]
-                        last_record = records[-1]
-                        
-                        # Calculate time online (handle gaps)
-                        total_minutes = 0
-                        if len(records) > 1:
-                            # Simple calculation: assume continuous tracking
-                            time_diff = last_record.last_updated - first_record.last_updated
-                            total_minutes = int(time_diff.total_seconds() / 60)
-                        
-                        # Create summary data
-                        summary_data = {
-                            "callsign": callsign,
-                            "aircraft_type": first_record.aircraft_type,
-                            "departure": departure,
-                            "arrival": arrival,
-                            "logon_time": logon_time,
-                            "route": first_record.route,
-                            "flight_rules": first_record.flight_rules,
-                            "aircraft_faa": first_record.aircraft_faa,
-                            "planned_altitude": first_record.planned_altitude,
-                            "aircraft_short": first_record.aircraft_type,
-                            "cid": first_record.cid,
-                            "name": first_record.name,
-                            "server": first_record.server,
-                            "pilot_rating": first_record.pilot_rating,
-                            "military_rating": first_record.military_rating,
-                            "controller_callsigns": json.dumps({}),  # Convert dict to JSON string
-                            "controller_time_percentage": 0.0,  # TODO: Calculate from transceivers
-                            "time_online_minutes": total_minutes,
-                            "primary_enroute_sector": None,  # TODO: Implement sector tracking
-                            "total_enroute_sectors": 0,
-                            "total_enroute_time_minutes": 0,
-                            "sector_breakdown": json.dumps({}),  # Convert dict to JSON string
-                            "completion_time": last_record.last_updated
-                        }
-                        
-                        # Insert summary
+                    records = flight_records.fetchall()
+                    if not records:
+                        continue
+                    
+                    # Step 3: Create summary record
+                    first_record = records[0]
+                    last_record = records[-1]
+                    
+                    # Calculate time online (handle gaps)
+                    total_minutes = 0
+                    if len(records) > 1:
+                        # Simple calculation: assume continuous tracking
+                        time_diff = last_record.last_updated - first_record.last_updated
+                        total_minutes = int(time_diff.total_seconds() / 60)
+                    
+                    # Create summary data
+                    summary_data = {
+                        "callsign": callsign,
+                        "aircraft_type": first_record.aircraft_type,
+                        "departure": departure,
+                        "arrival": arrival,
+                        "logon_time": logon_time,
+                        "route": first_record.route,
+                        "flight_rules": first_record.flight_rules,
+                        "aircraft_faa": first_record.aircraft_faa,
+                        "planned_altitude": first_record.planned_altitude,
+                        "aircraft_short": first_record.aircraft_type,
+                        "cid": first_record.cid,
+                        "name": first_record.name,
+                        "server": first_record.server,
+                        "pilot_rating": first_record.pilot_rating,
+                        "military_rating": first_record.military_rating,
+                        "controller_callsigns": json.dumps({}),  # Convert dict to JSON string
+                        "controller_time_percentage": 0.0,  # TODO: Calculate from transceivers
+                        "time_online_minutes": total_minutes,
+                        "primary_enroute_sector": None,  # TODO: Implement sector tracking
+                        "total_enroute_sectors": 0,
+                        "total_enroute_time_minutes": 0,
+                        "sector_breakdown": json.dumps({}),  # Convert dict to JSON string
+                        "completion_time": last_record.last_updated
+                    }
+                    
+                    # Insert summary
+                    await session.execute(text("""
+                        INSERT INTO flight_summaries (
+                            callsign, aircraft_type, departure, arrival, logon_time,
+                            route, flight_rules, aircraft_faa, planned_altitude, aircraft_short,
+                            cid, name, server, pilot_rating, military_rating,
+                            controller_callsigns, controller_time_percentage, time_online_minutes,
+                            primary_enroute_sector, total_enroute_sectors, total_enroute_time_minutes, sector_breakdown,
+                            completion_time
+                        ) VALUES (
+                            :callsign, :aircraft_type, :departure, :arrival, :logon_time,
+                            :route, :flight_rules, :aircraft_faa, :planned_altitude, :aircraft_short,
+                            :cid, :name, :server, :pilot_rating, :military_rating,
+                            :controller_callsigns, :controller_time_percentage, :time_online_minutes,
+                            :primary_enroute_sector, :total_enroute_sectors, :total_enroute_time_minutes, :sector_breakdown,
+                            :completion_time
+                        )
+                    """), summary_data)
+                    
+                    processed_count += 1
+                    
+                except Exception as e:
+                    self.logger.error(f"Failed to process flight {callsign}: {e}")
+                    continue
+            
+            # Commit all changes
+            await session.commit()
+            
+            return processed_count
+
+    async def _archive_completed_flights(self, completed_flights: List[dict]) -> int:
+        """Archive detailed records for completed flights."""
+        processed_count = 0
+        async with get_database_session() as session:
+            for flight_key in completed_flights:
+                callsign, departure, arrival, logon_time = flight_key
+                
+                try:
+                    # Get all records for this flight
+                    flight_records = await session.execute(text("""
+                        SELECT * FROM flights 
+                        WHERE callsign = :callsign 
+                        AND departure = :departure 
+                        AND arrival = :arrival 
+                        AND logon_time = :logon_time
+                        ORDER BY last_updated
+                    """), {
+                        "callsign": callsign,
+                        "departure": departure,
+                        "arrival": arrival,
+                        "logon_time": logon_time
+                    })
+                    
+                    records = flight_records.fetchall()
+                    if not records:
+                        continue
+                    
+                    # Archive each record
+                    for record in records:
                         await session.execute(text("""
-                            INSERT INTO flight_summaries (
+                            INSERT INTO flights_archive (
                                 callsign, aircraft_type, departure, arrival, logon_time,
                                 route, flight_rules, aircraft_faa, planned_altitude, aircraft_short,
                                 cid, name, server, pilot_rating, military_rating,
-                                controller_callsigns, controller_time_percentage, time_online_minutes,
-                                primary_enroute_sector, total_enroute_sectors, total_enroute_time_minutes, sector_breakdown,
-                                completion_time
+                                latitude, longitude, altitude, groundspeed, heading,
+                                last_updated
                             ) VALUES (
                                 :callsign, :aircraft_type, :departure, :arrival, :logon_time,
                                 :route, :flight_rules, :aircraft_faa, :planned_altitude, :aircraft_short,
                                 :cid, :name, :server, :pilot_rating, :military_rating,
-                                :controller_callsigns, :controller_time_percentage, :time_online_minutes,
-                                :primary_enroute_sector, :total_enroute_sectors, :total_enroute_time_minutes, :sector_breakdown,
-                                :completion_time
+                                :latitude, :longitude, :altitude, :groundspeed, :heading,
+                                :last_updated
                             )
-                        """), summary_data)
-                        
-                        summaries_created += 1
-                        
-                        # Step 4: Archive detailed records
-                        for record in records:
-                            await session.execute(text("""
-                                INSERT INTO flights_archive (
-                                    callsign, aircraft_type, departure, arrival, logon_time,
-                                    route, flight_rules, aircraft_faa, planned_altitude, aircraft_short,
-                                    cid, name, server, pilot_rating, military_rating,
-                                    position_lat, position_lon, altitude, groundspeed, heading,
-                                    last_updated
-                                ) VALUES (
-                                    :callsign, :aircraft_type, :departure, :arrival, :logon_time,
-                                    :route, :flight_rules, :aircraft_faa, :planned_altitude, :aircraft_short,
-                                    :cid, :name, :server, :pilot_rating, :military_rating,
-                                    :position_lat, :position_lon, :altitude, :groundspeed, :heading,
-                                    :last_updated
-                                )
-                            """), {
-                                "callsign": record.callsign,
-                                "aircraft_type": record.aircraft_type,
-                                "departure": record.departure,
-                                "arrival": record.arrival,
-                                "logon_time": record.logon_time,
-                                "route": record.route,
-                                "flight_rules": record.flight_rules,
-                                "aircraft_faa": record.aircraft_faa,
-                                "planned_altitude": record.planned_altitude,
-                                "aircraft_short": record.aircraft_type,
-                                "cid": record.cid,
-                                "name": record.name,
-                                "server": record.server,
-                                "pilot_rating": record.pilot_rating,
-                                "military_rating": record.military_rating,
-                                "position_lat": record.latitude,
-                                "position_lon": record.longitude,
-                                "altitude": record.altitude,
-                                "groundspeed": record.groundspeed,
-                                "heading": record.heading,
-                                "last_updated": record.last_updated
-                            })
-                        
-                        records_archived += len(records)
-                        
-                        # Step 5: Remove from main flights table
-                        await session.execute(text("""
-                            DELETE FROM flights 
-                            WHERE callsign = :callsign 
-                            AND departure = :departure 
-                            AND arrival = :arrival 
-                            AND logon_time = :logon_time
                         """), {
-                            "callsign": callsign,
-                            "departure": departure,
-                            "arrival": arrival,
-                            "logon_time": logon_time
+                            "callsign": record.callsign,
+                            "aircraft_type": record.aircraft_type,
+                            "departure": record.departure,
+                            "arrival": record.arrival,
+                            "logon_time": record.logon_time,
+                            "route": record.route,
+                            "flight_rules": record.flight_rules,
+                            "aircraft_faa": record.aircraft_faa,
+                            "planned_altitude": record.planned_altitude,
+                            "aircraft_short": record.aircraft_type,
+                            "cid": record.cid,
+                            "name": record.name,
+                            "server": record.server,
+                            "pilot_rating": record.pilot_rating,
+                            "military_rating": record.military_rating,
+                            "latitude": record.latitude,
+                            "longitude": record.longitude,
+                            "altitude": record.altitude,
+                            "groundspeed": record.groundspeed,
+                            "heading": record.heading,
+                            "last_updated": record.last_updated
                         })
-                        
-                        processed_count += 1
-                        
-                    except Exception as e:
-                        self.logger.error(f"Failed to process flight {callsign}: {e}")
-                        continue
+                    
+                    processed_count += len(records)
+                    
+                except Exception as e:
+                    self.logger.error(f"Failed to archive flight {callsign}: {e}")
+                    continue
+            
+            # Commit all changes
+            await session.commit()
+            
+            return processed_count
+
+    async def _delete_completed_flights(self, completed_flights: List[dict]) -> int:
+        """Delete completed flights from the main flights table."""
+        processed_count = 0
+        async with get_database_session() as session:
+            for flight_key in completed_flights:
+                callsign, departure, arrival, logon_time = flight_key
                 
-                # Commit all changes
+                try:
+                    # Delete all records for this flight
+                    result = await session.execute(text("""
+                        DELETE FROM flights 
+                        WHERE callsign = :callsign 
+                        AND departure = :departure 
+                        AND arrival = :arrival 
+                        AND logon_time = :logon_time
+                    """), {
+                        "callsign": callsign,
+                        "departure": departure,
+                        "arrival": arrival,
+                        "logon_time": logon_time
+                    })
+                    
+                    processed_count += result.rowcount
+                    self.logger.debug(f"Deleted {processed_count} completed flights from main table")
+                    
+                except Exception as e:
+                    self.logger.error(f"Failed to delete completed flight {callsign}: {e}")
+                    continue
+            
+            # Commit changes
+            await session.commit()
+            
+            return processed_count
+
+    async def _cleanup_old_archived_records(self, retention_hours: int) -> int:
+        """Delete old archived records beyond the retention period."""
+        try:
+            retention_threshold = datetime.now(timezone.utc) - timedelta(hours=retention_hours)
+            
+            async with get_database_session() as session:
+                # Delete from flights_archive
+                result = await session.execute(text("""
+                    DELETE FROM flights_archive 
+                    WHERE last_updated < :retention_threshold
+                """), {"retention_threshold": retention_threshold})
+                
+                processed_count = result.rowcount
+                self.logger.debug(f"Deleted {processed_count} old archived records from flights_archive")
+                
+                # Commit changes
                 await session.commit()
                 
-                self.logger.info(f"Flight summarization completed: {processed_count} flights processed, "
-                               f"{summaries_created} summaries created, {records_archived} records archived")
-                
-                return {
-                    "processed": processed_count,
-                    "summaries_created": summaries_created,
-                    "records_archived": records_archived
-                }
+                return processed_count
                 
         except Exception as e:
-            self.logger.error(f"Failed to process completed flights: {e}")
+            self.logger.error(f"Failed to delete old archived records from flights_archive: {e}")
             raise
 
     async def start_scheduled_flight_processing(self):
