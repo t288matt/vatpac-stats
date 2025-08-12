@@ -1,27 +1,27 @@
 # 🚀 VATSIM Data Collection System - Production Deployment
 
-## 📋 Simple Production Deployment Guide
+## 📋 Production Deployment Guide
 
-This guide will help you deploy the **simplified and optimized** VATSIM Data Collection System to production using the existing docker-compose.yml with production overrides.
+This guide will help you deploy the VATSIM Data Collection System to production using Docker Compose.
 
 ### 🎯 What You'll Get
 
 - **Production API** accessible via server IP
-- **Real-time VATSIM data collection** every 10 seconds
-- **Grafana monitoring dashboards** with streamlined architecture
-- **Automatic database backups** capability
+- **Real-time VATSIM data collection** every 60 seconds
+- **Grafana monitoring dashboards** with comprehensive metrics
+- **PostgreSQL database** with optimized configuration
 - **Geographic filtering** for Australian airspace
+- **Flight summary system** with sector tracking
 - **Production-optimized performance** settings
-- **Simplified, maintainable codebase** (2,500+ lines removed)
 
-### **Recent System Improvements**
-- ✅ **Sprint 1 & 2 Completed**: 40%+ codebase reduction
-- ✅ **Architecture Simplified**: Over-engineered components removed
-- ✅ **Better Maintainability**: Streamlined service interactions
-- ✅ **Improved Performance**: Direct service calls without abstraction layers
-- ✅ **Easier Debugging**: Simplified error handling and monitoring
+### **Current System Features**
+- ✅ **Geographic Boundary Filter**: Australian airspace polygon filtering
+- ✅ **Flight Summary System**: Automatic flight completion tracking
+- ✅ **Sector Tracking**: Real-time sector occupancy monitoring
+- ✅ **Performance Optimized**: Database connection pooling and caching
+- ✅ **Monitoring Ready**: Grafana dashboards with health metrics
 
-## 🚀 One-Command Deployment
+## 🚀 Deployment
 
 ### Prerequisites
 
@@ -29,10 +29,9 @@ This guide will help you deploy the **simplified and optimized** VATSIM Data Col
    - 4+ GB RAM (8GB+ recommended)
    - 50+ GB SSD storage
    - Docker and Docker Compose installed
-   - Ports 80 and 443 open in firewall
+   - Ports 8001 and 3050 open in firewall
 
-2. **Domain name** with DNS control
-3. **Server IP address**
+2. **Server IP address**
 
 ### Step 1: Prepare Your Server
 
@@ -59,23 +58,19 @@ sudo chmod +x /usr/local/bin/docker-compose
 git clone https://github.com/yourusername/vatsim-data.git
 cd vatsim-data
 
-# Run the simple deployment script
-chmod +x scripts/simple-deploy.sh
-./scripts/simple-deploy.sh
+# Deploy the system
+docker-compose up -d --build
 ```
 
-The script will:
-1. ✅ Check all prerequisites
-2. ✅ Ask for your server IP
-3. ✅ Generate secure passwords automatically
-4. ✅ Create production environment overrides
-5. ✅ Configure firewall rules
-6. ✅ Deploy using existing docker-compose.yml
-7. ✅ Verify deployment health
+The system will:
+1. ✅ Start PostgreSQL database with optimized configuration
+2. ✅ Build and start the main application
+3. ✅ Start Grafana monitoring
+4. ✅ Configure all services with production settings
 
 ### Step 3: Access Your System
 
-No DNS configuration needed! Access directly via your server IP:
+Access directly via your server IP:
 
 ```
 # Your services will be available at:
@@ -83,45 +78,42 @@ API: http://YOUR_SERVER_IP:8001
 Grafana: http://YOUR_SERVER_IP:3050
 ```
 
-## 🔧 Manual Deployment (Alternative)
+## 🔧 Configuration
 
-If you prefer manual control over the deployment:
+### Environment Variables
 
-### 1. Create Environment File
+The system uses the following key configuration in `docker-compose.yml`:
 
-```bash
-# Copy template and customize
-cp production-env-example.txt .env.production
+```yaml
+# VATSIM Data Collection
+VATSIM_POLLING_INTERVAL: 60        # Data fetch interval (seconds)
+WRITE_TO_DISK_INTERVAL: 30         # Data persistence interval (seconds)
 
-# Edit with your settings
-nano .env.production
+# Database Performance
+DATABASE_POOL_SIZE: 20              # Connection pool size
+DATABASE_MAX_OVERFLOW: 40          # Max overflow connections
+
+# Flight Filtering
+ENABLE_BOUNDARY_FILTER: "true"     # Australian airspace filtering
+BOUNDARY_DATA_PATH: "australian_airspace_polygon.json"
+
+# Flight Summary System
+FLIGHT_SUMMARY_ENABLED: "true"     # Enable flight summaries
+FLIGHT_COMPLETION_HOURS: 14        # Hours to mark flight complete
+SECTOR_TRACKING_ENABLED: "true"    # Real-time sector tracking
 ```
 
-**Required Changes:**
-- `POSTGRES_PASSWORD`: Secure database password
-- `GRAFANA_ADMIN_PASSWORD`: Secure Grafana password
+### Customizing Configuration
 
-### 2. Deploy Services
+To modify settings, edit the `docker-compose.yml` file and restart:
 
 ```bash
-# Start production deployment using existing docker-compose.yml
-docker-compose --env-file .env.production up -d --build
+# Edit configuration
+nano docker-compose.yml
 
-# Check status
-docker-compose ps
-
-# View logs
-docker-compose logs -f
-```
-
-### 3. Verify Deployment
-
-```bash
-# Test API
-curl http://YOUR_SERVER_IP:8001/api/status
-
-# Test Grafana
-curl http://YOUR_SERVER_IP:3050
+# Restart with new configuration
+docker-compose down
+docker-compose up -d --build
 ```
 
 ## 🌐 Access Your Deployment
@@ -131,7 +123,7 @@ After successful deployment, access your services:
 | Service | URL | Credentials |
 |---------|-----|-------------|
 | **API** | `http://YOUR_SERVER_IP:8001` | No auth by default |
-| **Grafana** | `http://YOUR_SERVER_IP:3050` | admin / [generated password] |
+| **Grafana** | `http://YOUR_SERVER_IP:3050` | admin / admin |
 
 ### 🔑 Important URLs
 
@@ -150,152 +142,124 @@ http://YOUR_SERVER_IP:8001/api/controllers
 
 # Filter Status
 http://YOUR_SERVER_IP:8001/api/filter/flight/status
+
+# Flight Summaries
+http://YOUR_SERVER_IP:8001/api/flights/summaries
 ```
 
 ## 🔒 Security Features
 
-### ✅ Automatic SSL/TLS
-- **Let's Encrypt certificates** automatically generated
-- **HTTPS redirect** for all traffic
-- **Security headers** configured
-- **Certificate auto-renewal**
-
 ### ✅ API Security
-- **API key authentication** required
-- **Rate limiting** (100 requests/minute)
 - **CORS protection** configured
-- **Request size limits**
+- **Request size limits** enforced
+- **Rate limiting** via application logic
 
 ### ✅ Database Security
-- **Secure passwords** auto-generated
-- **No external exposure** (internal network only)
-- **Connection encryption**
-- **Regular backups**
+- **Internal network only** (no external exposure)
+- **Connection encryption** enabled
+- **Optimized configuration** for production
 
-### ✅ Infrastructure Security
-- **Reverse proxy** (Traefik) with SSL termination
-- **Container isolation**
+### ✅ Container Security
 - **Non-root user** in containers
-- **Firewall configuration**
+- **Resource limits** configured
+- **Container isolation**
 
 ## 📊 Monitoring & Dashboards
 
 ### Grafana Dashboards
 
-1. **Flight Tracking Dashboard**
-   - Real-time flight positions
-   <!-- REMOVED: Traffic Analysis Service - Final Sweep
-   - Traffic density maps
-   -->
+1. **Flight Performance Metrics**
+   - Real-time flight tracking
+   - Performance analytics
    - Route analysis
 
-2. **Network Statistics**
-   - VATSIM network health
-   - Connection statistics
-   - Data freshness metrics
+2. **ATC Service Coverage**
+   - Controller statistics
+   - Sector coverage metrics
+   - Service availability
 
-3. **System Performance**
+3. **Comprehensive Health Monitoring**
+   - System performance
+   - Database metrics
    - API response times
-   - Database performance
-   - Memory and CPU usage
 
 ### Health Checks
 
 ```bash
 # Container health
-docker-compose -f docker-compose.prod.yml ps
+docker-compose ps
 
 # API health
-curl https://api.yourdomain.com/api/status
+curl http://YOUR_SERVER_IP:8001/api/status
 
 # Database health
-curl https://api.yourdomain.com/api/database/status
+docker exec vatsim_postgres pg_isready -U vatsim_user
 
 # System metrics
-curl https://api.yourdomain.com/api/performance/metrics
+docker stats
 ```
 
 ## 💾 Backup Strategy
-
-### Automatic Daily Backups
-
-The system includes automated backup with:
-- **Daily PostgreSQL dumps** at 2 AM UTC
-- **30-day local retention**
-- **Optional S3 upload** for off-site storage
-- **Backup integrity verification**
-- **Automated cleanup** of old backups
 
 ### Manual Backup Commands
 
 ```bash
 # Create immediate backup
-./scripts/backup-database.sh
-
-# Test backup system
-./scripts/backup-database.sh --test
+docker exec vatsim_postgres pg_dump -U vatsim_user vatsim_data > backup_$(date +%Y%m%d_%H%M%S).sql
 
 # List available backups  
-./scripts/backup-database.sh --list
+ls -la *.sql
 
 # Restore from backup
-./scripts/backup-database.sh --restore /path/to/backup.sql.gz
+docker exec -i vatsim_postgres psql -U vatsim_user vatsim_data < backup_file.sql
 ```
 
-### S3 Backup Configuration
+### Automated Backup Setup
 
-Add to your `.env.production`:
+Create a cron job for daily backups:
 
 ```bash
-BACKUP_S3_BUCKET=your-vatsim-backup-bucket
-AWS_ACCESS_KEY_ID=your_aws_access_key
-AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+# Edit crontab
+crontab -e
+
+# Add daily backup at 2 AM
+0 2 * * * cd /path/to/vatsim-data && docker exec vatsim_postgres pg_dump -U vatsim_user vatsim_data > backups/backup_$(date +\%Y\%m\%d).sql
 ```
 
 ## 🔧 Configuration Options
 
 ### Flight Filtering
 
-```bash
-# Australian airport filter (enabled by default)
-FLIGHT_FILTER_ENABLED=true
+```yaml
+# Geographic boundary filter (enabled by default)
+ENABLE_BOUNDARY_FILTER: "true"
+BOUNDARY_DATA_PATH: "australian_airspace_polygon.json"
 
-# Geographic boundary filter (optional)
-ENABLE_BOUNDARY_FILTER=true
-BOUNDARY_DATA_PATH=australian_airspace_polygon.json
+# Flight summary system
+FLIGHT_SUMMARY_ENABLED: "true"
+SECTOR_TRACKING_ENABLED: "true"
 ```
 
 ### Performance Tuning
 
-```bash
+```yaml
 # Memory allocation
-MEMORY_LIMIT_MB=4096
+MEMORY_LIMIT_MB: 2048
 
 # Database connections
-DATABASE_POOL_SIZE=20
-DATABASE_MAX_OVERFLOW=30
+DATABASE_POOL_SIZE: 20
+DATABASE_MAX_OVERFLOW: 40
 
 # Data collection intervals
-VATSIM_POLLING_INTERVAL=10
-WRITE_TO_DISK_INTERVAL=15
+VATSIM_POLLING_INTERVAL: 60
+WRITE_TO_DISK_INTERVAL: 30
 ```
-
-
 
 ## 🚨 Troubleshooting
 
 ### Common Issues
 
-**1. SSL Certificate Issues**
-```bash
-# Check certificate status
-docker logs vatsim_traefik | grep -i cert
-
-# Force certificate renewal
-docker-compose restart traefik
-```
-
-**2. API Not Responding**
+**1. API Not Responding**
 ```bash
 # Check application logs
 docker logs vatsim_app --tail 50
@@ -304,16 +268,16 @@ docker logs vatsim_app --tail 50
 docker-compose restart app
 ```
 
-**3. Database Connection Issues**
+**2. Database Connection Issues**
 ```bash
 # Check database logs
 docker logs vatsim_postgres --tail 20
 
 # Test database connection
-docker exec vatsim_postgres pg_isready -U vatsim_prod_user
+docker exec vatsim_postgres pg_isready -U vatsim_user
 ```
 
-**4. No VATSIM Data**
+**3. No VATSIM Data**
 ```bash
 # Check data ingestion
 docker logs vatsim_app | grep -i vatsim
@@ -322,14 +286,26 @@ docker logs vatsim_app | grep -i vatsim
 docker exec vatsim_app curl -I https://data.vatsim.net/v3/vatsim-data.json
 ```
 
+**4. Grafana Not Accessible**
+```bash
+# Check Grafana logs
+docker logs vatsim_grafana --tail 20
+
+# Restart Grafana
+docker-compose restart grafana
+```
+
 ### Log Locations
 
 ```bash
 # Application logs
-/opt/vatsim/logs/
+docker logs vatsim_app
 
-# Container logs
-docker-compose -f docker-compose.prod.yml logs [service_name]
+# Database logs
+docker logs vatsim_postgres
+
+# Grafana logs
+docker logs vatsim_grafana
 
 # System logs
 /var/log/syslog
@@ -343,7 +319,7 @@ docker-compose -f docker-compose.prod.yml logs [service_name]
 2. **Database Query Performance** (<50ms average)
 3. **Memory Usage** (<80% of allocated)
 4. **Disk Space** (>20% free)
-5. **VATSIM Data Freshness** (<30 seconds)
+5. **VATSIM Data Freshness** (<60 seconds)
 
 ### Monitoring Commands
 
@@ -352,10 +328,10 @@ docker-compose -f docker-compose.prod.yml logs [service_name]
 docker stats
 
 # API performance
-curl -w "@curl-format.txt" -s https://api.yourdomain.com/api/status
+curl -w "@curl-format.txt" -s http://YOUR_SERVER_IP:8001/api/status
 
 # Database performance
-docker exec vatsim_postgres psql -U vatsim_prod_user -d vatsim_data -c "SELECT * FROM pg_stat_activity;"
+docker exec vatsim_postgres psql -U vatsim_user -d vatsim_data -c "SELECT * FROM pg_stat_activity;"
 ```
 
 ## 🔄 Updates & Maintenance
@@ -363,9 +339,9 @@ docker exec vatsim_postgres psql -U vatsim_prod_user -d vatsim_data -c "SELECT *
 ### Regular Maintenance Tasks
 
 1. **Weekly**: Check backup integrity
-2. **Monthly**: Review security logs
+2. **Monthly**: Review application logs
 3. **Quarterly**: Update Docker images
-4. **Annually**: Rotate SSL certificates (automatic)
+4. **As needed**: Monitor system performance
 
 ### Update Procedure
 
@@ -374,10 +350,11 @@ docker exec vatsim_postgres psql -U vatsim_prod_user -d vatsim_data -c "SELECT *
 git pull
 
 # Rebuild and restart
-docker-compose -f docker-compose.prod.yml up -d --build
+docker-compose down
+docker-compose up -d --build
 
 # Verify update
-curl https://api.yourdomain.com/api/status
+curl http://YOUR_SERVER_IP:8001/api/status
 ```
 
 ## 📞 Support & Documentation
@@ -387,13 +364,13 @@ curl https://api.yourdomain.com/api/status
 - **[API Documentation](docs/API_REFERENCE.md)**: Complete API reference
 - **[Architecture Overview](docs/ARCHITECTURE_OVERVIEW.md)**: System architecture
 - **[Configuration Guide](docs/CONFIGURATION.md)**: Environment variables
-- **[Geographic Filtering](docs/GEOGRAPHIC_BOUNDARY_FILTER_PLAN.md)**: Advanced filtering
+- **[Geographic Filtering](docs/GEOGRAPHIC_BOUNDARY_FILTER_CONFIG.md)**: Advanced filtering
 
 ### Getting Help
 
 1. Check the troubleshooting section above
 2. Review container logs for errors
-3. Verify DNS and firewall configuration
+3. Verify firewall configuration
 4. Test network connectivity to VATSIM API
 
 ---
@@ -403,23 +380,21 @@ curl https://api.yourdomain.com/api/status
 ### Pre-Deployment
 - [ ] Server meets minimum requirements
 - [ ] Docker and Docker Compose installed
-- [ ] Domain name configured with DNS
-- [ ] Firewall ports 80/443 open
-- [ ] SSL email configured for Let's Encrypt
+- [ ] Firewall ports 8001/3050 open
+- [ ] Sufficient disk space available
 
 ### Post-Deployment
 - [ ] All containers healthy and running
-- [ ] API responding with HTTPS
-- [ ] Grafana dashboards accessible
+- [ ] API responding on port 8001
+- [ ] Grafana dashboards accessible on port 3050
 - [ ] VATSIM data ingestion working
-- [ ] Backup script tested
-- [ ] Monitoring alerts configured
-- [ ] DNS propagation complete
-- [ ] SSL certificates valid
+- [ ] Database connection successful
+- [ ] Geographic filtering active
+- [ ] Flight summary system operational
 
 **🎉 Congratulations! Your VATSIM Data Collection System is now running in production!**
 
 ---
 
 *Last Updated: 2025-01-15*
-*Version: Production Ready v2.0*
+*Version: Production Ready v3.0*
