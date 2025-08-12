@@ -17,14 +17,15 @@ from pathlib import Path
 
 def run_direct_tests():
     """Run tests using direct execution"""
-    print("🚀 Running Stage 1 + Stage 2 Tests (Direct Execution)")
+    print("🚀 Running Stage 1 + Stage 2 + Stage 3 Tests (Direct Execution)")
     print("=" * 60)
     
     try:
-        # Import and run both test classes
+        # Import and run all three test classes
         sys.path.insert(0, str(Path(__file__).parent / "tests"))
         from test_system_health import SystemHealthTester
         from test_user_workflows import UserWorkflowTester
+        from test_data_quality import DataQualityTester
         
         # Run Stage 1 tests
         print("🧪 Stage 1: Foundation Tests")
@@ -38,9 +39,15 @@ def run_direct_tests():
         stage2_tester = UserWorkflowTester()
         stage2_results = stage2_tester.run_all_tests()
         
+        # Run Stage 3 tests
+        print("\n🧪 Stage 3: Data Quality Tests")
+        print("-" * 40)
+        stage3_tester = DataQualityTester()
+        stage3_results = stage3_tester.run_all_tests()
+        
         # Combined results
-        total_passed = stage1_results["passed"] + stage2_results["passed"]
-        total_tests = stage1_results["total"] + stage2_results["total"]
+        total_passed = stage1_results["passed"] + stage2_results["passed"] + stage3_results["passed"]
+        total_tests = stage1_results["total"] + stage2_results["total"] + stage3_results["total"]
         overall_success = (total_passed / total_tests) >= 0.75
         
         print(f"\n📊 Combined Results: {total_passed}/{total_tests} passed")
@@ -58,7 +65,7 @@ def run_direct_tests():
 
 def run_pytest_tests(verbose=False, stage=None):
     """Run tests using pytest framework"""
-    print("🚀 Running Stage 1 + Stage 2 Tests (Pytest Framework)")
+    print("🚀 Running Stage 1 + Stage 2 + Stage 3 Tests (Pytest Framework)")
     print("=" * 60)
     
     try:
@@ -100,7 +107,7 @@ def check_environment():
     
     # Check test files exist
     test_dir = Path(__file__).parent / "tests"
-    required_files = ["test_system_health.py", "test_user_workflows.py", "conftest.py"]
+    required_files = ["test_system_health.py", "test_user_workflows.py", "test_data_quality.py", "conftest.py"]
     
     for file in required_files:
         if not (test_dir / file).exists():
@@ -142,7 +149,7 @@ def main():
     args = parser.parse_args()
     
     print("🧪 VATSIM Data Collection System - Test Runner")
-    print("🎯 Stage 1: Foundation Tests")
+    print("🎯 Stage 1: Foundation Tests + Stage 2: Core Functionality + Stage 3: Data Quality")
     print("=" * 60)
     
     # Check environment

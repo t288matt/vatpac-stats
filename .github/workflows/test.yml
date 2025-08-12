@@ -95,8 +95,14 @@ jobs:
           echo "🧪 Running Stage 2 Core Functionality Tests..."
           cd tests
           python test_user_workflows.py
-          
-      - name: Run pytest (both stages)
+
+      - name: Run Stage 3 Data Quality Tests
+        run: |
+          echo "🧪 Running Stage 3 Data Quality Tests..."
+          cd tests
+          python test_data_quality.py
+
+      - name: Run pytest (all stages)
         run: |
           echo "🧪 Running tests with pytest..."
           python -m pytest tests/ -v --tb=short
@@ -129,8 +135,9 @@ jobs:
           echo "========================"
           echo "✅ Stage 1 Foundation Tests completed"
           echo "✅ Stage 2 Core Functionality Tests completed"
-          echo "🎯 Focus: System accessibility + User workflow validation"
-          echo "🔍 Tests: System health, database, API endpoints, flight data, controller data, data freshness"
+          echo "✅ Stage 3 Data Quality Tests completed"
+          echo "🎯 Focus: System accessibility + User workflow validation + Data reliability"
+          echo "🔍 Tests: System health, database, API endpoints, flight data, controller data, data freshness, data quality, business rules"
           
       - name: Cleanup
         if: always()
