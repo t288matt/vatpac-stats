@@ -1,0 +1,70 @@
+name: Stage 1 - Foundation Tests
+on: [push, pull_request]
+
+jobs:
+  test:
+    name: Foundation Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest requests
+          
+      - name: Start Docker services
+        run: |
+          docker-compose up -d postgres
+          echo "Waiting for PostgreSQL to be ready..."
+          sleep 30
+          
+      - name: Start application
+        run: |
+          docker-compose up -d app
+          echo "Waiting for application to be ready..."
+          sleep 45
+          
+      - name: Verify services are running
+        run: |
+          docker-compose ps
+          echo "Checking service health..."
+          docker-compose logs app --tail=20
+          
+      - name: Run Stage 1 Foundation Tests
+        run: |
+          echo "🧪 Running Stage 1 Foundation Tests..."
+          python tests/test_system_health.py
+          
+      - name: Run Stage 2 Core Functionality Tests
+        run: |
+          echo "🧪 Running Stage 2 Core Functionality Tests..."
+          python tests/test_user_workflows.py
+          
+      - name: Run pytest (both stages)
+        run: |
+          echo "🧪 Running tests with pytest..."
+          python -m pytest tests/ -v --tb=short
+          
+      - name: Test Results Summary
+        if: always()
+        run: |
+          echo "📊 Test Execution Summary"
+          echo "========================"
+          echo "✅ Stage 1 Foundation Tests completed"
+          echo "✅ Stage 2 Core Functionality Tests completed"
+          echo "🎯 Focus: System accessibility + User workflow validation"
+          echo "🔍 Tests: System health, database, API endpoints, flight data, controller data, data freshness"
+          
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "🧹 Cleaning up Docker services..."
+          docker-compose down

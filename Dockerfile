@@ -50,7 +50,6 @@ COPY tests/ ./tests/
 COPY run.py .
 COPY run_tests.py .
 COPY requirements.txt .
-COPY pytest.ini .
 
 # Create necessary directories with proper permissions
 RUN mkdir -p /app/logs /app/data /app/cache && \

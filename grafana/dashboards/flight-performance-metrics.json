@@ -395,8 +395,8 @@
           "refId": "A"
         }
       ],
-             "title": "Top 10 Aircraft Types by Flight Count",
-       "type": "barchart"
+      "title": "Top 10 Aircraft Types by Flight Count",
+      "type": "piechart"
     }
   ],
   "refresh": "1m",

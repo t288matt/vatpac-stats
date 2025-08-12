@@ -298,6 +298,303 @@ async def get_all_flights():
         logger.error(f"Error getting flights: {e}")
         raise HTTPException(status_code=500, detail=f"Error getting flights: {str(e)}")
 
+# Flight Summary Endpoints
+
+@app.get("/api/flights/summaries")
+@handle_service_errors
+@log_operation("get_flight_summaries")
+async def get_flight_summaries(
+    limit: int = 100,
+    offset: int = 0,
+    departure: Optional[str] = None,
+    arrival: Optional[str] = None,
+    aircraft_type: Optional[str] = None,
+    flight_rules: Optional[str] = None
+):
+    """Get completed flight summaries with optional filtering"""
+    try:
+        async with get_database_session() as session:
+            # Build base query
+            base_query = """
+                SELECT 
+                    id, callsign, departure, arrival, aircraft_type, flight_rules,
+                    logon_time, completion_time, time_online_minutes,
+                    controller_time_percentage, controller_callsigns,
+                    route, planned_altitude, created_at
+                FROM flight_summaries
+                WHERE 1=1
+            """
+            
+            # Build filter conditions
+            params = {}
+            if departure:
+                base_query += " AND departure = :departure"
+                params["departure"] = departure.upper()
+            if arrival:
+                base_query += " AND arrival = :arrival"
+                params["arrival"] = arrival.upper()
+            if aircraft_type:
+                base_query += " AND aircraft_type ILIKE :aircraft_type"
+                params["aircraft_type"] = f"%{aircraft_type}%"
+            if flight_rules:
+                base_query += " AND flight_rules = :flight_rules"
+                params["flight_rules"] = flight_rules.upper()
+            
+            # Add ordering and pagination
+            base_query += " ORDER BY completion_time DESC LIMIT :limit OFFSET :offset"
+            params["limit"] = limit
+            params["offset"] = offset
+            
+            # Execute query
+            result = await session.execute(text(base_query), params)
+            summaries = []
+            
+            for row in result.fetchall():
+                summary = {
+                    "id": row[0],
+                    "callsign": row[1],
+                    "departure": row[2],
+                    "arrival": row[3],
+                    "aircraft_type": row[4],
+                    "flight_rules": row[5],
+                    "logon_time": row[6].isoformat() if row[6] else None,
+                    "completion_time": row[7].isoformat() if row[7] else None,
+                    "time_online_minutes": row[8],
+                    "controller_time_percentage": row[9],
+                    "controller_callsigns": row[10] if row[10] else [],
+                    "route": row[11],
+                    "planned_altitude": row[12],
+                    "created_at": row[13].isoformat() if row[13] else None
+                }
+                summaries.append(summary)
+            
+            # Get total count for pagination
+            count_query = """
+                SELECT COUNT(*) FROM flight_summaries
+                WHERE 1=1
+            """
+            if departure:
+                count_query += " AND departure = :departure"
+            if arrival:
+                count_query += " AND arrival = :arrival"
+            if aircraft_type:
+                count_query += " AND aircraft_type ILIKE :aircraft_type"
+            if flight_rules:
+                count_query += " AND flight_rules = :flight_rules"
+            
+            count_result = await session.execute(text(count_query), params)
+            total_count = count_result.scalar()
+            
+            return {
+                "summaries": summaries,
+                "pagination": {
+                    "total": total_count,
+                    "limit": limit,
+                    "offset": offset,
+                    "has_more": (offset + limit) < total_count
+                }
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting flight summaries: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting flight summaries: {str(e)}")
+
+@app.post("/api/flights/summaries/process")
+@handle_service_errors
+@log_operation("trigger_flight_summary_processing")
+async def trigger_flight_summary_processing():
+    """Manually trigger flight summary processing"""
+    try:
+        data_service = await get_data_service()
+        result = await data_service.trigger_flight_summary_processing()
+        
+        return {
+            "status": "success",
+            "message": "Flight summary processing triggered successfully",
+            "result": result,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error triggering flight summary processing: {e}")
+        raise HTTPException(status_code=500, detail=f"Error triggering flight summary processing: {str(e)}")
+
+@app.get("/api/flights/summaries/status")
+@handle_service_errors
+@log_operation("get_flight_summary_status")
+async def get_flight_summary_status():
+    """Get flight summary processing status and statistics"""
+    try:
+        async with get_database_session() as session:
+            # Get processing statistics
+            stats_result = await session.execute(text("""
+                SELECT 
+                    COUNT(*) as total_summaries,
+                    COUNT(CASE WHEN created_at >= NOW() - INTERVAL '24 hours' THEN 1 END) as last_24h,
+                    COUNT(CASE WHEN created_at >= NOW() - INTERVAL '1 hour' THEN 1 END) as last_1h,
+                    MAX(created_at) as last_processed,
+                    AVG(time_online_minutes) as avg_time_online,
+                    AVG(controller_time_percentage) as avg_atc_coverage
+                FROM flight_summaries
+            """))
+            
+            stats_row = stats_result.fetchone()
+            
+            # Get recent processing activity
+            recent_result = await session.execute(text("""
+                SELECT 
+                    callsign, departure, arrival, completion_time, time_online_minutes
+                FROM flight_summaries 
+                ORDER BY completion_time DESC 
+                LIMIT 5
+            """))
+            
+            recent_summaries = []
+            for row in recent_result.fetchall():
+                recent_summaries.append({
+                    "callsign": row[0],
+                    "departure": row[1],
+                    "arrival": row[2],
+                    "completion_time": row[3].isoformat() if row[3] else None,
+                    "time_online_minutes": row[4]
+                })
+            
+            return {
+                "status": "operational",
+                "processing_stats": {
+                    "total_summaries": stats_row[0] or 0,
+                    "last_24h": stats_row[1] or 0,
+                    "last_1h": stats_row[2] or 0,
+                    "last_processed": stats_row[3].isoformat() if stats_row[3] else None,
+                    "avg_time_online_minutes": float(stats_row[4]) if stats_row[4] else 0,
+                    "avg_atc_coverage_percentage": float(stats_row[5]) if stats_row[5] else 0
+                },
+                "recent_summaries": recent_summaries,
+                "next_scheduled_run": "Every 60 minutes",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting flight summary status: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting flight summary status: {str(e)}")
+
+@app.get("/api/flights/summaries/analytics")
+@handle_service_errors
+@log_operation("get_flight_summary_analytics")
+async def get_flight_summary_analytics(
+    period: str = "24h",
+    departure: Optional[str] = None,
+    arrival: Optional[str] = None
+):
+    """Get aggregated analytics from flight summaries"""
+    try:
+        async with get_database_session() as session:
+            # Build time filter based on period
+            time_filter = ""
+            if period == "24h":
+                time_filter = "AND completion_time >= NOW() - INTERVAL '24 hours'"
+            elif period == "7d":
+                time_filter = "AND completion_time >= NOW() - INTERVAL '7 days'"
+            elif period == "30d":
+                time_filter = "AND completion_time >= NOW() - INTERVAL '30 days'"
+            elif period == "all":
+                time_filter = ""
+            
+            # Build location filter
+            location_filter = ""
+            params = {}
+            if departure:
+                location_filter += " AND departure = :departure"
+                params["departure"] = departure.upper()
+            if arrival:
+                location_filter += " AND arrival = :arrival"
+                params["arrival"] = arrival.upper()
+            
+            # Get route statistics
+            route_result = await session.execute(text(f"""
+                SELECT 
+                    departure, arrival, COUNT(*) as flight_count,
+                    AVG(time_online_minutes) as avg_time_online,
+                    AVG(controller_time_percentage) as avg_atc_coverage
+                FROM flight_summaries
+                WHERE 1=1 {time_filter} {location_filter}
+                GROUP BY departure, arrival
+                ORDER BY flight_count DESC
+                LIMIT 10
+            """), params)
+            
+            routes = []
+            for row in route_result.fetchall():
+                routes.append({
+                    "departure": row[0],
+                    "arrival": row[1],
+                    "flight_count": row[2],
+                    "avg_time_online_minutes": float(row[3]) if row[3] else 0,
+                    "avg_atc_coverage_percentage": float(row[4]) if row[4] else 0
+                })
+            
+            # Get aircraft type statistics
+            aircraft_result = await session.execute(text(f"""
+                SELECT 
+                    aircraft_type, COUNT(*) as flight_count,
+                    AVG(time_online_minutes) as avg_time_online
+                FROM flight_summaries
+                WHERE 1=1 {time_filter} {location_filter}
+                GROUP BY aircraft_type
+                ORDER BY flight_count DESC
+                LIMIT 10
+            """), params)
+            
+            aircraft_types = []
+            for row in aircraft_result.fetchall():
+                aircraft_types.append({
+                    "aircraft_type": row[0],
+                    "flight_count": row[1],
+                    "avg_time_online_minutes": float(row[2]) if row[2] else 0
+                })
+            
+            # Get ATC coverage statistics
+            atc_result = await session.execute(text(f"""
+                SELECT 
+                    CASE 
+                        WHEN controller_time_percentage = 0 THEN 'No ATC Contact'
+                        WHEN controller_time_percentage <= 25 THEN 'Low ATC Contact (1-25%)'
+                        WHEN controller_time_percentage <= 50 THEN 'Medium ATC Contact (26-50%)'
+                        WHEN controller_time_percentage <= 75 THEN 'High ATC Contact (51-75%)'
+                        ELSE 'Full ATC Contact (76-100%)'
+                    END as atc_coverage_level,
+                    COUNT(*) as flight_count
+                FROM flight_summaries
+                WHERE 1=1 {time_filter} {location_filter}
+                GROUP BY atc_coverage_level
+                ORDER BY flight_count DESC
+            """), params)
+            
+            atc_coverage = []
+            for row in atc_result.fetchall():
+                atc_coverage.append({
+                    "coverage_level": row[0],
+                    "flight_count": row[1]
+                })
+            
+            return {
+                "period": period,
+                "filters": {
+                    "departure": departure,
+                    "arrival": arrival
+                },
+                "analytics": {
+                    "top_routes": routes,
+                    "top_aircraft_types": aircraft_types,
+                    "atc_coverage_distribution": atc_coverage
+                },
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting flight summary analytics: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting flight summary analytics: {str(e)}")
+
 @app.get("/api/flights/{callsign}")
 @handle_service_errors
 @log_operation("get_flight_by_callsign")
