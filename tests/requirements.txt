@@ -7,6 +7,10 @@ pytest>=7.0.0
 # HTTP client for API testing
 requests>=2.28.0
 
+# Geographic operations (required for geographic_utils tests)
+shapely>=2.0.0
+numpy>=1.20.0
+
 # Optional: Enhanced test reporting
 pytest-html>=3.0.0
 pytest-verbose-parametrize>=1.7.0
