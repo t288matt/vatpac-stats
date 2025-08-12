@@ -48,7 +48,6 @@ services:
       CACHE_MAX_SIZE: 50000          # Increase cache capacity
       
       # Optional: More aggressive caching for static data
-      AIRPORT_CACHE_DURATION_HOURS: 150  # Extend airport data caching (6+ days)
 
       
       # Database Configuration
@@ -103,10 +102,7 @@ services:
     depends_on:
       - postgres
     restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.vatsim-api.rule=Host(`api.vatsim.local`)"
-      - "traefik.http.services.vatsim-api.loadbalancer.server.port=8001"
+
 
   # Grafana for data visualization and monitoring
   grafana:
@@ -141,29 +137,9 @@ services:
     depends_on:
       - app
     restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.vatsim-grafana.rule=Host(`grafana.vatsim.local`)"
-      - "traefik.http.services.vatsim-grafana.loadbalancer.server.port=3000"
 
-# Optional: Traefik reverse proxy for production
-# Uncomment to enable reverse proxy with SSL termination
-# traefik:
-#   image: traefik:v2.10
-#   container_name: vatsim_traefik
-#   command:
-#     - "--api.insecure=true"
-#     - "--providers.docker=true"
-#     - "--providers.docker.exposedbydefault=false"
-#     - "--entrypoints.web.address=:80"
-#     - "--entrypoints.websecure.address=:443"
-#   ports:
-#     - "80:80"
-#     - "443:443"
-#     - "8080:8080"
-#   volumes:
-#     - /var/run/docker.sock:/var/run/docker.sock:ro
-#   restart: unless-stopped 
+
+ 
 
 # Define named volumes
 volumes:
