@@ -71,7 +71,7 @@ services:
       LOG_BACKUP_COUNT: 5
       
       # Flight Filter Configuration (Airport-based)
-      FLIGHT_FILTER_ENABLED: "false"
+      FLIGHT_FILTER_ENABLED: "true"
       FLIGHT_FILTER_LOG_LEVEL: "INFO"
       
       # Geographic Boundary Filter Configuration (Polygon-based)
@@ -96,7 +96,7 @@ services:
 
     volumes:
       - ./logs:/app/logs:rw
-      - ./australian_airspace_polygon.json:/app/australian_airspace_polygon.json:ro
+      - ./config/australian_airspace_polygon.json:/app/australian_airspace_polygon.json:ro
     ports:
       - "8001:8001"
     depends_on:

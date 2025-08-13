@@ -229,6 +229,99 @@ COMMENT ON COLUMN flights.assigned_transponder IS 'Assigned transponder from VAT
 COMMENT ON COLUMN flights.qnh_i_hg IS 'QNH pressure in inches Hg from VATSIM API qnh_i_hg field';
 COMMENT ON COLUMN flights.qnh_mb IS 'QNH pressure in millibars from VATSIM API qnh_mb field';
 
+-- Flight Summaries table for completed flight data
+CREATE TABLE IF NOT EXISTS flight_summaries (
+    id SERIAL PRIMARY KEY,
+    callsign VARCHAR(50) NOT NULL,
+    aircraft_type VARCHAR(20),
+    departure VARCHAR(10),
+    arrival VARCHAR(10),
+    logon_time TIMESTAMP(0) WITH TIME ZONE,
+    route TEXT,
+    flight_rules VARCHAR(10),
+    aircraft_faa VARCHAR(20),
+    planned_altitude VARCHAR(10),
+    aircraft_short VARCHAR(20),
+    cid INTEGER,
+    name VARCHAR(100),
+    server VARCHAR(50),
+    pilot_rating INTEGER,
+    military_rating INTEGER,
+    controller_callsigns JSONB,  -- JSON array of controller callsigns
+    controller_time_percentage DECIMAL(5,2),  -- Percentage of time with ATC contact
+    time_online_minutes INTEGER,  -- Total time online in minutes
+    primary_enroute_sector VARCHAR(50),  -- Primary sector flown through
+    total_enroute_sectors INTEGER,  -- Total number of sectors flown through
+    total_enroute_time_minutes INTEGER,  -- Total time in enroute sectors
+    sector_breakdown JSONB,  -- Detailed sector breakdown data
+    completion_time TIMESTAMP(0) WITH TIME ZONE,  -- When flight completed
+    created_at TIMESTAMP(0) WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP(0) WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Flights Archive table for detailed historical records
+CREATE TABLE IF NOT EXISTS flights_archive (
+    id SERIAL PRIMARY KEY,
+    callsign VARCHAR(50) NOT NULL,
+    aircraft_type VARCHAR(20),
+    departure VARCHAR(10),
+    arrival VARCHAR(10),
+    logon_time TIMESTAMP(0) WITH TIME ZONE,
+    route TEXT,
+    flight_rules VARCHAR(10),
+    aircraft_faa VARCHAR(20),
+    planned_altitude VARCHAR(10),
+    aircraft_short VARCHAR(20),
+    cid INTEGER,
+    name VARCHAR(100),
+    server VARCHAR(50),
+    pilot_rating INTEGER,
+    military_rating INTEGER,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    altitude INTEGER,
+    groundspeed INTEGER,
+    heading INTEGER,
+    last_updated TIMESTAMP(0) WITH TIME ZONE,
+    created_at TIMESTAMP(0) WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create indexes for flight_summaries table
+CREATE INDEX IF NOT EXISTS idx_flight_summaries_callsign ON flight_summaries(callsign);
+CREATE INDEX IF NOT EXISTS idx_flight_summaries_completion_time ON flight_summaries(completion_time);
+CREATE INDEX IF NOT EXISTS idx_flight_summaries_flight_rules ON flight_summaries(flight_rules);
+CREATE INDEX IF NOT EXISTS idx_flight_summaries_controller_time ON flight_summaries(controller_time_percentage);
+
+-- Create indexes for flights_archive table
+CREATE INDEX IF NOT EXISTS idx_flights_archive_callsign ON flights_archive(callsign);
+CREATE INDEX IF NOT EXISTS idx_flights_archive_logon_time ON flights_archive(logon_time);
+CREATE INDEX IF NOT EXISTS idx_flights_archive_last_updated ON flights_archive(last_updated);
+
+-- Create triggers for updated_at columns on new tables
+CREATE TRIGGER update_flight_summaries_updated_at 
+    BEFORE UPDATE ON flight_summaries 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Flight Sector Occupancy table for tracking sector entry/exit
+CREATE TABLE IF NOT EXISTS flight_sector_occupancy (
+    id BIGSERIAL PRIMARY KEY,
+    flight_id VARCHAR(50) NOT NULL,
+    sector_name VARCHAR(10) NOT NULL,
+    entry_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    exit_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    duration_seconds INTEGER NOT NULL,
+    entry_lat DECIMAL(10, 8) NOT NULL,
+    entry_lon DECIMAL(11, 8) NOT NULL,
+    exit_lat DECIMAL(10, 8) NOT NULL,
+    exit_lon DECIMAL(11, 8) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create indexes for flight_sector_occupancy table
+CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_flight_id ON flight_sector_occupancy(flight_id);
+CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_sector_name ON flight_sector_occupancy(sector_name);
+CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_entry_timestamp ON flight_sector_occupancy(entry_timestamp);
+
 -- Verify all tables were created successfully
 SELECT 
     table_name,
@@ -238,5 +331,5 @@ SELECT
     column_default
 FROM information_schema.columns 
 WHERE table_schema = 'public' 
-    AND table_name IN ('controllers', 'flights', 'transceivers')
+    AND table_name IN ('controllers', 'flights', 'transceivers', 'flight_summaries', 'flights_archive', 'flight_sector_occupancy')
 ORDER BY table_name, ordinal_position; 

@@ -15,7 +15,7 @@ This guide will help you deploy the VATSIM Data Collection System to production 
 - **Production-optimized performance** settings
 
 ### **Current System Features**
-- ✅ **Geographic Boundary Filter**: Australian airspace polygon filtering
+- ✅ **Geographic Boundary Filter**: Australian airspace polygon filtering (fixed path configuration)
 - ✅ **Flight Summary System**: Automatic flight completion tracking
 - ✅ **Sector Tracking**: Real-time sector occupancy monitoring
 - ✅ **Performance Optimized**: Database connection pooling and caching
@@ -55,8 +55,8 @@ sudo chmod +x /usr/local/bin/docker-compose
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/vatsim-data.git
-cd vatsim-data
+git clone https://github.com/t288matt/vatpac-data.git
+cd vatpac-data
 
 # Deploy the system
 docker-compose up -d --build
@@ -95,7 +95,7 @@ DATABASE_MAX_OVERFLOW: 40          # Max overflow connections
 
 # Flight Filtering
 ENABLE_BOUNDARY_FILTER: "true"     # Australian airspace filtering
-BOUNDARY_DATA_PATH: "australian_airspace_polygon.json"
+BOUNDARY_DATA_PATH: "australian_airspace_polygon.json"  # File mounted from ./config/ directory
 
 # Flight Summary System
 FLIGHT_SUMMARY_ENABLED: "true"     # Enable flight summaries
@@ -293,6 +293,18 @@ docker logs vatsim_grafana --tail 20
 
 # Restart Grafana
 docker-compose restart grafana
+```
+
+**5. Geographic Filter Not Working**
+```bash
+# Check if boundary file is accessible in container
+docker exec vatsim_app ls -la /app/australian_airspace_polygon.json
+
+# Verify boundary filter status
+curl http://YOUR_SERVER_IP:8001/api/filter/flight/status
+
+# Check application logs for filter initialization
+docker logs vatsim_app | grep -i "boundary\|filter\|polygon"
 ```
 
 ### Log Locations
