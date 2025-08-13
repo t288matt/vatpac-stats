@@ -284,7 +284,7 @@ async def get_system_status():
                 "uptime_seconds": 86400  # Placeholder
             },
             "data_ingestion": {
-                "last_vatsim_update": "unknown",
+                "last_vatsim_update": data_freshness.get("transceivers", {}).get("last_update", "unknown") if data_freshness.get("transceivers") else "unknown",
                 "update_interval_seconds": config.vatsim.polling_interval,
                 "successful_updates": 8640,  # Placeholder
                 "failed_updates": 0
