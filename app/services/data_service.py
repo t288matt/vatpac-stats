@@ -25,7 +25,7 @@ from datetime import datetime, timezone, timedelta
 import json
 
 from ..utils.logging import get_logger_for_module
-from ..utils.error_handling import handle_service_errors, log_operation
+from ..utils.error_handling import handle_service_errors, log_operation, fail_fast_on_critical_errors
 from ..services.vatsim_service import VATSIMService
 from ..filters.geographic_boundary_filter import GeographicBoundaryFilter
 from ..filters.callsign_pattern_filter import CallsignPatternFilter
@@ -117,6 +117,7 @@ class DataService:
 
     @handle_service_errors
     @log_operation("process_vatsim_data")
+    @fail_fast_on_critical_errors
     async def process_vatsim_data(self) -> Dict[str, Any]:
         """
         Process VATSIM data and store to database.
@@ -192,24 +193,15 @@ class DataService:
         
         processed_count = 0
         
-        # Apply flight plan validation filtering first
-        if self.config.flight_filter.validate_flight_plans:
-            validated_flights = self._filter_flights_with_valid_flight_plans(flights_data)
-        else:
-            validated_flights = flights_data
-            self.logger.debug("Flight plan validation disabled - accepting all flights")
-        
-        # Apply geographic boundary filtering second (if enabled)
+        # Apply geographic boundary filtering (if enabled)
         if self.geographic_boundary_filter.config.enabled:
-            filtered_flights = self.geographic_boundary_filter.filter_flights_list(validated_flights)
+            filtered_flights = self.geographic_boundary_filter.filter_flights_list(flights_data)
         else:
-            filtered_flights = validated_flights
+            filtered_flights = flights_data
         
         # Log filtering results
-        if len(flights_data) != len(validated_flights):
-            self.logger.info(f"Flights: {len(flights_data)} → {len(validated_flights)} (flight plan validated)")
-        if len(validated_flights) != len(filtered_flights):
-            self.logger.info(f"Flights: {len(validated_flights)} → {len(filtered_flights)} (geographically filtered)")
+        if len(flights_data) != len(filtered_flights):
+            self.logger.info(f"Flights: {len(flights_data)} → {len(filtered_flights)} (geographically filtered)")
         
         # Get database session
         async with get_database_session() as session:
@@ -270,66 +262,9 @@ class DataService:
         
         return processed_count
 
-    def _filter_flights_with_valid_flight_plans(self, flights_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Filter flights to only include those with valid flight plan data.
-        
-        A valid flight plan must have:
-        - departure airport
-        - arrival airport  
-        - flight rules (IFR/VFR)
-        - aircraft type
-        
-        Args:
-            flights_data: Raw flight data from VATSIM API
-            
-        Returns:
-            List[Dict[str, Any]]: Flights with valid flight plans only
-        """
-        if not flights_data:
-            return []
-        
-        validated_flights = []
-        rejected_count = 0
-        
-        for flight in flights_data:
-            # Check if flight has essential flight plan data
-            departure = flight.get("departure")
-            arrival = flight.get("arrival")
-            flight_rules = flight.get("flight_rules")
-            aircraft_faa = flight.get("aircraft_faa")
-            
-            # Validate essential flight plan fields
-            if (departure and departure.strip() and 
-                arrival and arrival.strip() and 
-                flight_rules and flight_rules.strip() and
-                aircraft_faa and aircraft_faa.strip()):
-                
-                # Additional validation: flight rules must be 'I' or 'V'
-                if flight_rules in ['I', 'V']:
-                    validated_flights.append(flight)
-                else:
-                    rejected_count += 1
-                    self.logger.debug(f"Rejected flight {flight.get('callsign', 'unknown')}: invalid flight rules '{flight_rules}'")
-            else:
-                rejected_count += 1
-                missing_fields = []
-                if not departure or not departure.strip():
-                    missing_fields.append("departure")
-                if not arrival or not arrival.strip():
-                    missing_fields.append("arrival")
-                if not flight_rules or not flight_rules.strip():
-                    missing_fields.append("flight_rules")
-                if not aircraft_faa or not aircraft_faa.strip():
-                    missing_fields.append("aircraft_faa")
-                
-                self.logger.debug(f"Rejected flight {flight.get('callsign', 'unknown')}: missing flight plan fields: {', '.join(missing_fields)}")
-        
-        if rejected_count > 0:
-            self.logger.info(f"Flight plan validation: {len(flights_data)} → {len(validated_flights)} (rejected {rejected_count} flights without valid flight plans)")
-        
-        return validated_flights
+
     
+    @fail_fast_on_critical_errors
     async def _process_controllers(self, controllers_data: List[Dict[str, Any]]) -> int:
         """
         Process and store controller data with geographic boundary filtering.

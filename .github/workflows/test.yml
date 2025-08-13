@@ -1,4 +1,4 @@
-name: VATSIM Data Collection System Tests
+name: Unit and Integration Tests
 on: [push, pull_request]
 
 jobs:
@@ -102,6 +102,11 @@ jobs:
           cd tests
           python test_data_quality.py
 
+      - name: Run Geographic Boundary Filter Tests
+        run: |
+          echo "🧪 Running Geographic Boundary Filter Tests..."
+          python -m pytest tests/test_geographic_boundary_filter.py -v --tb=short
+          
       - name: Run pytest (all stages)
         run: |
           echo "🧪 Running tests with pytest..."
@@ -136,8 +141,9 @@ jobs:
           echo "✅ Stage 1 Foundation Tests completed"
           echo "✅ Stage 2 Core Functionality Tests completed"
           echo "✅ Stage 3 Data Quality Tests completed"
-          echo "🎯 Focus: System accessibility + User workflow validation + Data reliability"
-          echo "🔍 Tests: System health, database, API endpoints, flight data, controller data, data freshness, data quality, business rules"
+          echo "✅ Geographic Boundary Filter Tests completed"
+          echo "🎯 Focus: System accessibility + User workflow validation + Data reliability + Geographic filtering"
+          echo "🔍 Tests: System health, database, API endpoints, flight data, controller data, data freshness, data quality, business rules, geographic boundary filtering"
           
       - name: Cleanup
         if: always()

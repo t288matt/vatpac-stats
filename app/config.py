@@ -124,23 +124,7 @@ class LoggingConfig:
 
 
 
-@dataclass
-class FlightFilterConfig:
-    """Flight filtering configuration - simplified"""
-    enabled: bool = True
-    excluded_patterns: list = None
-    validate_flight_plans: bool = True  # New: Enable/disable flight plan validation
-    
-    @classmethod
-    def from_env(cls):
-        """Load flight filter configuration from environment variables."""
-        patterns_str = os.getenv("FLIGHT_EXCLUDED_PATTERNS", "")
-        patterns = patterns_str.split(",") if patterns_str else []
-        return cls(
-            enabled=os.getenv("FLIGHT_FILTER_ENABLED", "true").lower() == "true",
-            excluded_patterns=patterns,
-            validate_flight_plans=os.getenv("FLIGHT_PLAN_VALIDATION_ENABLED", "true").lower() == "true"
-        )
+
 
 
 @dataclass
@@ -204,7 +188,6 @@ class AppConfig:
 
 
     pilots: PilotConfig
-    flight_filter: FlightFilterConfig
     flight_summary: FlightSummaryConfig
     environment: str = "development"
     
@@ -220,7 +203,6 @@ class AppConfig:
 
     
             pilots=PilotConfig.from_env(),
-            flight_filter=FlightFilterConfig.from_env(),
             flight_summary=FlightSummaryConfig.from_env(),
             environment=os.getenv("ENVIRONMENT", "development")
         )

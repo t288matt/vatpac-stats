@@ -18,6 +18,8 @@ OUTPUTS:
 
 import os
 import asyncio
+import signal
+import sys
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone, timedelta
 from contextlib import asynccontextmanager
@@ -55,6 +57,11 @@ logger = get_logger_for_module("main")
 # Initialize configuration
 config = SimpleConfig()
 
+def exit_application(reason: str, exit_code: int = 1):
+    """Exit the application with a critical error"""
+    logger.critical(f"🚨 CRITICAL: {reason} - Exiting application with code {exit_code}")
+    sys.exit(exit_code)
+
 
 
 # Background task for data ingestion
@@ -72,18 +79,30 @@ async def lifespan(app: FastAPI):
     data_ingestion_task = asyncio.create_task(run_data_ingestion())
     logger.info("Background data ingestion task started")
     
-    yield
-    
-    # Shutdown
-    logger.info("Shutting down VATSIM Data Collection System...")
-    
-    if data_ingestion_task:
-        data_ingestion_task.cancel()
-        try:
-            await data_ingestion_task
-        except asyncio.CancelledError:
-            pass
-        logger.info("Background data ingestion task cancelled")
+    # Monitor the background task for critical failures
+    try:
+        yield
+    except Exception as e:
+        if "UniqueViolation" in str(e) or "duplicate key value violates unique constraint" in str(e):
+            logger.critical("🚨 CRITICAL: Application shutting down due to database constraint violation")
+            raise
+        elif "UndefinedTable" in str(e):
+            logger.critical("🚨 CRITICAL: Application shutting down due to missing database table")
+            raise
+        else:
+            logger.error(f"Application error: {e}")
+            raise
+    finally:
+        # Shutdown
+        logger.info("Shutting down VATSIM Data Collection System...")
+        
+        if data_ingestion_task:
+            data_ingestion_task.cancel()
+            try:
+                await data_ingestion_task
+            except asyncio.CancelledError:
+                pass
+            logger.info("Background data ingestion task cancelled")
 
 # Create FastAPI application
 app = FastAPI(
@@ -118,8 +137,19 @@ async def run_data_ingestion():
             logger.info("Data ingestion task cancelled")
             break
         except Exception as e:
-            logger.error(f"Error in data ingestion task: {e}")
-            await asyncio.sleep(10)  # Wait before retry
+            # Check for critical database errors first
+            if "UniqueViolation" in str(e) or "duplicate key value violates unique constraint" in str(e):
+                logger.critical("🚨 CRITICAL: Database constraint violation - Application will FAIL")
+                # Exit the application immediately
+                exit_application("Database constraint violation - duplicate key values")
+            elif "UndefinedTable" in str(e):
+                logger.critical("🚨 CRITICAL: Missing database table - Application will FAIL")
+                # Exit the application immediately
+                exit_application("Missing database table - schema mismatch")
+            else:
+                logger.error(f"Non-critical error in data ingestion task: {e}")
+                # For other errors, wait and retry
+                await asyncio.sleep(10)
 
 # Status Endpoints
 
@@ -908,39 +938,7 @@ async def get_vatsim_ratings():
         logger.error(f"Error getting VATSIM ratings: {e}")
         raise HTTPException(status_code=500, detail=f"Error getting VATSIM ratings: {str(e)}")
 
-# Flight Filtering Endpoints
 
-@app.get("/api/filter/flight/status")
-@handle_service_errors
-@log_operation("get_flight_filter_status")
-async def get_flight_filter_status():
-    """Get flight filter status and statistics"""
-    try:
-        # Get data service for filter status
-        data_service = await get_data_service()
-        
-        # Flight filtering is handled by geographic boundary filter
-        boundary_filter = data_service.geographic_boundary_filter
-        
-        return {
-            "filter_status": {
-                "enabled": boundary_filter.config.enabled,
-                "type": "geographic_boundary",
-                "description": "Flights are filtered by geographic boundary (Australian airspace)",
-                "statistics": {
-                    "total_flights_processed": data_service.stats.get("flights", 0),
-                    "filter_enabled": boundary_filter.config.enabled
-                },
-                "configuration": {
-                    "filter_enabled": boundary_filter.config.enabled,
-                    "filter_type": "geographic_boundary"
-                }
-            }
-        }
-        
-    except Exception as e:
-        logger.error(f"Error getting flight filter status: {e}")
-        raise HTTPException(status_code=500, detail=f"Error getting flight filter status: {str(e)}")
 
 @app.get("/api/filter/boundary/status")
 @handle_service_errors

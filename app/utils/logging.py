@@ -77,6 +77,10 @@ def setup_logging(
     logging.getLogger("uvicorn").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.ERROR)
+    logging.getLogger("sqlalchemy.pool").setLevel(logging.ERROR)
+    logging.getLogger("sqlalchemy.dialects").setLevel(logging.ERROR)
+    logging.getLogger("sqlalchemy.orm").setLevel(logging.ERROR)
 
 
 def get_logger(name: str) -> logging.Logger:

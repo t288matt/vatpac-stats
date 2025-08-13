@@ -17,15 +17,16 @@ from pathlib import Path
 
 def run_direct_tests():
     """Run tests using direct execution"""
-    print("🚀 Running Stage 1 + Stage 2 + Stage 3 Tests (Direct Execution)")
+    print("🚀 Running Stage 1 + Stage 2 + Stage 3 + Stage 6 Tests (Direct Execution)")
     print("=" * 60)
     
     try:
-        # Import and run all three test classes
+        # Import and run all four test classes
         sys.path.insert(0, str(Path(__file__).parent / "tests"))
         from test_system_health import SystemHealthTester
         from test_user_workflows import UserWorkflowTester
         from test_data_quality import DataQualityTester
+        from test_service_integration import ServiceIntegrationTester
         
         # Run Stage 1 tests
         print("🧪 Stage 1: Foundation Tests")
@@ -45,9 +46,17 @@ def run_direct_tests():
         stage3_tester = DataQualityTester()
         stage3_results = stage3_tester.run_all_tests()
         
+        # Run Stage 6 tests
+        print("\n🧪 Stage 6: Service Integration Tests")
+        print("-" * 40)
+        stage6_tester = ServiceIntegrationTester()
+        stage6_results = stage6_tester.run_all_tests()
+        
         # Combined results
-        total_passed = stage1_results["passed"] + stage2_results["passed"] + stage3_results["passed"]
-        total_tests = stage1_results["total"] + stage2_results["total"] + stage3_results["total"]
+        total_passed = (stage1_results["passed"] + stage2_results["passed"] + 
+                       stage3_results["passed"] + stage6_results["passed"])
+        total_tests = (stage1_results["total"] + stage2_results["total"] + 
+                      stage3_results["total"] + stage6_results["total"])
         overall_success = (total_passed / total_tests) >= 0.75
         
         print(f"\n📊 Combined Results: {total_passed}/{total_tests} passed")
@@ -65,7 +74,7 @@ def run_direct_tests():
 
 def run_pytest_tests(verbose=False, stage=None):
     """Run tests using pytest framework"""
-    print("🚀 Running Stage 1 + Stage 2 + Stage 3 Tests (Pytest Framework)")
+    print("🚀 Running Stage 1 + Stage 2 + Stage 3 + Stage 6 Tests (Pytest Framework)")
     print("=" * 60)
     
     try:
