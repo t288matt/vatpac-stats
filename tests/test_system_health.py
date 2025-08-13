@@ -166,20 +166,20 @@ class SystemHealthTester:
             if response.status_code == 200:
                 print("✅ System is accessible - status endpoint responding")
                 self.test_results.append(("System Access", "PASS", "Status endpoint responding"))
-                return True
+                assert True  # Test passed successfully
             else:
                 print(f"❌ System not accessible - status code {response.status_code}")
                 self.test_results.append(("System Access", "FAIL", f"Status code {response.status_code}"))
-                return False
+                assert False, "Test failed"
                 
         except requests.exceptions.ConnectionError:
             print("❌ System not accessible - connection refused")
             self.test_results.append(("System Access", "FAIL", "Connection refused"))
-            return False
+            assert False, "Test failed"
         except Exception as e:
             print(f"❌ System access test failed - {e}")
             self.test_results.append(("System Access", "FAIL", str(e)))
-            return False
+            assert False, "Test failed"
     
     def test_system_health(self) -> bool:
         """Test: Is the system healthy and operational?"""
@@ -198,20 +198,20 @@ class SystemHealthTester:
                 if status == "operational" and timestamp:
                     print("✅ System is healthy - operational status confirmed")
                     self.test_results.append(("System Health", "PASS", "Operational status"))
-                    return True
+                    assert True  # Test passed successfully
                 else:
                     print(f"❌ System not healthy - status: {status}, timestamp: {timestamp}")
                     self.test_results.append(("System Health", "FAIL", f"Status: {status}"))
-                    return False
+                    assert False, "Test failed"
             else:
                 print(f"❌ Health check failed - status code {response.status_code}")
                 self.test_results.append(("System Health", "FAIL", f"Status code {response.status_code}"))
-                return False
+                assert False, f"Test failed: {e}"
                 
         except Exception as e:
             print(f"❌ Health check failed - {e}")
             self.test_results.append(("System Health", "FAIL", str(e)))
-            return False
+            assert False, "Test failed"
     
     def test_database_connectivity(self) -> bool:
         """Test: Is the database accessible and responding?"""
@@ -231,20 +231,20 @@ class SystemHealthTester:
                 if connection == "operational" and tables > 0:
                     print(f"✅ Database is accessible - {tables} tables available")
                     self.test_results.append(("Database", "PASS", f"{tables} tables accessible"))
-                    return True
+                    assert True  # Test passed successfully
                 else:
                     print(f"❌ Database not accessible - connection: {connection}, tables: {tables}")
                     self.test_results.append(("Database", "FAIL", f"Connection: {connection}"))
-                    return False
+                    assert False, "Test failed"
             else:
                 print(f"❌ Database check failed - status code {response.status_code}")
                 self.test_results.append(("Database", "FAIL", f"Status code {response.status_code}"))
-                return False
+                assert False, f"Test failed: {e}"
                 
         except Exception as e:
             print(f"❌ Database check failed - {e}")
             self.test_results.append(("Database", "FAIL", str(e)))
-            return False
+            assert False, "Test failed"
     
     def test_basic_api_endpoints(self) -> bool:
         """Test: Are basic API endpoints responding?"""
@@ -277,16 +277,16 @@ class SystemHealthTester:
             if success_rate >= 66:  # At least 2 out of 3 working
                 print(f"✅ Basic API endpoints working - {working_endpoints}/{total_endpoints} ({success_rate:.0f}%)")
                 self.test_results.append(("API Endpoints", "PASS", f"{working_endpoints}/{total_endpoints} working"))
-                return True
+                assert True  # Test passed successfully
             else:
                 print(f"❌ Basic API endpoints failing - {working_endpoints}/{total_endpoints} ({success_rate:.0f}%)")
                 self.test_results.append(("API Endpoints", "FAIL", f"{working_endpoints}/{total_endpoints} working"))
-                return False
+                assert False, f"Test failed: {e}"
                 
         except Exception as e:
             print(f"❌ API endpoint test failed - {e}")
             self.test_results.append(("API Endpoints", "FAIL", str(e)))
-            return False
+            assert False, "Test failed"
     
     def run_all_tests(self) -> Dict[str, Any]:
         """Run all foundation tests and return results"""

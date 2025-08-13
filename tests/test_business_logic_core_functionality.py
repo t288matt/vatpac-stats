@@ -23,7 +23,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 sys.path.insert(0, '/app/app')
 sys.path.insert(0, '/app')
 
-from app.services.data_service import DataService, get_data_service
+from app.services.data_service import DataService, get_data_service_sync
 from app.services.vatsim_service import VATSIMService
 from app.services.database_service import DatabaseService
 from app.filters.geographic_boundary_filter import GeographicBoundaryFilter

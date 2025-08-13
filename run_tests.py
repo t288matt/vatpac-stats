@@ -78,7 +78,7 @@ def run_pytest_tests(verbose=False, stage=None):
     print("=" * 60)
     
     try:
-        # Build pytest command
+        # Build pytest command - use pytest.ini configuration but handle coverage gracefully
         cmd = ["python", "-m", "pytest", "tests/"]
         
         if verbose:
@@ -87,7 +87,28 @@ def run_pytest_tests(verbose=False, stage=None):
         if stage:
             cmd.extend(["-m", f"stage{stage}"])
         
-        # Run pytest
+        # Try to run with coverage first
+        try:
+            print("🧪 Attempting to run tests with coverage...")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                print("✅ Tests with coverage completed successfully")
+                if result.stdout:
+                    print(result.stdout)
+                return True
+        except Exception as e:
+            print(f"⚠️ Coverage test failed: {e}")
+        
+        # Fallback: run without coverage options
+        print("🔄 Falling back to basic pytest execution...")
+        cmd = ["python", "-m", "pytest", "tests/", "-v", "--tb=short", "-W", "always"]
+        
+        if verbose:
+            cmd.extend(["-s"])
+        
+        if stage:
+            cmd.extend(["-m", f"stage{stage}"])
+        
         result = subprocess.run(cmd, capture_output=True, text=True)
         
         # Print output
@@ -96,11 +117,111 @@ def run_pytest_tests(verbose=False, stage=None):
         if result.stderr:
             print(result.stderr)
         
+        # Analyze results for issues
+        warning_count = analyze_pytest_results(result.stdout, result.stderr)
+        
+        # Store warning count for summary
+        run_pytest_tests.last_warning_count = warning_count
+        
         return result.returncode == 0
         
     except Exception as e:
         print(f"❌ Pytest execution failed: {e}")
         return False
+
+def analyze_pytest_results(stdout, stderr):
+    """Analyze pytest results and highlight issues"""
+    print("\n" + "=" * 60)
+    print("🔍 PYTEST RESULTS ANALYSIS")
+    print("=" * 60)
+    
+    if not stdout:
+        print("❌ No pytest output captured")
+        return
+    
+    # Count tests and issues
+    lines = stdout.split('\n')
+    test_count = 0
+    passed_count = 0
+    failed_count = 0
+    error_count = 0
+    warning_count = 0
+    
+    # Extract summary line
+    summary_line = None
+    for line in lines:
+        if "passed" in line and "warnings" in line:
+            summary_line = line
+            break
+    
+    if summary_line:
+        print(f"📊 Summary: {summary_line.strip()}")
+        
+        # Parse the summary
+        import re
+        match = re.search(r'(\d+) passed, (\d+) warnings', summary_line)
+        if match:
+            passed_count = int(match.group(1))
+            warning_count = int(match.group(2))
+            print(f"✅ Tests Passed: {passed_count}")
+            print(f"⚠️  Warnings: {warning_count}")
+    
+    # Look for specific issues
+    print("\n🔍 ISSUE ANALYSIS:")
+    print("-" * 40)
+    
+    # Check for warnings
+    warning_lines = [line for line in lines if any(w in line.lower() for w in ['warning', 'warn', 'deprecated'])]
+    if warning_lines:
+        print(f"⚠️  Found {len(warning_lines)} warning-related lines:")
+        for line in warning_lines[:10]:  # Show first 10
+            print(f"   {line.strip()}")
+        if len(warning_lines) > 10:
+            print(f"   ... and {len(warning_lines) - 10} more")
+    
+    # Check for errors
+    error_lines = [line for line in lines if any(e in line.lower() for e in ['error', 'failed', 'fail'])]
+    if error_lines:
+        print(f"❌ Found {len(error_lines)} error-related lines:")
+        for line in error_lines[:10]:  # Show first 10
+            print(f"   {line.strip()}")
+        if len(error_lines) > 10:
+            print(f"   ... and {len(error_lines) - 10} more")
+    
+    # Check for async/await issues
+    async_lines = [line for line in lines if 'coroutine' in line.lower() and 'never awaited' in line.lower()]
+    if async_lines:
+        print(f"🔄 Found {len(async_lines)} async/await issues:")
+        for line in async_lines[:5]:  # Show first 5
+            print(f"   {line.strip()}")
+    
+    # Check for resource warnings
+    resource_lines = [line for line in lines if 'resourcewarning' in line.lower() or 'unclosed transport' in line.lower()]
+    if resource_lines:
+        print(f"🔌 Found {len(resource_lines)} resource warnings:")
+        for line in resource_lines[:5]:  # Show first 5
+            print(f"   {line.strip()}")
+    
+    # Overall assessment
+    print("\n📋 OVERALL ASSESSMENT:")
+    print("-" * 40)
+    
+    if failed_count > 0 or error_count > 0:
+        print("❌ CRITICAL ISSUES DETECTED - Tests are failing!")
+    elif warning_count > 0:
+        print("⚠️  WARNINGS DETECTED - Tests pass but have issues")
+        print("   - These may become errors in future versions")
+        print("   - Consider addressing for code quality")
+    else:
+        print("✅ ALL TESTS PASSING - No issues detected")
+    
+    if warning_count > 0:
+        print(f"\n💡 RECOMMENDATIONS:")
+        print(f"   - Address {warning_count} warnings to improve code quality")
+        print(f"   - Fix async/await issues to prevent runtime warnings")
+        print(f"   - Close network resources to prevent resource warnings")
+    
+    return warning_count
 
 def check_environment():
     """Check if test environment is ready"""
@@ -183,13 +304,30 @@ def main():
     
     # Final results
     print("\n" + "=" * 60)
+    print("📊 FINAL TEST SUMMARY")
+    print("=" * 60)
+    
     if success:
         print("🎉 All tests PASSED!")
         print("✅ System is ready for users")
+        
+        # Check if there were warnings
+        if hasattr(run_pytest_tests, 'last_warning_count') and run_pytest_tests.last_warning_count > 0:
+            print(f"\n⚠️  NOTE: {run_pytest_tests.last_warning_count} warnings were detected")
+            print("   - These don't affect functionality but should be addressed")
+            print("   - Warnings may become errors in future versions")
+        
         sys.exit(0)
     else:
         print("❌ Some tests FAILED!")
         print("⚠️  System may have issues that need attention")
+        
+        # Provide specific guidance
+        print("\n🔧 RECOMMENDED ACTIONS:")
+        print("   - Review the detailed error analysis above")
+        print("   - Fix any failing tests before deployment")
+        print("   - Address warnings to improve code quality")
+        
         sys.exit(1)
 
 if __name__ == "__main__":

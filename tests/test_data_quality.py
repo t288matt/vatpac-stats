@@ -353,24 +353,24 @@ class DataQualityTester:
                     if completeness_rate == 100:
                         print(f"✅ Flight plan completeness: 100% - All {total_flights} flights have required fields")
                         self.test_results.append(("Flight Completeness", "PASS", f"100% - {total_flights} flights"))
-                        return True
+                        assert True  # Test passed successfully
                     else:
                         print(f"❌ Flight plan completeness: {completeness_rate:.1f}% - {len(incomplete_flights)} flights incomplete")
                         self.test_results.append(("Flight Completeness", "FAIL", f"{completeness_rate:.1f}% - {len(incomplete_flights)} incomplete"))
-                        return False
+                        assert False, "Test failed"
                 else:
                     print("❌ No flight data available for completeness check")
                     self.test_results.append(("Flight Completeness", "FAIL", "No data available"))
-                    return False
+                    assert False, "Test failed"
             else:
                 print(f"❌ Flight data endpoint failed - status {response.status_code}")
                 self.test_results.append(("Flight Completeness", "FAIL", f"Status {response.status_code}"))
-                return False
+                assert False, f"Test failed: {e}"
                 
         except Exception as e:
             print(f"❌ Flight plan completeness test failed - {e}")
             self.test_results.append(("Flight Completeness", "FAIL", str(e)))
-            return False
+            assert False, "Test failed"
     
     def test_position_data_accuracy(self) -> bool:
         """Test: Are coordinates within valid ranges?"""
@@ -414,28 +414,28 @@ class DataQualityTester:
                         if accuracy_rate >= DATA_QUALITY_THRESHOLD:
                             print(f"✅ Position data accuracy: {accuracy_rate:.1f}% - {valid_positions}/{total_checks} valid")
                             self.test_results.append(("Position Accuracy", "PASS", f"{accuracy_rate:.1f}% - {valid_positions}/{total_checks}"))
-                            return True
+                            assert True  # Test passed successfully
                         else:
                             print(f"❌ Position data accuracy: {accuracy_rate:.1f}% - {len(invalid_positions)} invalid")
                             self.test_results.append(("Position Accuracy", "FAIL", f"{accuracy_rate:.1f}% - {len(invalid_positions)} invalid"))
-                            return False
+                            assert False, "Test failed"
                     else:
                         print("⚠️ No position data available for accuracy check")
                         self.test_results.append(("Position Accuracy", "WARN", "No data available"))
-                        return True
+                        assert True  # Test passed successfully
                 else:
                     print("❌ No flight data available for accuracy check")
                     self.test_results.append(("Position Accuracy", "FAIL", "No data available"))
-                    return False
+                    assert False, "Test failed"
             else:
                 print(f"❌ Flight data endpoint failed - status {response.status_code}")
                 self.test_results.append(("Position Accuracy", "FAIL", f"Status {response.status_code}"))
-                return False
+                assert False, f"Test failed: {e}"
                 
         except Exception as e:
             print(f"❌ Position data accuracy test failed - {e}")
             self.test_results.append(("Position Accuracy", "FAIL", str(e)))
-            return False
+            assert False, "Test failed"
     
     def test_data_integrity(self) -> bool:
         """Test: Is there obvious data corruption?"""
@@ -471,24 +471,24 @@ class DataQualityTester:
                         integrity_rate = ((total_flights - len(corruption_issues)) / total_flights) * 100
                         print(f"❌ Data integrity: {integrity_rate:.1f}% - {len(corruption_issues)} issues")
                         self.test_results.append(("Data Integrity", "FAIL", f"{integrity_rate:.1f}% - {len(corruption_issues)} issues"))
-                        return False
+                        assert False, "Test failed"
                     else:
                         print(f"✅ Data integrity: 100% - No corruption issues in {total_flights} flights")
                         self.test_results.append(("Data Integrity", "PASS", f"100% - {total_flights} flights"))
-                        return True
+                        assert True  # Test passed successfully
                 else:
                     print("❌ No flight data available for integrity check")
                     self.test_results.append(("Data Integrity", "FAIL", "No data available"))
-                    return False
+                    assert False, "Test failed"
             else:
                 print(f"❌ Flight data endpoint failed - status {response.status_code}")
                 self.test_results.append(("Data Integrity", "FAIL", f"Status {response.status_code}"))
-                return False
+                assert False, f"Test failed: {e}"
                 
         except Exception as e:
             print(f"❌ Data integrity test failed - {e}")
             self.test_results.append(("Data Integrity", "FAIL", str(e)))
-            return False
+            assert False, "Test failed"
     
     def test_business_rules(self) -> bool:
         """Test: Do fields contain expected data?"""
@@ -555,20 +555,20 @@ class DataQualityTester:
                 if compliance_rate >= DATA_QUALITY_THRESHOLD:
                     print(f"✅ Business rule compliance: {compliance_rate:.1f}% - {compliant_checks}/{total_checks} compliant")
                     self.test_results.append(("Business Rules", "PASS", f"{compliance_rate:.1f}% - {compliant_checks}/{total_checks}"))
-                    return True
+                    assert True  # Test passed successfully
                 else:
                     print(f"❌ Business rule compliance: {compliance_rate:.1f}% - {len(business_rule_violations)} violations")
                     self.test_results.append(("Business Rules", "FAIL", f"{compliance_rate:.1f}% - {len(business_rule_violations)} violations"))
-                    return False
+                    assert False, "Test failed"
             else:
                 print("⚠️ No data available for business rule validation")
                 self.test_results.append(("Business Rules", "WARN", "No data available"))
-                return True
+                assert True  # Test passed successfully
                 
         except Exception as e:
             print(f"❌ Business rules test failed - {e}")
             self.test_results.append(("Business Rules", "FAIL", str(e)))
-            return False
+            assert False, "Test failed"
     
     def run_all_tests(self) -> Dict[str, Any]:
         """Run all Stage 3 tests and return results"""

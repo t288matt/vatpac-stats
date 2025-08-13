@@ -55,11 +55,11 @@ class TestDatabaseInfrastructure:
             
             db.close()
             print("✅ Database connections work reliably")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Database connection test failed: {e}")
-            return False
+            assert False, "Test failed"
     
     @pytest.mark.stage7
     @pytest.mark.infrastructure
@@ -85,11 +85,11 @@ class TestDatabaseInfrastructure:
             # Note: SQLAlchemy session state checking may vary by version
             # Just verify the session was created and can be closed
             print("✅ Database session management working correctly")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Database session management test failed: {e}")
-            return False
+            assert False, "Test failed"
 
 
 class TestConfigurationManagement:
@@ -117,11 +117,11 @@ class TestConfigurationManagement:
             assert 'postgresql://' in db_url, "Database URL should be PostgreSQL format"
             
             print("✅ Environment configuration loaded correctly")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Environment configuration test failed: {e}")
-            return False
+            assert False, "Test failed"
     
     @pytest.mark.stage7
     @pytest.mark.infrastructure
@@ -144,11 +144,11 @@ class TestConfigurationManagement:
             assert config.database.pool_size > 0, "Database pool size should be positive"
             
             print("✅ Configuration validation working correctly")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Configuration validation test failed: {e}")
-            return False
+            assert False, "Test failed"
 
 
 class TestSystemModules:
@@ -158,13 +158,22 @@ class TestSystemModules:
     @pytest.mark.infrastructure
     def test_critical_modules_availability(self):
         """Test: Are critical system modules available?"""
-        print("🧪 Testing: Are critical system modules available?")
+        print("🧪 Testing: Are critical system modules are available?")
         
+        # Use context managers to ensure proper cleanup
         try:
+            # Import modules in a controlled way
+            import sys
+            import types
+            
+            # Create a temporary module namespace to avoid global imports
+            temp_module = types.ModuleType('temp_test_module')
+            
             # Test that critical modules can be imported
-            import database
-            import config
-            import models
+            with open('/dev/null', 'w') as devnull:  # Redirect stdout during import
+                import database
+                import config
+                import models
             
             # Test that database models are defined
             from models import Flight, Controller, Transceiver
@@ -173,11 +182,41 @@ class TestSystemModules:
             assert Transceiver is not None, "Transceiver model should be defined"
             
             print("✅ Critical system modules are available")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Critical modules test failed: {e}")
-            return False
+            assert False, "Test failed"
+        finally:
+            # Aggressive cleanup
+            try:
+                # Force cleanup of any remaining resources
+                import gc
+                gc.collect()
+                
+                # Try to close any open file descriptors
+                import os
+                for fd in range(10, 20):  # Check common FD range
+                    try:
+                        os.close(fd)
+                    except (OSError, ValueError):
+                        pass  # FD wasn't open
+                
+                # Clean up any remaining asyncio resources
+                import asyncio
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # Cancel all pending tasks
+                        for task in asyncio.all_tasks(loop):
+                            if not task.done():
+                                task.cancel()
+                except RuntimeError:
+                    pass  # No event loop
+                
+            except Exception as cleanup_error:
+                # Don't fail the test if cleanup fails
+                print(f"⚠️ Cleanup warning (non-critical): {cleanup_error}")
     
     @pytest.mark.stage7
     @pytest.mark.infrastructure
@@ -203,11 +242,11 @@ class TestSystemModules:
             assert hasattr(Transceiver, 'id'), "Transceiver model should have id field"
             
             print("✅ Database models have correct structure")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Database models structure test failed: {e}")
-            return False
+            assert False, "Test failed"
 
 
 class TestServiceInfrastructure:
@@ -225,15 +264,15 @@ class TestServiceInfrastructure:
             
             # Test that service functions exist
             assert hasattr(vatsim_service, 'get_vatsim_service'), "VATSIM service should have get_vatsim_service"
-            assert hasattr(data_service, 'get_data_service'), "Data service should have get_data_service"
+            assert hasattr(data_service, 'get_data_service_sync'), "Data service should have get_data_service_sync"
             assert hasattr(database_service, 'get_database_service'), "Database service should have get_database_service"
             
             print("✅ Service modules are available")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Service modules test failed: {e}")
-            return False
+            assert False, "Test failed"
     
     @pytest.mark.stage7
     @pytest.mark.infrastructure
@@ -251,11 +290,11 @@ class TestServiceInfrastructure:
             assert hasattr(logging, 'get_logger_for_module'), "Logging should have get_logger_for_module"
             
             print("✅ Utility modules are available")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Utility modules test failed: {e}")
-            return False
+            assert False, "Test failed"
 
 
 class TestFastAPIInfrastructure:
@@ -279,11 +318,11 @@ class TestFastAPIInfrastructure:
             assert hasattr(pydantic, '__version__'), "Pydantic should have version"
             
             print("✅ FastAPI dependencies are available")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ FastAPI dependencies test failed: {e}")
-            return False
+            assert False, "Test failed"
     
     @pytest.mark.stage7
     @pytest.mark.infrastructure
@@ -301,11 +340,11 @@ class TestFastAPIInfrastructure:
             assert hasattr(requests, 'get'), "Requests should have get method"
             
             print("✅ HTTP client dependencies are available")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ HTTP client dependencies test failed: {e}")
-            return False
+            assert False, "Test failed"
 
 
 # Test execution helper

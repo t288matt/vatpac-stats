@@ -38,7 +38,7 @@ class TestFastAPIApplication:
         
         try:
             # Import the main application
-            from main import app
+            from app.main import app
             
             # Verify app is a FastAPI instance
             assert app is not None, "App should be created"
@@ -71,11 +71,11 @@ class TestFastAPIApplication:
                 print(f"⚠️ OpenAPI schema generation issue (may be expected): {schema_error}")
             
             print("✅ FastAPI application starts correctly")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ FastAPI application startup failed: {e}")
-            return False
+            assert False, "Test failed"
     
     @pytest.mark.stage8
     @pytest.mark.performance
@@ -84,7 +84,7 @@ class TestFastAPIApplication:
         print("🧪 Testing: Does FastAPI middleware actually work and handle requests correctly?")
         
         try:
-            from main import app
+            from app.main import app
             from fastapi.testclient import TestClient
             
             # Check if CORS middleware is configured
@@ -116,11 +116,11 @@ class TestFastAPIApplication:
                     raise request_error
             
             print(f"✅ FastAPI middleware properly configured and working: {middleware_count} components")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ FastAPI middleware configuration failed: {e}")
-            return False
+            assert False, "Test failed"
     
     @pytest.mark.stage8
     @pytest.mark.performance
@@ -129,7 +129,7 @@ class TestFastAPIApplication:
         print("🧪 Testing: Does FastAPI lifespan management work?")
         
         try:
-            from main import app
+            from app.main import app
             
             # Check if app has essential FastAPI attributes
             assert hasattr(app, 'router'), "App should have router"
@@ -177,11 +177,11 @@ class TestFastAPIApplication:
                 print("✅ Lifespan function is async and callable")
             
             print("✅ FastAPI lifespan management properly configured and functional")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ FastAPI lifespan management failed: {e}")
-            return False
+            assert False, "Test failed"
 
 
 class TestServiceLayerPerformance:
@@ -194,7 +194,7 @@ class TestServiceLayerPerformance:
         print("🧪 Testing: Does VATSIM service actually work and return valid data?")
         
         try:
-            from services.vatsim_service import VATSIMService, get_vatsim_service
+            from app.services.vatsim_service import VATSIMService, get_vatsim_service
             
             # Test service class availability
             assert VATSIMService is not None, "VATSIMService class should be available"
@@ -235,11 +235,11 @@ class TestServiceLayerPerformance:
                     raise api_error
             
             print("✅ VATSIM service available and functional")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ VATSIM service test failed: {e}")
-            return False
+            assert False, "Test failed"
     
     @pytest.mark.stage8
     @pytest.mark.performance
@@ -248,13 +248,13 @@ class TestServiceLayerPerformance:
         print("🧪 Testing: Does data service actually work and process data correctly?")
         
         try:
-            from services.data_service import DataService, get_data_service
+            from app.services.data_service import DataService, get_data_service_sync
             
             # Test service class availability
             assert DataService is not None, "DataService class should be available"
             
             # Test service function availability
-            assert get_data_service is not None, "get_data_service function should be available"
+            assert get_data_service_sync is not None, "get_data_service_sync function should be available"
             
             # Test service methods
             service = DataService()
@@ -277,11 +277,11 @@ class TestServiceLayerPerformance:
                     raise stats_error
             
             print("✅ Data service available and functional")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Data service test failed: {e}")
-            return False
+            assert False, "Test failed"
     
     @pytest.mark.stage8
     @pytest.mark.performance
@@ -290,7 +290,7 @@ class TestServiceLayerPerformance:
         print("🧪 Testing: Does database service actually work and can store data?")
         
         try:
-            from services.database_service import DatabaseService, get_database_service
+            from app.services.database_service import DatabaseService, get_database_service
             
             # Test service class availability
             assert DatabaseService is not None, "DatabaseService class should be available"
@@ -310,11 +310,11 @@ class TestServiceLayerPerformance:
             assert service.__class__.__name__ == "DatabaseService", "Service should be correct type"
             
             print("✅ Database service available and functional")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Database service test failed: {e}")
-            return False
+            assert False, "Test failed"
 
 
 class TestFilterPerformance:
@@ -327,7 +327,7 @@ class TestFilterPerformance:
         print("🧪 Testing: Does geographic filter actually work and filter data correctly?")
         
         try:
-            from filters.geographic_boundary_filter import GeographicBoundaryFilter
+            from app.filters.geographic_boundary_filter import GeographicBoundaryFilter
             
             # Test filter class availability
             assert GeographicBoundaryFilter is not None, "GeographicBoundaryFilter class should be available"
@@ -349,11 +349,11 @@ class TestFilterPerformance:
             print(f"✅ Geographic filter config: {type(config)}")
             
             print("✅ Geographic filter available and functional")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Geographic filter test failed: {e}")
-            return False
+            assert False, "Test failed"
     
     @pytest.mark.stage8
     @pytest.mark.performance
@@ -362,7 +362,7 @@ class TestFilterPerformance:
         print("🧪 Testing: Does callsign filter actually work and filter data correctly?")
         
         try:
-            from filters.callsign_pattern_filter import CallsignPatternFilter
+            from app.filters.callsign_pattern_filter import CallsignPatternFilter
             
             # Test filter class availability
             assert CallsignPatternFilter is not None, "CallsignPatternFilter class should be available"
@@ -383,11 +383,11 @@ class TestFilterPerformance:
             print(f"✅ Callsign filter config: {type(config)}")
             
             print("✅ Callsign filter available and functional")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Callsign filter test failed: {e}")
-            return False
+            assert False, "Test failed"
 
 
 class TestDatabasePerformance:
@@ -400,7 +400,7 @@ class TestDatabasePerformance:
         print("🧪 Testing: Are database queries performant?")
         
         try:
-            from database import get_sync_session
+            from app.database import get_sync_session
             from sqlalchemy import text
             import time
             
@@ -432,11 +432,11 @@ class TestDatabasePerformance:
             
             db.close()
             print(f"✅ Database queries are performant: simple={query_time:.3f}s, tables={query_time:.3f}s")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Database performance test failed: {e}")
-            return False
+            assert False, "Test failed"
     
     @pytest.mark.stage8
     @pytest.mark.performance
@@ -445,7 +445,7 @@ class TestDatabasePerformance:
         print("🧪 Testing: Is database connection pooling working efficiently?")
         
         try:
-            from database import get_sync_session, engine
+            from app.database import get_sync_session, engine
             from sqlalchemy import text
             
             # Check connection pool configuration
@@ -494,7 +494,7 @@ class TestDatabasePerformance:
                 try:
                     result = db.execute(text("SELECT 1"))
                     result.scalar()
-                    return True
+                    return True  # Test passed successfully
                 finally:
                     db.close()
             
@@ -507,11 +507,11 @@ class TestDatabasePerformance:
             assert all(results), "All concurrent connections should succeed"
             
             print(f"✅ Database connection pooling working: pool_size={pool_size}, max_overflow={max_overflow}")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Database connection pooling test failed: {e}")
-            return False
+            assert False, "Test failed"
 
 
 class TestAPIPerformance:
@@ -524,7 +524,7 @@ class TestAPIPerformance:
         print("🧪 Testing: Do API endpoints respond within performance targets?")
         
         try:
-            from main import app
+            from app.main import app
             from fastapi.testclient import TestClient
             
             # Create test client
@@ -544,11 +544,11 @@ class TestAPIPerformance:
             assert data['status'] == 'operational', "Status should be operational"
             
             print(f"✅ API endpoint response time: {response_time:.3f}s (<0.5s target)")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ API performance test failed: {e}")
-            return False
+            assert False, "Test failed"
     
     @pytest.mark.stage8
     @pytest.mark.performance
@@ -557,7 +557,7 @@ class TestAPIPerformance:
         print("🧪 Testing: Can API handle concurrent requests efficiently?")
         
         try:
-            from main import app
+            from app.main import app
             from fastapi.testclient import TestClient
             
             client = TestClient(app)
@@ -578,11 +578,11 @@ class TestAPIPerformance:
             assert all(results), "All concurrent requests should succeed within time limit"
             
             print("✅ API handles concurrent requests efficiently")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ API concurrent request test failed: {e}")
-            return False
+            assert False, "Test failed"
 
 
 class TestSystemResourceUsage:
@@ -607,15 +607,15 @@ class TestSystemResourceUsage:
             assert memory_mb < 500, f"Memory usage {memory_mb:.1f}MB should be <500MB"
             
             print(f"✅ Memory usage efficient: {memory_mb:.1f}MB")
-            return True
+            assert True  # Test passed successfully
             
         except ImportError:
             # psutil not available in container, skip this test
             print("⚠️ psutil not available, skipping memory usage test")
-            return True
+            assert True  # Test passed successfully
         except Exception as e:
             print(f"❌ Memory usage test failed: {e}")
-            return False
+            assert False, "Test failed"
     
     @pytest.mark.stage8
     @pytest.mark.performance
@@ -635,15 +635,15 @@ class TestSystemResourceUsage:
             assert cpu_percent < 50, f"CPU usage {cpu_percent:.1f}% should be <50%"
             
             print(f"✅ CPU usage efficient: {cpu_percent:.1f}%")
-            return True
+            assert True  # Test passed successfully
             
         except ImportError:
             # psutil not available in container, skip this test
             print("⚠️ psutil not available, skipping CPU usage test")
-            return True
+            assert True  # Test passed successfully
         except Exception as e:
             print(f"❌ CPU usage test failed: {e}")
-            return False
+            assert False, "Test failed"
 
 
 # Test execution helper

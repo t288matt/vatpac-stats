@@ -33,9 +33,8 @@ OPTIMIZATIONS:
 """
 
 from sqlalchemy import Column, Integer, String, Float, Text, TIMESTAMP, BigInteger, CheckConstraint, Index, event
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
-from sqlalchemy.orm import validates
+from sqlalchemy.orm import validates, declarative_base
 from datetime import datetime, timezone
 
 Base = declarative_base()

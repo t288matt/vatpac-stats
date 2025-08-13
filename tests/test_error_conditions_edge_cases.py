@@ -73,11 +73,11 @@ class TestAPIEndpointErrorConditions:
                     print(f"⚠️ {endpoint} not implemented yet (expected): {e}")
             
             print("✅ API endpoints handle invalid inputs gracefully")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ API endpoint error handling test failed: {e}")
-            return False
+            assert False, f"Test failed: {e}"
     
     @pytest.mark.stage9
     @pytest.mark.error_conditions
@@ -117,11 +117,11 @@ class TestAPIEndpointErrorConditions:
                     print(f"⚠️ {endpoint} not implemented yet (expected): {e}")
             
             print("✅ API endpoints handle malformed requests correctly")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ API endpoint malformed request test failed: {e}")
-            return False
+            assert False, f"Test failed: {e}"
 
 
 class TestDataProcessingErrorConditions:
@@ -153,8 +153,14 @@ class TestDataProcessingErrorConditions:
                     # Test that the service doesn't crash on invalid input
                     if hasattr(service, 'process_vatsim_data'):
                         # This might raise an error, but it shouldn't crash
-                        result = service.process_vatsim_data(invalid_data)
-                        print(f"✅ Service handled invalid data: {type(invalid_data)}")
+                        # Check if it's an async method and handle accordingly
+                        method = getattr(service, 'process_vatsim_data')
+                        if asyncio.iscoroutinefunction(method):
+                            # Skip async methods in sync test context - they need proper async handling
+                            print(f"⚠️ Skipping async method process_vatsim_data for {type(invalid_data)} (requires async context)")
+                        else:
+                            result = method(invalid_data)
+                            print(f"✅ Service handled invalid data: {type(invalid_data)}")
                     else:
                         print("⚠️ process_vatsim_data method not available")
                         break
@@ -164,11 +170,11 @@ class TestDataProcessingErrorConditions:
                     print(f"✅ Service correctly rejected invalid data: {type(invalid_data)} - {e}")
             
             print("✅ Data service handles errors gracefully")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Data service error handling test failed: {e}")
-            return False
+            assert False, f"Test failed: {e}"
     
     @pytest.mark.stage9
     @pytest.mark.error_conditions
@@ -204,11 +210,11 @@ class TestDataProcessingErrorConditions:
                     print(f"⚠️ Service method test failed: {scenario} - {e}")
             
             print("✅ VATSIM service handles errors gracefully")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ VATSIM service error handling test failed: {e}")
-            return False
+            assert False, f"Test failed: {e}"
 
 
 class TestDatabaseErrorConditions:
@@ -234,7 +240,7 @@ class TestDatabaseErrorConditions:
                 print("✅ Normal database connection working")
             except Exception as e:
                 print(f"⚠️ Database connection issue: {e}")
-                return True  # Skip this test if DB not available
+                assert True  # Skip this test if DB not available
             
             # Test with invalid queries
             invalid_queries = [
@@ -256,11 +262,11 @@ class TestDatabaseErrorConditions:
                     db.close()
             
             print("✅ Database error handling working correctly")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Database error handling test failed: {e}")
-            return False
+            assert False, f"Test failed: {e}"
     
     @pytest.mark.stage9
     @pytest.mark.error_conditions
@@ -295,14 +301,14 @@ class TestDatabaseErrorConditions:
                 
             except Exception as e:
                 print(f"⚠️ Transaction test setup issue: {e}")
-                return True  # Skip if DB not available
+                assert True  # Skip if DB not available
             
             print("✅ Database transaction error handling working")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Database transaction error test failed: {e}")
-            return False
+            assert False, f"Test failed: {e}"
 
 
 class TestFilterErrorConditions:
@@ -346,11 +352,11 @@ class TestFilterErrorConditions:
                     print(f"✅ Filter correctly rejected invalid input: {type(invalid_input)} - {e}")
             
             print("✅ Geographic filter handles errors gracefully")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Geographic filter error handling test failed: {e}")
-            return False
+            assert False, f"Test failed: {e}"
     
     @pytest.mark.stage9
     @pytest.mark.error_conditions
@@ -391,11 +397,11 @@ class TestFilterErrorConditions:
                     print(f"✅ Filter correctly rejected invalid input: {type(invalid_input)} - {e}")
             
             print("✅ Callsign filter handles errors gracefully")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Callsign filter error handling test failed: {e}")
-            return False
+            assert False, f"Test failed: {e}"
 
 
 class TestBusinessLogicExecution:
@@ -440,11 +446,11 @@ class TestBusinessLogicExecution:
                 print(f"✅ get_processing_stats handled test environment: {type(e).__name__}")
             
             print("✅ Flight data processing workflow executes correctly")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Flight data processing workflow test failed: {e}")
-            return False
+            assert False, f"Test failed: {e}"
     
     @pytest.mark.stage9
     @pytest.mark.business_logic
@@ -484,11 +490,11 @@ class TestBusinessLogicExecution:
                 print(f"✅ get_atc_statistics handled test environment: {type(e).__name__}")
             
             print("✅ Controller data processing workflow executes correctly")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Controller data processing workflow test failed: {e}")
-            return False
+            assert False, f"Test failed: {e}"
 
 
 class TestEdgeCaseScenarios:
@@ -525,14 +531,14 @@ class TestEdgeCaseScenarios:
                     print(f"✅ Extreme coordinates handled: ({lat}, {lon})")
                 except Exception as e:
                     print(f"❌ Extreme coordinates failed: ({lat}, {lon}) - {e}")
-                    return False
+                    assert False, f"Extreme coordinates failed: ({lat}, {lon}) - {e}"
             
             print("✅ System handles extreme data values correctly")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Extreme data values test failed: {e}")
-            return False
+            assert False, f"Test failed: {e}"
     
     @pytest.mark.stage9
     @pytest.mark.edge_cases
@@ -553,7 +559,7 @@ class TestEdgeCaseScenarios:
                     db.close()
                     return value == 1
                 except Exception:
-                    return False
+                    assert False, "Test failed"
             
             # Run multiple concurrent database operations
             with ThreadPoolExecutor(max_workers=5) as executor:
@@ -565,11 +571,11 @@ class TestEdgeCaseScenarios:
             assert success_count == 5, f"Expected 5 successful operations, got {success_count}"
             
             print("✅ System handles concurrent access correctly")
-            return True
+            assert True  # Test passed successfully
             
         except Exception as e:
             print(f"❌ Concurrent access test failed: {e}")
-            return False
+            assert False, f"Test failed: {e}"
 
 
 # Test execution helper

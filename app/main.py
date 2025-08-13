@@ -67,13 +67,17 @@ def exit_application(reason: str, exit_code: int = 1):
 # Background task for data ingestion
 data_ingestion_task: Optional[asyncio.Task] = None
 
+# Application startup time for uptime calculation
+app_startup_time: Optional[datetime] = None
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
-    global data_ingestion_task
+    global data_ingestion_task, app_startup_time
     
     # Startup
     logger.info("Starting VATSIM Data Collection System...")
+    app_startup_time = datetime.now(timezone.utc)
     
     # Start background data ingestion task
     data_ingestion_task = asyncio.create_task(run_data_ingestion())
@@ -281,10 +285,11 @@ async def get_system_status():
                 "api_response_time_ms": 45,  # Placeholder
                 "database_query_time_ms": 12,  # Placeholder
                 "memory_usage_mb": 1247,  # Placeholder
-                "uptime_seconds": 86400  # Placeholder
+                "uptime_seconds": int((datetime.now(timezone.utc) - app_startup_time).total_seconds()) if app_startup_time else 0
             },
             "data_ingestion": {
                 "last_vatsim_update": data_freshness.get("transceivers", {}).get("last_update", "unknown") if data_freshness.get("transceivers") else "unknown",
+                "seconds_since_last_update": data_freshness.get("transceivers", {}).get("age_seconds", "unknown") if data_freshness.get("transceivers") else "unknown",
                 "update_interval_seconds": config.vatsim.polling_interval,
                 "successful_updates": 8640,  # Placeholder
                 "failed_updates": 0

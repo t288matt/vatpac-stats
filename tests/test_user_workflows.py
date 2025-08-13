@@ -227,24 +227,24 @@ class UserWorkflowTester:
                     if not missing_fields:
                         print(f"✅ Flight data available - {len(flights)} flights with required fields")
                         self.test_results.append(("Flight Data", "PASS", f"{len(flights)} flights available"))
-                        return True
+                        assert True  # Test passed successfully
                     else:
                         print(f"❌ Flight data incomplete - missing fields: {missing_fields}")
                         self.test_results.append(("Flight Data", "FAIL", f"Missing fields: {missing_fields}"))
-                        return False
+                        assert False, "Test failed"
                 else:
                     print("❌ No flight data available")
                     self.test_results.append(("Flight Data", "FAIL", "No flights available"))
-                    return False
+                    assert False, "Test failed"
             else:
                 print(f"❌ Flight data endpoint failed - status {response.status_code}")
                 self.test_results.append(("Flight Data", "FAIL", f"Status {response.status_code}"))
-                return False
+                assert False, f"Test failed: {e}"
                 
         except Exception as e:
             print(f"❌ Flight data test failed - {e}")
             self.test_results.append(("Flight Data", "FAIL", str(e)))
-            return False
+            assert False, "Test failed"
     
     def test_controller_data_access(self) -> bool:
         """Test: Can users get ATC controller positions?"""
@@ -266,24 +266,24 @@ class UserWorkflowTester:
                     if not missing_fields:
                         print(f"✅ Controller data available - {len(controllers)} controllers with essential info")
                         self.test_results.append(("Controller Data", "PASS", f"{len(controllers)} controllers available"))
-                        return True
+                        assert True  # Test passed successfully
                     else:
                         print(f"❌ Controller data incomplete - missing fields: {missing_fields}")
                         self.test_results.append(("Controller Data", "FAIL", f"Missing fields: {missing_fields}"))
-                        return False
+                        assert False, "Test failed"
                 else:
                     print("❌ No controller data available")
                     self.test_results.append(("Controller Data", "FAIL", "No controllers available"))
-                    return False
+                    assert False, "Test failed"
             else:
                 print(f"❌ Controller data endpoint failed - status {response.status_code}")
                 self.test_results.append(("Controller Data", "FAIL", f"Status {response.status_code}"))
-                return False
+                assert False, f"Test failed: {e}"
                 
         except Exception as e:
             print(f"❌ Controller data test failed - {e}")
             self.test_results.append(("Controller Data", "FAIL", str(e)))
-            return False
+            assert False, "Test failed"
     
     def test_data_freshness(self) -> bool:
         """Test: Is data being updated recently?"""
@@ -319,7 +319,7 @@ class UserWorkflowTester:
                         if age_minutes <= DATA_FRESHNESS_THRESHOLD:
                             print(f"✅ Data is fresh - updated {age_minutes:.1f} minutes ago")
                             self.test_results.append(("Data Freshness", "PASS", f"Updated {age_minutes:.1f} min ago"))
-                            return True
+                            assert True  # Test passed successfully
                         else:
                             print(f"⚠️ Data may be stale - updated {age_minutes:.1f} minutes ago")
                             self.test_results.append(("Data Freshness", "WARN", f"Updated {age_minutes:.1f} min ago"))
@@ -336,12 +336,12 @@ class UserWorkflowTester:
             else:
                 print(f"❌ Data freshness check failed - status {response.status_code}")
                 self.test_results.append(("Data Freshness", "FAIL", f"Status {response.status_code}"))
-                return False
+                assert False, f"Test failed: {e}"
                 
         except Exception as e:
             print(f"❌ Data freshness test failed - {e}")
             self.test_results.append(("Data Freshness", "FAIL", str(e)))
-            return False
+            assert False, "Test failed"
     
     def test_api_response_quality(self) -> bool:
         """Test: Are API endpoints returning expected data structure?"""
@@ -380,16 +380,16 @@ class UserWorkflowTester:
             if success_rate >= 66:  # At least 2 out of 3 working properly
                 print(f"✅ API response quality good - {working_endpoints}/{total_endpoints} ({success_rate:.0f}%)")
                 self.test_results.append(("API Quality", "PASS", f"{working_endpoints}/{total_endpoints} working"))
-                return True
+                assert True  # Test passed successfully
             else:
                 print(f"❌ API response quality poor - {working_endpoints}/{total_endpoints} ({success_rate:.0f}%)")
                 self.test_results.append(("API Quality", "FAIL", f"{working_endpoints}/{total_endpoints} working"))
-                return False
+                assert False, f"Test failed: {e}"
                 
         except Exception as e:
             print(f"❌ API response quality test failed - {e}")
             self.test_results.append(("API Quality", "FAIL", str(e)))
-            return False
+            assert False, "Test failed"
     
     def run_all_tests(self) -> Dict[str, Any]:
         """Run all Stage 2 tests and return results"""
