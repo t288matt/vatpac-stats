@@ -78,7 +78,7 @@ services:
       
       # Geographic Boundary Filter Configuration (Polygon-based)
       ENABLE_BOUNDARY_FILTER: "true"
-      BOUNDARY_DATA_PATH: "australian_airspace_polygon.json"
+      BOUNDARY_DATA_PATH: "airspace_sector_data/australian_airspace_polygon.json"
       BOUNDARY_FILTER_LOG_LEVEL: "WARNING"
       BOUNDARY_FILTER_PERFORMANCE_THRESHOLD: "10.0"
       
@@ -98,7 +98,7 @@ services:
 
     volumes:
       - ./logs:/app/logs:rw
-      - ./config/australian_airspace_polygon.json:/app/australian_airspace_polygon.json:ro
+      - ./airspace_sector_data/australian_airspace_polygon.json:/app/airspace_sector_data/australian_airspace_polygon.json:ro
       # REMOVE FOR PRODUCTION - Test and debug files
       - ./pytest.ini:/app/pytest.ini:ro
       - ./tests:/app/tests:ro

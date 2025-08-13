@@ -36,7 +36,7 @@ This document provides a centralized reference for all configuration options use
 
 ### Geographic Boundary Filter Configuration
 - `ENABLE_BOUNDARY_FILTER`: Enable geographic boundary filtering (default: false)
-- `BOUNDARY_DATA_PATH`: Path to boundary polygon file (default: australian_airspace_polygon.json)
+- `BOUNDARY_DATA_PATH`: Path to boundary polygon file (default: airspace_sector_data/australian_airspace_polygon.json)
 - `BOUNDARY_FILTER_LOG_LEVEL`: Log level for filter operations (default: INFO)
 - `BOUNDARY_FILTER_PERFORMANCE_THRESHOLD`: Performance threshold in milliseconds (default: 10.0)
 

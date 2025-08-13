@@ -95,7 +95,7 @@ DATABASE_MAX_OVERFLOW: 40          # Max overflow connections
 
 # Flight Filtering
 ENABLE_BOUNDARY_FILTER: "true"     # Australian airspace filtering
-BOUNDARY_DATA_PATH: "australian_airspace_polygon.json"  # File mounted from ./config/ directory
+BOUNDARY_DATA_PATH: "airspace_sector_data/australian_airspace_polygon.json"  # File mounted from ./airspace_sector_data/ directory
 
 # Flight Summary System
 FLIGHT_SUMMARY_ENABLED: "true"     # Enable flight summaries
@@ -233,7 +233,7 @@ crontab -e
 ```yaml
 # Geographic boundary filter (enabled by default)
 ENABLE_BOUNDARY_FILTER: "true"
-BOUNDARY_DATA_PATH: "australian_airspace_polygon.json"
+BOUNDARY_DATA_PATH: "airspace_sector_data/australian_airspace_polygon.json"
 
 # Flight summary system
 FLIGHT_SUMMARY_ENABLED: "true"
@@ -298,7 +298,7 @@ docker-compose restart grafana
 **5. Geographic Filter Not Working**
 ```bash
 # Check if boundary file is accessible in container
-docker exec vatsim_app ls -la /app/australian_airspace_polygon.json
+docker exec vatsim_app ls -la /app/airspace_sector_data/australian_airspace_polygon.json
 
 # Verify boundary filter status
 curl http://YOUR_SERVER_IP:8001/api/filter/flight/status

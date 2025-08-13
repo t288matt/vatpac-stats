@@ -286,7 +286,7 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 
 **Current Configuration**:
 - `ENABLE_BOUNDARY_FILTER`: true (actively filtering)
-- `BOUNDARY_DATA_PATH`: australian_airspace_polygon.json (included)
+- `BOUNDARY_DATA_PATH`: airspace_sector_data/australian_airspace_polygon.json (included)
 - `BOUNDARY_FILTER_LOG_LEVEL`: INFO
 - `FLIGHT_PLAN_VALIDATION_ENABLED`: true (actively validating)
 

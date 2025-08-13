@@ -37,6 +37,29 @@ A real-time VATSIM data collection system that processes flight data, ATC positi
 - **Schema mismatches resolved** - Python models match database schema
 - **Performance optimized** - filtering adds <1ms overhead for 100+ entities
 
+### **Australian Airspace Data Structure**
+The system uses two key JSON files for geographic filtering and sector management:
+
+#### **`australian_airspace_polygon.json` - External FIR Boundary**
+- **Purpose**: Defines the external boundary of Australian Flight Information Region (FIR)
+- **Content**: Single polygon with coordinates covering all of Australia and surrounding airspace
+- **Usage**: Used by the geographic boundary filter to determine if flights/controllers are within Australian airspace
+- **Status**: **Static file** - does not change and represents the official Australian FIR boundary
+- **Format**: GeoJSON polygon with decimal degree coordinates
+
+#### **`australian_sectors.json` - Internal Sector Definitions**
+- **Purpose**: Contains detailed definitions of individual airspace sectors within Australia
+- **Content**: Array of sector objects with metadata and geographic boundaries
+- **Usage**: Used for detailed sector analysis, ATC coverage mapping, and airspace management
+- **Status**: **Manually generated** from VATSYS XML files using the processing script
+- **Format**: Custom JSON structure with sector metadata and coordinate arrays
+
+**Data Processing Workflow**:
+1. **External Boundary**: `australian_airspace_polygon.json` provides the primary filter boundary
+2. **Sector Details**: `australian_sectors.json` provides granular sector information for detailed analysis
+3. **Real-time Filtering**: Geographic boundary filter uses the external polygon for efficient position checking
+4. **Sector Analysis**: Internal sectors used for detailed airspace coverage and ATC position mapping
+
 ### **Flight Summary System: ✅ FULLY IMPLEMENTED**
 - **Backend logic implemented** in data service with scheduled processing
 - **Database tables exist** (flight_summaries, flights_archive)
@@ -153,7 +176,7 @@ DATABASE_MAX_OVERFLOW: 20
 
 # Geographic Boundary Filtering
 ENABLE_BOUNDARY_FILTER: true
-BOUNDARY_DATA_PATH: australian_airspace_polygon.json
+BOUNDARY_DATA_PATH: airspace_sector_data/australian_airspace_polygon.json
 BOUNDARY_FILTER_LOG_LEVEL: INFO
 BOUNDARY_FILTER_PERFORMANCE_THRESHOLD: 10.0
 
@@ -176,7 +199,7 @@ ENVIRONMENT: production
 ENABLE_BOUNDARY_FILTER: true
 
 # Path to boundary polygon file
-BOUNDARY_DATA_PATH: australian_airspace_polygon.json
+BOUNDARY_DATA_PATH: airspace_sector_data/australian_airspace_polygon.json
 
 # Logging level for filter operations
 BOUNDARY_FILTER_LOG_LEVEL: INFO
@@ -290,6 +313,12 @@ Recent testing shows:
 - **[Architecture Overview](docs/ARCHITECTURE_OVERVIEW.md)** - System design and components
 - **[Configuration Guide](docs/CONFIGURATION.md)** - Environment setup and tuning
 - **[Flight Summary Status](docs/FLIGHT_SUMMARY_IMPLEMENTATION_STATUS.md)** - Flight summary system implementation status
+- **[Australian Sector Files Guide](airspace_sector_data/PROCESSING_AUSTRALIAN_SECTOR_FILES_README.md)** - Complete guide for processing and maintaining Australian airspace sector data
+
+### Airspace Data Documentation
+- **[Australian Sector Processing](airspace_sector_data/PROCESSING_AUSTRALIAN_SECTOR_FILES_README.md)** - Detailed guide for processing VATSYS sector files
+- **`australian_airspace_polygon.json`** - Static Australian FIR boundary (GeoJSON format)
+- **`australian_sectors.json`** - Manually generated sector definitions from VATSYS XML files
 
 ### Quick References
 - **[API Reference](docs/API_REFERENCE.md)** - Endpoint documentation
@@ -323,6 +352,28 @@ app/
 ├── main.py            # FastAPI application
 └── utils/             # Utility functions and helpers
 ```
+
+### Airspace Data Maintenance
+
+#### **Updating Sector Definitions**
+The `australian_sectors.json` file is generated from VATSYS XML files:
+
+1. **Obtain VATSYS Files**: Copy `Sectors.xml` and `Volumes.xml` from VATSYS installation
+2. **Run Processing Script**: Execute the sector extraction script:
+   ```bash
+   cd airspace_sector_data
+   python process_australian_sectors.py
+   ```
+3. **Review Output**: Verify the generated sector data matches expectations
+4. **Replace File**: Copy the new `australian_sectors.json` to replace the existing file
+
+#### **External Boundary (Static)**
+The `australian_airspace_polygon.json` file:
+- **Never changes** - represents official Australian FIR boundary
+- **Used directly** by the geographic boundary filter
+- **No maintenance required** - this is a reference data file
+
+**Note**: Both files are located in the `airspace_sector_data/` directory and are automatically loaded by the geographic boundary filter system.
 
 ## 🚨 Troubleshooting
 

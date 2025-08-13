@@ -310,7 +310,7 @@ Get geographic boundary filter status and performance.
       "cache_misses": 0
     },
     "configuration": {
-      "boundary_data_path": "australian_airspace_polygon.json",
+      "boundary_data_path": "airspace_sector_data/australian_airspace_polygon.json",
       "log_level": "INFO",
       "polygon_loaded": true,
       "polygon_points": 156
@@ -337,7 +337,7 @@ Get boundary polygon information and configuration.
     },
     "area_sq_km": 7692024,
     "loaded_at": "2025-08-09T08:00:00Z",
-    "file_path": "australian_airspace_polygon.json"
+    "file_path": "airspace_sector_data/australian_airspace_polygon.json"
   }
 }
 ```

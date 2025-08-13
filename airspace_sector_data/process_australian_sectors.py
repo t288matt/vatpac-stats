@@ -1,29 +1,19 @@
 #!/usr/bin/env python3
 """
-Extract Australian Sector Boundaries from VATSIM XML Data
+Australian Sector Processing Script - Save Results Version
 
-This script identifies and extracts geographic boundaries for Australian FSS/CTR sectors
-from the VATSIM XML configuration files. It serves as the foundation for the flight summary
-table system's sector occupancy tracking capabilities.
-
-Purpose:
-- Identify Australian FSS/CTR standalone sectors
-- Extract geographic boundary coordinates from Volumes.xml
-- Parse DDMMSS.SSSS coordinate format to decimal degrees
-- Provide boundary data for Shapely polygon creation
-
-Output:
-- List of 17 target sectors with their metadata
-- Geographic coordinates for sector boundaries
-- Ready for integration with SectorManager class
+This script processes VATSYS XML sector files to extract Australian airspace sector data
+and saves the results to files for one-off manual processing and analysis.
 
 Author: VATSIM Data Project Team
 Date: January 2025
-Status: Production Ready - Phase 1 Complete
+Status: Production Ready - One-off Processing Version
 """
 
 import xml.etree.ElementTree as ET
 import re
+import json
+import os
 
 def parse_coordinate(coord_str):
     """Parse coordinate string from Volumes.xml format (e.g., -343848.000+1494851.000)"""
@@ -73,7 +63,7 @@ def parse_coordinate(coord_str):
 def get_sector_boundaries(volume_name):
     """Extract boundary coordinates for a given volume from Volumes.xml"""
     try:
-        volumes_tree = ET.parse('/app/Volumes.xml')
+        volumes_tree = ET.parse('../external-data/Volumes.xml')
         volumes_root = volumes_tree.getroot()
         
         # Find the volume with matching name
@@ -121,21 +111,44 @@ def get_sector_boundaries(volume_name):
         print(f"Error reading Volumes.xml: {e}")
         return []
 
-def find_fss_ctr_sectors():
-    """Find sectors matching the criteria - Australian domestic only."""
+def save_to_json(sectors, output_file):
+    """Save processed sectors to JSON file"""
+    try:
+        # Convert coordinates to lists for JSON serialization
+        json_sectors = []
+        for sector in sectors:
+            json_sector = sector.copy()
+            # Convert coordinate tuples to lists for JSON compatibility
+            json_sector['boundaries'] = [[lat, lon] for lat, lon in sector['boundaries']]
+            json_sectors.append(json_sector)
+        
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(json_sectors, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ Saved {len(sectors)} sectors to {output_file}")
+        return True
+    except Exception as e:
+        print(f"❌ Error saving to JSON: {e}")
+        return False
+
+
+
+def process_australian_sectors():
+    """Main processing function - find and process Australian sectors"""
     
-    print("Finding FSS/CTR Sectors (Australian Domestic Only):")
-    print("=" * 80)
+    print("Processing Australian Sector Files - Save Results Version")
+    print("=" * 60)
+    print()
     
     try:
         # Load Sectors.xml
-        sectors_tree = ET.parse('/app/Sectors.xml')
+        sectors_tree = ET.parse('../external-data/Sectors.xml')
         sectors_root = sectors_tree.getroot()
         
         # Find all Sector elements
         sectors = sectors_root.findall('.//Sector')
         
-        print(f"Total sectors: {len(sectors)}")
+        print(f"Total sectors found: {len(sectors)}")
         print()
         
         # Find sectors matching criteria
@@ -206,52 +219,50 @@ def find_fss_ctr_sectors():
                     'boundaries': all_boundaries
                 })
         
-        # Display results
-        print(f"Found {len(matching_sectors)} Australian domestic FSS/CTR standalone sectors:")
-        print("-" * 80)
+        # Display summary
+        print(f"Found {len(matching_sectors)} Australian domestic FSS/CTR standalone sectors")
+        print("-" * 60)
         
-        for i, sector in enumerate(matching_sectors):
-            print(f"{i+1:2d}. {sector['name']}")
+        for i, sector in enumerate(matching_sectors, 1):
+            print(f"{i:2d}. {sector['name']:8} - {sector['full_name']}")
             print(f"     Callsign: {sector['callsign']}")
             print(f"     Frequency: {sector['frequency']}")
-            print(f"     Full Name: {sector['full_name']}")
-            print(f"     Volumes: {sector['volumes']}")
+            print(f"     Boundary Points: {len(sector['boundaries'])}")
             if sector['responsible_sectors']:
                 print(f"     Responsible for: {sector['responsible_sectors']}")
-            
-            # Display boundary information
-            if sector['boundaries']:
-                print(f"     Boundary Points: {len(sector['boundaries'])} coordinates")
-                print(f"     Sample Coordinates:")
-                for j, (lat, lon) in enumerate(sector['boundaries'][:3]):  # Show first 3
-                    print(f"       Point {j+1}: {lat:.6f}, {lon:.6f}")
-                if len(sector['boundaries']) > 3:
-                    print(f"       ... and {len(sector['boundaries']) - 3} more points")
-            else:
-                print(f"     Boundary Points: No coordinates found")
             print()
         
-        # Summary
-        print("=" * 80)
-        print("SUMMARY:")
-        print(f"Total sectors: {len(sectors)}")
-        print(f"Australian domestic FSS/CTR standalone sectors: {len(matching_sectors)}")
+        # Save results to JSON file only
+        print("Saving results to JSON file...")
+        print("-" * 40)
+        
+        # Create output directory if it doesn't exist
+        output_dir = "processed_sectors"
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Save to JSON (overwrites existing file)
+        json_file = f"{output_dir}/australian_sectors.json"
+        
+        if save_to_json(matching_sectors, json_file):
+            print(f"✅ Successfully saved {len(matching_sectors)} sectors to {json_file}")
+        else:
+            print(f"❌ Failed to save JSON file")
+        
         print()
-        print("These sectors:")
-        print("✅ Have callsigns containing FSS or CTR")
-        print("✅ Have volume definitions")
-        print("✅ Don't appear in ResponsibleSectors of other sectors")
-        print("✅ Are standalone (not managed by parent sectors)")
-        print("✅ Are Australian domestic (ML- or BN- callsigns)")
-        print("✅ Have geographic boundaries extracted from Volumes.xml")
-        print()
-        print("PERFECT FOR FLIGHT TRACKING - These are the sectors we want to monitor!")
-        print()
-        print("NEXT STEP: Use these boundaries to create Shapely polygons for real-time")
-        print("flight position checking in the SectorManager class.")
+        
+        return matching_sectors
         
     except Exception as e:
-        print(f"Error finding sectors: {e}")
+        print(f"❌ Error processing sectors: {e}")
+        return []
 
 if __name__ == "__main__":
-    find_fss_ctr_sectors()
+    # Process sectors and save results
+    sectors = process_australian_sectors()
+    
+    if sectors:
+        print("🎯 Processing completed successfully!")
+        print(f"📊 Total sectors processed: {len(sectors)}")
+        print(f"🗺️  Total boundary points: {sum(len(s['boundaries']) for s in sectors)}")
+    else:
+        print("❌ Processing failed - no sectors found")

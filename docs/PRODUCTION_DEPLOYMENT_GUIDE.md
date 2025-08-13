@@ -117,7 +117,7 @@ VATSIM_API_RETRY_ATTEMPTS=3
 FLIGHT_FILTER_ENABLED=true
 FLIGHT_FILTER_LOG_LEVEL=INFO
 ENABLE_BOUNDARY_FILTER=false
-BOUNDARY_DATA_PATH=australian_airspace_polygon.json
+BOUNDARY_DATA_PATH=airspace_sector_data/australian_airspace_polygon.json
 BOUNDARY_FILTER_LOG_LEVEL=INFO
 BOUNDARY_FILTER_PERFORMANCE_THRESHOLD=10.0
 
@@ -192,7 +192,7 @@ services:
       - /opt/vatsim/config/production.env
     volumes:
       - /opt/vatsim/logs:/app/logs:rw
-      - /opt/vatsim/data/australian_airspace_polygon.json:/app/australian_airspace_polygon.json:ro
+      - /opt/vatsim/data/airspace_sector_data/australian_airspace_polygon.json:/app/airspace_sector_data/australian_airspace_polygon.json:ro
       - /opt/vatsim/certs:/certs:ro
     depends_on:
       postgres:

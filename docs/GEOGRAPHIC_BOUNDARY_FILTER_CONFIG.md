@@ -20,7 +20,7 @@ When enabled, the filter will process all incoming VATSIM data and only include 
 - **Type**: String (file path)
 - **Default**: app/utils/sample_boundary_coordinates.json
 - **Description**: Path to the JSON file containing boundary polygon coordinates
-- **Example**: `BOUNDARY_DATA_PATH=australian_airspace_polygon.json`
+- **Example**: `BOUNDARY_DATA_PATH=airspace_sector_data/australian_airspace_polygon.json`
 
 The file must be in GeoJSON format with polygon coordinates. Supports both standard GeoJSON format and simple coordinate arrays.
 
@@ -92,7 +92,7 @@ The boundary data file must be in JSON format with coordinate arrays. Two format
 ```bash
 # Enable filter with debug logging
 export ENABLE_BOUNDARY_FILTER=true
-export BOUNDARY_DATA_PATH=australian_airspace_polygon.json
+export BOUNDARY_DATA_PATH=airspace_sector_data/australian_airspace_polygon.json
 export BOUNDARY_FILTER_LOG_LEVEL=DEBUG
 export BOUNDARY_FILTER_PERFORMANCE_THRESHOLD=10.0
 ```
@@ -115,7 +115,7 @@ services:
     environment:
       # Geographic Boundary Filter Configuration
       ENABLE_BOUNDARY_FILTER: "true"
-      BOUNDARY_DATA_PATH: "australian_airspace_polygon.json"
+      BOUNDARY_DATA_PATH: "airspace_sector_data/australian_airspace_polygon.json"
       BOUNDARY_FILTER_LOG_LEVEL: "INFO"
       BOUNDARY_FILTER_PERFORMANCE_THRESHOLD: "10.0"
 ```

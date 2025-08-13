@@ -24,7 +24,7 @@ class SimpleSectorManager:
         self.sector_metadata: Dict[str, Dict] = {}
         self.loaded = False
         
-    def load_australian_sectors(self, base_polygon_path: str = "australian_airspace_polygon.json") -> bool:
+    def load_australian_sectors(self, base_polygon_path: str = "airspace_sector_data/australian_airspace_polygon.json") -> bool:
         """Load basic Australian domestic sectors using the existing airspace polygon."""
         try:
             logger.info("Loading Australian domestic sectors...")

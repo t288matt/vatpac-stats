@@ -369,6 +369,8 @@ CREATE TABLE IF NOT EXISTS flight_sector_occupancy (
     entry_lon DECIMAL(11, 8) NOT NULL,
     exit_lat DECIMAL(10, 8) NOT NULL,
     exit_lon DECIMAL(11, 8) NOT NULL,
+    entry_altitude INTEGER,                      -- Altitude when entering sector
+    exit_altitude INTEGER,                       -- Altitude when exiting sector
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
