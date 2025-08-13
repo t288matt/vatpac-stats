@@ -1,8 +1,8 @@
 # VATSIM Data Collection System - Test Framework
 
-## 🎯 **Test Philosophy: User Outcomes, Not Technical Details**
+## 🎯 **Test Philosophy: Comprehensive Testing - User Outcomes + Technical Reliability**
 
-This test framework focuses on **what users can accomplish** rather than how the system works internally. We test complete user workflows and successful outcomes, not individual components.
+This test framework focuses on **both what users can accomplish AND the technical foundation that makes it possible**. We test complete user workflows, successful outcomes, AND the technical infrastructure that supports them. This ensures both user satisfaction and system reliability.
 
 ## 🏗️ **Test Architecture Overview**
 
@@ -10,17 +10,20 @@ This test framework focuses on **what users can accomplish** rather than how the
 - **Stage 1: Foundation Tests** ✅ COMPLETED
 - **Stage 2: Core Functionality Tests** ✅ COMPLETED
 - **Stage 3: Data Quality Tests** ✅ COMPLETED
-- **Stage 4: Performance & Load Tests** ❌ NOT IMPLEMENTING
 - **Stage 5: Geographic Filtering Tests** ✅ COMPLETED (Unit Tests)
-- **Stage 6: Integration Tests** 📋 PLANNED
+- **Stage 6: Service Integration Tests** ✅ COMPLETED
+- **Stage 7: Infrastructure & Technical Tests** 📋 PLANNED
+- **Stage 8: Performance & Reliability Tests** 📋 PLANNED
+- **Stage 9: Error Condition & Edge Case Tests** 📋 PLANNED
 
 ### **Test Coverage Summary**
-- **Total Tests**: 101 (12 Integration + 89 Unit Tests)
-- **Integration Tests**: 12 (4 Stage 1 + 4 Stage 2 + 4 Stage 3)
+- **Total Tests**: 139 (17 Integration + 89 Unit + 33 Filter Tests)
+- **Integration Tests**: 17 (4 Stage 1 + 4 Stage 2 + 4 Stage 3 + 5 Stage 6)
 - **Unit Tests**: 89 (Geographic functions, coordinate parsing, polygon operations)
-- **Execution Time**: ~2 seconds locally, ~3-4 minutes on GitHub Actions
+- **Filter Tests**: 33 (Boundary filtering, geographic utilities)
+- **Execution Time**: ~0.7 seconds locally, ~1-2 minutes on GitHub Actions
 - **Success Rate**: 100% in current environment
-- **Focus**: Complete user experience validation + critical function reliability
+- **Focus**: Complete user experience validation + critical function reliability + technical infrastructure
 
 ## 🧪 **Test Categories & Coverage**
 
@@ -64,14 +67,46 @@ This test framework focuses on **what users can accomplish** rather than how the
 | **Polygon Loading** | `load_polygon_from_geojson` | GeoJSON validation, error handling | 100% loading reliability |
 | **Caching** | `get_cached_polygon` | Polygon caching functionality | 100% caching reliability |
 
-### **Stage 4: Performance & Load Tests** ❌ NOT IMPLEMENTING
-**Goal**: Performance testing skipped in favor of business-critical features
+### **Stage 6: Service Integration Tests (5 Tests)** ✅ COMPLETED
+**Goal**: Ensure services work together correctly in real-world scenarios
 
-| Test | Endpoint | Validation | Success Criteria |
-|------|----------|------------|------------------|
-| **Load Testing** | N/A | System handles expected load? | ❌ NOT IMPLEMENTING |
-| **Stress Testing** | N/A | System under stress conditions? | ❌ NOT IMPLEMENTING |
-| **Performance Validation** | N/A | Response times acceptable? | ❌ NOT IMPLEMENTING |
+| Test | Validation | Success Criteria |
+|------|------------|------------------|
+| **VATSIM to Database Flow** | Complete data pipeline validation | 100% data flow success |
+| **Cache Behavior with Live Data** | Caching effectiveness with real data | >80% cache hit rate |
+| **Database Operations with Live Data** | CRUD operations with live data | 100% operation success |
+| **Service Communication Patterns** | Inter-service communication | 100% communication success |
+| **Data Consistency Across Services** | Cross-service data integrity | 100% consistency rate |
+
+### **Stage 7: Infrastructure & Technical Tests** 📋 PLANNED
+**Goal**: Ensure technical foundation and infrastructure work reliably
+
+| Test Category | Components Tested | Validation | Success Criteria |
+|---------------|-------------------|------------|------------------|
+| **FastAPI Application** | `main.py` (488 lines) | App startup, route registration, middleware | 100% startup success |
+| **Database Connections** | `database.py` (113 lines) | Connection pooling, session management | 100% connection success |
+| **API Endpoints** | Route handlers, request/response | Endpoint functionality | 100% endpoint success |
+| **Configuration** | Environment variables, settings | Configuration loading | 100% config success |
+
+### **Stage 8: Performance & Reliability Tests** 📋 PLANNED
+**Goal**: Ensure system performs well under realistic load conditions
+
+| Test Category | Validation | Success Criteria |
+|---------------|------------|------------------|
+| **Load Testing** | Multiple concurrent users | <500ms response time |
+| **Database Performance** | Query optimization, connection pooling | <100ms query time |
+| **Memory Usage** | Resource management, leak detection | <70% memory usage |
+| **Response Time Benchmarks** | API performance under load | <500ms average response |
+
+### **Stage 9: Error Condition & Edge Case Tests** 📋 PLANNED
+**Goal**: Ensure system handles failures and edge cases gracefully
+
+| Test Category | Validation | Success Criteria |
+|---------------|------------|------------------|
+| **Database Failure Scenarios** | Connection loss, constraint violations | Graceful error handling |
+| **VATSIM API Failures** | Timeout, invalid data, rate limiting | Fallback mechanisms |
+| **Application Error Handling** | Graceful degradation, error responses | Proper error responses |
+| **Boundary Condition Testing** | Edge cases, invalid inputs | Robust input validation |
 
 ## 🚀 **Running Tests**
 
@@ -142,9 +177,12 @@ Tests run automatically on every commit and PR:
 - **Stage 1**: 75% of tests must pass (3 out of 4)
 - **Stage 2**: 75% of tests must pass (3 out of 4)
 - **Stage 3**: 75% of tests must pass (3 out of 4)
-- **Stage 4**: ❌ NOT IMPLEMENTING (intentionally skipped)
 - **Stage 5**: 95% of tests must pass (85 out of 89)
-- **Overall**: 75% of all tests must pass (76 out of 101)
+- **Stage 6**: 100% of tests must pass (5 out of 5)
+- **Stage 7**: 100% of tests must pass (infrastructure critical)
+- **Stage 8**: 90% of tests must pass (performance benchmarks)
+- **Stage 9**: 100% of tests must pass (error handling critical)
+- **Overall**: 85% of all tests must pass (comprehensive coverage)
 
 ### **Output Format**
 ```

@@ -25,15 +25,15 @@ This architecture leverages your existing **cheap, reliable, live testing data**
 | **Cache Behavior** | Redis caching with real data | Actual cache operations |
 | **Database Operations** | CRUD operations on live data | Real database transactions |
 
-#### **Stage 7: End-to-End User Journey Tests**
-**Goal**: Complete user workflow validation using live data
+#### **Stage 7: Infrastructure & Technical Tests**
+**Goal**: Test technical foundation and infrastructure reliability
 
-| Test Category | User Journey | Live Data Validation |
-|---------------|--------------|---------------------|
-| **Flight Tracking** | User searches for flight → Gets real-time data | Live flight positions |
-| **ATC Coverage** | User checks controller availability → Sees live status | Real controller data |
-| **Geographic Filtering** | User filters by region → Gets accurate results | Live boundary data |
-| **Data Freshness** | User expects recent data → Gets current info | Real-time updates |
+| Test Category | Technical Component | Live Data Validation |
+|---------------|-------------------|---------------------|
+| **FastAPI Application** | App startup, route registration, middleware | Live application startup |
+| **Database Connections** | Connection pooling, session management | Live database operations |
+| **API Endpoints** | Route handlers, request/response | Live endpoint functionality |
+| **Configuration** | Environment variables, settings | Live configuration loading |
 
 #### **Stage 8: Performance & Reliability Tests**
 **Goal**: Ensure system performance with live data loads
@@ -45,15 +45,15 @@ This architecture leverages your existing **cheap, reliable, live testing data**
 | **Concurrent Users** | Multiple simultaneous requests | Live API endpoints |
 | **Resource Usage** | Memory/CPU with real workloads | Live service operations |
 
-#### **Stage 9: Error Condition Tests**
-**Goal**: System behavior under real failure scenarios
+#### **Stage 9: Error Condition & Edge Case Tests**
+**Goal**: System behavior under real failure scenarios and edge cases
 
 | Test Category | Failure Scenario | Live Data Impact |
 |---------------|------------------|------------------|
-| **Service Outages** | VATSIM API down → Graceful degradation | Real service failures |
-| **Database Issues** | Connection problems → Error handling | Live DB operations |
-| **Data Corruption** | Invalid data → Validation & cleanup | Live data streams |
-| **Network Issues** | Connectivity problems → Retry logic | Live API calls |
+| **Database Failure Scenarios** | Connection loss, constraint violations | Live DB operations |
+| **VATSIM API Failures** | Timeout, invalid data, rate limiting | Live API calls |
+| **Application Error Handling** | Graceful degradation, error responses | Live service operations |
+| **Boundary Condition Testing** | Edge cases, invalid inputs | Live data validation |
 
 ## 🚀 **Implementation Strategy**
 
@@ -78,28 +78,25 @@ class TestServiceIntegration:
         # 4. Check cache hit rates
 ```
 
-### **Phase 2: End-to-End User Journey Tests (Week 3-4)**
+### **Phase 2: Infrastructure & Technical Tests (Week 3-4)**
 ```python
-# tests/test_user_journeys.py
-class TestUserJourneys:
-    """Test complete user workflows with live data"""
+# tests/test_infrastructure.py
+class TestInfrastructure:
+    """Test technical foundation and infrastructure with live data"""
     
-    def test_complete_flight_tracking_journey(self):
-        """Test: Can user track a flight from start to finish?"""
-        # 1. User searches for flight
-        # 2. System finds live flight data
-        # 3. User gets real-time position
-        # 4. User sees ATC coverage
-        # 5. User applies geographic filter
-        # 6. Results are accurate and current
+    def test_fastapi_application_startup(self):
+        """Test: Does FastAPI application start correctly?"""
+        # 1. Test app initialization
+        # 2. Test route registration
+        # 3. Test middleware setup
+        # 4. Test configuration loading
         
-    def test_atc_coverage_analysis_journey(self):
-        """Test: Can user analyze ATC coverage effectively?"""
-        # 1. User checks controller positions
-        # 2. System shows live ATC data
-        # 3. User filters by region
-        # 4. User sees coverage gaps
-        # 5. Data is current and reliable
+    def test_database_connection_management(self):
+        """Test: Do database connections work reliably?"""
+        # 1. Test connection pooling
+        # 2. Test session management
+        # 3. Test transaction handling
+        # 4. Test connection recovery
 ```
 
 ### **Phase 3: Performance & Reliability Tests (Week 5-6)**

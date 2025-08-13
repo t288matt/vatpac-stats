@@ -104,14 +104,14 @@ Stage 6: Service Integration Tests - 5/5 passed (100%)
 
 ### **Immediate (This Week)**
 - ✅ **Stage 6: Service Integration Tests** - COMPLETED
-- 📋 **Stage 7: User Journey Tests** - Ready to implement
+- 📋 **Stage 7: Infrastructure & Technical Tests** - Ready to implement
 - 📋 **Stage 8: Performance & Reliability Tests** - Ready to implement
-- 📋 **Stage 9: Error Condition Tests** - Ready to implement
+- 📋 **Stage 9: Error Condition & Edge Case Tests** - Ready to implement
 
 ### **Short Term (Next 2 Weeks)**
-- Implement **Stage 7: User Journey Tests** (complete user workflows)
-- Add **Stage 8: Performance Tests** (live load testing)
-- Create **Stage 9: Error Tests** (failure scenario validation)
+- Implement **Stage 7: Infrastructure & Technical Tests** (FastAPI, database, configuration)
+- Add **Stage 8: Performance & Reliability Tests** (load testing, performance benchmarks)
+- Create **Stage 9: Error Condition & Edge Case Tests** (failure scenarios, edge cases)
 
 ### **Medium Term (Next Month)**
 - Complete all remaining test stages
@@ -186,5 +186,5 @@ The next stages (User Journeys, Performance, Error Conditions) will build on thi
 **Test Count**: 5 new tests added  
 **Total Tests**: 139 (17 integration + 89 unit + 33 filter)  
 **Success Rate**: 100%  
-**Next Milestone**: Stage 7 - User Journey Tests
+**Next Milestone**: Stage 7 - Infrastructure & Technical Tests
 
