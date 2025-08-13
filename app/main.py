@@ -38,15 +38,7 @@ from app.services.vatsim_service import get_vatsim_service
 from app.services.data_service import get_data_service
 from app.database import get_database_session
 from app.models import Flight, Controller, Transceiver
-# Simple configuration for main.py
-class SimpleConfig:
-    def __init__(self):
-        self.api = type('obj', (object,), {
-            'cors_origins': ["*"]
-        })()
-        self.vatsim = type('obj', (object,), {
-            'polling_interval': 30
-        })()
+from app.config import get_config
 
 # Remove cache service import
 # from .services.cache_service import get_cache_service
@@ -55,7 +47,7 @@ class SimpleConfig:
 logger = get_logger_for_module("main")
 
 # Initialize configuration
-config = SimpleConfig()
+config = get_config()
 
 def exit_application(reason: str, exit_code: int = 1):
     """Exit the application with a critical error"""
@@ -129,7 +121,6 @@ app.add_middleware(
 async def run_data_ingestion():
     """Run the data ingestion process"""
     logger.info("Starting data ingestion task")
-    config = SimpleConfig()
     data_service = await get_data_service()
     
     while True:
