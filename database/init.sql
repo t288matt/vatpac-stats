@@ -161,34 +161,89 @@ CREATE TRIGGER update_transceivers_updated_at
     BEFORE UPDATE ON transceivers 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Add constraints matching SQLAlchemy model definitions
--- Controllers constraints
-ALTER TABLE controllers ADD CONSTRAINT IF NOT EXISTS valid_rating 
-    CHECK (rating >= -1 AND rating <= 12);
-ALTER TABLE controllers ADD CONSTRAINT IF NOT EXISTS valid_facility 
-    CHECK (facility >= 0 AND facility <= 6);
-ALTER TABLE controllers ADD CONSTRAINT IF NOT EXISTS valid_visual_range 
-    CHECK (visual_range >= 0);
+-- Add constraints matching SQLAlchemy model definitions with error handling
+DO $$
+BEGIN
+    -- Controllers constraints
+    BEGIN
+        ALTER TABLE controllers ADD CONSTRAINT valid_rating 
+            CHECK (rating >= -1 AND rating <= 12);
+    EXCEPTION WHEN duplicate_object THEN
+        -- Constraint already exists, skip
+    END;
+    
+    BEGIN
+        ALTER TABLE controllers ADD CONSTRAINT valid_facility 
+            CHECK (facility >= 0 AND facility <= 6);
+    EXCEPTION WHEN duplicate_object THEN
+        -- Constraint already exists, skip
+    END;
+    
+    BEGIN
+        ALTER TABLE controllers ADD CONSTRAINT valid_visual_range 
+            CHECK (visual_range >= 0);
+    EXCEPTION WHEN duplicate_object THEN
+        -- Constraint already exists, skip
+    END;
 
--- Flights constraints
-ALTER TABLE flights ADD CONSTRAINT IF NOT EXISTS valid_latitude 
-    CHECK (latitude >= -90 AND latitude <= 90);
-ALTER TABLE flights ADD CONSTRAINT IF NOT EXISTS valid_longitude 
-    CHECK (longitude >= -180 AND longitude <= 180);
-ALTER TABLE flights ADD CONSTRAINT IF NOT EXISTS valid_altitude 
-    CHECK (altitude >= 0);
-ALTER TABLE flights ADD CONSTRAINT IF NOT EXISTS valid_heading 
-    CHECK (heading >= 0 AND heading <= 360);
-ALTER TABLE flights ADD CONSTRAINT IF NOT EXISTS valid_groundspeed 
-    CHECK (groundspeed >= 0);
-ALTER TABLE flights ADD CONSTRAINT IF NOT EXISTS valid_pilot_rating 
-    CHECK (pilot_rating >= 0 AND pilot_rating <= 63);
+    -- Flights constraints
+    BEGIN
+        ALTER TABLE flights ADD CONSTRAINT valid_latitude 
+            CHECK (latitude >= -90 AND latitude <= 90);
+    EXCEPTION WHEN duplicate_object THEN
+        -- Constraint already exists, skip
+    END;
+    
+    BEGIN
+        ALTER TABLE flights ADD CONSTRAINT valid_longitude 
+            CHECK (longitude >= -180 AND longitude <= 180);
+    EXCEPTION WHEN duplicate_object THEN
+        -- Constraint already exists, skip
+    END;
+    
+    BEGIN
+        ALTER TABLE flights ADD CONSTRAINT valid_altitude 
+            CHECK (altitude >= 0);
+    EXCEPTION WHEN duplicate_object THEN
+        -- Constraint already exists, skip
+    END;
+    
+    BEGIN
+        ALTER TABLE flights ADD CONSTRAINT valid_heading 
+            CHECK (heading >= 0 AND heading <= 360);
+    EXCEPTION WHEN duplicate_object THEN
+        -- Constraint already exists, skip
+    END;
+    
+    BEGIN
+        ALTER TABLE flights ADD CONSTRAINT valid_groundspeed 
+            CHECK (groundspeed >= 0);
+    EXCEPTION WHEN duplicate_object THEN
+        -- Constraint already exists, skip
+    END;
+    
+    BEGIN
+        ALTER TABLE flights ADD CONSTRAINT valid_pilot_rating 
+            CHECK (pilot_rating >= 0 AND pilot_rating <= 63);
+    EXCEPTION WHEN duplicate_object THEN
+        -- Constraint already exists, skip
+    END;
 
--- Transceivers constraints
-ALTER TABLE transceivers ADD CONSTRAINT IF NOT EXISTS valid_frequency 
-    CHECK (frequency >= 0);
-ALTER TABLE transceivers ADD CONSTRAINT IF NOT EXISTS valid_entity_type 
-    CHECK (entity_type IN ('flight', 'atc'));
+    -- Transceivers constraints
+    BEGIN
+        ALTER TABLE transceivers ADD CONSTRAINT valid_frequency 
+            CHECK (frequency >= 0);
+    EXCEPTION WHEN duplicate_object THEN
+        -- Constraint already exists, skip
+    END;
+    
+    BEGIN
+        ALTER TABLE transceivers ADD CONSTRAINT valid_entity_type 
+            CHECK (entity_type IN ('flight', 'atc'));
+    EXCEPTION WHEN duplicate_object THEN
+        -- Constraint already exists, skip
+    END;
+END $$;
 
 -- Add comments for documentation
 COMMENT ON COLUMN controllers.cid IS 'Controller ID from VATSIM API "cid" field';
