@@ -12,9 +12,9 @@ import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone, timedelta
 
-from ..config import get_config
-from ..utils.logging import get_logger_for_module
-from ..utils.error_handling import handle_service_errors, log_operation
+from app.config import get_config
+from app.utils.logging import get_logger_for_module
+from app.utils.error_handling import handle_service_errors, log_operation
 
 logger = logging.getLogger(__name__)
 

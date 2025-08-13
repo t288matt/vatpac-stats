@@ -1,4 +1,4 @@
 # Geographic boundary filter package
-from .geographic_boundary_filter import GeographicBoundaryFilter
+from app.filters.geographic_boundary_filter import GeographicBoundaryFilter
 
 __all__ = ['GeographicBoundaryFilter'] 

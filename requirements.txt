@@ -9,6 +9,7 @@ psycopg==3.1.13
 
 # HTTP Client
 httpx==0.25.2
+requests==2.32.4
 
 # Geographic calculations
 numpy<2.0

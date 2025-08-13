@@ -11,10 +11,10 @@ from typing import Dict, Any, Optional, List
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..models import Flight, Controller, Transceiver
-from ..database import SessionLocal
-from ..utils.logging import get_logger_for_module
-from ..utils.error_handling import handle_service_errors, log_operation
+from app.models import Flight, Controller, Transceiver
+from app.database import SessionLocal
+from app.utils.logging import get_logger_for_module
+from app.utils.error_handling import handle_service_errors, log_operation
 
 class DatabaseService:
     """Database service implementation using existing models."""

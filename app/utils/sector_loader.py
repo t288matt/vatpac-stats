@@ -12,7 +12,7 @@ import logging
 from typing import Dict, List, Tuple, Optional
 from pathlib import Path
 from shapely.geometry import Polygon, Point
-from .geographic_utils import get_cached_polygon
+from app.utils.geographic_utils import get_cached_polygon
 
 logger = logging.getLogger(__name__)
 

@@ -31,13 +31,13 @@ from sqlalchemy import text, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
-from .utils.logging import get_logger_for_module
-from .utils.error_handling import handle_service_errors, log_operation
+from app.utils.logging import get_logger_for_module
+from app.utils.error_handling import handle_service_errors, log_operation
 
-from .services.vatsim_service import get_vatsim_service
-from .services.data_service import get_data_service
-from .database import get_database_session
-from .models import Flight, Controller, Transceiver
+from app.services.vatsim_service import get_vatsim_service
+from app.services.data_service import get_data_service
+from app.database import get_database_session
+from app.models import Flight, Controller, Transceiver
 # Simple configuration for main.py
 class SimpleConfig:
     def __init__(self):

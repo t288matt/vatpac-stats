@@ -13,7 +13,7 @@ import sys
 from typing import Optional
 from pathlib import Path
 
-from ..config import get_config
+from app.config import get_config
 
 
 def setup_logging(

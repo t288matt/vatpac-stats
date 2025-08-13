@@ -24,15 +24,15 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone, timedelta
 import json
 
-from ..utils.logging import get_logger_for_module
-from ..utils.error_handling import handle_service_errors, log_operation, fail_fast_on_critical_errors
-from ..services.vatsim_service import VATSIMService
-from ..filters.geographic_boundary_filter import GeographicBoundaryFilter
-from ..filters.callsign_pattern_filter import CallsignPatternFilter
-from ..database import get_database_session
-from ..models import Flight, Controller, Transceiver
-from ..config import get_config
-from .atc_detection_service import ATCDetectionService
+from app.utils.logging import get_logger_for_module
+from app.utils.error_handling import handle_service_errors, log_operation, fail_fast_on_critical_errors
+from app.services.vatsim_service import VATSIMService
+from app.filters.geographic_boundary_filter import GeographicBoundaryFilter
+from app.filters.callsign_pattern_filter import CallsignPatternFilter
+from app.database import get_database_session
+from app.models import Flight, Controller, Transceiver
+from app.config import get_config
+from app.services.atc_detection_service import ATCDetectionService
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 

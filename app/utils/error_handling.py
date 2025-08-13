@@ -10,7 +10,7 @@ import logging
 from typing import Callable
 from functools import wraps
 
-from .logging import get_logger_for_module
+from app.utils.logging import get_logger_for_module
 
 logger = get_logger_for_module(__name__)
 

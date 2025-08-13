@@ -7,15 +7,12 @@ services:
       POSTGRES_DB: vatsim_data
       POSTGRES_USER: vatsim_user
       POSTGRES_PASSWORD: vatsim_password
-      PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./tools/postgresql_write_optimized.conf:/etc/postgresql/postgresql.conf
       - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
     ports:
       - "5432:5432"
     restart: unless-stopped
-    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
 
   # Main Application (API-First Architecture)
   app:
@@ -95,6 +92,9 @@ services:
     volumes:
       - ./logs:/app/logs:rw
       - ./config/australian_airspace_polygon.json:/app/australian_airspace_polygon.json:ro
+      # REMOVE FOR PRODUCTION - Test and debug files
+      - ./pytest.ini:/app/pytest.ini:ro
+      - ./tests:/app/tests:ro
     ports:
       - "8001:8001"
     depends_on:
@@ -106,30 +106,30 @@ services:
   grafana:
     image: grafana/grafana:10.2.0
     container_name: vatsim_grafana
-    user: "1000:1000"
     environment:
+      # Basic admin setup
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
-      GF_USERS_ALLOW_SIGN_UP: false
-      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+      
+      # Simple authentication - allow anonymous access for dashboards
       GF_AUTH_ANONYMOUS_ENABLED: true
-      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
-      GF_AUTH_DISABLE_LOGIN_FORM: true
-      GF_AUTH_OAUTH_AUTO_LOGIN: true
-      GF_AUTH_BASIC_ENABLED: false
-      GF_AUTH_ANONYMOUS_ORG_NAME: Main Org.
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      
+      # Basic settings
       GF_DEFAULT_LOCALE: en-GB
       GF_USERS_DEFAULT_THEME: dark
-      # Set to UTC to ensure dashboard displays database timestamps as UTC times
-      # Database stores all timestamps in UTC, this prevents timezone conversion
       GF_USERS_DEFAULT_TIMEZONE: UTC
-      # Error monitoring and observability
-      GF_FEATURE_TOGGLES_ENABLE: "publicDashboards"
-      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      
+      # Disable unnecessary features
+      GF_ANALYTICS_REPORTING_ENABLED: false
+      
+      # Logging - Reduced Verbosity
+      GF_LOG_LEVEL: WARN
+      GF_LOG_CONSOLE: false
+      GF_LOG_FILE: false
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
-      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
     ports:
       - "3050:3000"
     depends_on:

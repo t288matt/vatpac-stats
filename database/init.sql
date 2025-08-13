@@ -26,7 +26,7 @@ $$ language 'plpgsql';
 -- Controllers table with EXACT VATSIM API field mapping
 CREATE TABLE IF NOT EXISTS controllers (
     id SERIAL PRIMARY KEY,
-    callsign VARCHAR(50) UNIQUE NOT NULL,
+    callsign VARCHAR(50) NOT NULL,
     frequency VARCHAR(20),
     cid INTEGER,                    -- From API "cid" - Controller ID
     name VARCHAR(100),              -- From API "name" - Controller name
