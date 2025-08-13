@@ -13,6 +13,13 @@ services:
     ports:
       - "5432:5432"
     restart: unless-stopped
+    #check postgres is up before allowing app to connect
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vatsim_user -d vatsim_data"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Main Application (API-First Architecture)
   app:
@@ -97,8 +104,10 @@ services:
       - ./tests:/app/tests:ro
     ports:
       - "8001:8001"
+      #wait for postgres to be ready
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
 
