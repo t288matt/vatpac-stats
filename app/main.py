@@ -157,14 +157,17 @@ async def run_data_ingestion():
 @handle_service_errors
 @log_operation("get_system_status")
 async def get_system_status():
-    """Get comprehensive system status and statistics"""
+    """Get comprehensive system status and statistics with real data freshness"""
     try:
-        # Get database session for counts
+        # Get database session for counts and freshness checks
         async with get_database_session() as session:
             # Get counts from database
             flights_count = await session.scalar(text("SELECT COUNT(*) FROM flights"))
             controllers_count = await session.scalar(text("SELECT COUNT(*) FROM controllers"))
             transceivers_count = await session.scalar(text("SELECT COUNT(*) FROM transceivers"))
+            flight_summaries_count = await session.scalar(text("SELECT COUNT(*) FROM flight_summaries"))
+            flights_archive_count = await session.scalar(text("SELECT COUNT(*) FROM flights_archive"))
+            sector_occupancy_count = await session.scalar(text("SELECT COUNT(*) FROM flight_sector_occupancy"))
             
             # Get recent activity (last 5 minutes)
             recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
@@ -172,16 +175,106 @@ async def get_system_status():
                 text("SELECT COUNT(*) FROM flights WHERE last_updated >= :cutoff"),
                 {"cutoff": recent_cutoff}
             )
+            
+            # Check data freshness for every table that gets updates
+            # Freshness thresholds:
+            # - Real-time tables (controllers, flights, transceivers): < 5 minutes (300 seconds)
+            # - Batch tables (summaries, archive, sector): < 2 hours (7200 seconds)
+            data_freshness = {}
+            
+            # Controllers - check last_updated (VATSIM API timestamp)
+            controllers_freshness = await session.scalar(
+                text("SELECT MAX(last_updated) FROM controllers WHERE last_updated IS NOT NULL")
+            )
+            if controllers_freshness:
+                data_freshness["controllers"] = {
+                    "last_update": controllers_freshness.isoformat(),
+                    "age_seconds": int((datetime.now(timezone.utc) - controllers_freshness).total_seconds()),
+                    "status": "fresh" if (datetime.now(timezone.utc) - controllers_freshness).total_seconds() < 300 else "stale"
+                }
+            
+            # Flights - check last_updated_api (VATSIM API timestamp)
+            flights_freshness = await session.scalar(
+                text("SELECT MAX(last_updated_api) FROM flights WHERE last_updated_api IS NOT NULL")
+            )
+            if flights_freshness:
+                data_freshness["flights"] = {
+                    "last_update": flights_freshness.isoformat(),
+                    "age_seconds": int((datetime.now(timezone.utc) - flights_freshness).total_seconds()),
+                    "status": "fresh" if (datetime.now(timezone.utc) - flights_freshness).total_seconds() < 300 else "stale"
+                }
+            
+            # Transceivers - check timestamp (when data received)
+            transceivers_freshness = await session.scalar(
+                text("SELECT MAX(timestamp) FROM transceivers WHERE timestamp IS NOT NULL")
+            )
+            if transceivers_freshness:
+                data_freshness["transceivers"] = {
+                    "last_update": transceivers_freshness.isoformat(),
+                    "age_seconds": int((datetime.now(timezone.utc) - transceivers_freshness).total_seconds()),
+                    "status": "fresh" if (datetime.now(timezone.utc) - transceivers_freshness).total_seconds() < 300 else "stale"
+                }
+            
+            # Flight summaries - check updated_at (when processed)
+            summaries_freshness = await session.scalar(
+                text("SELECT MAX(updated_at) FROM flight_summaries WHERE updated_at IS NOT NULL")
+            )
+            if summaries_freshness:
+                data_freshness["flight_summaries"] = {
+                    "last_update": summaries_freshness.isoformat(),
+                    "age_seconds": int((datetime.now(timezone.utc) - summaries_freshness).total_seconds()),
+                    "status": "fresh" if (datetime.now(timezone.utc) - summaries_freshness).total_seconds() < 7200 else "stale"
+                }
+            
+            # Flights archive - check last_updated (when archived)
+            archive_freshness = await session.scalar(
+                text("SELECT MAX(last_updated) FROM flights_archive WHERE last_updated IS NOT NULL")
+            )
+            if archive_freshness:
+                data_freshness["flights_archive"] = {
+                    "last_update": archive_freshness.isoformat(),
+                    "age_seconds": int((datetime.now(timezone.utc) - archive_freshness).total_seconds()),
+                    "status": "fresh" if (datetime.now(timezone.utc) - archive_freshness).total_seconds() < 3600 else "stale"
+                }
+            
+            # Sector occupancy - check entry_timestamp (when sector entered)
+            sector_freshness = await session.scalar(
+                text("SELECT MAX(entry_timestamp) FROM flight_sector_occupancy WHERE entry_timestamp IS NOT NULL")
+            )
+            if sector_freshness:
+                data_freshness["flight_sector_occupancy"] = {
+                    "last_update": sector_freshness.isoformat(),
+                    "age_seconds": int((datetime.now(timezone.utc) - sector_freshness).total_seconds()),
+                    "status": "fresh" if (datetime.now(timezone.utc) - sector_freshness).total_seconds() < 3600 else "stale"
+                }
+            
+            # Determine overall data freshness status
+            overall_freshness = "fresh"
+            stale_tables = []
+            for table, freshness in data_freshness.items():
+                if freshness["status"] == "stale":
+                    stale_tables.append(table)
+                    overall_freshness = "degraded"
+            
+            if not data_freshness:
+                overall_freshness = "unknown"
         
         return {
-            "status": "operational",
+            "status": "operational" if overall_freshness in ["fresh", "degraded"] else "unhealthy",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "data_freshness": "real-time",
+            "data_freshness": {
+                "overall_status": overall_freshness,
+                "stale_tables": stale_tables,
+                "tables": data_freshness
+            },
             "cache_status": "disabled",  # Cache removed
             "statistics": {
                 "flights_count": flights_count or 0,
                 "controllers_count": controllers_count or 0,
                 "transceivers_count": transceivers_count or 0,
+                "flight_summaries_count": flight_summaries_count or 0,
+                "flights_archive_count": flights_archive_count or 0,
+                "sector_occupancy_count": sector_occupancy_count or 0,
                 "recent_flights": recent_flights or 0
             },
             "performance": {
