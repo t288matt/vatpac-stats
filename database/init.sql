@@ -203,7 +203,7 @@ BEGIN
     
     BEGIN
         ALTER TABLE flights ADD CONSTRAINT valid_altitude 
-            CHECK (altitude >= 0);
+            CHECK (altitude >= -1000 AND altitude <= 100000);
     EXCEPTION WHEN duplicate_object THEN
         -- Constraint already exists, skip
     END;
@@ -263,7 +263,7 @@ COMMENT ON COLUMN flights.pilot_rating IS 'Pilot rating from VATSIM API "pilot_r
 COMMENT ON COLUMN flights.military_rating IS 'Military rating from VATSIM API "military_rating" field';
 COMMENT ON COLUMN flights.latitude IS 'Position latitude from VATSIM API "latitude" field';
 COMMENT ON COLUMN flights.longitude IS 'Position longitude from VATSIM API "longitude" field';
-COMMENT ON COLUMN flights.altitude IS 'Current altitude from VATSIM API "altitude" field';
+COMMENT ON COLUMN flights.altitude IS 'Current altitude from VATSIM API "altitude" field (allows -1000 to 100000 for below ground level and extreme altitudes)';
 COMMENT ON COLUMN flights.heading IS 'Current heading from VATSIM API "heading" field';
 COMMENT ON COLUMN flights.groundspeed IS 'Ground speed from VATSIM API "groundspeed" field';
 COMMENT ON COLUMN flights.transponder IS 'Transponder code from VATSIM API "transponder" field';
