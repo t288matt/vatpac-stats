@@ -1,39 +1,48 @@
-# Processing Australian Sector Files - Technical Documentation
+# Processing Australian Sector Files - Responsible Sectors Approach
 
 ## Overview
-This document explains how the `extract_australian_sector_boundaries.py` script processes VATSYS XML sector files to extract geographic coordinates for Australian airspace sectors. The process involves parsing two key XML files and converting coordinate formats to produce usable geographic boundaries.
+This document explains how the `process_australian_sectors.py` script processes VATSYS XML sector files using the new **ResponsibleSectors approach**. The script identifies sectors with responsibility relationships and combines their geographic boundaries to create unified sector coverage areas.
+
+## New Approach: Responsible Sectors
+
+### What Changed
+The script now uses a **ResponsibleSectors-based approach** instead of the old standalone sector method:
+
+- **OLD**: Processed standalone sectors that didn't appear in other sectors' ResponsibleSectors
+- **NEW**: Processes sectors that HAVE a `<ResponsibleSectors>` section and combines them with their responsible sectors
+
+### Why This Approach
+This method creates **unified sector coverage areas** by combining:
+1. **Main sector** (e.g., MUN - Mungo)
+2. **All responsible sectors** (e.g., YWE, OXL, GTH)
+3. **Result**: Single polygon representing the complete coverage area
 
 ## Input Files
 
-### 1. `Sectors.xml` - Sector Metadata
-**Location**: `external-data/Sectors.xml`
-**Source**: VATSYS software installation directory
-**Purpose**: Contains sector definitions, properties, and relationships
-
-**Note**: These files are obtained from the VATSYS software installation. After installing VATSYS, the sector definition files are typically located in the VATSYS installation directory and should be copied to the `external-data/` folder for processing.
+### 1. `Sectors.xml` - Sector Metadata and Relationships
+**Location**: `Sectors.xml` (same directory as script)
+**Purpose**: Contains sector definitions, properties, and responsibility relationships
 
 **Key Elements**:
 - `<Sector>`: Individual sector definitions
-- `Name`: Short sector identifier (e.g., "ASP", "ARL")
-- `FullName`: Human-readable name (e.g., "Alice Springs", "Armidale")
-- `Callsign`: ATC callsign (e.g., "ML-ASP_CTR", "BN-ARL_CTR")
-- `Frequency`: Radio frequency (e.g., "128.850", "130.900")
+- `Name`: Short sector identifier (e.g., "MUN", "ARL")
+- `FullName`: Human-readable name (e.g., "Mungo", "Armidale")
+- `Callsign`: ATC callsign (e.g., "ML-MUN_CTR", "BN-ARL_CTR")
+- `Frequency`: Radio frequency (e.g., "132.600", "130.900")
 - `Volumes`: Reference to volume definitions in Volumes.xml
 - `ResponsibleSectors`: Comma-separated list of sectors this sector is responsible for
 
 **Example Sector Entry**:
 ```xml
-<Sector Name="ASP" FullName="Alice Springs" Callsign="ML-ASP_CTR" Frequency="128.850" Volumes="ASP">
-    <ResponsibleSectors>FOR,WAR,ASW,WRA,BKE,ESP</ResponsibleSectors>
+<Sector Name="MUN" FullName="Mungo" Callsign="ML-MUN_CTR" Frequency="132.600">
+    <Volumes>MUN</Volumes>
+    <ResponsibleSectors>YWE,OXL,GTH</ResponsibleSectors>
 </Sector>
 ```
 
 ### 2. `Volumes.xml` - Geographic Boundaries
-**Location**: `external-data/Volumes.xml`
-**Source**: VATSYS software installation directory
+**Location**: `Volumes.xml` (same directory as script)
 **Purpose**: Contains actual geographic coordinate data for sector boundaries
-
-**Note**: Like Sectors.xml, this file is also obtained from the VATSYS software installation. It contains the 3D airspace volume definitions and coordinate data that define the actual geographic boundaries of each sector.
 
 **Key Elements**:
 - `<Volume>`: Volume definitions referenced by sectors
@@ -44,10 +53,10 @@ This document explains how the `extract_australian_sector_boundaries.py` script 
 
 **Example Volume Entry**:
 ```xml
-<Volume Name="ASP">
-    <Boundaries>ASP_BOUNDARY</Boundaries>
+<Volume Name="MUN">
+    <Boundaries>MUN</Boundaries>
 </Volume>
-<Boundary Name="ASP_BOUNDARY">
+<Boundary Name="MUN">
     -342011.000+1382231.000/
     -340756.000+1381815.000/
     -340123.000+1382345.000/
@@ -55,29 +64,61 @@ This document explains how the `extract_australian_sector_boundaries.py` script 
 </Boundary>
 ```
 
-## Coordinate Processing Flow
+## Sector Filtering Criteria
 
-### Step 1: Sector Filtering
-The script filters sectors based on specific criteria:
+The script now processes sectors based on these criteria:
 
-1. **Callsign Type**: Must contain "FSS" or "CTR"
-2. **Geographic Scope**: Must be Australian domestic (callsigns starting with "ML-" or "BN-")
-3. **Standalone Check**: Sector must not appear in the `ResponsibleSectors` of other sectors
+1. **Must have `<ResponsibleSectors>` section** - This is the key requirement
+2. **Callsign Pattern**: Must start with "ML-" or "BN-" (Australian domestic)
+3. **Callsign Type**: Must end with "_CTR" or "_FSS" (Control or Flight Service)
 
-### Step 2: Volume Resolution
-For each matching sector:
-1. Extract volume names from the `Volumes` attribute
-2. Look up each volume in `Volumes.xml`
-3. Find the corresponding boundary definition
+**Examples of sectors that WILL be processed**:
+- ✅ `ML-MUN_CTR` with ResponsibleSectors: YWE, OXL, GTH
+- ✅ `BN-ARL_CTR` with ResponsibleSectors: MDE, MLD, OCN, MNN, CNK
+- ✅ `ML-IND_FSS` with ResponsibleSectors: INE, INS
 
-### Step 3: Coordinate Parsing
-The `parse_coordinate()` function converts VATSYS coordinate format to decimal degrees:
+**Examples of sectors that will be SKIPPED**:
+- ❌ No ResponsibleSectors section
+- ❌ Callsign doesn't start with ML- or BN-
+- ❌ Callsign doesn't end with _CTR or _FSS
 
-**Input Format**: `-342011.000+1382231.000`
-- **Latitude**: `-342011.000` (negative, indicating South)
-- **Longitude**: `+1382231.000` (positive, indicating East)
+## Processing Flow
 
-**Parsing Logic**:
+### Step 1: Sector Identification
+1. Parse `Sectors.xml` to find all sectors
+2. Filter sectors based on criteria above
+3. Extract primary volume and responsible sector lists
+
+### Step 2: Volume Processing
+For each qualifying sector:
+1. **Primary Volume**: Extract first volume from comma-separated list
+   - Example: `"HUO,HUO_TMA_CAP"` → only use `"HUO"`
+2. **Responsible Sectors**: Parse comma-separated list
+   - Example: `"YWE,OXL,GTH"` → process YWE, OXL, and GTH
+
+### Step 3: Coordinate Extraction
+1. Look up each sector name in `Volumes.xml`
+2. Parse coordinate strings in DDMMSS.SSSS format
+3. Convert to decimal degrees using the `parse_coordinate()` function
+4. Create Shapely Polygon objects for each sector
+
+### Step 4: Polygon Combination
+1. **Main Sector**: Get polygon from primary volume
+2. **Responsible Sectors**: Get polygons from all responsible sectors
+3. **Combine**: Use Shapely's `unary_union()` to merge all polygons
+4. **Extract Perimeter**: Get only the outer boundary coordinates
+5. **Result**: Single unified polygon representing complete coverage area
+
+## Coordinate Processing
+
+### Input Format
+**VATSYS Format**: `-342011.000+1382231.000`
+- **Latitude**: `-342011.000` (negative = South)
+- **Longitude**: `+1382231.000` (positive = East)
+
+### Conversion Process
+The `parse_coordinate()` function converts DDMMSS.SSSS to decimal degrees:
+
 1. **Remove signs**: Strip `-` and `+` for processing
 2. **Format Detection**: 
    - 7 digits before decimal = DDDMMSS format
@@ -100,151 +141,148 @@ Format: DDMMSS.SSSS
 - Result: -34.336389° (South)
 ```
 
-### Step 4: Boundary Assembly
-For each sector:
-1. Parse all coordinate pairs from the boundary text
-2. Convert each coordinate to decimal degrees
-3. Create a list of (latitude, longitude) tuples
-4. Store complete boundary data with sector metadata
-
 ## Output Data Structure
 
 The script produces a list of sector objects with the following structure:
 
 ```python
 {
-    'name': 'ASP',                           # Short identifier
-    'callsign': 'ML-ASP_CTR',               # ATC callsign
-    'frequency': '128.850',                  # Radio frequency
-    'full_name': 'Alice Springs',            # Human-readable name
-    'volumes': 'ASP',                        # Volume references
-    'responsible_sectors': 'FOR,WAR,ASW,WRA,BKE,ESP',  # Dependencies
-    'boundaries': [                          # Geographic coordinates
+    'name': 'MUN',                           # Short identifier
+    'full_name': 'Mungo',                    # Human-readable name
+    'callsign': 'ML-MUN_CTR',               # ATC callsign
+    'primary_volume': 'MUN',                 # Primary volume name
+    'responsible_sectors': [                 # List of responsible sectors
+        'YWE', 'OXL', 'GTH'
+    ],
+    'boundaries': [                          # Combined geographic coordinates
         (-34.336389, 138.372528),           # (lat, lon) pairs
         (-34.126000, 138.302500),
         # ... more coordinates ...
-    ]
+    ],
+    'boundary_count': 54                    # Total coordinate points
 }
 ```
 
 ## Data Flow Diagram
 
 ```
-Sectors.xml → Sector Filtering → Volume Resolution → Volumes.xml
-     ↓              ↓                ↓              ↓
-Metadata      FSS/CTR Only    Volume Names    Boundary Text
-     ↓              ↓                ↓              ↓
-Properties    Australian      Coordinate      Decimal Degrees
-     ↓              ↓                ↓              ↓
-Responsible   Standalone      Geographic      Sector Boundaries
-Sectors       Sectors         Boundaries      Ready for Use
+Sectors.xml → Filter by Criteria → Extract Relationships → Volumes.xml
+     ↓              ↓                    ↓              ↓
+Metadata      Has ResponsibleSectors  Volume Names    Boundary Text
+     ↓              ↓                    ↓              ↓
+Properties    ML-/BN- + _CTR/_FSS    Primary + Resp   Coordinate Data
+     ↓              ↓                    ↓              ↓
+Responsible   Qualifying Sectors      Polygon Creation  Decimal Degrees
+Sectors       Only                    Shapely Objects   Geographic Data
+     ↓              ↓                    ↓              ↓
+Combine       Unified Coverage        Outer Perimeter   Final Boundaries
+Polygons      Areas                   Only              Ready for Use
 ```
 
-## Usage for One-Off Manual Processing
+## Results Summary
+
+### Successfully Processed Sectors (20 total)
+The script successfully processed **20 sectors** that meet the new criteria:
+
+1. **ASP** (Alice Springs): 64 points - ASP + FOR, WAR, ASW, WRA, BKE, ESP
+2. **ARL** (Armidale): 63 points - ARL + MDE, MLD, OCN, MNN, CNK
+3. **BLA** (Benalla): 44 points - BLA + ELW, MAE, MAV
+4. **ELW** (Eildon Weir): 26 points - ELW + MAE
+5. **GUN** (Gundagai): 35 points - GUN + KAT, BIK, SAS
+6. **HUO** (Huon): 79 points - HUO + WON, HBA, LTA
+7. **HYD** (Hyden): 25 points - HYD + JAR, PIY, CRS, GVE, GEL, LEA, PHA
+8. **INL** (Inverell): 43 points - INL + DOS, SDY, BUR, GOL, NSA
+9. **ISA** (Isa): 107 points - ISA + WEG, ARA, STR
+10. **KEN** (Kennedy): 37 points - KEN + KPL, MNN, NSA
+11. **KPL** (Keppel): 43 points - KPL + MNN, NSA
+12. **MNN** (Manning): 14 points - MNN + NSA
+13. **MUN** (Mungo): 54 points - MUN + YWE, OXL, GTH
+14. **NSA** (Noosa): 22 points - NSA only
+15. **OLW** (Onslow): 29 points - OLW + POT, PAR, MEK, MTK, NEW, MZI
+16. **TBD** (Tailem Bend): 34 points - TBD + AUG, AAW
+17. **TRT** (Territory North): 37 points - TRT + KIY, DAE, ASH, TRS
+18. **WOL** (Wollongong): 64 points - WOL + SNO, CAE, CAW
+19. **IND** (Brisbane Radio Indian): 38 points - IND + INE, INS
+20. **TSN** (Brisbane Radio Tasman): 75 points - TSN + HWE, FLD, COL
+
+### Skipped Sectors (270 total)
+**270 sectors were skipped** because they don't meet the new criteria:
+- No ResponsibleSectors section
+- Wrong callsign pattern
+- Wrong callsign type
+
+## Usage
 
 ### Running the Script
 ```bash
-cd scripts
-python extract_australian_sector_boundaries.py
+cd airspace_sector_data
+python process_australian_sectors.py
 ```
 
 ### What It Produces
-1. **Console Output**: Detailed sector information with sample coordinates
-2. **Filtered Results**: Only Australian domestic FSS/CTR standalone sectors
-3. **Coordinate Data**: Geographic boundaries in decimal degrees format
+1. **Console Output**: Detailed processing information for each sector
+2. **Processed Sectors**: 20 sectors with combined boundaries
+3. **Output Files**:
+   - `processed_sectors/australian_sectors_responsible.json` - Main results
+   - `processed_sectors/skipped_sectors.json` - Analysis of skipped sectors
 
 ### Output Example
 ```
-Found 15 Australian domestic FSS/CTR standalone sectors:
---------------------------------------------------------------------------------
- 1. ASP
-     Callsign: ML-ASP_CTR
-     Frequency: 128.850
-     Full Name: Alice Springs
-     Volumes: ASP
-     Responsible for: FOR,WAR,ASW,WRA,BKE,ESP
-     Boundary Points: 12 coordinates
-     Sample Coordinates:
-       Point 1: -34.336389, 138.372528
-       Point 2: -34.126000, 138.302500
-       Point 3: -34.020500, 138.390833
-       ... and 9 more points
+Processing sector: MUN (Mungo)
+  Callsign: ML-MUN_CTR
+  📍 Primary volume: MUN
+  🔗 Responsible sectors: YWE, OXL, GTH
+  ✅ Main sector MUN: 11 points
+  ✅ Responsible sector YWE: 14 points
+  ✅ Responsible sector OXL: 12 points
+  ✅ Responsible sector GTH: 17 points
+  🎯 Combined polygon: 54 outer perimeter points
+  ✅ Successfully processed with 54 boundary points
 ```
 
 ## Technical Implementation Details
 
-### Coordinate Format Handling
-- **VATSYS Format**: DDMMSS.SSSS (Degrees, Minutes, Seconds)
-- **Output Format**: Decimal degrees (standard for GIS applications)
-- **Precision**: Maintains sub-second accuracy from source data
-- **Sign Handling**: Properly handles negative latitudes (South) and positive longitudes (East)
+### Key Functions
+- **`should_process_sector()`**: Determines if sector meets criteria
+- **`get_primary_volume()`**: Extracts first volume from comma-separated list
+- **`get_responsible_sectors()`**: Parses responsible sectors list
+- **`get_volume_boundaries()`**: Creates Shapely polygon from volume coordinates
+- **`combine_sector_polygons()`**: Merges polygons and extracts outer perimeter
 
-### Error Handling
-- **File Parsing**: Graceful handling of XML parsing errors
-- **Coordinate Validation**: Skips invalid coordinate strings
-- **Missing Data**: Continues processing even if some sectors lack complete data
-- **Format Detection**: Automatically detects coordinate format based on digit count
+### Dependencies
+- **Python Libraries**: `xml.etree.ElementTree`, `shapely.geometry`, `shapely.ops`
+- **File Requirements**: `Sectors.xml` and `Volumes.xml` in same directory
+- **Coordinate Processing**: Custom `parse_coordinate()` function for VATSYS format
 
-### Performance Considerations
-- **Memory Usage**: Loads entire XML files into memory
-- **Processing Speed**: Linear time complexity O(n) for sector processing
-- **Coordinate Conversion**: Efficient parsing with minimal string operations
-- **Filtering**: Early exit for non-matching sectors
+### Performance
+- **Processing**: Linear time complexity O(n) for sector processing
+- **Memory**: Loads XML files and creates Shapely objects
+- **Polygon Operations**: Efficient geometric union and perimeter extraction
 
-## Dependencies and Requirements
+## Benefits of New Approach
 
-### Python Libraries
-- `xml.etree.ElementTree`: XML parsing (standard library)
-- `re`: Regular expressions (standard library, though not currently used)
+### 1. **Unified Coverage Areas**
+- Each sector represents its complete responsibility area
+- No gaps or overlaps between related sectors
+- Clear boundaries for air traffic management
 
-### File Requirements
-- `Sectors.xml`: Must be accessible at `../external-data/Sectors.xml`
-- `Volumes.xml`: Must be accessible at `../external-data/Volumes.xml`
-- Both files must be valid XML with expected structure
+### 2. **Responsibility Relationships**
+- Reflects actual ATC sector organization
+- Shows which sectors work together
+- Better understanding of airspace structure
 
-**File Acquisition**:
-- **VATSYS Installation**: Install VATSYS software on your system
-- **File Location**: Locate sector definition files in VATSYS installation directory
-- **Copy Files**: Copy `Sectors.xml` and `Volumes.xml` to the `external-data/` folder
-- **Verify Structure**: Ensure files maintain their original XML structure and encoding
+### 3. **Geometric Accuracy**
+- Uses Shapely for robust polygon operations
+- Handles complex boundary combinations
+- Produces clean, non-overlapping perimeters
 
-### Data Quality Assumptions
-- Coordinate strings follow VATSYS format consistently
-- Volume names in Sectors.xml match Volume names in Volumes.xml
-- Boundary names in Volumes.xml are properly referenced
-- All required attributes are present in sector definitions
-
-## Future Enhancements
-
-### Potential Improvements
-1. **Coordinate Validation**: Add bounds checking for Australian airspace
-2. **Output Formats**: Support for GeoJSON, KML, or other GIS formats
-3. **Caching**: Save processed results to avoid re-parsing
-4. **Error Reporting**: More detailed error messages for debugging
-5. **Batch Processing**: Process multiple sector files or regions
-
-### Integration Opportunities
-1. **Database Storage**: Save processed sectors to PostgreSQL
-2. **API Endpoints**: Expose sector data through REST API
-3. **Real-time Updates**: Monitor for changes in source XML files
-4. **Visualization**: Generate maps showing sector boundaries
-
-## Troubleshooting
-
-### Common Issues
-1. **File Not Found**: Check relative paths from script location
-2. **XML Parsing Errors**: Verify XML file integrity and encoding
-3. **Coordinate Conversion Failures**: Check for unexpected coordinate formats
-4. **No Matching Sectors**: Verify filtering criteria and source data
-
-### Debugging Tips
-1. **Enable Verbose Output**: Add print statements for coordinate parsing
-2. **Check File Contents**: Verify XML structure matches expected format
-3. **Validate Coordinates**: Manually verify a few coordinate conversions
-4. **Test Individual Functions**: Run coordinate parsing on sample data
+### 4. **Data Quality**
+- Only processes sectors with complete information
+- Combines related sectors automatically
+- Maintains coordinate precision from source data
 
 ## Conclusion
 
-The sector processing script provides a robust foundation for extracting Australian airspace sector data from VATSYS XML files. By understanding the data flow and coordinate processing, you can effectively use this for one-off manual processing or integrate it into larger systems for real-time sector tracking and analysis.
+The new ResponsibleSectors approach provides a more accurate and useful representation of Australian airspace sectors. By combining main sectors with their responsible sectors, the script creates unified coverage areas that better reflect actual ATC operations and airspace management.
 
-The key insight is that the script bridges the gap between human-readable sector definitions (Sectors.xml) and machine-readable geographic coordinates (Volumes.xml), producing a unified dataset ready for airspace management applications.
+The key insight is that sectors don't operate in isolation - they work together as part of larger airspace management systems. This approach captures those relationships and produces geographic boundaries that represent the true scope of each sector's responsibility.
