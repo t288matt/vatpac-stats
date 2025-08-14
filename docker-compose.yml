@@ -32,7 +32,7 @@ services:
       DATABASE_URL: postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data
       
       # Simplified Architecture - Sprint 2 Completed
-      LOG_LEVEL: "WARNING"
+      LOG_LEVEL: "INFO"
       
       # Production Settings
       PRODUCTION_MODE: "true"
@@ -78,8 +78,8 @@ services:
       
       # Geographic Boundary Filter Configuration (Polygon-based)
       ENABLE_BOUNDARY_FILTER: "true"
-      BOUNDARY_DATA_PATH: "airspace_sector_data/australian_airspace_polygon.json"
-      BOUNDARY_FILTER_LOG_LEVEL: "WARNING"
+      BOUNDARY_DATA_PATH: "config/australian_airspace_polygon.json"
+      BOUNDARY_FILTER_LOG_LEVEL: "INFO"
       BOUNDARY_FILTER_PERFORMANCE_THRESHOLD: "10.0"
       
       # Callsign Pattern Filter Configuration

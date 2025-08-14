@@ -1195,7 +1195,7 @@ class DataService:
                 "sector_count": self.sector_loader.get_sector_count() if hasattr(self, 'sector_loader') and self.sector_loader else 0,
                 "geographic_filter_enabled": self.geographic_boundary_filter.config.enabled if hasattr(self, 'geographic_boundary_filter') else False,
                 "callsign_filter_enabled": self.callsign_pattern_filter.config.enabled if hasattr(self, 'callsign_pattern_filter') else False,
-                "flight_summary_enabled": getattr(self.config, 'flight_summary', {}).get('enabled', False) if hasattr(self, 'config') else False,
+                "flight_summary_enabled": getattr(self.config.flight_summary, 'enabled', False) if hasattr(self, 'config') and hasattr(self.config, 'flight_summary') else False,
                 "active_flight_sector_states": len(getattr(self, 'flight_sector_states', {})),
                 "last_processing_time": getattr(self, '_last_processing_time', None),
                 "processing_errors": getattr(self, '_processing_errors', 0),

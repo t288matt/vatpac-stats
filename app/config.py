@@ -116,7 +116,7 @@ class LoggingConfig:
     def from_env(cls):
         """Load logging configuration from environment variables."""
         return cls(
-            level=os.getenv("LOG_LEVEL"),
+            level=os.getenv("LOG_LEVEL", "INFO"),
             format=os.getenv("LOG_FORMAT", "json")
         )
 
@@ -150,7 +150,7 @@ class SectorTrackingConfig:
     """Sector tracking configuration"""
     enabled: bool = True
     update_interval: int = 60  # seconds
-    sectors_file_path: str = "airspace_sector_data/australian_sectors.json"
+    sectors_file_path: str = "config/australian_airspace_sectors.geojson"
     
     @classmethod
     def from_env(cls):
@@ -158,7 +158,7 @@ class SectorTrackingConfig:
         return cls(
             enabled=os.getenv("SECTOR_TRACKING_ENABLED", "true").lower() == "true",
             update_interval=int(os.getenv("SECTOR_UPDATE_INTERVAL", "60")),
-            sectors_file_path=os.getenv("SECTOR_DATA_PATH", "airspace_sector_data/australian_airspace_sectors.geojson")
+            sectors_file_path=os.getenv("SECTOR_DATA_PATH", "config/australian_airspace_sectors.geojson")
         )
 
 

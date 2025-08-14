@@ -24,9 +24,9 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 from unittest.mock import Mock, patch, MagicMock
 
-# Add the app directory to the Python path
-sys.path.insert(0, '/app/app')
-sys.path.insert(0, '/app')
+# Add the app directory to the Python path (works from both host and Docker)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
+sys.path.insert(0, os.path.dirname(__file__))
 
 
 class TestAPIEndpointErrorConditions:
@@ -227,7 +227,7 @@ class TestDatabaseErrorConditions:
         print("🧪 Testing: Does the system handle database connection errors gracefully?")
         
         try:
-            from database import get_sync_session, engine
+            from app.database import get_sync_session, engine
             from sqlalchemy import text
             from sqlalchemy.exc import OperationalError, DisconnectionError
             
@@ -275,7 +275,7 @@ class TestDatabaseErrorConditions:
         print("🧪 Testing: Does the system handle database transaction errors correctly?")
         
         try:
-            from database import get_sync_session
+            from app.database import get_sync_session
             from sqlalchemy import text
             from sqlalchemy.exc import IntegrityError
             
@@ -547,7 +547,7 @@ class TestEdgeCaseScenarios:
         print("🧪 Testing: Does the system handle concurrent access correctly?")
         
         try:
-            from database import get_sync_session
+            from app.database import get_sync_session
             from sqlalchemy import text
             
             # Test concurrent database access

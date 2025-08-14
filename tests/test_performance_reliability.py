@@ -13,18 +13,24 @@ Focus Areas:
 - System resource usage under load
 """
 
-import pytest
-import sys
 import os
+import sys
+import pytest
+from unittest.mock import patch, MagicMock, AsyncMock
+
+# Add app to path for imports (works from both host and Docker)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
+sys.path.insert(0, os.path.dirname(__file__))
+
+from app.services.data_service import DataService, get_data_service_sync
+from app.services.atc_detection_service import ATCDetectionService
+from app.services.vatsim_service import VATSIMService
+from app.models import Flight, Controller, FlightSectorOccupancy
+from app.database import get_sync_session
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError, TimeoutError
 import time
 import asyncio
-from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor
-import threading
-
-# Add the app directory to the Python path
-sys.path.insert(0, '/app/app')
-sys.path.insert(0, '/app')
 
 
 class TestFastAPIApplication:
@@ -499,6 +505,7 @@ class TestDatabasePerformance:
                     db.close()
             
             # Test with multiple threads
+            from concurrent.futures import ThreadPoolExecutor
             with ThreadPoolExecutor(max_workers=5) as executor:
                 futures = [executor.submit(test_connection) for _ in range(5)]
                 results = [future.result() for future in futures]
@@ -570,6 +577,7 @@ class TestAPIPerformance:
                 return response.status_code == 200 and response_time < 1.0
             
             # Make 5 concurrent requests
+            from concurrent.futures import ThreadPoolExecutor
             with ThreadPoolExecutor(max_workers=5) as executor:
                 futures = [executor.submit(make_request) for _ in range(5)]
                 results = [future.result() for future in futures]

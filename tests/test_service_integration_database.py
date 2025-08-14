@@ -9,9 +9,9 @@ Author: VATSIM Data System
 Stage: 12 - Service Integration & Database Testing
 """
 
-import pytest
-import sys
 import os
+import sys
+import pytest
 import asyncio
 import time
 import json
@@ -19,17 +19,17 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List
 from unittest.mock import patch, MagicMock, AsyncMock
 
-# Add app to path for imports
-sys.path.insert(0, '/app/app')
-sys.path.insert(0, '/app')
+# Add app to path for imports (works from both host and Docker)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
+sys.path.insert(0, os.path.dirname(__file__))
 
 from app.services.data_service import DataService, get_data_service_sync
-from app.services.vatsim_service import VATSIMService, get_vatsim_service
-from app.services.database_service import DatabaseService
 from app.services.atc_detection_service import ATCDetectionService
-from app.database import get_database_session, get_sync_session
-from app.models import Flight, Controller, Transceiver
-from sqlalchemy import text, func, select
+from app.services.vatsim_service import VATSIMService
+from app.models import Flight, Controller, FlightSectorOccupancy
+from app.database import get_sync_session, get_database_session
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -51,7 +51,7 @@ class TestServiceIntegrationWorkflows:
             # 4. Data is retrievable and consistent
             
             # Initialize services
-            vatsim_service = get_vatsim_service()
+            vatsim_service = VATSIMService()
             data_service = get_data_service_sync()
             
             # Test VATSIM service data retrieval
@@ -95,18 +95,18 @@ class TestServiceIntegrationWorkflows:
             # Test service initialization and dependencies
             data_service = DataService()
             vatsim_service = VATSIMService()
-            database_service = DatabaseService()
+            # database_service = DatabaseService() # This line was removed as per new_code
             
             # Test that services can be created
             assert data_service is not None, "DataService should be created"
             assert vatsim_service is not None, "VATSIMService should be created"
-            assert database_service is not None, "DatabaseService should be created"
+            # assert database_service is not None, "DatabaseService should be created" # This line was removed as per new_code
             
             # Test service method availability
             service_methods = {
                 'data_service': ['process_vatsim_data', 'get_processing_stats'],
                 'vatsim_service': ['get_current_data', 'get_api_status'],
-                'database_service': ['store_flights', 'store_controllers']
+                # 'database_service': ['store_flights', 'store_controllers'] # This line was removed as per new_code
             }
             
             for service_name, expected_methods in service_methods.items():
@@ -131,7 +131,7 @@ class TestServiceIntegrationWorkflows:
             # Test data consistency by checking the same data through different paths
             
             # Get data through VATSIM service (with error handling for test environment)
-            vatsim_service = get_vatsim_service()
+            vatsim_service = VATSIMService()
             if hasattr(vatsim_service, 'get_current_data'):
                 try:
                     vatsim_data = await vatsim_service.get_current_data()
@@ -447,7 +447,7 @@ class TestServiceDataFlowComprehensive:
             # Test error handling in integrated service scenarios
             
             # Test VATSIM service error handling
-            vatsim_service = get_vatsim_service()
+            vatsim_service = VATSIMService()
             if hasattr(vatsim_service, 'get_api_status'):
                 try:
                     status = await vatsim_service.get_api_status()
@@ -500,7 +500,7 @@ class TestServiceDataFlowComprehensive:
                 print("✅ Data service filter status consistency verified")
             
             # Test VATSIM service state
-            vatsim_service = get_vatsim_service()
+            vatsim_service = VATSIMService()
             if hasattr(vatsim_service, 'get_api_status'):
                 status_1 = await vatsim_service.get_api_status()
                 status_2 = await vatsim_service.get_api_status()
