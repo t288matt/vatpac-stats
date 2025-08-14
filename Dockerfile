@@ -47,6 +47,7 @@ COPY --from=builder /root/.local /home/app/.local
 # Copy only essential application files
 COPY app/ ./app/
 COPY tests/ ./tests/
+COPY airspace_sector_data/ ./airspace_sector_data/
 COPY run.py .
 COPY run_tests.py .
 COPY requirements.txt .

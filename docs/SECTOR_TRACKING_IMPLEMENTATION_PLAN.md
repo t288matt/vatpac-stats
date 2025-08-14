@@ -79,27 +79,46 @@ CREATE INDEX idx_flight_sector_occupancy_entry_timestamp ON flight_sector_occupa
 
 ## 🔧 **Technical Implementation**
 
-### **Sector Data Management (Simplified Approach)**
-**Implementation**: JSON sector definitions parsed once at startup, converted to Shapely Polygons, stored in-memory as JSON data
+### **Sector Data Management (Reuse Existing Infrastructure)**
+**Implementation**: Leverage existing `australian_sectors.json` and extend current geographic utilities
 
-**Scope**: **En-route sectors only** - Only processes sectors with type CTR (Center) nd FSS
+**Scope**: **17 Australian en-route sectors** - FSS/CTR sectors with complete boundary data
 
-**Technical Architecture**:
-reuse as much of the boundary processing as possible
-Benefits of Using the Same Flow:
-Performance: get_cached_polygon() already has a caching mechanism (_polygon_cache) that prevents reloading the same JSON files
-Consistency: Same error handling, validation, and logging across all polygon loading
-Maintainability: One place to fix polygon loading issues
-Memory efficiency: The cache prevents duplicate polygon objects in memory
+**Current State Analysis**:
+- ✅ **`australian_sectors.json`** - 17 sectors already processed with boundaries
+- ✅ **`geographic_utils.py`** - Complete polygon handling, caching, and point-in-polygon detection
+- ✅ **`geographic_boundary_filter.py`** - Working filter system with proven patterns
+- ✅ **`data_service.py`** - Core data processing service ready for extension
+
+**Technical Architecture - Code Reuse Strategy**:
+```
+Existing Infrastructure → Extend → Sector Tracking
+├── geographic_utils.py (reuse)
+│   ├── get_cached_polygon() - Polygon caching system
+│   ├── is_point_in_polygon() - Point-in-polygon detection
+│   ├── parse_ddmm_coordinate() - Already handles DDMMSS.SSSS format
+│   └── load_polygon_from_geojson() - JSON polygon loading
+├── geographic_boundary_filter.py (reuse patterns)
+│   ├── Error handling and logging patterns
+│   ├── Configuration management
+│   └── Statistics tracking
+└── data_service.py (extend)
+    ├── Add sector_loader integration
+    ├── Add sector occupancy tracking
+    └── Integrate with existing flight processing
+```
+
+**Benefits of This Approach**:
+- **Performance**: Existing `_polygon_cache` prevents reloading sector files
+- **Consistency**: Same error handling, validation, and logging across all geographic operations
+- **Maintainability**: One place to fix polygon loading issues
+- **Memory efficiency**: No duplicate polygon objects in memory
+- **Proven reliability**: Use code that's already working in production
 
 **Storage Strategy**:
-- **External Refdata Directory**: Contains only json sector files 
-
-
-**Benefits**:
-- **Simpler architecture** - No additional database tables for sector definitions
-- **Faster performance** - In-memory polygon intersection testing
-- **Matches "KEEP IT SIMPLE" philosophy** - Minimal moving parts
+- **Existing**: `australian_sectors.json` with 17 sectors and boundaries
+- **Format**: Coordinates already in decimal degrees (ready for Shapely)
+- **Metadata**: Sector names, callsigns, frequencies, full names
 
 ### **Data Flow**
 ```
@@ -119,7 +138,7 @@ Runtime:
 
 ## 📍 **Sector Detection Process**
 
-**Scope**: **En-route sectors only** (~85 sectors) - excludes terminal, ground, and other non-en-route sectors
+**Scope**: **En-route sectors only** (17 sectors) - excludes terminal, ground, and other non-en-route sectors
 
 **Process**:
 1. **Sector Detection**: Check each flight position against en-route sector polygon boundaries using existing `geographic_utils.py` and Shapely library
@@ -184,9 +203,9 @@ SECTOR_UPDATE_INTERVAL: 60              # Seconds between sector position update
    - Base table structure with coordinates and timing
    - **NEW: Added `entry_altitude` and `exit_altitude` fields** ✅ **COMPLETED**
    - Performance indexes for fast queries
-2. **Implement sector data loading from XML files** (Shapely Polygons in-memory)
-3. **Enhance `geographic_utils.py`** with DDMM.MMMM coordinate parsing
-4. **Create `sector_loader.py`** for XML parsing and sector management
+2. **Implement sector data loading from JSON files** ✅ **READY** (australian_sectors.json exists)
+3. **Enhance `geographic_utils.py`** ✅ **NOT NEEDED** (already handles DDMMSS.SSSS format)
+4. **Create `sector_loader.py`** for JSON parsing and sector management
 5. **Add configuration variables** to Docker Compose
 
 ### **Altitude Fields Implementation** ✅ **COMPLETED**
@@ -228,7 +247,7 @@ SECTOR_UPDATE_INTERVAL: 60              # Seconds between sector position update
 ### **Testing Tasks**
 - [ ] **Test sector boundary detection**
 - [ ] **Test sector occupancy tracking**
-- [ ] **Performance testing** with ~85 sectors
+- [ ] **Performance testing** with 17 sectors
 - [ ] **Integration testing** with flight updates
 - [ ] **Validate sector tracking accuracy**
 
@@ -248,8 +267,50 @@ SECTOR_UPDATE_INTERVAL: 60              # Seconds between sector position update
 ### **🔄 Next Steps**
 1. **Run Migration**: Execute altitude fields migration in database
 2. **Test Schema**: Verify new fields are accessible and functional
-3. **Continue Phase 1**: Implement sector data loading from XML files
-4. **Enhance Geographic Utils**: Add DDMM.MMMM coordinate parsing support
+3. **Continue Phase 1**: Implement sector data loading from JSON files (australian_sectors.json)
+4. **Create Sector Loader**: Build sector_loader.py to integrate with existing infrastructure
+
+### **📋 Detailed Implementation Roadmap**
+
+#### **Step 1: Create Sector Loader** (`app/utils/sector_loader.py`)
+```python
+class SectorLoader:
+    def __init__(self):
+        self.sectors = {}  # name -> Shapely Polygon
+        self.sector_metadata = {}  # name -> metadata
+        
+    def load_sectors(self):
+        # Load australian_sectors.json (17 sectors)
+        # Convert boundaries to Shapely Polygons
+        # Store in memory for fast access
+        # Use existing get_cached_polygon() pattern
+```
+
+#### **Step 2: Integrate with Data Service** (`app/services/data_service.py`)
+```python
+class DataService:
+    def __init__(self):
+        # Existing filters
+        self.geographic_boundary_filter = GeographicBoundaryFilter()
+        self.callsign_pattern_filter = CallsignPatternFilter()
+        
+        # NEW: Add sector tracking
+        self.sector_loader = SectorLoader()
+        
+    async def process_flight_data(self, flights):
+        # Existing filtering logic
+        filtered_flights = self.geographic_boundary_filter.filter_flights_list(flights)
+        
+        # NEW: Add sector tracking
+        for flight in filtered_flights:
+            self.track_sector_occupancy(flight)
+```
+
+#### **Step 3: Sector Occupancy Tracking**
+- **Real-time detection**: Check flight position against 17 sector boundaries
+- **Entry/Exit logging**: Record timestamp, coordinates, and altitude
+- **Database updates**: Insert into `flight_sector_occupancy` table
+- **Performance**: Leverage existing polygon caching and optimization
 
 ### **📁 Migration Files Created**
 - `scripts/add_altitude_fields_migration.sql` - SQL migration script
@@ -265,7 +326,7 @@ SECTOR_UPDATE_INTERVAL: 60              # Seconds between sector position update
 3. **Sector Data Storage**: ✅ **SOLVED** - Use `SectorManager` class for in-memory sector data
 4. **Error Handling**: ✅ **SOLVED** - Fail fast approach (stop everything if any sector fails to load)
 5. **Sector Updates**: ✅ **SOLVED** - Restart required (sectors change rarely, not a performance concern)
-6. **Performance Approach**: ✅ **SOLVED** - Simple loop approach for ~85 en-route sectors (3M operations/minute manageable)
+6. **Performance Approach**: ✅ **SOLVED** - Simple loop approach for 17 en-route sectors (3M operations/minute manageable)
 7. **Sector Scope**: ✅ **SOLVED** - En-route sectors only (CTR, TMA, APP), excludes terminal/ground sectors
 
 ## 🎯 **Success Criteria**

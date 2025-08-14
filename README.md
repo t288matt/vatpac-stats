@@ -38,7 +38,7 @@ A real-time VATSIM data collection system that processes flight data, ATC positi
 - **Performance optimized** - filtering adds <1ms overhead for 100+ entities
 
 ### **Australian Airspace Data Structure**
-The system uses two key JSON files for geographic filtering and sector management:
+The system uses a simplified approach for geographic filtering and sector management:
 
 #### **`australian_airspace_polygon.json` - External FIR Boundary**
 - **Purpose**: Defines the external boundary of Australian Flight Information Region (FIR)
@@ -47,18 +47,26 @@ The system uses two key JSON files for geographic filtering and sector managemen
 - **Status**: **Static file** - does not change and represents the official Australian FIR boundary
 - **Format**: GeoJSON polygon with decimal degree coordinates
 
-#### **`australian_sectors.json` - Internal Sector Definitions**
-- **Purpose**: Contains detailed definitions of individual airspace sectors within Australia
-- **Content**: Array of sector objects with metadata and geographic boundaries
+#### **`australian_airspace_sectors.geojson` - Processed Sector Boundaries**
+- **Purpose**: Contains processed airspace sector boundaries in standard GeoJSON format
+- **Content**: FeatureCollection with each main sector as a separate Feature containing combined subsector polygons
 - **Usage**: Used for detailed sector analysis, ATC coverage mapping, and airspace management
-- **Status**: **Manually generated** from VATSYS XML files using the processing script
-- **Format**: Custom JSON structure with sector metadata and coordinate arrays
+- **Status**: **Automatically generated** from VATSYS XML files using the simplified processing script
+- **Format**: Standard GeoJSON FeatureCollection with Polygon geometries
+
+#### **`australian_sectors_data.json` - Processing Metadata**
+- **Purpose**: Contains metadata about the processing results for each sector
+- **Content**: Array of sector objects with name, subsectors list, and boundary point counts
+- **Usage**: Reference data showing which subsectors were successfully processed for each main sector
+- **Status**: **Automatically generated** alongside the main GeoJSON output
+- **Format**: Simple JSON structure with processing statistics
 
 **Data Processing Workflow**:
 1. **External Boundary**: `australian_airspace_polygon.json` provides the primary filter boundary
-2. **Sector Details**: `australian_sectors.json` provides granular sector information for detailed analysis
-3. **Real-time Filtering**: Geographic boundary filter uses the external polygon for efficient position checking
-4. **Sector Analysis**: Internal sectors used for detailed airspace coverage and ATC position mapping
+2. **Sector Boundaries**: `australian_airspace_sectors.geojson` provides processed sector boundaries in GeoJSON format
+3. **Processing Metadata**: `australian_sectors_data.json` provides reference information about processing results
+4. **Real-time Filtering**: Geographic boundary filter uses the external polygon for efficient position checking
+5. **Sector Analysis**: Processed sectors used for detailed airspace coverage and ATC position mapping
 
 ### **Flight Summary System: ✅ FULLY IMPLEMENTED**
 - **Backend logic implemented** in data service with scheduled processing
@@ -293,7 +301,14 @@ Recent testing shows:
 
 ## 🚀 Recent Updates
 
-### Geographic Boundary Filtering (Latest)
+### Simplified Australian Sector Processing (Latest)
+- **Simplified sector hierarchy** approach using `SectorHierarchy.txt` instead of complex XML parsing
+- **Standard GeoJSON output** format for better compatibility and visualization
+- **MultiPolygon support** for geographically separate subsectors
+- **Direct file output** in main directory for easier access
+- **Processing metadata** generation for monitoring and debugging
+
+### Geographic Boundary Filtering
 - **Multi-entity support** for flights, transceivers, and controllers
 - **Performance optimization** with minimal processing overhead
 - **Comprehensive testing** with live VATSIM data
@@ -318,7 +333,9 @@ Recent testing shows:
 ### Airspace Data Documentation
 - **[Australian Sector Processing](airspace_sector_data/PROCESSING_AUSTRALIAN_SECTOR_FILES_README.md)** - Detailed guide for processing VATSYS sector files
 - **`australian_airspace_polygon.json`** - Static Australian FIR boundary (GeoJSON format)
-- **`australian_sectors.json`** - Manually generated sector definitions from VATSYS XML files
+- **`australian_airspace_sectors.geojson`** - Automatically generated sector boundaries in GeoJSON format
+- **`australian_sectors_data.json`** - Processing metadata and statistics for each sector
+- **`SectorHierarchy.txt`** - Simplified sector hierarchy definition file
 
 ### Quick References
 - **[API Reference](docs/API_REFERENCE.md)** - Endpoint documentation
@@ -356,16 +373,27 @@ app/
 ### Airspace Data Maintenance
 
 #### **Updating Sector Definitions**
-The `australian_sectors.json` file is generated from VATSYS XML files:
+The sector boundaries are now processed using a simplified approach with `SectorHierarchy.txt`:
 
-1. **Obtain VATSYS Files**: Copy `Sectors.xml` and `Volumes.xml` from VATSYS installation
-2. **Run Processing Script**: Execute the sector extraction script:
+1. **Sector Hierarchy File**: Edit `SectorHierarchy.txt` to define main sectors and their subsectors
+2. **VATSYS Files**: Ensure `Volumes.xml` contains the coordinate data for all subsectors
+3. **Run Processing Script**: Execute the simplified processing script:
    ```bash
    cd airspace_sector_data
    python process_australian_sectors.py
    ```
-3. **Review Output**: Verify the generated sector data matches expectations
-4. **Replace File**: Copy the new `australian_sectors.json` to replace the existing file
+4. **Review Output**: Verify the generated GeoJSON files match expectations
+5. **Output Files**: The script generates:
+   - `australian_airspace_sectors.geojson` - Main sector boundaries in GeoJSON format
+   - `australian_sectors_data.json` - Processing metadata and statistics
+
+#### **Simplified Processing Approach**
+The new processing system:
+- **Uses `SectorHierarchy.txt`** instead of complex XML parsing
+- **Processes all boundaries** for each volume (not just the first)
+- **Handles MultiPolygons** correctly for geographically separate subsectors
+- **Outputs standard GeoJSON** format for compatibility
+- **Saves files directly** in the main directory
 
 #### **External Boundary (Static)**
 The `australian_airspace_polygon.json` file:
@@ -373,7 +401,7 @@ The `australian_airspace_polygon.json` file:
 - **Used directly** by the geographic boundary filter
 - **No maintenance required** - this is a reference data file
 
-**Note**: Both files are located in the `airspace_sector_data/` directory and are automatically loaded by the geographic boundary filter system.
+**Note**: All files are located in the `airspace_sector_data/` directory and the processed sector boundaries are automatically generated from the simplified hierarchy approach.
 
 ## 🚨 Troubleshooting
 

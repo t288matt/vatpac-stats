@@ -33,6 +33,7 @@ from app.database import get_database_session
 from app.models import Flight, Controller, Transceiver
 from app.config import get_config
 from app.services.atc_detection_service import ATCDetectionService
+from app.utils.sector_loader import SectorLoader
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -69,6 +70,12 @@ class DataService:
         # Initialize ATC detection service
         self.atc_detection_service = ATCDetectionService()
         
+        # NEW: Initialize sector tracking
+        self.sector_tracking_enabled = self.config.sector_tracking.enabled
+        self.sector_update_interval = self.config.sector_tracking.update_interval
+        self.sector_loader = None  # Will be initialized in initialize() method
+        self.flight_sector_states = {}  # Track current sector for each flight
+        
         # Performance tracking - simplified
         self.stats = {
             "flights": 0,
@@ -87,10 +94,20 @@ class DataService:
             # Geographic boundary filter is already initialized in its constructor
             # No need to call initialize() on it
             
+            # NEW: Initialize sector tracking
+            if self.sector_tracking_enabled:
+                self.sector_loader = SectorLoader(self.config.sector_tracking.sectors_file_path)
+                sector_loaded = self.sector_loader.load_sectors()
+                if not sector_loaded:
+                    self.logger.error("Failed to load sectors - sector tracking disabled")
+                    self.sector_tracking_enabled = False
+                else:
+                    self.logger.info(f"Sector tracking initialized with {self.sector_loader.get_sector_count()} sectors")
+            
             # Don't get database session here - we'll get it when needed
             self.db_session = None
             
-            self.logger.info(f"Filters: geo={self.geographic_boundary_filter.config.enabled}, callsign={self.callsign_pattern_filter.config.enabled}")
+            self.logger.info(f"Filters: geo={self.geographic_boundary_filter.config.enabled}, callsign={self.callsign_pattern_filter.config.enabled}, sector={self.sector_tracking_enabled}")
             self._initialized = True
             
             # Start scheduled flight summary processing
@@ -157,6 +174,10 @@ class DataService:
                 "transceivers": self.stats["transceivers"] + transceivers_processed,
                 "last_run": datetime.now(timezone.utc)
             })
+            
+            # NEW: Cleanup sector states periodically
+            if hasattr(self, 'sector_tracking_enabled') and self.sector_tracking_enabled:
+                await self._cleanup_sector_states()
             
             # Log summary only when there's significant activity or filtering
             total_processed = flights_processed + controllers_processed + transceivers_processed
@@ -243,6 +264,9 @@ class DataService:
                                 "remarks": flight_dict.get("remarks", "")
                             }
                             bulk_flights.append(flight_data)
+                            
+                            # NEW: Track sector occupancy for this flight
+                            await self._track_sector_occupancy(flight_dict, session)
                             
                         except Exception as e:
                             self.logger.warning(f"Failed to prepare flight data for {flight_dict.get('callsign', 'unknown')}: {e}")
@@ -375,10 +399,11 @@ class DataService:
         
         processed_count = 0
         
-        # Apply filters
-        filtered_transceivers = self.callsign_pattern_filter.filter_transceivers_list(transceivers_data)
+        # Apply geographic boundary filtering
         if self.geographic_boundary_filter.config.enabled:
-            filtered_transceivers = self.geographic_boundary_filter.filter_transceivers_list(filtered_transceivers)
+            filtered_transceivers = self.geographic_boundary_filter.filter_transceivers_list(transceivers_data)
+        else:
+            filtered_transceivers = transceivers_data
         
         # Log only summary, not individual transceiver details
         if len(transceivers_data) != len(filtered_transceivers):
@@ -390,8 +415,7 @@ class DataService:
         async with get_database_session() as session:
             if filtered_transceivers:
                 try:
-                    # Prepare bulk data with current timestamp
-                    current_time = datetime.now(timezone.utc)
+                    # Prepare bulk data
                     bulk_transceivers = []
                     
                     for transceiver_dict in filtered_transceivers:
@@ -405,10 +429,9 @@ class DataService:
                                 "position_lon": transceiver_dict.get("position_lon"),
                                 "height_msl": transceiver_dict.get("height_msl"),
                                 "height_agl": transceiver_dict.get("height_agl"),
-                                "entity_type": transceiver_dict.get("entity_type", ""),
+                                "entity_type": transceiver_dict.get("entity_type", "flight"),
                                 "entity_id": transceiver_dict.get("entity_id"),
-                                "timestamp": current_time,
-                                "updated_at": current_time
+                                "timestamp": datetime.now(timezone.utc)
                             }
                             bulk_transceivers.append(transceiver_data)
                             
@@ -430,92 +453,322 @@ class DataService:
         
         return processed_count
     
-    # async def _update_vatsim_status(self, vatsim_data: Dict[str, Any]): # This method is removed
-    #     """ # This method is removed
-    #     Update VATSIM network status information. # This method is removed
-    #     # This method is removed
-    #     Args: # This method is removed
-    #         vatsim_data: Current VATSIM data # This method is removed
-    #     """ # This method is removed
-    #     try: # This method is removed
-    #         # Create or update status record # This method is removed
-    #         status = VatsimStatus( # This method is removed
-    #             timestamp=datetime.now(timezone.utc), # This method is removed
-    #             total_controllers=vatsim_data.get("total_controllers", 0), # This method is removed
-    #             total_flights=vatsim_data.get("total_flights", 0), # This method is removed
-    #             total_sectors=vatsim_data.get("total_sectors", 0), # This method is removed
-    #             total_transceivers=vatsim_data.get("total_transceivers", 0), # This method is removed
-    #             api_status="healthy" # This method is removed
-    #         ) # This method is removed
-    #         # This method is removed
-    #         self.db_session.add(status) # This method is removed
-    #         await self.db_session.commit() # This method is removed
-    #         # This method is removed
-    #     except Exception as e: # This method is removed
-    #         self.logger.error(f"Failed to update VATSIM status: {e}") # This method is removed
+    # ============================================================================
+    # SECTOR TRACKING METHODS
+    # ============================================================================
     
-    def get_processing_stats(self) -> Dict[str, Any]:
-        """Get data processing statistics - simplified"""
-        return {
-            "flights": self.stats.get("flights", 0),
-            "controllers": self.stats.get("controllers", 0),
-            "transceivers": self.stats.get("transceivers", 0),
-            "last_run": self.stats.get("last_run")
-        }
-    
-    def get_filter_status(self) -> Dict[str, Any]:
-        """Get filter status information."""
-        return {
-            "geographic_boundary_filter": {
-                "enabled": self.geographic_boundary_filter.config.enabled,
-                "initialized": self.geographic_boundary_filter.is_initialized
-            },
-            "callsign_pattern_filter": {
-                "enabled": self.callsign_pattern_filter.config.enabled,
-                "patterns": self.callsign_pattern_filter.config.excluded_patterns
-            }
-        }
-    
-    async def process_completed_flights(self) -> dict:
-        """Process completed flights by creating summaries and archiving old records."""
+    async def _track_sector_occupancy(self, flight_dict: Dict[str, Any], session: AsyncSession) -> None:
+        """
+        Track sector occupancy for a single flight.
+        
+        This method detects when a flight enters or exits sectors and records
+        the transitions in the flight_sector_occupancy table.
+        
+        Args:
+            flight_dict: Flight data dictionary from VATSIM API
+            session: Database session for recording sector data
+        """
+        if not hasattr(self, 'sector_loader') or not hasattr(self, 'sector_tracking_enabled'):
+            # Sector tracking not initialized, skip
+            return
+            
+        if not self.sector_tracking_enabled:
+            return
+        
+        callsign = flight_dict.get("callsign")
+        if not callsign:
+            return
+        
+        # Get current position
+        lat = flight_dict.get("latitude")
+        lon = flight_dict.get("longitude")
+        altitude = flight_dict.get("altitude")
+        
+        if lat is None or lon is None:
+            return
+        
+        # Find current sector
+        current_sector = self.sector_loader.get_sector_for_point(lat, lon)
+        
+        # Get previous sector state
+        previous_state = getattr(self, 'flight_sector_states', {}).get(callsign)
+        
+        if current_sector != previous_state:
+            await self._handle_sector_transition(
+                callsign, previous_state, current_sector, 
+                lat, lon, altitude, session
+            )
+            
+            # Update state
+            if not hasattr(self, 'flight_sector_states'):
+                self.flight_sector_states = {}
+            self.flight_sector_states[callsign] = current_sector
+
+    async def _handle_sector_transition(
+        self, callsign: str, previous_sector: Optional[str], 
+        current_sector: Optional[str], lat: float, lon: float, 
+        altitude: int, session: AsyncSession
+    ) -> None:
+        """
+        Handle sector entry/exit transitions.
+        
+        Args:
+            callsign: Flight callsign
+            previous_sector: Sector the flight was previously in (None if none)
+            current_sector: Sector the flight is currently in (None if none)
+            lat: Current latitude
+            lon: Current longitude
+            altitude: Current altitude in feet
+            session: Database session
+        """
+        timestamp = datetime.now(timezone.utc)
+        
+        # Exit previous sector
+        if previous_sector:
+            await self._record_sector_exit(
+                callsign, previous_sector, lat, lon, altitude, timestamp, session
+            )
+        
+        # Enter new sector
+        if current_sector:
+            await self._record_sector_entry(
+                callsign, current_sector, lat, lon, altitude, timestamp, session
+            )
+
+    async def _record_sector_entry(
+        self, callsign: str, sector_name: str, lat: float, lon: float, 
+        altitude: int, timestamp: datetime, session: AsyncSession
+    ) -> None:
+        """
+        Record when a flight enters a sector.
+        
+        Args:
+            callsign: Flight callsign
+            sector_name: Name of the sector being entered
+            lat: Entry latitude
+            lon: Entry longitude
+            altitude: Entry altitude in feet
+            timestamp: Entry timestamp
+            session: Database session
+        """
         try:
-            # Get configuration
-            completion_hours = self.config.flight_summary.completion_hours
-            retention_hours = self.config.flight_summary.retention_hours
+            # Check if there's an open entry record for this flight/sector combination
+            existing_entry = await session.execute(text("""
+                SELECT id FROM flight_sector_occupancy 
+                WHERE callsign = :callsign 
+                AND sector_name = :sector_name 
+                AND exit_timestamp IS NULL
+            """), {"callsign": callsign, "sector_name": sector_name})
             
-            # Identify completed flights
-            completed_flights = await self._identify_completed_flights(completion_hours)
-            
-            if not completed_flights:
-                self.logger.info("No completed flights found for processing")
-                return {"summaries_created": 0, "records_archived": 0, "records_deleted": 0}
-            
-            self.logger.info(f"Found {len(completed_flights)} completed flights to process")
-            
-            # Create flight summaries
-            summaries_created = await self._create_flight_summaries(completed_flights)
-            
-            # Archive completed flights
-            records_archived = await self._archive_completed_flights(completed_flights)
-            
-            # Delete completed flights from main flights table
-            records_deleted = await self._delete_completed_flights(completed_flights)
-            
-            # Delete old archived records beyond retention period
-            old_records_cleaned = await self._cleanup_old_archived_records(retention_hours)
-            
-            self.logger.info(f"Flight summary processing completed: {summaries_created} summaries, {records_archived} archived, {records_deleted} deleted from flights, {old_records_cleaned} old records cleaned up")
-            
-            return {
-                "summaries_created": summaries_created,
-                "records_archived": records_archived,
-                "records_deleted": records_deleted,
-                "old_records_cleaned": old_records_cleaned
-            }
-            
+            if not existing_entry.fetchone():
+                # Insert the entry record immediately with exit fields as NULL
+                await session.execute(text("""
+                    INSERT INTO flight_sector_occupancy (
+                        callsign, sector_name, entry_timestamp, exit_timestamp,
+                        duration_seconds, entry_lat, entry_lon, exit_lat, exit_lon,
+                        entry_altitude, exit_altitude
+                    ) VALUES (
+                        :callsign, :sector_name, :timestamp, NULL, 0,
+                        :lat, :lon, NULL, NULL, :altitude, NULL
+                    )
+                """), {
+                    "callsign": callsign, "sector_name": sector_name,
+                    "timestamp": timestamp, "lat": lat, "lon": lon, "altitude": altitude
+                })
+                
+                self.logger.debug(f"Flight {callsign} entered sector {sector_name}")
+    
         except Exception as e:
-            self.logger.error(f"Error processing completed flights: {e}")
-            raise
+            self.logger.error(f"Failed to record sector entry for {callsign}: {e}")
+
+    async def _record_sector_exit(
+        self, callsign: str, sector_name: str, lat: float, lon: float, 
+        altitude: int, timestamp: datetime, session: AsyncSession
+    ) -> None:
+        """
+        Record when a flight exits a sector.
+        
+        Args:
+            callsign: Flight callsign
+            sector_name: Name of the sector being exited
+            lat: Exit latitude
+            lon: Exit longitude
+            altitude: Exit altitude in feet
+            timestamp: Exit timestamp
+            session: Database session
+        """
+        try:
+            # Find and update the open entry record
+            result = await session.execute(text("""
+                UPDATE flight_sector_occupancy 
+                SET exit_timestamp = :timestamp,
+                    exit_lat = :lat,
+                    exit_lon = :lon,
+                    exit_altitude = :altitude,
+                    duration_seconds = EXTRACT(EPOCH FROM (:timestamp - entry_timestamp))::INTEGER
+                WHERE callsign = :callsign 
+                AND sector_name = :sector_name 
+                AND exit_timestamp IS NULL
+                RETURNING id
+            """), {
+                "callsign": callsign, "sector_name": sector_name,
+                "timestamp": timestamp, "lat": lat, "lon": lon, "altitude": altitude
+            })
+            
+            if result.fetchone():
+                self.logger.debug(f"Flight {callsign} exited sector {sector_name}")
+            else:
+                self.logger.warning(f"No open sector entry found for {callsign} in {sector_name}")
+    
+        except Exception as e:
+            self.logger.error(f"Failed to record sector exit for {callsign}: {e}")
+
+    async def _calculate_sector_breakdown(
+        self, callsign: str, session: AsyncSession
+    ) -> Dict[str, int]:
+        """
+        Calculate time spent in each sector for a completed flight.
+        
+        Args:
+            callsign: Flight callsign
+            session: Database session
+            
+        Returns:
+            Dict mapping sector names to minutes spent in each sector
+        """
+        try:
+            result = await session.execute(text("""
+                SELECT sector_name, 
+                       SUM(duration_seconds) / 60 as minutes
+                FROM flight_sector_occupancy 
+                WHERE callsign = :callsign 
+                AND exit_timestamp IS NOT NULL
+                GROUP BY sector_name
+                ORDER BY minutes DESC
+            """), {"callsign": callsign})
+            
+            breakdown = {}
+            for row in result.fetchall():
+                sector_name = row.sector_name
+                minutes = int(row.minutes) if row.minutes else 0
+                if minutes > 0:
+                    breakdown[sector_name] = minutes
+            
+            return breakdown
+        
+        except Exception as e:
+            self.logger.error(f"Failed to calculate sector breakdown for {callsign}: {e}")
+            return {}
+
+    def _get_primary_sector(self, sector_breakdown: Dict[str, int]) -> Optional[str]:
+        """
+        Get the sector with the most time spent.
+        
+        Args:
+            sector_breakdown: Dictionary mapping sector names to minutes spent
+            
+        Returns:
+            Name of the primary sector, or None if no sectors
+        """
+        if not sector_breakdown:
+            return None
+        
+        return max(sector_breakdown.items(), key=lambda x: x[1])[0]
+
+    async def _cleanup_sector_states(self) -> None:
+        """
+        Clean up sector states for flights that are no longer active.
+        
+        This method removes inactive flights from the sector state tracking
+        and closes any open sector entries to prevent data inconsistencies.
+        """
+        if not hasattr(self, 'sector_tracking_enabled') or not self.sector_tracking_enabled:
+            return
+        
+        try:
+            # Get current active flights from database (flights updated in last 5 minutes)
+            async with get_database_session() as session:
+                result = await session.execute(text("""
+                    SELECT DISTINCT callsign FROM flights 
+                    WHERE last_updated > NOW() - INTERVAL '5 minutes'
+                """))
+                
+                active_callsigns = {row.callsign for row in result.fetchall()}
+                
+                # Remove inactive flights from sector states
+                if hasattr(self, 'flight_sector_states'):
+                    inactive_callsigns = set(self.flight_sector_states.keys()) - active_callsigns
+                    
+                    for callsign in inactive_callsigns:
+                        # Close any open sector entries
+                        await self._close_open_sector_entries(callsign, session)
+                        del self.flight_sector_states[callsign]
+                        
+                    if inactive_callsigns:
+                        self.logger.debug(f"Cleaned up sector states for {len(inactive_callsigns)} inactive flights")
+        
+        except Exception as e:
+            self.logger.error(f"Failed to cleanup sector states: {e}")
+
+    async def _close_open_sector_entries(self, callsign: str, session: AsyncSession) -> None:
+        """
+        Close any open sector entries for a flight.
+        
+        This is called when a flight becomes inactive to ensure all sector
+        entries have proper exit timestamps and duration calculations.
+        
+        Args:
+            callsign: Flight callsign
+            session: Database session
+        """
+        try:
+            await session.execute(text("""
+                UPDATE flight_sector_occupancy 
+                SET exit_timestamp = NOW(),
+                    duration_seconds = EXTRACT(EPOCH FROM (NOW() - entry_timestamp))::INTEGER
+                WHERE callsign = :callsign 
+                AND exit_timestamp IS NULL
+            """), {"callsign": callsign})
+        
+        except Exception as e:
+            self.logger.error(f"Failed to close open sector entries for {callsign}: {e}")
+
+    def get_sector_tracking_status(self) -> Dict[str, Any]:
+        """
+        Get current sector tracking status.
+        
+        Returns:
+            Dictionary containing sector tracking status information
+        """
+        if not hasattr(self, 'sector_tracking_enabled') or not self.sector_tracking_enabled:
+            return {
+                "enabled": False,
+                "status": "disabled",
+                "sectors_loaded": 0,
+                "active_flights": 0
+            }
+        
+        if not hasattr(self, 'sector_loader'):
+            return {
+                "enabled": True,
+                "status": "error",
+                "error": "SectorLoader not initialized",
+                "sectors_loaded": 0,
+                "active_flights": 0
+            }
+        
+        return {
+            "enabled": True,
+            "status": "operational" if self.sector_loader.loaded else "error",
+            "sectors_loaded": self.sector_loader.get_sector_count(),
+            "sectors_with_boundaries": self.sector_loader.get_sectors_with_boundaries_count(),
+            "active_flights": len(getattr(self, 'flight_sector_states', {})),
+            "update_interval": getattr(self, 'sector_update_interval', 60)
+        }
+
+    # ============================================================================
+    # FLIGHT SUMMARY PROCESSING METHODS
+    # ============================================================================
 
     async def _identify_completed_flights(self, completion_hours: int) -> List[dict]:
         """Identify flights that have been completed for the specified number of hours."""
@@ -585,6 +838,12 @@ class DataService:
                         callsign, departure, arrival, logon_time, timeout_seconds=30.0
                     )
                     
+                    # NEW: Calculate sector breakdown for this completed flight
+                    sector_breakdown = await self._calculate_sector_breakdown(callsign, session)
+                    primary_sector = self._get_primary_sector(sector_breakdown)
+                    total_sectors = len(sector_breakdown)
+                    total_enroute_time = sum(sector_breakdown.values())
+                    
                     # Create summary data
                     summary_data = {
                         "callsign": callsign,
@@ -605,10 +864,10 @@ class DataService:
                         "controller_callsigns": json.dumps(atc_data["controller_callsigns"]),
                         "controller_time_percentage": atc_data["controller_time_percentage"],
                         "time_online_minutes": total_minutes,
-                        "primary_enroute_sector": None,  # TODO: Implement sector tracking
-                        "total_enroute_sectors": 0,
-                        "total_enroute_time_minutes": 0,
-                        "sector_breakdown": json.dumps({}),  # Convert dict to JSON string
+                        "primary_enroute_sector": primary_sector,
+                        "total_enroute_sectors": total_sectors,
+                        "total_enroute_time_minutes": total_enroute_time,
+                        "sector_breakdown": json.dumps(sector_breakdown),
                         "completion_time": last_record.last_updated
                     }
                     
@@ -641,6 +900,67 @@ class DataService:
             await session.commit()
             
             return processed_count
+
+    async def process_completed_flights(self) -> Dict[str, Any]:
+        """
+        Process completed flights by creating summaries and archiving detailed records.
+        
+        This is the main entry point for flight summary processing that:
+        1. Identifies completed flights (older than completion threshold)
+        2. Creates flight summaries with sector breakdown data
+        3. Archives detailed flight records
+        4. Cleans up old data based on retention policy
+        
+        Returns:
+            Dict containing processing results and statistics
+        """
+        try:
+            self.logger.info("🔄 Starting flight summary processing...")
+            
+            # Get configuration values
+            completion_hours = getattr(self.config.flight_summary, 'completion_hours', 14)
+            retention_hours = getattr(self.config.flight_summary, 'retention_hours', 168)
+            
+            # Step 1: Identify completed flights
+            completed_flights = await self._identify_completed_flights(completion_hours)
+            
+            if not completed_flights:
+                self.logger.info("📭 No completed flights found to process")
+                return {
+                    "status": "success",
+                    "summaries_created": 0,
+                    "records_archived": 0,
+                    "message": "No completed flights found"
+                }
+            
+            self.logger.info(f"📋 Found {len(completed_flights)} completed flights to process")
+            
+            # Step 2: Create flight summaries (includes sector breakdown)
+            summaries_created = await self._create_flight_summaries(completed_flights)
+            self.logger.info(f"📊 Created {summaries_created} flight summaries")
+            
+            # Step 3: Archive detailed records
+            records_archived = await self._archive_completed_flights(completed_flights)
+            self.logger.info(f"📦 Archived {records_archived} detailed flight records")
+            
+            # Step 4: Clean up old archived data based on retention policy
+            # Note: This could be implemented later if needed
+            
+            result = {
+                "status": "success",
+                "summaries_created": summaries_created,
+                "records_archived": records_archived,
+                "completion_threshold_hours": completion_hours,
+                "retention_threshold_hours": retention_hours,
+                "message": f"Processed {len(completed_flights)} completed flights"
+            }
+            
+            self.logger.info(f"✅ Flight summary processing completed: {summaries_created} summaries, {records_archived} archived")
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"❌ Flight summary processing failed: {e}")
+            raise
 
     async def _archive_completed_flights(self, completed_flights: List[dict]) -> int:
         """Archive detailed records for completed flights."""
@@ -854,6 +1174,31 @@ class DataService:
         except Exception as e:
             self.logger.error(f"❌ Manual processing failed: {e}")
             raise
+
+    def get_processing_stats(self) -> Dict[str, Any]:
+        """
+        Get processing statistics for the data service.
+        
+        Returns:
+            Dict containing processing statistics
+        """
+        try:
+            stats = {
+                "sector_tracking_enabled": getattr(self, 'sector_tracking_enabled', False),
+                "sector_loader_available": self.sector_loader is not None if hasattr(self, 'sector_loader') else False,
+                "sector_count": self.sector_loader.get_sector_count() if hasattr(self, 'sector_loader') and self.sector_loader else 0,
+                "geographic_filter_enabled": self.geographic_boundary_filter.config.enabled if hasattr(self, 'geographic_boundary_filter') else False,
+                "callsign_filter_enabled": self.callsign_pattern_filter.config.enabled if hasattr(self, 'callsign_pattern_filter') else False,
+                "flight_summary_enabled": getattr(self.config, 'flight_summary', {}).get('enabled', False) if hasattr(self, 'config') else False,
+                "active_flight_sector_states": len(getattr(self, 'flight_sector_states', {})),
+                "last_processing_time": getattr(self, '_last_processing_time', None),
+                "processing_errors": getattr(self, '_processing_errors', 0),
+                "successful_processing_count": getattr(self, '_successful_processing_count', 0)
+            }
+            return stats
+        except Exception as e:
+            self.logger.error(f"Failed to get processing stats: {e}")
+            return {"error": str(e)}
 
 
 # Global service instance

@@ -58,6 +58,7 @@ This document consolidates all remaining work across the VATSIM data project, or
 - [ ] **Standardize code formatting** - Consistent style across all files
 - [ ] **Update code documentation** - Ensure all functions have proper docstrings
 - [ ] **Review configuration management** - Consolidate environment variables
+- [ ] **Review use of SQLAlchemy over raw SQL** - Evaluate hybrid approach for performance vs maintainability
 
 ### **Estimated Time**: 3-4 days
 ### **Dependencies**: None - can be done in parallel

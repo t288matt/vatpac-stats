@@ -116,7 +116,7 @@ class LoggingConfig:
     def from_env(cls):
         """Load logging configuration from environment variables."""
         return cls(
-            level=os.getenv("LOG_LEVEL", "INFO"),
+            level=os.getenv("LOG_LEVEL"),
             format=os.getenv("LOG_FORMAT", "json")
         )
 
@@ -143,6 +143,22 @@ class FlightSummaryConfig:
             retention_hours=int(os.getenv("FLIGHT_RETENTION_HOURS", "24")),
             summary_interval_minutes=int(os.getenv("FLIGHT_SUMMARY_INTERVAL", "60")),  # Now in minutes
             enabled=os.getenv("FLIGHT_SUMMARY_ENABLED", "true").lower() == "true"
+        )
+
+@dataclass
+class SectorTrackingConfig:
+    """Sector tracking configuration"""
+    enabled: bool = True
+    update_interval: int = 60  # seconds
+    sectors_file_path: str = "airspace_sector_data/australian_sectors.json"
+    
+    @classmethod
+    def from_env(cls):
+        """Load sector tracking configuration from environment variables."""
+        return cls(
+            enabled=os.getenv("SECTOR_TRACKING_ENABLED", "true").lower() == "true",
+            update_interval=int(os.getenv("SECTOR_UPDATE_INTERVAL", "60")),
+            sectors_file_path=os.getenv("SECTOR_DATA_PATH", "airspace_sector_data/australian_airspace_sectors.geojson")
         )
 
 
@@ -189,6 +205,7 @@ class AppConfig:
 
     pilots: PilotConfig
     flight_summary: FlightSummaryConfig
+    sector_tracking: SectorTrackingConfig
     environment: str = "development"
     
     @classmethod
@@ -204,6 +221,7 @@ class AppConfig:
     
             pilots=PilotConfig.from_env(),
             flight_summary=FlightSummaryConfig.from_env(),
+            sector_tracking=SectorTrackingConfig.from_env(),
             environment=os.getenv("ENVIRONMENT", "development")
         )
 

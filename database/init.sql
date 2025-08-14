@@ -2,6 +2,9 @@
 -- This script creates all tables with all required fields for the VATSIM data collection system
 -- Run automatically when PostgreSQL container starts for the first time
 -- 
+-- IMPORTANT: This script includes the flight_sector_occupancy table with altitude fields
+-- required for real-time sector tracking functionality.
+-- 
 -- VATSIM API Field Mapping - EXACT 1:1 mapping with API field names:
 -- - API "cid" → cid (Controller ID from VATSIM)
 -- - API "name" → name (Controller name from VATSIM)  
@@ -360,22 +363,22 @@ CREATE TRIGGER update_flight_summaries_updated_at
 -- Flight Sector Occupancy table for tracking sector entry/exit
 CREATE TABLE IF NOT EXISTS flight_sector_occupancy (
     id BIGSERIAL PRIMARY KEY,
-    flight_id VARCHAR(50) NOT NULL,
+    callsign VARCHAR(50) NOT NULL,
     sector_name VARCHAR(10) NOT NULL,
     entry_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
-    exit_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
-    duration_seconds INTEGER NOT NULL,
+    exit_timestamp TIMESTAMP WITH TIME ZONE,     -- NULL until flight exits sector
+    duration_seconds INTEGER DEFAULT 0,          -- 0 until flight exits sector
     entry_lat DECIMAL(10, 8) NOT NULL,
     entry_lon DECIMAL(11, 8) NOT NULL,
-    exit_lat DECIMAL(10, 8) NOT NULL,
-    exit_lon DECIMAL(11, 8) NOT NULL,
-    entry_altitude INTEGER,                      -- Altitude when entering sector
-    exit_altitude INTEGER,                       -- Altitude when exiting sector
+    exit_lat DECIMAL(10, 8),                    -- NULL until flight exits sector
+    exit_lon DECIMAL(11, 8),                    -- NULL until flight exits sector
+    entry_altitude INTEGER,                      -- Altitude when entering sector (REQUIRED for sector tracking)
+    exit_altitude INTEGER,                       -- Altitude when exiting sector (REQUIRED for sector tracking)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create indexes for flight_sector_occupancy table
-CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_flight_id ON flight_sector_occupancy(flight_id);
+CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_callsign ON flight_sector_occupancy(callsign);
 CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_sector_name ON flight_sector_occupancy(sector_name);
 CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_entry_timestamp ON flight_sector_occupancy(entry_timestamp);
 

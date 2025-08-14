@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VATSIM Data Collection System - API Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 25px;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.2em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        
+        .header p {
+            color: #7f8c8d;
+            font-size: 1.1em;
+            margin-bottom: 15px;
+        }
+        
+        .base-url {
+            background: #2c3e50;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 1em;
+            margin: 15px 0;
+            display: inline-block;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-number {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+        
+        .stat-label {
+            font-size: 0.8em;
+            opacity: 0.9;
+        }
+        
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .endpoint-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            border-left: 4px solid #667eea;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+            position: relative;
+        }
+        
+        .endpoint-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 25px rgba(0, 0, 0, 0.15);
+        }
+        
+        .endpoint-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .endpoint-method {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 0.7em;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-right: 12px;
+            min-width: 45px;
+            text-align: center;
+        }
+        
+        .method-get { background: #28a745; color: white; }
+        .method-post { background: #007bff; color: white; }
+        .method-put { background: #ffc107; color: black; }
+        .method-delete { background: #dc3545; color: white; }
+        
+        .endpoint-path {
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+            color: #2c3e50;
+            font-weight: 600;
+            word-break: break-all;
+        }
+        
+        .endpoint-description {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+        
+        .endpoint-details {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 0.8em;
+        }
+        
+        .detail-item {
+            margin-bottom: 6px;
+            display: flex;
+            align-items: flex-start;
+        }
+        
+        .detail-label {
+            font-weight: 600;
+            color: #495057;
+            min-width: 80px;
+            margin-right: 8px;
+        }
+        
+        .detail-value {
+            color: #6c757d;
+            flex: 1;
+        }
+        
+        .category-label {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: #e9ecef;
+            color: #6c757d;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.7em;
+            font-weight: 600;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.85em;
+        }
+        
+        .authentication-note {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            color: #856404;
+            font-size: 0.9em;
+        }
+        
+        .authentication-note h4 {
+            color: #856404;
+            margin-bottom: 8px;
+            font-size: 1em;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header Section -->
+        <div class="header">
+            <h1>🛩️ VATSIM Data Collection System</h1>
+            <p>Complete API Endpoints Dashboard</p>
+            <div class="base-url">
+                Base URL: <strong>http://localhost:8001</strong>
+            </div>
+            
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number">30+</div>
+                    <div class="stat-label">Endpoints</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">6</div>
+                    <div class="stat-label">Categories</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">REST</div>
+                    <div class="stat-label">API Type</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">JSON</div>
+                    <div class="stat-label">Response</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Authentication Note -->
+        <div class="authentication-note">
+            <h4>🔑 Development Mode</h4>
+            <p>No authentication required. All endpoints accessible without API keys.</p>
+        </div>
+
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
+            <!-- System Status Endpoints -->
+            <div class="endpoint-card">
+                <div class="category-label">System</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/status</div>
+                </div>
+                <div class="endpoint-description">Comprehensive system status, statistics, and data freshness</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Response:</span>
+                        <span class="detail-value">System health, data counts, performance metrics</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="category-label">System</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/network/status</div>
+                </div>
+                <div class="endpoint-description">VATSIM network status, connected clients, server info</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Response:</span>
+                        <span class="detail-value">Network metrics, server status, client counts</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="category-label">System</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/database/status</div>
+                </div>
+                <div class="endpoint-description">Database connection status, table counts, schema info</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Response:</span>
+                        <span class="detail-value">Database health, table statistics, performance</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="category-label">System</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/performance/metrics</div>
+                </div>
+                <div class="endpoint-description">System performance metrics and resource utilization</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Response:</span>
+                        <span class="detail-value">Performance data, resource usage</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="category-label">System</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-post">POST</div>
+                    <div class="endpoint-path">/api/performance/optimize</div>
+                </div>
+                <div class="endpoint-description">Trigger performance optimization and system cleanup</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Response:</span>
+                        <span class="detail-value">Optimization results and actions taken</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flight Data Endpoints -->
+            <div class="endpoint-card">
+                <div class="category-label">Flights</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/flights</div>
+                </div>
+                <div class="endpoint-description">All active flights with position and flight plan data</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Filter:</span>
+                        <span class="detail-value">Last 30 minutes activity</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="category-label">Flights</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/flights/{callsign}</div>
+                </div>
+                <div class="endpoint-description">Specific flight by callsign with detailed information</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Params:</span>
+                        <span class="detail-value">callsign (string)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="category-label">Flights</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/flights/{callsign}/track</div>
+                </div>
+                <div class="endpoint-description">Complete flight track with all position updates</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Response:</span>
+                        <span class="detail-value">Track points, duration, total points</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="category-label">Flights</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/flights/{callsign}/stats</div>
+                </div>
+                <div class="endpoint-description">Flight statistics and performance metrics</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Response:</span>
+                        <span class="detail-value">Speed, altitude, duration statistics</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="category-label">Flights</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/flights/memory</div>
+                </div>
+                <div class="endpoint-description">Flights from memory buffer (debugging)</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Response:</span>
+                        <span class="detail-value">Memory status, buffer information</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flight Summary Endpoints -->
+            <div class="endpoint-card">
+                <div class="category-label">Summaries</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/flights/summaries</div>
+                </div>
+                <div class="endpoint-description">Completed flight summaries with optional filtering</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Params:</span>
+                        <span class="detail-value">limit, offset, departure, arrival, aircraft_type, flight_rules</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="category-label">Summaries</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-post">POST</div>
+                    <div class="endpoint-path">/api/flights/summaries/process</div>
+                </div>
+                <div class="endpoint-description">Manually trigger flight summary processing</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Response:</span>
+                        <span class="detail-value">Processing status and results</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="category-label">Summaries</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/flights/summaries/status</div>
+                </div>
+                <div class="endpoint-description">Flight summary processing status and statistics</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Response:</span>
+                        <span class="detail-value">Processing stats, recent summaries</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="category-label">Summaries</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/flights/summaries/analytics</div>
+                </div>
+                <div class="endpoint-description">Aggregated analytics from flight summaries</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Params:</span>
+                        <span class="detail-value">period (24h, 7d, 30d, all), departure, arrival</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="category-label">Summaries</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/analytics/flights</div>
+                </div>
+                <div class="endpoint-description">Flight summary data and analytics (simplified)</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Response:</span>
+                        <span class="detail-value">Flight counts, positions, speed averages</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ATC Controller Endpoints -->
+            <div class="endpoint-card">
+                <div class="category-label">ATC</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/controllers</div>
+                </div>
+                <div class="endpoint-description">All active ATC positions and controller information</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Filter:</span>
+                        <span class="detail-value">Last 30 minutes activity</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="category-label">ATC</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/atc-positions</div>
+                </div>
+                <div class="endpoint-description">Alternative endpoint for ATC positions (legacy)</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Response:</span>
+                        <span class="detail-value">Same as /api/controllers</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="category-label">ATC</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/atc-positions/by-controller-id</div>
+                </div>
+                <div class="endpoint-description">ATC positions grouped by controller ID</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Response:</span>
+                        <span class="detail-value">Controllers grouped by CID</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="category-label">ATC</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/vatsim/ratings</div>
+                </div>
+                <div class="endpoint-description">VATSIM controller ratings and descriptions</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Response:</span>
+                        <span class="detail-value">Rating levels, descriptions, valid ranges</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter & Boundary Endpoints -->
+            <div class="endpoint-card">
+                <div class="category-label">Filters</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/filter/boundary/status</div>
+                </div>
+                <div class="endpoint-description">Geographic boundary filter status and performance</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Response:</span>
+                        <span class="detail-value">Filter status, performance, configuration</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="category-label">Filters</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/filter/boundary/info</div>
+                </div>
+                <div class="endpoint-description">Boundary polygon information and geographic config</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Response:</span>
+                        <span class="detail-value">Polygon data, coordinates, bounding box</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Database & System Endpoints -->
+            <div class="endpoint-card">
+                <div class="category-label">Database</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/database/tables</div>
+                </div>
+                <div class="endpoint-description">Database tables and record counts</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Response:</span>
+                        <span class="detail-value">Table names and record counts</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="category-label">Database</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-post">POST</div>
+                    <div class="endpoint-path">/api/database/query</div>
+                </div>
+                <div class="endpoint-description">Execute custom SQL queries (admin only)</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Body:</span>
+                        <span class="detail-value">query (string), limit (int)</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Security:</span>
+                        <span class="detail-value">Dangerous queries blocked</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="category-label">Database</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/api/transceivers</div>
+                </div>
+                <div class="endpoint-description">Radio frequency and position data</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Filter:</span>
+                        <span class="detail-value">Last 5 minutes activity</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="category-label">System</div>
+                <div class="endpoint-header">
+                    <div class="endpoint-method method-get">GET</div>
+                    <div class="endpoint-path">/</div>
+                </div>
+                <div class="endpoint-description">Root endpoint with basic system status</div>
+                <div class="endpoint-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Response:</span>
+                        <span class="detail-value">Basic status and version</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p><strong>VATSIM Data Collection System</strong> - Complete API Dashboard</p>
+            <p>Last Updated: 2025-01-27 | API Version: v1.0 | Total Endpoints: 30+</p>
+        </div>
+    </div>
+</body>
+</html>

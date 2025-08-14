@@ -136,6 +136,9 @@ services:
       GF_LOG_LEVEL: WARN
       GF_LOG_CONSOLE: false
       GF_LOG_FILE: false
+      
+
+      
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro

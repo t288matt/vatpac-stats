@@ -188,6 +188,80 @@ class Transceiver(Base):
     
     # Validation handled by database constraints - no Python validators needed
 
+class FlightSectorOccupancy(Base, TimestampMixin):
+    """Flight sector occupancy model for tracking aircraft entry/exit from Australian airspace sectors"""
+    __tablename__ = "flight_sector_occupancy"
+    
+    id = Column(BigInteger, primary_key=True, index=True)
+    callsign = Column(String(50), nullable=False, index=True)  # Flight callsign (e.g., QFA123, PHENX88)
+    sector_name = Column(String(10), nullable=False, index=True)  # Australian airspace sector identifier (e.g., SYA, BLA, WOL)
+    entry_timestamp = Column(TIMESTAMP(timezone=True), nullable=False, index=True)  # When flight entered sector
+    exit_timestamp = Column(TIMESTAMP(timezone=True), nullable=True)  # When flight exited sector (nullable)
+    duration_seconds = Column(Integer, default=0)  # Time spent in sector (calculated)
+    entry_lat = Column(Float, nullable=False)  # Entry latitude
+    entry_lon = Column(Float, nullable=False)  # Entry longitude
+    exit_lat = Column(Float, nullable=True)  # Exit latitude (nullable)
+    exit_lon = Column(Float, nullable=True)  # Exit longitude (nullable)
+    entry_altitude = Column(Integer, nullable=True)  # Entry altitude in feet
+    exit_altitude = Column(Integer, nullable=True)  # Exit altitude in feet
+    
+    # Constraints
+    __table_args__ = (
+        CheckConstraint('entry_lat >= -90 AND entry_lat <= 90', name='valid_entry_latitude'),
+        CheckConstraint('entry_lon >= -180 AND entry_lon <= 180', name='valid_entry_longitude'),
+        CheckConstraint('exit_lat >= -90 AND exit_lat <= 90', name='valid_exit_latitude'),
+        CheckConstraint('exit_lon >= -180 AND exit_lon <= 180', name='valid_exit_longitude'),
+        CheckConstraint('duration_seconds >= 0', name='valid_duration'),
+        Index('idx_flight_sector_occupancy_callsign', 'callsign'),
+        Index('idx_flight_sector_occupancy_entry_timestamp', 'entry_timestamp'),
+        Index('idx_flight_sector_occupancy_sector_name', 'sector_name'),
+        Index('idx_flight_sector_occupancy_callsign_sector', 'callsign', 'sector_name'),
+    )
+
+class FlightSummary(Base, TimestampMixin):
+    """Flight summary model for completed flights with sector breakdown and analytics"""
+    __tablename__ = "flight_summaries"
+    
+    id = Column(BigInteger, primary_key=True, index=True)
+    callsign = Column(String(50), nullable=False, index=True)  # Flight callsign
+    aircraft_type = Column(String(20), nullable=True)  # Aircraft type
+    departure = Column(String(10), nullable=True, index=True)  # Departure airport
+    arrival = Column(String(10), nullable=True, index=True)  # Arrival airport
+    logon_time = Column(TIMESTAMP(timezone=True), nullable=True)  # When pilot connected
+    route = Column(Text, nullable=True)  # Flight plan route
+    flight_rules = Column(String(10), nullable=True)  # IFR/VFR
+    aircraft_faa = Column(String(20), nullable=True)  # FAA aircraft code
+    aircraft_short = Column(String(20), nullable=True)  # Short aircraft code
+    planned_altitude = Column(String(10), nullable=True)  # Planned cruise altitude
+    cid = Column(Integer, nullable=True, index=True)  # VATSIM user ID
+    name = Column(String(100), nullable=True)  # Pilot name
+    server = Column(String(50), nullable=True)  # Network server
+    pilot_rating = Column(Integer, nullable=True)  # Pilot rating
+    military_rating = Column(Integer, nullable=True)  # Military rating
+    controller_callsigns = Column(Text, nullable=True)  # JSON array of ATC callsigns
+    controller_time_percentage = Column(Float, nullable=True)  # Percentage of time on ATC
+    time_online_minutes = Column(Integer, nullable=True)  # Total time online
+    primary_enroute_sector = Column(String(10), nullable=True)  # Primary sector flown
+    total_enroute_sectors = Column(Integer, nullable=True)  # Total sectors visited
+    total_enroute_time_minutes = Column(Integer, nullable=True)  # Total enroute time
+    sector_breakdown = Column(Text, nullable=True)  # JSON sector breakdown
+    completion_time = Column(TIMESTAMP(timezone=True), nullable=True)  # When flight completed
+    
+    # Constraints
+    __table_args__ = (
+        CheckConstraint('pilot_rating >= 0 AND pilot_rating <= 63', name='valid_pilot_rating'),
+        CheckConstraint('military_rating >= 0 AND military_rating <= 63', name='valid_military_rating'),
+        CheckConstraint('controller_time_percentage >= 0 AND controller_time_percentage <= 100', name='valid_controller_time'),
+        CheckConstraint('time_online_minutes >= 0', name='valid_time_online'),
+        CheckConstraint('total_enroute_sectors >= 0', name='valid_total_sectors'),
+        CheckConstraint('total_enroute_time_minutes >= 0', name='valid_enroute_time'),
+        Index('idx_flight_summaries_callsign', 'callsign'),
+        Index('idx_flight_summaries_departure_arrival', 'departure', 'arrival'),
+        Index('idx_flight_summaries_completion_time', 'completion_time'),
+        Index('idx_flight_summaries_primary_sector', 'primary_enroute_sector'),
+        Index('idx_flight_summaries_cid', 'cid'),
+    )
+
 # Event listeners for automatic timestamp updates
 @event.listens_for(Base, 'before_update', propagate=True)
 def timestamp_before_update(mapper, connection, target):
