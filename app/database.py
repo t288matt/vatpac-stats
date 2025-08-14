@@ -28,7 +28,7 @@ config = get_config()
 # Database URLs
 DATABASE_URL = config.database.url
 # Convert to async URL format for async operations
-ASYNC_DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://")
+ASYNC_DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
 
 # Engine configuration - simplified
 ENGINE_CONFIG = {
@@ -86,106 +86,74 @@ def _create_engines():
         logger.error(f"Failed to create database engines: {e}")
         raise
 
-# Initialize engines
-_create_engines()
+# Initialize engines lazily - only when needed
+# _create_engines()  # REMOVED: Don't create engines on import
 
-# Database event handlers
-@event.listens_for(engine, "connect")
-def set_sqlite_pragma(dbapi_connection, connection_record):
-    """Set SQLite pragmas for better performance."""
-    if "sqlite" in DATABASE_URL.lower():
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.execute("PRAGMA synchronous=NORMAL")
-        cursor.execute("PRAGMA cache_size=10000")
-        cursor.execute("PRAGMA temp_store=MEMORY")
-        cursor.close()
+# Lazy getter functions
+def _get_engine():
+    """Get or create the synchronous database engine."""
+    global engine
+    if engine is None:
+        _create_engines()
+    return engine
 
-@event.listens_for(engine, "connect")
-def set_postgresql_settings(dbapi_connection, connection_record):
-    """Set PostgreSQL settings for better performance."""
-    if "postgresql" in DATABASE_URL.lower():
-        cursor = dbapi_connection.cursor()
-        cursor.execute("SET statement_timeout = 30000")  # 30 seconds
-        cursor.execute("SET idle_in_transaction_session_timeout = 30000")  # 30 seconds
-        cursor.close()
+def _get_async_engine():
+    """Get or create the asynchronous database engine."""
+    global async_engine
+    if async_engine is None:
+        _create_engines()
+    return async_engine
 
-# Connection pool event handlers
-@event.listens_for(engine, "checkout")
-def receive_checkout(dbapi_connection, connection_record, connection_proxy):
-    """Handle connection checkout."""
-    logger.debug("Database connection checked out")
+def _get_session_local():
+    """Get or create the synchronous session factory."""
+    global SessionLocal
+    if SessionLocal is None:
+        _create_engines()
+    return SessionLocal
 
-@event.listens_for(engine, "checkin")
-def receive_checkin(dbapi_connection, connection_record):
-    """Handle connection checkin."""
-    logger.debug("Database connection checked in")
+def _get_async_session_local():
+    """Get or create the asynchronous session factory."""
+    global AsyncSessionLocal
+    if AsyncSessionLocal is None:
+        _create_engines()
+    return AsyncSessionLocal
 
-# Database connection context manager
-class DatabaseConnection:
-    """Database connection context manager."""
-    
-    def __init__(self):
-        self.session = None
-    
-    async def __aenter__(self):
-        """Async context manager entry."""
-        self.session = AsyncSessionLocal()
-        return self.session
-    
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit."""
-        if self.session:
-            await self.session.close()
-    
-    def __enter__(self):
-        """Sync context manager entry."""
-        self.session = SessionLocal()
-        return self.session
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Sync context manager exit."""
-        if self.session:
-            self.session.close()
-    
-    def execute(self, query, params=None):
-        """Execute a query."""
-        if not self.session:
-            raise RuntimeError("No active database session")
-        return self.session.execute(text(query), params or {})
-    
-    def commit(self):
-        """Commit the current transaction."""
-        if not self.session:
-            raise RuntimeError("No active database session")
-        self.session.commit()
-    
-    def rollback(self):
-        """Rollback the current transaction."""
-        if not self.session:
-            raise RuntimeError("No active database session")
-        self.session.rollback()
-
-# Database session functions
+# Database session functions - following standard SQLAlchemy patterns
 def get_database_session():
     """Get an async database session context manager."""
-    return AsyncSessionLocal()
+    class AsyncSessionContextManager:
+        def __init__(self):
+            self.session = None
+        
+        async def __aenter__(self):
+            self.session = _get_async_session_local()()
+            return self.session
+        
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            if self.session:
+                await self.session.close()
+    
+    return AsyncSessionContextManager()
 
-def get_sync_session() -> Session:
-    """Get a synchronous database session."""
-    return SessionLocal()
+def get_sync_session():
+    """Get a synchronous database session object."""
+    return _get_session_local()()
 
 # Database initialization
 async def init_db():
     """Initialize database connection and test connectivity."""
     try:
         # Test synchronous connection
-        with get_sync_session() as session:
+        session = get_sync_session()
+        try:
             result = session.execute(text("SELECT 1"))
             logger.info("Synchronous database connection successful")
+        finally:
+            session.close()
         
         # Test asynchronous connection
-        async with get_database_session() as session:
+        async_session_factory = get_database_session()
+        async with async_session_factory() as session:
             result = await session.execute(text("SELECT 1"))
             logger.info("Asynchronous database connection successful")
         

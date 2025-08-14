@@ -19,9 +19,9 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List
 from unittest.mock import patch, MagicMock, AsyncMock
 
-# Add app to path for imports
-sys.path.insert(0, '/app/app')
-sys.path.insert(0, '/app')
+# Add app to path for imports (works from both host and Docker)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
+sys.path.insert(0, os.path.dirname(__file__))
 
 from fastapi.testclient import TestClient
 from app.main import app

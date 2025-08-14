@@ -13,13 +13,23 @@ Focus Areas:
 - Error handling
 """
 
-import pytest
-import sys
 import os
-from pathlib import Path
+import sys
+import pytest
+from unittest.mock import patch, MagicMock, AsyncMock
 
-# Add the app directory to the path so we can import modules
-sys.path.insert(0, str(Path(__file__).parent.parent / "app"))
+# Add app to path for imports (works from both host and Docker)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
+sys.path.insert(0, os.path.dirname(__file__))
+
+from app.services.data_service import DataService, get_data_service_sync
+from app.services.atc_detection_service import ATCDetectionService
+from app.services.vatsim_service import VATSIMService
+from app.models import Flight, Controller, FlightSectorOccupancy
+from app.database import get_sync_session
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
+import asyncio
 
 from utils.geographic_utils import (
     parse_ddmm_coordinate,
