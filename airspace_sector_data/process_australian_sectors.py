@@ -290,65 +290,12 @@ def combine_sector_polygons(sector_names):
             # Union all polygons to create combined shape
             combined_polygon = unary_union(all_polygons)
             
-            # Get the actual coordinates properly
-            if hasattr(combined_polygon, 'exterior'):
-                # Single polygon - extract the exterior ring coordinates
-                exterior_coords = list(combined_polygon.exterior.coords)
-            else:
-                # Multi-polygon - use Shapely's built-in methods to get the true outer boundary
-                try:
-                    # Get the boundary and extract coordinates from all parts
-                    boundary = combined_polygon.boundary
-                    
-                    if hasattr(boundary, 'coords'):
-                        # Single line string - extract all coordinates
-                        exterior_coords = list(boundary.coords)
-                    else:
-                        # Multiple line strings - collect coordinates from all boundary parts
-                        all_coords = []
-                        for geom in boundary.geoms:
-                            if hasattr(geom, 'coords'):
-                                coords = list(geom.coords)
-                                all_coords.extend(coords)
-                        
-                        # Remove duplicates while preserving order
-                        seen = set()
-                        exterior_coords = []
-                        for coord in all_coords:
-                            if coord not in seen:
-                                seen.add(coord)
-                                exterior_coords.append(coord)
-                except Exception as e:
-                    # Fallback: extract from individual polygons
-                    if hasattr(combined_polygon, 'geoms'):
-                        all_coords = []
-                        for geom in combined_polygon.geoms:
-                            if hasattr(geom, 'exterior'):
-                                coords = list(geom.exterior.coords)
-                                all_coords.extend(coords)
-                        
-                        # Remove duplicates
-                        seen = set()
-                        exterior_coords = []
-                        for coord in all_coords:
-                            if coord not in seen:
-                                seen.add(coord)
-                                exterior_coords.append(coord)
-                    else:
-                        exterior_coords = []
+            # If the result is a MultiPolygon, that's fine - return it as is
+            if hasattr(combined_polygon, 'geoms'):
+                print(f"  🔍 MultiPolygon created with {len(list(combined_polygon.geoms))} separate areas")
+                return combined_polygon
             
-            # Convert back to (lon, lat) format for GeoJSON and remove duplicates
-            final_boundaries = []
-            seen = set()
-            for coord in exterior_coords:
-                lon, lat = coord  # Shapely returns (x,y) = (lon,lat) in our case
-                coord_tuple = (lon, lat)  # Keep as (lon, lat) for GeoJSON standard
-                if coord_tuple not in seen:
-                    final_boundaries.append(coord_tuple)
-                    seen.add(coord_tuple)
-            
-            print(f"  🎯 Combined polygon: {len(final_boundaries)} outer perimeter points")
-            # Return the actual Shapely geometry, not the coordinate list
+            # Single polygon - return as is
             return combined_polygon
             
         except Exception as e:
@@ -375,8 +322,19 @@ def create_geojson_feature(sector_name, boundaries):
         # Single polygon
         coords = list(boundaries.exterior.coords)
     elif hasattr(boundaries, 'geoms'):
-        # MultiPolygon - use the first one for now
-        coords = list(boundaries.geoms[0].exterior.coords)
+        # MultiPolygon - combine all polygons into one
+        all_coords = []
+        for geom in boundaries.geoms:
+            if hasattr(geom, 'exterior'):
+                all_coords.extend(list(geom.exterior.coords))
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        coords = []
+        for coord in all_coords:
+            if coord not in seen:
+                seen.add(coord)
+                coords.append(coord)
     else:
         return None
     
