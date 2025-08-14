@@ -19,9 +19,9 @@ from pathlib import Path
 import asyncio
 import time
 
-# Add the app directory to the Python path
-sys.path.insert(0, '/app/app')
-sys.path.insert(0, '/app')
+# Add the app directory to the Python path (works from both host and Docker)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
+sys.path.insert(0, os.path.dirname(__file__))
 
 
 class TestDatabaseInfrastructure:
@@ -34,7 +34,7 @@ class TestDatabaseInfrastructure:
         print("🧪 Testing: Do database connections work reliably?")
         
         try:
-            from database import engine, get_sync_session
+            from app.database import engine, get_sync_session
             
             # Test database engine creation
             assert engine is not None, "Database engine should be created"
@@ -68,7 +68,7 @@ class TestDatabaseInfrastructure:
         print("🧪 Testing: Is database session management working?")
         
         try:
-            from database import SessionLocal
+            from app.database import SessionLocal
             
             # Test session local creation
             assert SessionLocal is not None, "SessionLocal should be defined"

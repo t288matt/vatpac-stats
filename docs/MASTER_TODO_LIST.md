@@ -59,6 +59,8 @@ This document consolidates all remaining work across the VATSIM data project, or
 - [ ] **Update code documentation** - Ensure all functions have proper docstrings
 - [ ] **Review configuration management** - Consolidate environment variables
 - [ ] **Review use of SQLAlchemy over raw SQL** - Evaluate hybrid approach for performance vs maintainability
+- [ ] **Implement flight plan validation** - Add logic to reject flights without origin/destination airports (departure/arrival fields)
+- [ ] **Decide data structure approach** - Choose between dictionaries vs SQLAlchemy models for data processing and storage
 
 ### **Estimated Time**: 3-4 days
 ### **Dependencies**: None - can be done in parallel
