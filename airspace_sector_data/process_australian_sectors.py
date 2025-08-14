@@ -1,29 +1,24 @@
 #!/usr/bin/env python3
 """
-Australian Sector Processing Script - Responsible Sectors Approach
+Australian Sector Processing Script - Simplified Sector Hierarchy Approach
 
-This script processes VATSYS XML sector files to extract Australian airspace sector data
-using the new ResponsibleSectors approach. It only processes sectors that have:
-1. A <ResponsibleSectors> section
-2. Callsigns starting with "ML-" or "BN-" and ending with "_CTR" or "_FSS"
-
-The script combines the main sector polygon with all its responsible sector polygons
-to create a single outer perimeter (convex hull) for each sector.
+This script processes Australian airspace sector data using a simple SectorHierarchy.txt file
+that defines main sectors and their subsectors. It reads coordinates from Volumes.xml and
+outputs a combined GeoJSON file with each sector as a separate Feature.
 
 Author: VATSIM Data Project Team
 Date: January 2025
-Status: New Implementation - Responsible Sectors Approach
+Status: Simplified Implementation - Sector Hierarchy Approach
 """
 
 import xml.etree.ElementTree as ET
-import re
 import json
 import os
 from shapely.geometry import Polygon
 from shapely.ops import unary_union
 
 def parse_coordinate(coord_str):
-    """Parse coordinate string from Volumes.xml format (e.g., -343848.000+1494851.000)"""
+    """Parse coordinate string from Volumes.xml format - handles both DDMMSS.SSSS and decimal degrees"""
     if not coord_str or '.' not in coord_str:
         return None
     
@@ -40,7 +35,18 @@ def parse_coordinate(coord_str):
     # Extract digits before decimal point
     before_decimal = coord_str[:decimal_pos]
     
-    # Determine format based on number of digits
+    # Check if this is already in decimal degrees format (e.g., -12.665278)
+    if len(before_decimal) <= 3:  # Likely decimal degrees
+        try:
+            decimal_degrees = float(coord_str)
+            # Apply negative sign if original was negative
+            if is_negative:
+                decimal_degrees = -decimal_degrees
+            return decimal_degrees
+        except ValueError:
+            pass  # Fall through to DDMMSS parsing
+    
+    # Determine DDMMSS format based on number of digits
     if len(before_decimal) == 7:  # DDDMMSS
         # Format: DDDMMSS.SSSS
         degrees = int(before_decimal[:3])
@@ -70,9 +76,6 @@ def parse_coordinate(coord_str):
 def get_volume_boundaries(volume_name):
     """
     Extract boundary coordinates for a given volume from Volumes.xml
-    
-    For volumes with comma-separated boundaries, only takes the first one
-    (e.g., "HUO,HUO_TMA_CAP" -> only "HUO")
     """
     try:
         volumes_tree = ET.parse('Volumes.xml')
@@ -97,6 +100,11 @@ def get_volume_boundaries(volume_name):
                                     boundary_coords = []
                                     coord_pairs = [pair.strip() for pair in coords_text.split('/') if pair.strip()]
                                     
+                                    # Debug: Print what we found for TBD
+                                    if volume_name == 'TBD':
+                                        print(f"    🔍 DEBUG: Found boundary '{primary_boundary_name}' with {len(coord_pairs)} coordinate pairs")
+                                        print(f"    🔍 DEBUG: First few coords: {coord_pairs[:3]}")
+                                    
                                     for pair in coord_pairs:
                                         # Parse the coordinate pair (e.g., "-342011.000+1382231.000")
                                         if '+' in pair and '-' in pair:
@@ -112,17 +120,105 @@ def get_volume_boundaries(volume_name):
                                                     lat = parse_coordinate(lat_str)
                                                     lon = parse_coordinate(lon_str)
                                                     
+                                                    # Debug: Print parsing results for TBD
+                                                    if volume_name == 'TBD':
+                                                        print(f"    🔍 DEBUG: Parsed '{pair}' -> lat:{lat}, lon:{lon}")
+                                                    
                                                     if lat is not None and lon is not None:
-                                                        boundary_coords.append((lon, lat))  # Note: Shapely uses (x,y) = (lon,lat)
+                                                        boundary_coords.append((lon, lat))  # Shapely uses (x,y) = (lon,lat) for GeoJSON compatibility
+                                    
+                                    # Debug: Print final results for TBD
+                                    if volume_name == 'TBD':
+                                        print(f"    🔍 DEBUG: Total valid coordinates: {len(boundary_coords)}")
+                                        print(f"    🔍 DEBUG: First 3 coords: {boundary_coords[:3]}")
+                                        print(f"    🔍 DEBUG: Last 3 coords: {boundary_coords[-3:]}")
+                                        # Check if polygon is closed
+                                        if boundary_coords[0] == boundary_coords[-1]:
+                                            print(f"    🔍 DEBUG: Polygon is closed ✅")
+                                        else:
+                                            print(f"    🔍 DEBUG: Polygon is NOT closed ❌")
+                                            print(f"    🔍 DEBUG: First: {boundary_coords[0]}, Last: {boundary_coords[-1]}")
                                     
                                     # Create polygon from this boundary if we have enough coordinates
                                     if len(boundary_coords) >= 3:
                                         try:
+                                            # Debug: Print polygon creation attempt for TBD
+                                            if volume_name == 'TBD':
+                                                print(f"    🔍 DEBUG: Attempting to create polygon with {len(boundary_coords)} coordinates")
+                                            
                                             polygon = Polygon(boundary_coords)
+                                            
+                                            # Debug: Check polygon validity for TBD
+                                            if volume_name == 'TBD':
+                                                print(f"    🔍 DEBUG: Polygon created, valid: {polygon.is_valid}")
+                                            
                                             if polygon.is_valid:
                                                 return polygon
+                                            else:
+                                                # Polygon is invalid, try coordinate simplification first
+                                                if volume_name == 'TBD':
+                                                    print(f"    🔍 DEBUG: Polygon invalid, trying coordinate simplification...")
+                                                
+                                                try:
+                                                    # Simplify the coordinate sequence to reduce complexity
+                                                    from shapely.geometry import LineString
+                                                    line = LineString(boundary_coords)
+                                                    simplified_line = line.simplify(tolerance=0.001, preserve_topology=True)
+                                                    
+                                                    # Extract simplified coordinates
+                                                    simplified_coords = list(simplified_line.coords)
+                                                    
+                                                    if volume_name == 'TBD':
+                                                        print(f"    🔍 DEBUG: Simplified from {len(boundary_coords)} to {len(simplified_coords)} coordinates")
+                                                    
+                                                    # Try creating polygon with simplified coordinates
+                                                    simplified_polygon = Polygon(simplified_coords)
+                                                    if simplified_polygon.is_valid:
+                                                        if volume_name == 'TBD':
+                                                            print(f"    🔍 DEBUG: Successfully created polygon with simplified coordinates")
+                                                        return simplified_polygon
+                                                    else:
+                                                        if volume_name == 'TBD':
+                                                            print(f"    🔍 DEBUG: Simplified polygon still invalid")
+                                                        
+                                                except Exception as simplify_error:
+                                                    if volume_name == 'TBD':
+                                                        print(f"    🔍 DEBUG: Coordinate simplification failed: {simplify_error}")
+                                                
+                                                # Try other fallback methods
+                                                try:
+                                                    # Try buffer with 0 distance to clean up geometry
+                                                    fixed_polygon = polygon.buffer(0)
+                                                    if fixed_polygon.is_valid and hasattr(fixed_polygon, 'exterior'):
+                                                        if volume_name == 'TBD':
+                                                            print(f"    🔍 DEBUG: Fixed invalid polygon using buffer(0)")
+                                                        return fixed_polygon
+                                                except Exception as buffer_error:
+                                                    if volume_name == 'TBD':
+                                                        print(f"    🔍 DEBUG: Buffer fix failed: {buffer_error}")
+                                                
+                                                # Try reversing coordinate order
+                                                try:
+                                                    reversed_coords = list(reversed(boundary_coords))
+                                                    reversed_polygon = Polygon(reversed_coords)
+                                                    if reversed_polygon.is_valid:
+                                                        if volume_name == 'TBD':
+                                                            print(f"    🔍 DEBUG: Fixed invalid polygon by reversing coordinates")
+                                                        return reversed_polygon
+                                                except Exception as reverse_error:
+                                                    if volume_name == 'TBD':
+                                                        print(f"    🔍 DEBUG: Reverse fix failed: {reverse_error}")
+                                        
                                         except Exception as e:
-                                            print(f"Warning: Could not create polygon for boundary {primary_boundary_name}: {e}")
+                                            # Initial polygon creation failed completely
+                                            if volume_name == 'TBD':
+                                                print(f"    🔍 DEBUG: Initial polygon creation failed: {e}")
+                                        
+                                        # If we get here, all methods failed
+                                        if volume_name == 'TBD':
+                                            print(f"    🔍 DEBUG: All polygon creation methods failed")
+                                        
+                                        print(f"Warning: Could not create polygon for boundary {primary_boundary_name}")
                                     
                                 break  # Found Boundaries element, no need to check other children
                         
@@ -136,80 +232,43 @@ def get_volume_boundaries(volume_name):
         print(f"Error parsing volume {volume_name}: {e}")
         return None
 
-def should_process_sector(sector):
+def read_sector_hierarchy():
     """
-    Determine if a sector should be processed based on criteria:
-    1. Has a <ResponsibleSectors> section
-    2. Callsign starts with "ML-" or "BN-"
-    3. Callsign ends with "_CTR" or "_FSS"
+    Read the sector hierarchy from SectorHierarchy.txt
+    Returns a dictionary mapping main sectors to their subsectors
     """
-    # Check if sector has ResponsibleSectors
-    has_responsible = False
-    for child in sector:
-        if child.tag == 'ResponsibleSectors':
-            has_responsible = True
-            break
+    sector_hierarchy = {}
     
-    if not has_responsible:
-        return False
-    
-    # Check callsign pattern
-    callsign = sector.get('Callsign', '')
-    if not callsign:
-        return False
-    
-    # Must start with "ML-" or "BN-" and end with "_CTR" or "_FSS"
-    if not (callsign.startswith('ML-') or callsign.startswith('BN-')):
-        return False
-    
-    if not (callsign.endswith('_CTR') or callsign.endswith('_FSS')):
-        return False
-    
-    return True
+    try:
+        with open('SectorHierarchy.txt', 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and ':' in line:
+                    main_sector, subsectors_str = line.split(':', 1)
+                    main_sector = main_sector.strip()
+                    subsectors = [s.strip() for s in subsectors_str.split(',')]
+                    sector_hierarchy[main_sector] = subsectors
+        
+        print(f"✅ Loaded {len(sector_hierarchy)} sectors from SectorHierarchy.txt")
+        return sector_hierarchy
+        
+    except Exception as e:
+        print(f"❌ Error reading SectorHierarchy.txt: {e}")
+        return {}
 
-def get_primary_volume(sector):
+def combine_sector_polygons(sector_names):
     """
-    Extract the primary volume name from a sector's Volumes section.
-    For comma-separated volumes, only takes the first one.
-    """
-    for child in sector:
-        if child.tag == 'Volumes' and child.text:
-            volumes = [vol.strip() for vol in child.text.split(',')]
-            return volumes[0]  # Only take the first volume
-    return None
-
-def get_responsible_sectors(sector):
-    """
-    Extract the list of responsible sector names from a sector's ResponsibleSectors section.
-    """
-    for child in sector:
-        if child.tag == 'ResponsibleSectors' and child.text:
-            return [name.strip() for name in child.text.split(',')]
-    return []
-
-def combine_sector_polygons(main_sector_name, responsible_sector_names):
-    """
-    Combine the main sector polygon with all responsible sector polygons
-    to create a single outer perimeter (convex hull).
+    Combine multiple sector polygons to create a single unified boundary
     """
     all_polygons = []
     
-    # Get main sector polygon
-    main_polygon = get_volume_boundaries(main_sector_name)
-    if main_polygon:
-        all_polygons.append(main_polygon)
-        print(f"  ✅ Main sector {main_sector_name}: {len(main_polygon.exterior.coords)} points")
-    else:
-        print(f"  ❌ Main sector {main_sector_name}: No coordinates found")
-    
-    # Get responsible sector polygons
-    for resp_sector in responsible_sector_names:
-        resp_polygon = get_volume_boundaries(resp_sector)
-        if resp_polygon:
-            all_polygons.append(resp_polygon)
-            print(f"  ✅ Responsible sector {resp_sector}: {len(resp_polygon.exterior.coords)} points")
+    for sector_name in sector_names:
+        polygon = get_volume_boundaries(sector_name)
+        if polygon:
+            all_polygons.append(polygon)
+            print(f"  ✅ Sector {sector_name}: {len(polygon.exterior.coords)} points")
         else:
-            print(f"  ❌ Responsible sector {resp_sector}: No coordinates found")
+            print(f"  ❌ Sector {sector_name}: No coordinates found")
     
     # Combine all polygons and extract outer perimeter
     if len(all_polygons) >= 2:
@@ -217,7 +276,7 @@ def combine_sector_polygons(main_sector_name, responsible_sector_names):
             # Union all polygons to create combined shape
             combined_polygon = unary_union(all_polygons)
             
-            # USE SHAPELY'S BUILT-IN FEATURES: Get the actual coordinates properly
+            # Get the actual coordinates properly
             if hasattr(combined_polygon, 'exterior'):
                 # Single polygon - extract the exterior ring coordinates
                 exterior_coords = list(combined_polygon.exterior.coords)
@@ -264,12 +323,12 @@ def combine_sector_polygons(main_sector_name, responsible_sector_names):
                     else:
                         exterior_coords = []
             
-            # Convert back to (lat, lon) format and remove duplicates
+            # Convert back to (lon, lat) format for GeoJSON and remove duplicates
             final_boundaries = []
             seen = set()
             for coord in exterior_coords:
-                lon, lat = coord  # Shapely returns (x,y) = (lon,lat)
-                coord_tuple = (lat, lon)  # Convert back to (lat, lon)
+                lon, lat = coord  # Shapely returns (x,y) = (lon,lat) in our case
+                coord_tuple = (lon, lat)  # Keep as (lon, lat) for GeoJSON standard
                 if coord_tuple not in seen:
                     final_boundaries.append(coord_tuple)
                     seen.add(coord_tuple)
@@ -284,89 +343,114 @@ def combine_sector_polygons(main_sector_name, responsible_sector_names):
                 polygon = all_polygons[0]
                 if hasattr(polygon, 'exterior'):
                     coords = list(polygon.exterior.coords)
-                    return [(lat, lon) for lon, lat in coords]
+                    return [(lon, lat) for lon, lat in coords]
     
     elif len(all_polygons) == 1:
         # Only one polygon, return its coordinates
         polygon = all_polygons[0]
         if hasattr(polygon, 'exterior'):
             coords = list(polygon.exterior.coords)
-            return [(lat, lon) for lon, lat in coords]
+            return [(lon, lat) for lon, lat in coords]
     
     return []
 
+def create_geojson_feature(sector_name, boundaries):
+    """
+    Create a GeoJSON Feature for a sector
+    """
+    if not boundaries or len(boundaries) < 3:
+        return None
+    
+    # Ensure the polygon is closed (first and last points are the same)
+    if boundaries[0] != boundaries[-1]:
+        boundaries.append(boundaries[0])
+    
+    feature = {
+        "type": "Feature",
+        "properties": {
+            "name": sector_name,
+            "sector_id": sector_name
+        },
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [boundaries]
+        }
+    }
+    
+    return feature
+
 def process_australian_sectors():
     """
-    Main function to process Australian sectors using the new ResponsibleSectors approach.
-    Only processes sectors that meet the criteria and have coordinate data.
+    Main function to process Australian sectors using the simplified SectorHierarchy.txt approach
     """
-    print("Processing Australian Sectors - Responsible Sectors Approach")
-    print("=" * 60)
+    print("Processing Australian Sectors - Simplified Sector Hierarchy Approach")
+    print("=" * 70)
     
     try:
-        # Load Sectors.xml
-        sectors_tree = ET.parse('Sectors.xml')
-        sectors_root = sectors_tree.getroot()
+        # Read sector hierarchy
+        sector_hierarchy = read_sector_hierarchy()
+        if not sector_hierarchy:
+            return False
         
         processed_sectors = []
+        geojson_features = []
         
-        # Process each sector
-        for sector in sectors_root.findall('.//Sector'):
-            sector_name = sector.get('Name')
-            full_name = sector.get('FullName')
-            callsign = sector.get('Callsign')
+        # Process each main sector
+        for main_sector, subsectors in sector_hierarchy.items():
+            print(f"\nProcessing sector: {main_sector}")
+            print(f"  📍 Subsectors: {', '.join(subsectors)}")
             
-            # Check if sector should be processed
-            if not should_process_sector(sector):
-                continue
-            
-            # Get primary volume and responsible sectors
-            primary_volume = get_primary_volume(sector)
-            responsible_sectors = get_responsible_sectors(sector)
-            
-            if not primary_volume:
-                continue
-            
-            print(f"\nProcessing sector: {sector_name} ({full_name})")
-            print(f"  Callsign: {callsign}")
-            print(f"  📍 Primary volume: {primary_volume}")
-            print(f"  🔗 Responsible sectors: {', '.join(responsible_sectors)}")
-            
-            # Combine polygons
-            combined_boundaries = combine_sector_polygons(primary_volume, responsible_sectors)
+            # Combine polygons for all subsectors
+            combined_boundaries = combine_sector_polygons(subsectors)
             
             if combined_boundaries:
+                # Create GeoJSON feature
+                feature = create_geojson_feature(main_sector, combined_boundaries)
+                if feature:
+                    geojson_features.append(feature)
+                
                 processed_sectors.append({
-                    'name': sector_name,
-                    'full_name': full_name,
-                    'callsign': callsign,
-                    'primary_volume': primary_volume,
-                    'responsible_sectors': responsible_sectors,
+                    'name': main_sector,
+                    'subsectors': subsectors,
                     'boundaries': combined_boundaries,
                     'boundary_count': len(combined_boundaries)
                 })
                 print(f"  ✅ Successfully processed with {len(combined_boundaries)} boundary points")
+            else:
+                print(f"  ❌ No valid boundaries found")
+        
+        # Create GeoJSON structure
+        geojson = {
+            "type": "FeatureCollection",
+            "features": geojson_features
+        }
         
         # Save results
         os.makedirs('processed_sectors', exist_ok=True)
         
-        # Save processed sectors
-        with open('processed_sectors/australian_sectors_responsible.json', 'w', encoding='utf-8') as f:
+        # Save combined GeoJSON file
+        output_file = 'processed_sectors/australian_airspace_sectors.geojson'
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(geojson, f, indent=2, ensure_ascii=False)
+        
+        # Save processed sectors data as JSON (for reference)
+        with open('processed_sectors/australian_sectors_data.json', 'w', encoding='utf-8') as f:
             json.dump(processed_sectors, f, indent=2, ensure_ascii=False)
         
         # Print summary
-        print(f"\n" + "=" * 60)
+        print(f"\n" + "=" * 70)
         print(f"PROCESSING COMPLETE")
-        print(f"=" * 60)
+        print(f"=" * 70)
         print(f"✅ Successfully processed: {len(processed_sectors)} sectors")
-        print(f"📁 Output file:")
-        print(f"   - processed_sectors/australian_sectors_responsible.json")
+        print(f"📁 Output files:")
+        print(f"   - {output_file}")
+        print(f"   - processed_sectors/australian_sectors_data.json")
         
         # Show processed sectors
         if processed_sectors:
             print(f"\nProcessed sectors:")
             for sector in processed_sectors:
-                print(f"  • {sector['name']} ({sector['full_name']}): {sector['boundary_count']} points")
+                print(f"  • {sector['name']}: {sector['boundary_count']} points ({len(sector['subsectors'])} subsectors)")
         
         return True
         
