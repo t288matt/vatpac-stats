@@ -79,9 +79,30 @@ async def lifespan(app: FastAPI):
     logger.info("Starting VATSIM Data Collection System...")
     app_startup_time = datetime.now(timezone.utc)
     
-    # Start background data ingestion task
-    data_ingestion_task = asyncio.create_task(run_data_ingestion())
-    logger.info("Background data ingestion task started")
+    # Critical: Check if data service can be initialized before starting background tasks
+    try:
+        logger.info("Initializing data service...")
+        data_service = await get_data_service()
+        logger.info("✅ Data service initialized successfully")
+        
+        # Start background data ingestion task only if initialization succeeded
+        data_ingestion_task = asyncio.create_task(run_data_ingestion())
+        logger.info("Background data ingestion task started")
+        
+    except Exception as e:
+        # Catch critical initialization errors and fail the app
+        if "CRITICAL: Sectors file not found" in str(e) or "CRITICAL: No sectors with valid boundaries loaded" in str(e):
+            logger.critical("🚨 CRITICAL: Application startup failed - sector data loading failed")
+            exit_application("Sector data loading failed during startup")
+        elif "CRITICAL: Invalid GeoJSON format" in str(e):
+            logger.critical("🚨 CRITICAL: Application startup failed - invalid sector data format")
+            exit_application("Invalid sector data format during startup")
+        elif "CRITICAL: Data service initialization failed" in str(e):
+            logger.critical("🚨 CRITICAL: Application startup failed - data service initialization failed")
+            exit_application("Data service initialization failed during startup")
+        else:
+            logger.critical(f"🚨 CRITICAL: Application startup failed: {e}")
+            exit_application(f"Application startup failed: {e}")
     
     # Monitor the background task for critical failures
     try:
@@ -93,6 +114,12 @@ async def lifespan(app: FastAPI):
         elif "UndefinedTable" in str(e):
             logger.critical("🚨 CRITICAL: Application shutting down due to missing database table")
             raise
+        elif "CRITICAL: Sectors file not found" in str(e) or "CRITICAL: No sectors with valid boundaries loaded" in str(e):
+            logger.critical("🚨 CRITICAL: Application shutting down due to sector data loading failure")
+            exit_application("Sector data loading failed during startup")
+        elif "CRITICAL: Invalid GeoJSON format" in str(e):
+            logger.critical("🚨 CRITICAL: Application shutting down due to invalid sector data format")
+            exit_application("Invalid sector data format during startup")
         else:
             logger.error(f"Application error: {e}")
             raise
@@ -150,6 +177,14 @@ async def run_data_ingestion():
                 logger.critical("🚨 CRITICAL: Missing database table - Application will FAIL")
                 # Exit the application immediately
                 exit_application("Missing database table - schema mismatch")
+            elif "CRITICAL: Sectors file not found" in str(e) or "CRITICAL: No sectors with valid boundaries loaded" in str(e):
+                logger.critical("🚨 CRITICAL: Sector data loading failed - Application will FAIL")
+                # Exit the application immediately
+                exit_application("Sector data loading failed - application cannot function without sector data")
+            elif "CRITICAL: Invalid GeoJSON format" in str(e):
+                logger.critical("🚨 CRITICAL: Invalid sector data format - Application will FAIL")
+                # Exit the application immediately
+                exit_application("Invalid sector data format - application cannot function without valid sector data")
             else:
                 logger.error(f"Non-critical error in data ingestion task: {e}")
                 # For other errors, wait and retry

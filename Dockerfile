@@ -50,7 +50,6 @@ COPY tests/ ./tests/
 COPY airspace_sector_data/ ./airspace_sector_data/
 COPY database/ ./database/
 COPY run.py .
-COPY run_tests.py .
 COPY requirements.txt .
 
 # Create necessary directories with proper permissions

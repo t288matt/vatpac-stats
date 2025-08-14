@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: vatsim_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./config/init.sql:/docker-entrypoint-initdb.d/01-init.sql
     ports:
       - "5432:5432"
     restart: unless-stopped
@@ -98,7 +98,9 @@ services:
 
     volumes:
       - ./logs:/app/logs:rw
-      - ./airspace_sector_data/australian_airspace_polygon.json:/app/airspace_sector_data/australian_airspace_polygon.json:ro
+      - ./config/australian_airspace_polygon.json:/app/airspace_sector_data/australian_airspace_polygon.json:ro
+      - ./config/australian_airspace_sectors.geojson:/app/airspace_sector_data/australian_airspace_sectors.geojson:ro
+      - ./config/init.sql:/app/database/init.sql:ro
       # REMOVE FOR PRODUCTION - Test and debug files
       - ./pytest.ini:/app/pytest.ini:ro
       - ./tests:/app/tests:ro

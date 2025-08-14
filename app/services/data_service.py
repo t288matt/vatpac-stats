@@ -76,6 +76,10 @@ class DataService:
         self.sector_loader = None  # Will be initialized in initialize() method
         self.flight_sector_states = {}  # Track current sector for each flight
         
+        # Debug logging for sector tracking configuration
+        self.logger.info(f"Sector tracking config: enabled={self.sector_tracking_enabled}, update_interval={self.sector_update_interval}")
+        self.logger.info(f"Sector file path: {self.config.sector_tracking.sectors_file_path}")
+        
         # Performance tracking - simplified
         self.stats = {
             "flights": 0,
@@ -97,12 +101,14 @@ class DataService:
             # NEW: Initialize sector tracking
             if self.sector_tracking_enabled:
                 self.sector_loader = SectorLoader(self.config.sector_tracking.sectors_file_path)
+                # Critical: If sectors can't be loaded, the app must fail
                 sector_loaded = self.sector_loader.load_sectors()
                 if not sector_loaded:
-                    self.logger.error("Failed to load sectors - sector tracking disabled")
-                    self.sector_tracking_enabled = False
-                else:
-                    self.logger.info(f"Sector tracking initialized with {self.sector_loader.get_sector_count()} sectors")
+                    # This should never happen now since load_sectors() raises exceptions on failure
+                    error_msg = "CRITICAL: Sector loading failed but no exception was raised - this indicates a bug"
+                    self.logger.critical(error_msg)
+                    raise RuntimeError(error_msg)
+                self.logger.info(f"Sector tracking initialized with {self.sector_loader.get_sector_count()} sectors")
             
             # Don't get database session here - we'll get it when needed
             self.db_session = None
@@ -1211,11 +1217,18 @@ async def get_data_service() -> DataService:
     
     Returns:
         DataService: The global data service instance
+        
+    Raises:
+        RuntimeError: If the data service fails to initialize (critical failure)
     """
     global _data_service
     if _data_service is None:
         _data_service = DataService()
-        await _data_service.initialize()
+        # Critical: If initialization fails, the app must fail
+        if not await _data_service.initialize():
+            error_msg = "CRITICAL: Data service initialization failed - application cannot function"
+            _data_service.logger.critical(error_msg)
+            raise RuntimeError(error_msg)
     return _data_service
 
 
