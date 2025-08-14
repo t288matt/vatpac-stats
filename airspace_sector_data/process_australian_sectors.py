@@ -87,29 +87,30 @@ def get_volume_boundaries(volume_name):
                 # Get the boundary names from the Boundaries element
                 for child in list(volume):
                     if child.tag == 'Boundaries' and child.text:
-                        # Split comma-separated boundary names and take only the first one
+                        # Split comma-separated boundary names and process ALL boundaries
                         boundary_names = [name.strip() for name in child.text.split(',')]
-                        primary_boundary_name = boundary_names[0]  # Only take the first one
                         
-                        # Search for the actual boundary coordinates using the boundary name
-                        for boundary in volumes_root.findall('.//Boundary'):
-                            if boundary.get('Name') == primary_boundary_name:
-                                coords_text = boundary.text.strip() if boundary.text else ''
-                                if coords_text:
-                                    # Parse coordinates for this boundary
-                                    boundary_coords = []
-                                    coord_pairs = [pair.strip() for pair in coords_text.split('/') if pair.strip()]
-                                    
-                                    # Debug: Print what we found for TBD
-                                    if volume_name == 'TBD':
-                                        print(f"    🔍 DEBUG: Found boundary '{primary_boundary_name}' with {len(coord_pairs)} coordinate pairs")
-                                        print(f"    🔍 DEBUG: First few coords: {coord_pairs[:3]}")
-                                    
-                                    for pair in coord_pairs:
-                                        # Parse the coordinate pair (e.g., "-342011.000+1382231.000")
-                                        if '+' in pair and '-' in pair:
-                                            # Handle mixed signs (negative lat, positive lon)
-                                            if pair.startswith('-'):
+                        all_polygons = []
+                        
+                        # Process each boundary separately
+                        for boundary_name in boundary_names:
+                            # Search for the actual boundary coordinates using the boundary name
+                            for boundary in volumes_root.findall('.//Boundary'):
+                                if boundary.get('Name') == boundary_name:
+                                    coords_text = boundary.text.strip() if boundary.text else ''
+                                    if coords_text:
+                                        # Parse coordinates for this boundary
+                                        boundary_coords = []
+                                        coord_pairs = [pair.strip() for pair in coords_text.split('/') if pair.strip()]
+                                        
+                                        # Debug: Print what we found for TBD
+                                        if volume_name == 'TBD':
+                                            print(f"    🔍 DEBUG: Found boundary '{boundary_name}' with {len(coord_pairs)} coordinate pairs")
+                                            print(f"    🔍 DEBUG: First few coords: {coord_pairs[:3]}")
+                                        
+                                        for pair in coord_pairs:
+                                            # Parse the coordinate pair - handle both DDMMSS.SSSS and decimal degrees formats
+                                            if '+' in pair:
                                                 # Find the position of the + sign
                                                 plus_pos = pair.find('+')
                                                 if plus_pos > 0:
@@ -125,104 +126,117 @@ def get_volume_boundaries(volume_name):
                                                         print(f"    🔍 DEBUG: Parsed '{pair}' -> lat:{lat}, lon:{lon}")
                                                     
                                                     if lat is not None and lon is not None:
-                                                        boundary_coords.append((lon, lat))  # Shapely uses (x,y) = (lon,lat) for GeoJSON compatibility
-                                    
-                                    # Debug: Print final results for TBD
-                                    if volume_name == 'TBD':
-                                        print(f"    🔍 DEBUG: Total valid coordinates: {len(boundary_coords)}")
-                                        print(f"    🔍 DEBUG: First 3 coords: {boundary_coords[:3]}")
-                                        print(f"    🔍 DEBUG: Last 3 coords: {boundary_coords[-3:]}")
-                                        # Check if polygon is closed
-                                        if boundary_coords[0] == boundary_coords[-1]:
-                                            print(f"    🔍 DEBUG: Polygon is closed ✅")
-                                        else:
-                                            print(f"    🔍 DEBUG: Polygon is NOT closed ❌")
-                                            print(f"    🔍 DEBUG: First: {boundary_coords[0]}, Last: {boundary_coords[-1]}")
-                                    
-                                    # Create polygon from this boundary if we have enough coordinates
-                                    if len(boundary_coords) >= 3:
-                                        try:
-                                            # Debug: Print polygon creation attempt for TBD
-                                            if volume_name == 'TBD':
-                                                print(f"    🔍 DEBUG: Attempting to create polygon with {len(boundary_coords)} coordinates")
-                                            
-                                            polygon = Polygon(boundary_coords)
-                                            
-                                            # Debug: Check polygon validity for TBD
-                                            if volume_name == 'TBD':
-                                                print(f"    🔍 DEBUG: Polygon created, valid: {polygon.is_valid}")
-                                            
-                                            if polygon.is_valid:
-                                                return polygon
-                                            else:
-                                                # Polygon is invalid, try coordinate simplification first
-                                                if volume_name == 'TBD':
-                                                    print(f"    🔍 DEBUG: Polygon invalid, trying coordinate simplification...")
-                                                
-                                                try:
-                                                    # Simplify the coordinate sequence to reduce complexity
-                                                    from shapely.geometry import LineString
-                                                    line = LineString(boundary_coords)
-                                                    simplified_line = line.simplify(tolerance=0.001, preserve_topology=True)
-                                                    
-                                                    # Extract simplified coordinates
-                                                    simplified_coords = list(simplified_line.coords)
-                                                    
-                                                    if volume_name == 'TBD':
-                                                        print(f"    🔍 DEBUG: Simplified from {len(boundary_coords)} to {len(simplified_coords)} coordinates")
-                                                    
-                                                    # Try creating polygon with simplified coordinates
-                                                    simplified_polygon = Polygon(simplified_coords)
-                                                    if simplified_polygon.is_valid:
-                                                        if volume_name == 'TBD':
-                                                            print(f"    🔍 DEBUG: Successfully created polygon with simplified coordinates")
-                                                        return simplified_polygon
-                                                    else:
-                                                        if volume_name == 'TBD':
-                                                            print(f"    🔍 DEBUG: Simplified polygon still invalid")
-                                                        
-                                                except Exception as simplify_error:
-                                                    if volume_name == 'TBD':
-                                                        print(f"    🔍 DEBUG: Coordinate simplification failed: {simplify_error}")
-                                                
-                                                # Try other fallback methods
-                                                try:
-                                                    # Try buffer with 0 distance to clean up geometry
-                                                    fixed_polygon = polygon.buffer(0)
-                                                    if fixed_polygon.is_valid and hasattr(fixed_polygon, 'exterior'):
-                                                        if volume_name == 'TBD':
-                                                            print(f"    🔍 DEBUG: Fixed invalid polygon using buffer(0)")
-                                                        return fixed_polygon
-                                                except Exception as buffer_error:
-                                                    if volume_name == 'TBD':
-                                                        print(f"    🔍 DEBUG: Buffer fix failed: {buffer_error}")
-                                                
-                                                # Try reversing coordinate order
-                                                try:
-                                                    reversed_coords = list(reversed(boundary_coords))
-                                                    reversed_polygon = Polygon(reversed_coords)
-                                                    if reversed_polygon.is_valid:
-                                                        if volume_name == 'TBD':
-                                                            print(f"    🔍 DEBUG: Fixed invalid polygon by reversing coordinates")
-                                                        return reversed_polygon
-                                                except Exception as reverse_error:
-                                                    if volume_name == 'TBD':
-                                                        print(f"    🔍 DEBUG: Reverse fix failed: {reverse_error}")
+                                                        boundary_coords.append((lon, lat))  # Shapely uses (x,y) = (lon,lat)
                                         
-                                        except Exception as e:
-                                            # Initial polygon creation failed completely
-                                            if volume_name == 'TBD':
-                                                print(f"    🔍 DEBUG: Initial polygon creation failed: {e}")
-                                        
-                                        # If we get here, all methods failed
+                                        # Debug: Print final results for TBD
                                         if volume_name == 'TBD':
-                                            print(f"    🔍 DEBUG: All polygon creation methods failed")
+                                            print(f"    🔍 DEBUG: Total valid coordinates: {len(boundary_coords)}")
+                                            print(f"    🔍 DEBUG: First 3 coords: {boundary_coords[:3]}")
+                                            print(f"    🔍 DEBUG: Last 3 coords: {boundary_coords[-3:]}")
+                                            # Check if polygon is closed
+                                            if boundary_coords[0] == boundary_coords[-1]:
+                                                print(f"    🔍 DEBUG: Polygon is closed ✅")
+                                            else:
+                                                print(f"    🔍 DEBUG: Polygon is NOT closed ❌")
+                                                print(f"    🔍 DEBUG: First: {boundary_coords[0]}, Last: {boundary_coords[-1]}")
                                         
-                                        print(f"Warning: Could not create polygon for boundary {primary_boundary_name}")
+                                        # Create polygon from this boundary if we have enough coordinates
+                                        if len(boundary_coords) >= 3:
+                                            try:
+                                                # Debug: Print polygon creation attempt for TBD
+                                                if volume_name == 'TBD':
+                                                    print(f"    🔍 DEBUG: Attempting to create polygon with {len(boundary_coords)} coordinates")
+                                                
+                                                polygon = Polygon(boundary_coords)
+                                                
+                                                # Debug: Check polygon validity for TBD
+                                                if volume_name == 'TBD':
+                                                    print(f"    🔍 DEBUG: Polygon created, valid: {polygon.is_valid}")
+                                                
+                                                if polygon.is_valid:
+                                                    all_polygons.append(polygon)
+                                                    continue  # Move to next boundary
+                                                else:
+                                                    # Polygon is invalid, try coordinate simplification first
+                                                    if volume_name == 'TBD':
+                                                        print(f"    🔍 DEBUG: Polygon invalid, trying coordinate simplification...")
+                                                    
+                                                    try:
+                                                        # Simplify the coordinate sequence to reduce complexity
+                                                        from shapely.geometry import LineString
+                                                        line = LineString(boundary_coords)
+                                                        simplified_line = line.simplify(tolerance=0.001, preserve_topology=True)
+                                                        
+                                                        # Extract simplified coordinates
+                                                        simplified_coords = list(simplified_line.coords)
+                                                        
+                                                        if volume_name == 'TBD':
+                                                            print(f"    🔍 DEBUG: Simplified from {len(boundary_coords)} to {len(simplified_coords)} coordinates")
+                                                        
+                                                        # Try creating polygon with simplified coordinates
+                                                        simplified_polygon = Polygon(simplified_coords)
+                                                        if simplified_polygon.is_valid:
+                                                            if volume_name == 'TBD':
+                                                                print(f"    🔍 DEBUG: Successfully created polygon with simplified coordinates")
+                                                            all_polygons.append(simplified_polygon)
+                                                            continue  # Move to next boundary
+                                                        else:
+                                                            if volume_name == 'TBD':
+                                                                print(f"    🔍 DEBUG: Simplified polygon still invalid")
+                                                            
+                                                    except Exception as simplify_error:
+                                                        if volume_name == 'TBD':
+                                                            print(f"    🔍 DEBUG: Coordinate simplification failed: {simplify_error}")
+                                                    
+                                                    # Try other fallback methods
+                                                    try:
+                                                        # Try buffer with 0 distance to clean up geometry
+                                                        fixed_polygon = polygon.buffer(0)
+                                                        if fixed_polygon.is_valid and hasattr(fixed_polygon, 'exterior'):
+                                                            if volume_name == 'TBD':
+                                                                print(f"    🔍 DEBUG: Fixed invalid polygon using buffer(0)")
+                                                            all_polygons.append(fixed_polygon)
+                                                            continue  # Move to next boundary
+                                                    except Exception as buffer_error:
+                                                        if volume_name == 'TBD':
+                                                            print(f"    🔍 DEBUG: Buffer fix failed: {buffer_error}")
+                                                    
+                                                    # Try reversing coordinate order
+                                                    try:
+                                                        reversed_coords = list(reversed(boundary_coords))
+                                                        reversed_polygon = Polygon(reversed_coords)
+                                                        if reversed_polygon.is_valid:
+                                                            if volume_name == 'TBD':
+                                                                print(f"    🔍 DEBUG: Fixed invalid polygon by reversing coordinates")
+                                                            all_polygons.append(reversed_polygon)
+                                                            continue  # Move to next boundary
+                                                    except Exception as reverse_error:
+                                                        if volume_name == 'TBD':
+                                                            print(f"    🔍 DEBUG: Reverse fix failed: {reverse_error}")
+                                            
+                                            except Exception as e:
+                                                # Initial polygon creation failed completely
+                                                if volume_name == 'TBD':
+                                                    print(f"    🔍 DEBUG: Initial polygon creation failed: {e}")
+                                        
+                                        # If we get here, all methods failed for this boundary
+                                        if volume_name == 'TBD':
+                                            print(f"    🔍 DEBUG: All polygon creation methods failed for boundary {boundary_name}")
                                     
-                                break  # Found Boundaries element, no need to check other children
+                                    break  # Found this boundary, move to next boundary name
                         
-                        break  # Found volume, no need to check other volumes
+                        # Now combine all polygons for this volume
+                        if len(all_polygons) == 1:
+                            return all_polygons[0]
+                        elif len(all_polygons) > 1:
+                            try:
+                                combined = unary_union(all_polygons)
+                                return combined
+                            except Exception as e:
+                                print(f"Warning: Failed to combine polygons for volume {volume_name}: {e}")
+                                return all_polygons[0]  # Return first as fallback
+                        
+                        break  # Found Boundaries element, no need to check other children
                 
                 break  # Found volume, no need to check other volumes
         
@@ -334,36 +348,41 @@ def combine_sector_polygons(sector_names):
                     seen.add(coord_tuple)
             
             print(f"  🎯 Combined polygon: {len(final_boundaries)} outer perimeter points")
-            return final_boundaries
+            # Return the actual Shapely geometry, not the coordinate list
+            return combined_polygon
             
         except Exception as e:
             print(f"  ❌ Error combining polygons: {e}")
-            # Fallback: return coordinates from first valid polygon
+            # Fallback: return the first valid polygon
             if all_polygons:
-                polygon = all_polygons[0]
-                if hasattr(polygon, 'exterior'):
-                    coords = list(polygon.exterior.coords)
-                    return [(lon, lat) for lon, lat in coords]
+                return all_polygons[0]
     
     elif len(all_polygons) == 1:
-        # Only one polygon, return its coordinates
-        polygon = all_polygons[0]
-        if hasattr(polygon, 'exterior'):
-            coords = list(polygon.exterior.coords)
-            return [(lon, lat) for lon, lat in coords]
+        # Only one polygon, return it directly
+        return all_polygons[0]
     
-    return []
+    return None
 
 def create_geojson_feature(sector_name, boundaries):
     """
     Create a GeoJSON Feature for a sector
     """
-    if not boundaries or len(boundaries) < 3:
+    if not boundaries:
+        return None
+    
+    # Extract coordinates from Shapely geometry
+    if hasattr(boundaries, 'exterior'):
+        # Single polygon
+        coords = list(boundaries.exterior.coords)
+    elif hasattr(boundaries, 'geoms'):
+        # MultiPolygon - use the first one for now
+        coords = list(boundaries.geoms[0].exterior.coords)
+    else:
         return None
     
     # Ensure the polygon is closed (first and last points are the same)
-    if boundaries[0] != boundaries[-1]:
-        boundaries.append(boundaries[0])
+    if coords[0] != coords[-1]:
+        coords.append(coords[0])
     
     feature = {
         "type": "Feature",
@@ -373,7 +392,7 @@ def create_geojson_feature(sector_name, boundaries):
         },
         "geometry": {
             "type": "Polygon",
-            "coordinates": [boundaries]
+            "coordinates": [coords]
         }
     }
     
@@ -409,13 +428,20 @@ def process_australian_sectors():
                 if feature:
                     geojson_features.append(feature)
                 
+                # Get coordinate count from the polygon
+                if hasattr(combined_boundaries, 'exterior'):
+                    boundary_count = len(combined_boundaries.exterior.coords)
+                elif hasattr(combined_boundaries, 'geoms'):
+                    boundary_count = len(combined_boundaries.geoms[0].exterior.coords)
+                else:
+                    boundary_count = 0
+                
                 processed_sectors.append({
                     'name': main_sector,
                     'subsectors': subsectors,
-                    'boundaries': combined_boundaries,
-                    'boundary_count': len(combined_boundaries)
+                    'boundary_count': boundary_count
                 })
-                print(f"  ✅ Successfully processed with {len(combined_boundaries)} boundary points")
+                print(f"  ✅ Successfully processed with {boundary_count} boundary points")
             else:
                 print(f"  ❌ No valid boundaries found")
         
