@@ -409,17 +409,12 @@ def process_australian_sectors():
             "features": geojson_features
         }
         
-        # Save results
-        os.makedirs('processed_sectors', exist_ok=True)
+        # Save results directly in current directory
         
         # Save combined GeoJSON file
-        output_file = 'processed_sectors/australian_airspace_sectors.geojson'
+        output_file = 'australian_airspace_sectors.geojson'
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(geojson, f, indent=2, ensure_ascii=False)
-        
-        # Save processed sectors data as JSON (for reference)
-        with open('processed_sectors/australian_sectors_data.json', 'w', encoding='utf-8') as f:
-            json.dump(processed_sectors, f, indent=2, ensure_ascii=False)
         
         # Print summary
         print(f"\n" + "=" * 70)
@@ -428,7 +423,6 @@ def process_australian_sectors():
         print(f"✅ Successfully processed: {len(processed_sectors)} sectors")
         print(f"📁 Output files:")
         print(f"   - {output_file}")
-        print(f"   - processed_sectors/australian_sectors_data.json")
         
         # Show processed sectors
         if processed_sectors:
