@@ -465,10 +465,10 @@ class DataService:
     
     async def _track_sector_occupancy(self, flight_dict: Dict[str, Any], session: AsyncSession) -> None:
         """
-        Track sector occupancy for a single flight.
+        Track sector occupancy for a flight with speed-based entry/exit criteria.
         
-        This method detects when a flight enters or exits sectors and records
-        the transitions in the flight_sector_occupancy table.
+        Entry Criteria: Aircraft must be above 60 knots (inclusive) AND within sector geographic boundary
+        Exit Criteria: Aircraft must be below 30 knots for 2 consecutive VATSIM polls (60-second intervals)
         
         Args:
             flight_dict: Flight data dictionary from VATSIM API
@@ -485,38 +485,88 @@ class DataService:
         if not callsign:
             return
         
-        # Get current position
+        # Get current position and speed
         lat = flight_dict.get("latitude")
         lon = flight_dict.get("longitude")
         altitude = flight_dict.get("altitude")
+        groundspeed = flight_dict.get("groundspeed")
         
         if lat is None or lon is None:
             return
         
-        # Find current sector
-        current_sector = self.sector_loader.get_sector_for_point(lat, lon)
+        # Initialize flight sector states if not exists
+        if not hasattr(self, 'flight_sector_states'):
+            self.flight_sector_states = {}
         
-        # Get previous sector state
-        previous_state = getattr(self, 'flight_sector_states', {}).get(callsign)
+        # Get current geographic sector
+        geographic_sector = self.sector_loader.get_sector_for_point(lat, lon)
         
-        if current_sector != previous_state:
+        # Get previous state (combined structure: sector + exit counter)
+        previous_state = self.flight_sector_states.get(callsign, {})
+        previous_sector = previous_state.get("current_sector") if isinstance(previous_state, dict) else previous_state
+        exit_counter = previous_state.get("exit_counter", 0) if isinstance(previous_state, dict) else 0
+        
+        # Determine current sector based on speed criteria
+        current_sector = None
+        
+        # Entry logic: Must be above 60 knots to enter sector
+        if groundspeed is not None and groundspeed >= 60:
+            current_sector = geographic_sector
+        elif groundspeed is None:
+            # Missing speed data - defer entry decision
+            current_sector = previous_sector  # Keep previous state
+        else:
+            # Speed below 60 knots - not in sector
+            current_sector = None
+        
+        # Exit logic: Track consecutive below-30kts polls
+        if groundspeed is not None and groundspeed < 30:
+            exit_counter += 1
+        else:
+            # Speed above 30 knots or missing - reset exit counter
+            exit_counter = 0
+        
+        # Check if we should exit due to 2 consecutive below-30kts polls
+        should_exit = exit_counter >= 2
+        
+        # Handle sector transitions
+        if current_sector != previous_sector or should_exit:
             await self._handle_sector_transition(
-                callsign, previous_state, current_sector, 
-                lat, lon, altitude, session
+                callsign, previous_sector, current_sector, 
+                lat, lon, altitude, session, should_exit
             )
             
-            # Update state
-            if not hasattr(self, 'flight_sector_states'):
-                self.flight_sector_states = {}
-            self.flight_sector_states[callsign] = current_sector
+            # Update state with combined structure
+            self.flight_sector_states[callsign] = new_state = {
+                "current_sector": current_sector,
+                "exit_counter": exit_counter,
+                "last_speed": groundspeed
+            }
+            
+            # Log sector transitions for debugging
+            if current_sector != previous_sector:
+                if current_sector:
+                    self.logger.info(f"Flight {callsign} entered sector {current_sector} (speed: {groundspeed}kts)")
+                else:
+                    self.logger.info(f"Flight {callsign} exited sector {previous_sector} (speed: {groundspeed}kts)")
+            
+            if should_exit and previous_sector:
+                self.logger.info(f"Flight {callsign} forced exit from sector {previous_sector} due to low speed ({groundspeed}kts, counter: {exit_counter})")
+        else:
+            # Update state even when no transition occurs (for new aircraft, missing speed data, etc.)
+            self.flight_sector_states[callsign] = {
+                "current_sector": current_sector,
+                "exit_counter": exit_counter,
+                "last_speed": groundspeed
+            }
 
     async def _handle_sector_transition(
         self, callsign: str, previous_sector: Optional[str], 
         current_sector: Optional[str], lat: float, lon: float, 
-        altitude: int, session: AsyncSession
+        altitude: int, session: AsyncSession, should_exit: bool = False
     ) -> None:
         """
-        Handle sector entry/exit transitions.
+        Handle sector entry/exit transitions with speed-based criteria.
         
         Args:
             callsign: Flight callsign
@@ -526,17 +576,18 @@ class DataService:
             lon: Current longitude
             altitude: Current altitude in feet
             session: Database session
+            should_exit: Whether to force exit due to speed criteria
         """
         timestamp = datetime.now(timezone.utc)
         
-        # Exit previous sector
-        if previous_sector:
+        # Exit previous sector (either geographic change or speed criteria)
+        if previous_sector and (current_sector != previous_sector or should_exit):
             await self._record_sector_exit(
                 callsign, previous_sector, lat, lon, altitude, timestamp, session
             )
         
-        # Enter new sector
-        if current_sector:
+        # Enter new sector (only if different from previous)
+        if current_sector and current_sector != previous_sector:
             await self._record_sector_entry(
                 callsign, current_sector, lat, lon, altitude, timestamp, session
             )
