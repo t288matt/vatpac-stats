@@ -426,6 +426,177 @@ class TestCompleteUserWorkflows:
             print(f"❌ Complete controller data workflow test failed: {e}")
             assert False, f"Complete controller data workflow test failed: {e}"
 
+    @pytest.mark.stage10
+    @pytest.mark.business_logic
+    @pytest.mark.sector_tracking
+    @pytest.mark.asyncio
+    async def test_speed_based_sector_entry_exit_logic(self):
+        """Test: Does the speed-based sector entry/exit logic work correctly?"""
+        print("🧪 Testing: Does the speed-based sector entry/exit logic work correctly?")
+        
+        try:
+            # Create mock sector loader
+            class MockSectorLoader:
+                def get_sector_for_point(self, lat: float, lon: float):
+                    return "TEST_SECTOR"
+            
+            # Create data service with mock components
+            data_service = DataService()
+            data_service.sector_loader = MockSectorLoader()
+            data_service.sector_tracking_enabled = True
+            data_service.flight_sector_states = {}
+            
+            # Test 1: Aircraft above 60 knots should enter sector
+            print("📋 Test 1: Aircraft above 60 knots enters sector")
+            flight_data_1 = {
+                "callsign": "TEST001",
+                "latitude": -33.8688,
+                "longitude": 151.2093,
+                "altitude": 3000,
+                "groundspeed": 120
+            }
+            
+            await data_service._track_sector_occupancy(flight_data_1, None)
+            
+            # Verify aircraft entered sector
+            assert "TEST001" in data_service.flight_sector_states
+            state = data_service.flight_sector_states["TEST001"]
+            assert state["current_sector"] == "TEST_SECTOR"
+            assert state["exit_counter"] == 0
+            assert state["last_speed"] == 120
+            print("✅ Aircraft above 60 knots successfully entered sector")
+            
+            # Test 2: Aircraft below 60 knots should exit sector
+            print("📋 Test 2: Aircraft below 60 knots exits sector")
+            flight_data_2 = {
+                "callsign": "TEST001",
+                "latitude": -33.8688,
+                "longitude": 151.2093,
+                "altitude": 3000,
+                "groundspeed": 45
+            }
+            
+            await data_service._track_sector_occupancy(flight_data_2, None)
+            
+            # Verify aircraft exited sector
+            state = data_service.flight_sector_states["TEST001"]
+            assert state["current_sector"] is None
+            assert state["exit_counter"] == 0  # Reset when speed goes above 30
+            print("✅ Aircraft below 60 knots successfully exited sector")
+            
+            # Test 3: Aircraft at exactly 60 knots should enter sector
+            print("📋 Test 3: Aircraft at exactly 60 knots enters sector")
+            flight_data_3 = {
+                "callsign": "TEST001",
+                "latitude": -33.8688,
+                "longitude": 151.2093,
+                "altitude": 3000,
+                "groundspeed": 60
+            }
+            
+            await data_service._track_sector_occupancy(flight_data_3, None)
+            
+            # Verify aircraft entered sector
+            state = data_service.flight_sector_states["TEST001"]
+            assert state["current_sector"] == "TEST_SECTOR"
+            assert state["exit_counter"] == 0
+            print("✅ Aircraft at exactly 60 knots successfully entered sector")
+            
+            # Test 4: Aircraft below 30 knots - start exit counter
+            print("📋 Test 4: Aircraft below 30 knots - start exit counter")
+            flight_data_4 = {
+                "callsign": "TEST001",
+                "latitude": -33.8688,
+                "longitude": 151.2093,
+                "altitude": 3000,
+                "groundspeed": 25
+            }
+            
+            await data_service._track_sector_occupancy(flight_data_4, None)
+            
+            # Verify exit counter started
+            state = data_service.flight_sector_states["TEST001"]
+            assert state["current_sector"] is None
+            assert state["exit_counter"] == 1
+            print("✅ Exit counter started for aircraft below 30 knots")
+            
+            # Test 5: Aircraft still below 30 knots - increment exit counter
+            print("📋 Test 5: Aircraft still below 30 knots - increment exit counter")
+            await data_service._track_sector_occupancy(flight_data_4, None)
+            
+            # Verify exit counter incremented
+            state = data_service.flight_sector_states["TEST001"]
+            assert state["exit_counter"] == 2
+            print("✅ Exit counter incremented to 2")
+            
+            # Test 6: Aircraft goes above 30 knots - reset exit counter
+            print("📋 Test 6: Aircraft goes above 30 knots - reset exit counter")
+            flight_data_6 = {
+                "callsign": "TEST001",
+                "latitude": -33.8688,
+                "longitude": 151.2093,
+                "altitude": 3000,
+                "groundspeed": 80
+            }
+            
+            await data_service._track_sector_occupancy(flight_data_6, None)
+            
+            # Verify exit counter reset
+            state = data_service.flight_sector_states["TEST001"]
+            assert state["current_sector"] == "TEST_SECTOR"
+            assert state["exit_counter"] == 0
+            print("✅ Exit counter reset when speed went above 30 knots")
+            
+            # Test 7: Missing speed data handling
+            print("📋 Test 7: Missing speed data handling")
+            flight_data_7 = {
+                "callsign": "TEST001",
+                "latitude": -33.8688,
+                "longitude": 151.2093,
+                "altitude": 3000,
+                "groundspeed": None
+            }
+            
+            await data_service._track_sector_occupancy(flight_data_7, None)
+            
+            # Verify missing speed data handled gracefully
+            state = data_service.flight_sector_states["TEST001"]
+            assert state["current_sector"] == "TEST_SECTOR"  # Keep previous state
+            assert state["exit_counter"] == 0  # Reset counter
+            print("✅ Missing speed data handled gracefully")
+            
+            # Test 8: New aircraft with missing speed data
+            print("📋 Test 8: New aircraft with missing speed data")
+            flight_data_8 = {
+                "callsign": "TEST002",
+                "latitude": -33.8688,
+                "longitude": 151.2093,
+                "altitude": 3000,
+                "groundspeed": None
+            }
+            
+            await data_service._track_sector_occupancy(flight_data_8, None)
+            
+            # Verify new aircraft handled correctly
+            assert "TEST002" in data_service.flight_sector_states
+            state = data_service.flight_sector_states["TEST002"]
+            assert state["current_sector"] is None  # No previous state to defer to
+            assert state["exit_counter"] == 0
+            print("✅ New aircraft with missing speed data handled correctly")
+            
+            # Test 9: Verify final state
+            print("📋 Test 9: Verify final state")
+            assert len(data_service.flight_sector_states) == 2
+            assert data_service.flight_sector_states["TEST001"]["current_sector"] == "TEST_SECTOR"
+            assert data_service.flight_sector_states["TEST002"]["current_sector"] is None
+            print("✅ Final state verification passed")
+            
+            print("✅ Speed-based sector entry/exit logic test completed successfully")
+            
+        except Exception as e:
+            print(f"❌ Speed-based sector entry/exit logic test failed: {e}")
+            assert False, f"Speed-based sector entry/exit logic test failed: {e}"
+
 
 # Test execution helper
 def run_business_logic_core_functionality_tests():
@@ -443,6 +614,7 @@ def run_business_logic_core_functionality_tests():
     print("  - Background task execution")
     print("  - Error handling and recovery")
     print("  - Complete end-to-end user workflows")
+    print("  - Speed-based sector entry/exit logic")
     print("\n🎯 Focus: Testing WHAT the system does, not just IF it responds")
 
 
