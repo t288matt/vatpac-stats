@@ -501,10 +501,15 @@ class DataService:
         # Get current geographic sector
         geographic_sector = self.sector_loader.get_sector_for_point(lat, lon)
         
-        # Get previous state (combined structure: sector + exit counter)
+        # Get offline threshold from config (default: 2 minutes)
+        offline_threshold_minutes = getattr(self.config.sector_tracking, 'offline_threshold_minutes', 2)
+        offline_threshold_seconds = offline_threshold_minutes * 60
+        
+        # Get previous state (combined structure: sector + exit counter + offline tracking)
         previous_state = self.flight_sector_states.get(callsign, {})
         previous_sector = previous_state.get("current_sector") if isinstance(previous_state, dict) else previous_state
         exit_counter = previous_state.get("exit_counter", 0) if isinstance(previous_state, dict) else 0
+        last_seen_timestamp = previous_state.get("last_seen_timestamp") if isinstance(previous_state, dict) else None
         
         # Determine current sector based on speed criteria
         current_sector = None
@@ -529,6 +534,14 @@ class DataService:
         # Check if we should exit due to 2 consecutive below-30kts polls
         should_exit = exit_counter >= 2
         
+        # Offline exit logic: Check if aircraft has been offline too long
+        current_timestamp = datetime.now(timezone.utc)
+        if last_seen_timestamp and previous_sector:
+            time_offline = (current_timestamp - last_seen_timestamp).total_seconds()
+            if time_offline > offline_threshold_seconds:
+                should_exit = True
+                self.logger.info(f"Flight {callsign} forced exit from sector {previous_sector} due to offline timeout ({time_offline:.0f}s > {offline_threshold_seconds}s)")
+        
         # Handle sector transitions
         if current_sector != previous_sector or should_exit:
             await self._handle_sector_transition(
@@ -540,7 +553,8 @@ class DataService:
             self.flight_sector_states[callsign] = new_state = {
                 "current_sector": current_sector,
                 "exit_counter": exit_counter,
-                "last_speed": groundspeed
+                "last_speed": groundspeed,
+                "last_seen_timestamp": current_timestamp
             }
             
             # Log sector transitions for debugging
@@ -557,7 +571,8 @@ class DataService:
             self.flight_sector_states[callsign] = {
                 "current_sector": current_sector,
                 "exit_counter": exit_counter,
-                "last_speed": groundspeed
+                "last_speed": groundspeed,
+                "last_seen_timestamp": current_timestamp
             }
 
     async def _handle_sector_transition(
