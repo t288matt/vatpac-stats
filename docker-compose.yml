@@ -113,42 +113,43 @@ services:
     restart: unless-stopped
 
 
-  # Grafana for data visualization and monitoring
-  grafana:
-    image: grafana/grafana:10.2.0
-    container_name: vatsim_grafana
-    environment:
-      # Basic admin setup
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
-      
-      # Simple authentication - allow anonymous access for dashboards
-      GF_AUTH_ANONYMOUS_ENABLED: true
-      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
-      
-      # Basic settings
-      GF_DEFAULT_LOCALE: en-GB
-      GF_USERS_DEFAULT_THEME: dark
-      GF_USERS_DEFAULT_TIMEZONE: UTC
-      
-      # Disable unnecessary features
-      GF_ANALYTICS_REPORTING_ENABLED: false
-      
-      # Logging - Reduced Verbosity
-      GF_LOG_LEVEL: WARN
-      GF_LOG_CONSOLE: false
-      GF_LOG_FILE: false
-      
 
+
+  # Metabase for business intelligence and analytics
+  metabase:
+    image: metabase/metabase:latest
+    container_name: vatsim_metabase
+    environment:
+      # Metabase will use the existing vatsim_data database
+      # No separate database needed - Metabase stores its config in the app container
+      
+      # Metabase configuration
+      MB_ENCRYPTION_SECRET_KEY: "your-secret-key-here-change-in-production"
+      MB_PASSWORD_COMPLEXITY: "strong"
+      MB_PASSWORD_LENGTH: 10
+      
+      # Performance settings
+      MB_JAVA_TIMEZONE: UTC
+      MB_MAX_MEMORY_PERCENTAGE: 75
+      
+      # Security settings
+      MB_SESSION_TIMEOUT: 20160  # 14 days in minutes
+      MB_SESSION_TIMEOUT_UNITS: minutes
       
     volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - metabase_data:/metabase-data
     ports:
-      - "3050:3000"
+      - "3030:3000"
     depends_on:
-      - app
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
 
  
@@ -156,4 +157,6 @@ services:
 # Define named volumes
 volumes:
   postgres_data:
+    driver: local
+  metabase_data:
     driver: local 

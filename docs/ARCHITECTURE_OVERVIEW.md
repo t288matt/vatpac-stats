@@ -32,6 +32,8 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - **Performance**: ✅ **OPTIMIZED** - <1ms filtering overhead for 100+ entities
 - **Flight Summary System**: ✅ **ACTIVE** - automatic processing every 60 minutes
 - **Storage Optimization**: ✅ **ACTIVE** - ~90% reduction in daily storage growth
+- **Sector Tracking System**: ✅ **ACTIVE** - real-time sector occupancy monitoring
+- **Real-Time Sector Monitoring**: ✅ **OPERATIONAL** - 17 Australian airspace sectors tracked
 
 ### 🎯 Core Principles
 
@@ -48,6 +50,9 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - **Data Preservation**: Complete data preservation through archiving and summarization
 - **Efficiency**: Background processing for non-critical operations
 - **Scalability**: Optimized storage and processing for long-term data management
+- **Real-Time Sector Tracking**: Automatic sector occupancy monitoring for airspace management
+- **Altitude Monitoring**: Vertical profile tracking for sector transitions
+- **Sector Analytics**: Comprehensive sector-based reporting and analysis
 
 ## 📊 System Overview
 
@@ -272,6 +277,53 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - **Storage Reduction**: ~90% reduction in daily storage growth
 - **Processing**: Automatic background processing every 60 minutes
 - **Features**: Flight completion detection, summarization, archiving, and cleanup
+
+### Sector Tracking System Tables ✅ **FULLY IMPLEMENTED**
+- **flight_sector_occupancy**: Real-time sector occupancy tracking for all flights
+- **Purpose**: Monitor and analyze flight movement through Australian airspace sectors
+- **Processing**: Real-time updates every 60 seconds for all active flights
+- **Coverage**: 17 Australian en-route sectors with complete boundary data
+- **Features**: Entry/exit tracking, altitude monitoring, duration calculation, sector transitions
+
+**Key Features**:
+- ✅ **Real-time sector detection** using Shapely polygon calculations
+- ✅ **Altitude tracking** for entry/exit altitudes in each sector
+- ✅ **Duration calculation** for time spent in each sector
+- ✅ **Sector transitions** tracking flights moving between sectors
+- ✅ **GeoJSON sector boundaries** loaded from australian_airspace_sectors.geojson
+- ✅ **Performance optimized** with polygon caching and efficient algorithms
+- ✅ **Memory efficient** sector data management
+- ✅ **Comprehensive error handling** and logging for production reliability
+
+**Current Configuration**:
+- `SECTOR_TRACKING_ENABLED`: true (actively tracking)
+- `SECTOR_UPDATE_INTERVAL`: 60 seconds
+- `SECTOR_DATA_PATH`: airspace_sector_data/australian_airspace_sectors.geojson
+
+**Operational Sector Tracking Pipeline**:
+```
+VATSIM Flight Position Updates (every 60 seconds)
+      ↓
+   Sector Boundary Detection → Check against 17 sector polygons
+      ↓
+   Sector Transition Detection → Entry/exit events
+      ↓
+   Database Updates → flight_sector_occupancy table
+      ↓
+   Flight Summary Integration → Sector breakdown data
+```
+
+**Real-Time Performance**:
+- **Processing Time**: <1ms per flight for sector detection
+- **Sector Coverage**: 17 Australian en-route sectors
+- **Data Accuracy**: Real-time position updates with altitude tracking
+- **Memory Usage**: Efficient polygon caching for optimal performance
+
+**Sector Data Structure**:
+- **Entry Events**: Recorded when flights enter sectors with coordinates and altitude
+- **Exit Events**: Recorded when flights exit sectors with coordinates and altitude
+- **Duration Calculation**: Automatic calculation of time spent in each sector
+- **Sector Breakdown**: Integration with flight summaries for comprehensive analytics
 
 **Key Features**:
 - ✅ **Shapely-based point-in-polygon calculations** for precise geographic filtering

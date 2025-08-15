@@ -46,8 +46,8 @@ class SectorLoader:
             # Check if file exists
             file_path = Path(self.sectors_file_path)
             if not file_path.exists():
-                error_msg = f"Sectors file not found: {self.sectors_file_path}"
-                logger.error(error_msg)
+                error_msg = f"CRITICAL: Sectors file not found: {self.sectors_file_path}. Application cannot start without sector data."
+                logger.critical(error_msg)
                 raise FileNotFoundError(error_msg)
             
             # Load GeoJSON data
@@ -56,14 +56,14 @@ class SectorLoader:
             
             # Check if it's a GeoJSON FeatureCollection
             if not isinstance(geojson_data, dict) or geojson_data.get('type') != 'FeatureCollection':
-                error_msg = f"Invalid GeoJSON format - expected FeatureCollection, got {type(geojson_data)}"
-                logger.error(error_msg)
+                error_msg = f"CRITICAL: Invalid GeoJSON format - expected FeatureCollection, got {type(geojson_data)}"
+                logger.critical(error_msg)
                 raise ValueError(error_msg)
             
             features = geojson_data.get('features', [])
             if not isinstance(features, list):
-                error_msg = f"Invalid GeoJSON format - expected features list"
-                logger.error(error_msg)
+                error_msg = f"CRITICAL: Invalid GeoJSON format - expected features list"
+                logger.critical(error_msg)
                 raise ValueError(error_msg)
             
             logger.info(f"Found {len(features)} sector features in GeoJSON file")
@@ -143,14 +143,15 @@ class SectorLoader:
             logger.info(f"📊 Sectors without boundaries: {sectors_loaded - sectors_with_boundaries}")
             
             if sectors_with_boundaries == 0:
-                logger.error("❌ No sectors with valid boundaries loaded - this is a critical error")
-                return False
+                error_msg = "CRITICAL: No sectors with valid boundaries loaded - application cannot function without sector data"
+                logger.critical(error_msg)
+                raise RuntimeError(error_msg)
             
             return True
             
         except Exception as e:
-            logger.error(f"❌ Failed to load sectors: {e}")
-            return False
+            logger.critical(f"CRITICAL: Failed to load sectors: {e}")
+            raise  # Re-raise the exception to fail the app
     
     def get_sector_for_point(self, lat: float, lon: float) -> Optional[str]:
         """Find which sector contains the given point.

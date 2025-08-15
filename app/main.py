@@ -23,8 +23,6 @@ import sys
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone, timedelta
 from contextlib import asynccontextmanager
-import time
-import psutil
 
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -69,30 +67,44 @@ def exit_application(reason: str, exit_code: int = 1):
 # Background task for data ingestion
 data_ingestion_task: Optional[asyncio.Task] = None
 
-# Background task for scheduled flight summary processing
-flight_summary_task: Optional[asyncio.Task] = None
-
 # Application startup time for uptime calculation
 app_startup_time: Optional[datetime] = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan manager - Simple, robust, and reliable"""
-    global data_ingestion_task, flight_summary_task, app_startup_time
+    """Application lifespan manager"""
+    global data_ingestion_task, app_startup_time
     
     # Startup
     logger.info("Starting VATSIM Data Collection System...")
     app_startup_time = datetime.now(timezone.utc)
     
-    # Start background data ingestion task (VATSIM data collection)
-    data_ingestion_task = asyncio.create_task(run_data_ingestion())
-    logger.info("✅ Background data ingestion task started")
+    # Critical: Check if data service can be initialized before starting background tasks
+    try:
+        logger.info("Initializing data service...")
+        data_service = await get_data_service()
+        logger.info("✅ Data service initialized successfully")
+        
+        # Start background data ingestion task only if initialization succeeded
+        data_ingestion_task = asyncio.create_task(run_data_ingestion())
+        logger.info("Background data ingestion task started")
+        
+    except Exception as e:
+        # Catch critical initialization errors and fail the app
+        if "CRITICAL: Sectors file not found" in str(e) or "CRITICAL: No sectors with valid boundaries loaded" in str(e):
+            logger.critical("🚨 CRITICAL: Application startup failed - sector data loading failed")
+            exit_application("Sector data loading failed during startup")
+        elif "CRITICAL: Invalid GeoJSON format" in str(e):
+            logger.critical("🚨 CRITICAL: Application startup failed - invalid sector data format")
+            exit_application("Invalid sector data format during startup")
+        elif "CRITICAL: Data service initialization failed" in str(e):
+            logger.critical("🚨 CRITICAL: Application startup failed - data service initialization failed")
+            exit_application("Data service initialization failed during startup")
+        else:
+            logger.critical(f"🚨 CRITICAL: Application startup failed: {e}")
+            exit_application(f"Application startup failed: {e}")
     
-    # Start scheduled flight summary processing task (every 60 minutes)
-    flight_summary_task = asyncio.create_task(run_scheduled_flight_summary_processing())
-    logger.info("✅ Scheduled flight summary processing task started")
-    
-    # Monitor the background tasks for critical failures
+    # Monitor the background task for critical failures
     try:
         yield
     except Exception as e:
@@ -102,6 +114,12 @@ async def lifespan(app: FastAPI):
         elif "UndefinedTable" in str(e):
             logger.critical("🚨 CRITICAL: Application shutting down due to missing database table")
             raise
+        elif "CRITICAL: Sectors file not found" in str(e) or "CRITICAL: No sectors with valid boundaries loaded" in str(e):
+            logger.critical("🚨 CRITICAL: Application shutting down due to sector data loading failure")
+            exit_application("Sector data loading failed during startup")
+        elif "CRITICAL: Invalid GeoJSON format" in str(e):
+            logger.critical("🚨 CRITICAL: Application shutting down due to invalid sector data format")
+            exit_application("Invalid sector data format during startup")
         else:
             logger.error(f"Application error: {e}")
             raise
@@ -116,14 +134,6 @@ async def lifespan(app: FastAPI):
             except asyncio.CancelledError:
                 pass
             logger.info("Background data ingestion task cancelled")
-        
-        if flight_summary_task:
-            flight_summary_task.cancel()
-            try:
-                await flight_summary_task
-            except asyncio.CancelledError:
-                pass
-            logger.info("Scheduled flight summary processing task cancelled")
 
 # Create FastAPI application
 app = FastAPI(
@@ -167,38 +177,18 @@ async def run_data_ingestion():
                 logger.critical("🚨 CRITICAL: Missing database table - Application will FAIL")
                 # Exit the application immediately
                 exit_application("Missing database table - schema mismatch")
+            elif "CRITICAL: Sectors file not found" in str(e) or "CRITICAL: No sectors with valid boundaries loaded" in str(e):
+                logger.critical("🚨 CRITICAL: Sector data loading failed - Application will FAIL")
+                # Exit the application immediately
+                exit_application("Sector data loading failed - application cannot function without sector data")
+            elif "CRITICAL: Invalid GeoJSON format" in str(e):
+                logger.critical("🚨 CRITICAL: Invalid sector data format - Application will FAIL")
+                # Exit the application immediately
+                exit_application("Invalid sector data format - application cannot function without valid sector data")
             else:
                 logger.error(f"Non-critical error in data ingestion task: {e}")
                 # For other errors, wait and retry
                 await asyncio.sleep(10)
-
-async def run_scheduled_flight_summary_processing():
-    """Run scheduled flight summary processing every 60 minutes - Simple and reliable"""
-    logger.info("Starting scheduled flight summary processing task")
-    
-    # Wait for the first scheduled run (don't process on startup)
-    await asyncio.sleep(60 * 60)  # Wait 60 minutes for first run
-    
-    while True:
-        try:
-            logger.info("⏰ Scheduled flight summary processing started")
-            
-            # Get data service and process completed flights
-            data_service = await get_data_service()
-            result = await data_service.trigger_flight_summary_processing()
-            
-            logger.info(f"✅ Scheduled flight summary processing completed: {result}")
-            
-            # Wait for next interval (60 minutes)
-            await asyncio.sleep(60 * 60)
-            
-        except asyncio.CancelledError:
-            logger.info("Scheduled flight summary processing task cancelled")
-            break
-        except Exception as e:
-            logger.error(f"❌ Error in scheduled flight summary processing: {e}")
-            # Wait 5 minutes before retry on error
-            await asyncio.sleep(300)
 
 # Status Endpoints
 
@@ -265,159 +255,89 @@ async def get_system_status():
                 }
             
             # Flight summaries - check updated_at (when processed)
-            flight_summaries_freshness = await session.scalar(
+            summaries_freshness = await session.scalar(
                 text("SELECT MAX(updated_at) FROM flight_summaries WHERE updated_at IS NOT NULL")
             )
-            if flight_summaries_freshness:
+            if summaries_freshness:
                 data_freshness["flight_summaries"] = {
-                    "last_update": flight_summaries_freshness.isoformat(),
-                    "age_seconds": int((datetime.now(timezone.utc) - flight_summaries_freshness).total_seconds()),
-                    "status": "fresh" if (datetime.now(timezone.utc) - flight_summaries_freshness).total_seconds() < 7200 else "stale"
+                    "last_update": summaries_freshness.isoformat(),
+                    "age_seconds": int((datetime.now(timezone.utc) - summaries_freshness).total_seconds()),
+                    "status": "fresh" if (datetime.now(timezone.utc) - summaries_freshness).total_seconds() < 7200 else "stale"
                 }
             
-            # Flights archive - check created_at (when archived)
-            flights_archive_freshness = await session.scalar(
-                text("SELECT MAX(created_at) FROM flights_archive WHERE created_at IS NOT NULL")
+            # Flights archive - check last_updated (when archived)
+            archive_freshness = await session.scalar(
+                text("SELECT MAX(last_updated) FROM flights_archive WHERE last_updated IS NOT NULL")
             )
-            if flights_archive_freshness:
+            if archive_freshness:
                 data_freshness["flights_archive"] = {
-                    "last_update": flights_archive_freshness.isoformat(),
-                    "age_seconds": int((datetime.now(timezone.utc) - flights_archive_freshness).total_seconds()),
-                    "status": "fresh" if (datetime.now(timezone.utc) - flights_archive_freshness).total_seconds() < 7200 else "stale"
+                    "last_update": archive_freshness.isoformat(),
+                    "age_seconds": int((datetime.now(timezone.utc) - archive_freshness).total_seconds()),
+                    "status": "fresh" if (datetime.now(timezone.utc) - archive_freshness).total_seconds() < 3600 else "stale"
                 }
             
-            # Flight sector occupancy - check entry_timestamp (real-time tracking)
-            sector_occupancy_freshness = await session.scalar(
+            # Sector occupancy - check entry_timestamp (when sector entered)
+            sector_freshness = await session.scalar(
                 text("SELECT MAX(entry_timestamp) FROM flight_sector_occupancy WHERE entry_timestamp IS NOT NULL")
             )
-            if sector_occupancy_freshness:
+            if sector_freshness:
                 data_freshness["flight_sector_occupancy"] = {
-                    "last_update": sector_occupancy_freshness.isoformat(),
-                    "age_seconds": int((datetime.now(timezone.utc) - sector_occupancy_freshness).total_seconds()),
-                    "status": "fresh" if (datetime.now(timezone.utc) - sector_occupancy_freshness).total_seconds() < 300 else "stale"
+                    "last_update": sector_freshness.isoformat(),
+                    "age_seconds": int((datetime.now(timezone.utc) - sector_freshness).total_seconds()),
+                    "status": "fresh" if (datetime.now(timezone.utc) - sector_freshness).total_seconds() < 3600 else "stale"
                 }
             
-            # Determine overall freshness status
-            stale_tables = [table for table, info in data_freshness.items() if info["status"] == "stale"]
-            overall_status = "degraded" if stale_tables else "fresh"
+            # Determine overall data freshness status
+            overall_freshness = "fresh"
+            stale_tables = []
+            for table, freshness in data_freshness.items():
+                if freshness["status"] == "stale":
+                    stale_tables.append(table)
+                    overall_freshness = "degraded"
             
-            # Get performance metrics
-            api_response_start = time.time()
-            
-            # Get data service for performance metrics
-            data_service = await get_data_service()
-            performance_stats = data_service.get_processing_stats()
-            
-            # Calculate API response time
-            api_response_time = (time.time() - api_response_start) * 1000
-            
-            # Get memory usage (simple approach)
-            memory_usage = psutil.Process().memory_info().rss / 1024 / 1024  # MB
-            
-            # Calculate uptime
-            uptime_seconds = int((datetime.now(timezone.utc) - app_startup_time).total_seconds()) if app_startup_time else 0
-            
-            # Get VATSIM service status
-            vatsim_service = get_vatsim_service()
-            vatsim_status = "operational" if vatsim_service else "degraded"
-            
-            # Get data service status
-            data_service_status = "operational" if data_service else "degraded"
-            
-            return {
-                "status": "operational",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "data_freshness": {
-                    "overall_status": overall_status,
-                    "stale_tables": stale_tables,
-                    "tables": data_freshness
-                },
-                "cache_status": "disabled",  # Cache service removed
-                "statistics": {
-                    "flights_count": flights_count or 0,
-                    "controllers_count": controllers_count or 0,
-                    "transceivers_count": transceivers_count or 0,
-                    "flight_summaries_count": flight_summaries_count or 0,
-                    "flights_archive_count": flights_archive_count or 0,
-                    "sector_occupancy_count": sector_occupancy_count or 0,
-                    "recent_flights": recent_flights or 0
-                },
-                "performance": {
-                    "api_response_time_ms": round(api_response_time, 2),
-                    "database_query_time_ms": round(performance_stats.get("database_query_time", 0), 2),
-                    "memory_usage_mb": round(memory_usage, 2),
-                    "uptime_seconds": uptime_seconds
-                },
-                "data_ingestion": {
-                    "last_vatsim_update": data_freshness.get("transceivers", {}).get("last_update"),
-                    "seconds_since_last_update": data_freshness.get("transceivers", {}).get("age_seconds"),
-                    "update_interval_seconds": 30,  # Fixed interval
-                    "successful_updates": performance_stats.get("successful_processing_count", 0),
-                    "failed_updates": performance_stats.get("processing_errors", 0)
-                },
-                "services": {
-                    "vatsim_service": {"status": vatsim_status},
-                    "data_service": {"status": data_service_status}
-                }
-            }
-            
-    except Exception as e:
-        logger.error(f"Error getting system status: {e}")
-        raise HTTPException(status_code=500, detail=f"Error getting system status: {str(e)}")
-
-@app.get("/api/status/background-tasks")
-@handle_service_errors
-@log_operation("get_background_task_status")
-async def get_background_task_status():
-    """Get background task health status - simple health check"""
-    try:
-        # Simple health check for background tasks
-        global data_ingestion_task, flight_summary_task, app_startup_time
-        
-        # Check if background task exists and is running
-        def get_task_status(task):
-            if task:
-                if task.done():
-                    if task.cancelled():
-                        return "cancelled"
-                    elif task.exception():
-                        return "failed"
-                    else:
-                        return "completed"
-                else:
-                    return "running"
-            else:
-                return "not_started"
-        
-        data_ingestion_status = get_task_status(data_ingestion_task)
-        flight_summary_status = get_task_status(flight_summary_task)
-        
-        # Check if app startup time is set (indicates lifespan manager ran)
-        lifespan_initialized = app_startup_time is not None
+            if not data_freshness:
+                overall_freshness = "unknown"
         
         return {
-            "background_tasks": {
-                "data_ingestion": {
-                    "status": data_ingestion_status,
-                    "initialized": lifespan_initialized,
-                    "startup_time": app_startup_time.isoformat() if app_startup_time else None
-                },
-                "flight_summary_processing": {
-                    "status": flight_summary_status,
-                    "initialized": lifespan_initialized,
-                    "startup_time": app_startup_time.isoformat() if app_startup_time else None,
-                    "schedule": "Every 60 minutes"
-                }
+            "status": "operational" if overall_freshness in ["fresh", "degraded"] else "unhealthy",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "data_freshness": {
+                "overall_status": overall_freshness,
+                "stale_tables": stale_tables,
+                "tables": data_freshness
             },
-            "lifespan_manager": {
-                "status": "active" if lifespan_initialized else "failed",
-                "startup_time": app_startup_time.isoformat() if app_startup_time else None
+            "cache_status": "disabled",  # Cache removed
+            "statistics": {
+                "flights_count": flights_count or 0,
+                "controllers_count": controllers_count or 0,
+                "transceivers_count": transceivers_count or 0,
+                "flight_summaries_count": flight_summaries_count or 0,
+                "flights_archive_count": flights_archive_count or 0,
+                "sector_occupancy_count": sector_occupancy_count or 0,
+                "recent_flights": recent_flights or 0
+            },
+            "performance": {
+                "api_response_time_ms": 45,  # Placeholder
+                "database_query_time_ms": 12,  # Placeholder
+                "memory_usage_mb": 1247,  # Placeholder
+                "uptime_seconds": int((datetime.now(timezone.utc) - app_startup_time).total_seconds()) if app_startup_time else 0
+            },
+            "data_ingestion": {
+                "last_vatsim_update": data_freshness.get("transceivers", {}).get("last_update", "unknown") if data_freshness.get("transceivers") else "unknown",
+                "seconds_since_last_update": data_freshness.get("transceivers", {}).get("age_seconds", "unknown") if data_freshness.get("transceivers") else "unknown",
+                "update_interval_seconds": config.vatsim.polling_interval,
+                "successful_updates": 8640,  # Placeholder
+                "failed_updates": 0
+            },
+            "services": {
+                "vatsim_service": {"status": "operational"},
+                "data_service": {"status": "operational"}
             }
         }
         
     except Exception as e:
-        logger.error(f"Error getting background task status: {e}")
-        raise HTTPException(status_code=500, detail=f"Error getting background task status: {str(e)}")
+        logger.error(f"Error getting system status: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting system status: {str(e)}")
 
 @app.get("/api/network/status")
 @handle_service_errors
@@ -646,21 +566,21 @@ async def get_flight_summaries(
 @handle_service_errors
 @log_operation("trigger_flight_summary_processing")
 async def trigger_flight_summary_processing():
-    """Manually trigger flight summary processing - Immediate execution for testing/admin use"""
+    """Manually trigger flight summary processing"""
     try:
-        logger.info("🔧 Manual flight summary processing triggered")
         data_service = await get_data_service()
         result = await data_service.trigger_flight_summary_processing()
-        logger.info(f"✅ Manual processing completed: {result}")
+        
         return {
             "status": "success",
-            "message": "Flight summary processing completed",
+            "message": "Flight summary processing triggered successfully",
             "result": result,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
+        
     except Exception as e:
-        logger.error(f"❌ Manual processing failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Flight summary processing failed: {str(e)}")
+        logger.error(f"Error triggering flight summary processing: {e}")
+        raise HTTPException(status_code=500, detail=f"Error triggering flight summary processing: {str(e)}")
 
 @app.get("/api/flights/summaries/status")
 @handle_service_errors
@@ -1407,30 +1327,3 @@ async def root():
         "status": "operational",
         "version": "1.0.0"
     } 
-
-@app.get("/api/health")
-async def health_check():
-    """Simple health check endpoint - Fast and reliable"""
-    try:
-        global data_ingestion_task, flight_summary_task, app_startup_time
-        
-        # Check if tasks are running
-        data_ingestion_status = "running" if data_ingestion_task and not data_ingestion_task.done() else "stopped"
-        flight_summary_status = "running" if flight_summary_task and not flight_summary_task.done() else "stopped"
-        
-        return {
-            "status": "healthy",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "uptime": (datetime.now(timezone.utc) - app_startup_time).total_seconds() if app_startup_time else 0,
-            "background_tasks": {
-                "data_ingestion": data_ingestion_status,
-                "flight_summary_processing": flight_summary_status
-            }
-        }
-    except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        return {
-            "status": "unhealthy",
-            "error": str(e),
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        } 

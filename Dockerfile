@@ -49,7 +49,6 @@ COPY app/ ./app/
 COPY tests/ ./tests/
 COPY config/ ./config/
 COPY run.py .
-COPY run_tests.py .
 COPY requirements.txt .
 
 # Create necessary directories with proper permissions
