@@ -69,6 +69,11 @@ This document consolidates all remaining work across the VATSIM data project, or
 - [ ] **Review use of SQLAlchemy over raw SQL** - Evaluate hybrid approach for performance vs maintainability
 - [ ] **Implement flight plan validation** - Add logic to reject flights without origin/destination airports (departure/arrival fields)
 - [ ] **Decide data structure approach** - Choose between dictionaries vs SQLAlchemy models for data processing and storage
+- [ ] **Implement callsign filtering** - Add logic to filter and validate callsigns for data quality and consistency
+- [ ] **Filter flights without origin/destination** - Add logic to reject or filter out flights missing departure/arrival airport information
+- [ ] **Fix write to disk interval** - Optimize database write frequency and persistence intervals for better performance
+- [ ] **Add Australian users query** - Implement filtering for Australian users/controllers, consider adding as a dedicated field for easier identification
+- [ ] **Decide sector entry criteria for takeoff/landing** - Determine speed thresholds and conditions for when aircraft enter sectors during takeoff and landing phases
 
 ### **Estimated Time**: 3-4 days
 ### **Dependencies**: None - can be done in parallel
