@@ -860,13 +860,38 @@ class DataService:
             session: Database session
         """
         try:
+            # Get the last known flight record for this callsign
+            flight_result = await session.execute(text("""
+                SELECT latitude, longitude, altitude, last_updated
+                FROM flights
+                WHERE callsign = :callsign
+                ORDER BY last_updated DESC
+                LIMIT 1
+            """), {"callsign": callsign})
+
+            last_flight = flight_result.fetchone()
+            if not last_flight:
+                self.logger.warning(f"No flight record found for {callsign}")
+                return
+
+            # Close the sector entry with last known position and last flight record timestamp
             await session.execute(text("""
                 UPDATE flight_sector_occupancy 
-                SET exit_timestamp = NOW(),
-                    duration_seconds = EXTRACT(EPOCH FROM (NOW() - entry_timestamp))::INTEGER
+                SET exit_timestamp = :exit_timestamp,
+                    exit_lat = :exit_lat,
+                    exit_lon = :exit_lon,
+                    exit_altitude = :exit_altitude,
+                    duration_seconds = :duration_seconds
                 WHERE callsign = :callsign 
                 AND exit_timestamp IS NULL
-            """), {"callsign": callsign})
+            """), {
+                "exit_timestamp": last_flight.last_updated,  # Use last flight record timestamp
+                "exit_lat": last_flight.latitude,           # Use last known position
+                "exit_lon": last_flight.longitude,          # Use last known position
+                "exit_altitude": last_flight.altitude,      # Use last known altitude
+                "duration_seconds": int((last_flight.last_updated - entry_timestamp).total_seconds()),
+                "callsign": callsign
+            })
         
         except Exception as e:
             self.logger.error(f"Failed to close open sector entries for {callsign}: {e}")
