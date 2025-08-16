@@ -874,24 +874,47 @@ class DataService:
                 self.logger.warning(f"No flight record found for {callsign}")
                 return
 
-            # Close the sector entry with last known position and last flight record timestamp
-            await session.execute(text("""
-                UPDATE flight_sector_occupancy 
-                SET exit_timestamp = :exit_timestamp,
-                    exit_lat = :exit_lat,
-                    exit_lon = :exit_lon,
-                    exit_altitude = :exit_altitude,
-                    duration_seconds = :duration_seconds
-                WHERE callsign = :callsign 
+            # Get all open sector entries for this callsign to get their entry timestamps
+            sector_result = await session.execute(text("""
+                SELECT sector_name, entry_timestamp
+                FROM flight_sector_occupancy
+                WHERE callsign = :callsign
                 AND exit_timestamp IS NULL
-            """), {
-                "exit_timestamp": last_flight.last_updated,  # Use last flight record timestamp
-                "exit_lat": last_flight.latitude,           # Use last known position
-                "exit_lon": last_flight.longitude,          # Use last known position
-                "exit_altitude": last_flight.altitude,      # Use last known altitude
-                "duration_seconds": int((last_flight.last_updated - entry_timestamp).total_seconds()),
-                "callsign": callsign
-            })
+            """), {"callsign": callsign})
+
+            open_sectors = sector_result.fetchall()
+            if not open_sectors:
+                return  # No open sectors to close
+
+            # Close each open sector entry with last known position and last flight record timestamp
+            for sector in open_sectors:
+                sector_name = sector.sector_name
+                entry_timestamp = sector.entry_timestamp
+                
+                # Calculate duration using the last flight record timestamp
+                duration_seconds = int((last_flight.last_updated - entry_timestamp).total_seconds())
+                
+                await session.execute(text("""
+                    UPDATE flight_sector_occupancy 
+                    SET exit_timestamp = :exit_timestamp,
+                        exit_lat = :exit_lat,
+                        exit_lon = :exit_lon,
+                        exit_altitude = :exit_altitude,
+                        duration_seconds = :duration_seconds
+                    WHERE callsign = :callsign 
+                    AND sector_name = :sector_name
+                    AND exit_timestamp IS NULL
+                """), {
+                    "exit_timestamp": last_flight.last_updated,  # Use last flight record timestamp
+                    "exit_lat": last_flight.latitude,           # Use last known position
+                    "exit_lon": last_flight.longitude,          # Use last known position
+                    "exit_altitude": last_flight.altitude,      # Use last known altitude
+                    "duration_seconds": duration_seconds,
+                    "callsign": callsign,
+                    "sector_name": sector_name
+                })
+                
+                self.logger.debug(f"Closed sector {sector_name} for flight {callsign} (duration: {duration_seconds}s)")
         
         except Exception as e:
             self.logger.error(f"Failed to close open sector entries for {callsign}: {e}")
