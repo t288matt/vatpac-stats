@@ -325,6 +325,15 @@ VATSIM Flight Position Updates (every 60 seconds)
 - **Duration Calculation**: Automatic calculation of time spent in each sector
 - **Sector Breakdown**: Integration with flight summaries for comprehensive analytics
 
+**Enhanced Sector Entry/Exit Logic** (Planned Implementation):
+- **Entry Criteria**: Aircraft must be above 60 knots (inclusive) AND within sector geographic boundary
+- **Exit Criteria**: Aircraft must be below 30 knots for 2 consecutive VATSIM polls (60-second intervals)
+- **Speed Priority**: Geographic position is primary; speed thresholds are secondary validation
+- **State Management**: Combined tracking structure for sector state and exit counter
+- **Counter Reset**: Exit counter resets to 0 when speed goes above 30 knots or entering new sector
+- **Missing Data Handling**: Missing speed data resets exit counter to 0 (assumes aircraft is moving)
+- **Entry Deferral**: Missing speed data defers entry decision until next poll with valid data
+
 **Key Features**:
 - ✅ **Shapely-based point-in-polygon calculations** for precise geographic filtering
 - ✅ **GeoJSON polygon support** with automatic format detection and validation

@@ -1,5 +1,5 @@
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database for VATSIM data
   postgres:
     image: postgres:16-alpine
     container_name: vatsim_postgres
@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: vatsim_user
       POSTGRES_PASSWORD: vatsim_password
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./database/vatsim:/var/lib/postgresql/data
       - ./config/init.sql:/docker-entrypoint-initdb.d/01-init.sql
     ports:
       - "5432:5432"
@@ -92,6 +92,7 @@ services:
       FLIGHT_SUMMARY_INTERVAL: 60              # Minutes between summary processing (1 hour)
       SECTOR_TRACKING_ENABLED: "true"         # Enable real-time sector occupancy tracking
       SECTOR_UPDATE_INTERVAL: 60              # Seconds between sector position updates (1 minute)
+      SECTOR_OFFLINE_THRESHOLD_MINUTES: 2     # Minutes offline before forcing sector exit
 
 
 
@@ -119,44 +120,67 @@ services:
   metabase:
     image: metabase/metabase:latest
     container_name: vatsim_metabase
-    environment:
-      # Metabase will use the existing vatsim_data database
-      # No separate database needed - Metabase stores its config in the app container
-      
-      # Metabase configuration
-      MB_ENCRYPTION_SECRET_KEY: "your-secret-key-here-change-in-production"
-      MB_PASSWORD_COMPLEXITY: "strong"
-      MB_PASSWORD_LENGTH: 10
-      
-      # Performance settings
-      MB_JAVA_TIMEZONE: UTC
-      MB_MAX_MEMORY_PERCENTAGE: 75
-      
-      # Security settings
-      MB_SESSION_TIMEOUT: 20160  # 14 days in minutes
-      MB_SESSION_TIMEOUT_UNITS: minutes
-      
+    hostname: metabase
     volumes:
+      - /dev/urandom:/dev/random:ro
       - metabase_data:/metabase-data
     ports:
       - "3030:3000"
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: metabaseappdb
+      MB_DB_PORT: 5432
+      MB_DB_USER: metabase
+      MB_DB_PASS: mysecretpassword
+      MB_DB_HOST: metabase_postgres
+      # Additional Metabase configuration
+      MB_ENCRYPTION_SECRET_KEY: "your-secret-key-here-change-in-production"
+      MB_PASSWORD_COMPLEXITY: "strong"
+      MB_PASSWORD_LENGTH: 10
+      MB_JAVA_TIMEZONE: UTC
+      MB_MAX_MEMORY_PERCENTAGE: 75
+      MB_SESSION_TIMEOUT: 20160  # 14 days in minutes
+      MB_SESSION_TIMEOUT_UNITS: minutes
+    networks:
+      - metanet1
     depends_on:
-      postgres:
+      metabase_postgres:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: curl --fail -I http://localhost:3000/api/health || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 5
       start_period: 60s
 
-
- 
+  # PostgreSQL Database for Metabase (separate instance)
+  metabase_postgres:
+    image: postgres:latest
+    container_name: metabase_postgres
+    hostname: metabase_postgres
+    environment:
+      POSTGRES_USER: metabase
+      POSTGRES_DB: metabaseappdb
+      POSTGRES_PASSWORD: mysecretpassword
+    volumes:
+      - ./database/metabase:/var/lib/postgresql/data
+    networks:
+      - metanet1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U metabase -d metabaseappdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 # Define named volumes
 volumes:
-  postgres_data:
-    driver: local
   metabase_data:
-    driver: local 
+    driver: local
+
+# Define networks
+networks:
+  metanet1:
+    driver: bridge 
