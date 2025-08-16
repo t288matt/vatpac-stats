@@ -501,15 +501,12 @@ class DataService:
         # Get current geographic sector
         geographic_sector = self.sector_loader.get_sector_for_point(lat, lon)
         
-        # Get offline threshold from config (default: 2 minutes)
-        offline_threshold_minutes = getattr(self.config.sector_tracking, 'offline_threshold_minutes', 2)
-        offline_threshold_seconds = offline_threshold_minutes * 60
+
         
-        # Get previous state (combined structure: sector + exit counter + offline tracking)
+        # Get previous state (combined structure: sector + exit counter)
         previous_state = self.flight_sector_states.get(callsign, {})
         previous_sector = previous_state.get("current_sector") if isinstance(previous_state, dict) else previous_state
         exit_counter = previous_state.get("exit_counter", 0) if isinstance(previous_state, dict) else 0
-        last_seen_timestamp = previous_state.get("last_seen_timestamp") if isinstance(previous_state, dict) else None
         
         # Determine current sector based on speed criteria
         current_sector = None
@@ -534,13 +531,7 @@ class DataService:
         # Check if we should exit due to 2 consecutive below-30kts polls
         should_exit = exit_counter >= 2
         
-        # Offline exit logic: Check if aircraft has been offline too long
-        current_timestamp = datetime.now(timezone.utc)
-        if last_seen_timestamp and previous_sector:
-            time_offline = (current_timestamp - last_seen_timestamp).total_seconds()
-            if time_offline > offline_threshold_seconds:
-                should_exit = True
-                self.logger.info(f"Flight {callsign} forced exit from sector {previous_sector} due to offline timeout ({time_offline:.0f}s > {offline_threshold_seconds}s)")
+
         
         # Handle sector transitions
         if current_sector != previous_sector or should_exit:
@@ -553,8 +544,7 @@ class DataService:
             self.flight_sector_states[callsign] = new_state = {
                 "current_sector": current_sector,
                 "exit_counter": exit_counter,
-                "last_speed": groundspeed,
-                "last_seen_timestamp": current_timestamp
+                "last_speed": groundspeed
             }
             
             # Log sector transitions for debugging
@@ -571,8 +561,7 @@ class DataService:
             self.flight_sector_states[callsign] = {
                 "current_sector": current_sector,
                 "exit_counter": exit_counter,
-                "last_speed": groundspeed,
-                "last_seen_timestamp": current_timestamp
+                "last_speed": groundspeed
             }
 
     async def _handle_sector_transition(
@@ -1271,6 +1260,189 @@ class DataService:
         except Exception as e:
             self.logger.error(f"Failed to get processing stats: {e}")
             return {"error": str(e)}
+
+    # ============================================================================
+    # CLEANUP METHODS
+    # ============================================================================
+    
+    async def cleanup_stale_sectors(self) -> Dict[str, Any]:
+        """
+        Clean up stale sector entries by closing sectors for flights that haven't been updated recently.
+        
+        This method:
+        1. Finds all open sector entries (exit_timestamp IS NULL)
+        2. For each open sector, checks if the flight is >X minutes old (configurable timeout)
+        3. If criteria met, updates sector exit with last known flight position
+        
+        Returns:
+            Dict containing cleanup results and statistics
+        """
+        try:
+            start_time = time.time()
+            
+            # Get cleanup configuration
+            cleanup_timeout_seconds = int(os.getenv("CLEANUP_FLIGHT_TIMEOUT", "300"))
+            
+            self.logger.info(f"🧹 Starting cleanup of stale sectors (timeout: {cleanup_timeout_seconds}s)")
+            
+            async with get_database_session() as session:
+                # Find and close stale sectors
+                sectors_closed = await self._close_stale_sectors(session, cleanup_timeout_seconds)
+                
+                # Clean up in-memory state for closed sectors
+                memory_cleaned = await self._cleanup_memory_state_for_closed_sectors(session)
+            
+            end_time = time.time()
+            cleanup_time = end_time - start_time
+            
+            self.logger.info(f"✅ Cleanup completed: {sectors_closed} sectors closed, {memory_cleaned} memory states cleaned in {cleanup_time:.2f}s")
+            
+            return {
+                "status": "success",
+                "sectors_closed": sectors_closed,
+                "memory_states_cleaned": memory_cleaned,
+                "cleanup_time_seconds": cleanup_time,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        except Exception as e:
+            self.logger.error(f"❌ Error during cleanup of stale sectors: {e}")
+            raise
+    
+    async def _close_stale_sectors(self, session: AsyncSession, timeout_seconds: int) -> int:
+        """
+        Close stale sector entries by updating exit_timestamp and exit coordinates.
+        
+        Args:
+            session: Database session
+            timeout_seconds: Timeout in seconds for considering a flight stale
+            
+        Returns:
+            Number of sectors closed
+        """
+        try:
+            current_utc_time = datetime.now(timezone.utc)
+            stale_cutoff = current_utc_time - timedelta(seconds=timeout_seconds)
+            
+            # Find open sector entries where the flight hasn't been updated recently
+            # We join with flights table to get the last known position
+            query = text("""
+                SELECT 
+                    fso.callsign,
+                    fso.sector_name,
+                    fso.entry_timestamp,
+                    fso.entry_lat,
+                    fso.entry_lon,
+                    fso.entry_altitude,
+                    f.latitude as last_lat,
+                    f.longitude as last_lon,
+                    f.altitude as last_alt
+                FROM flight_sector_occupancy fso
+                JOIN flights f ON fso.callsign = f.callsign
+                WHERE fso.exit_timestamp IS NULL
+                AND f.last_updated < :stale_cutoff
+                AND f.last_updated = (
+                    SELECT MAX(last_updated) 
+                    FROM flights f2 
+                    WHERE f2.callsign = fso.callsign
+                )
+            """)
+            
+            result = await session.execute(query, {"stale_cutoff": stale_cutoff})
+            stale_sectors = result.fetchall()
+            
+            if not stale_sectors:
+                self.logger.info("🧹 No stale sectors found")
+                return 0
+            
+            self.logger.info(f"🧹 Found {len(stale_sectors)} stale sectors to close")
+            
+            # Close each stale sector
+            closed_count = 0
+            for sector in stale_sectors:
+                try:
+                    # Calculate duration
+                    duration_seconds = int((current_utc_time - sector.entry_timestamp).total_seconds())
+                    
+                    # Update the sector exit
+                    update_query = text("""
+                        UPDATE flight_sector_occupancy 
+                        SET exit_timestamp = :exit_timestamp,
+                            duration_seconds = :duration_seconds,
+                            exit_lat = :exit_lat,
+                            exit_lon = :exit_lon,
+                            exit_altitude = :exit_altitude
+                        WHERE callsign = :callsign 
+                        AND sector_name = :sector_name
+                        AND exit_timestamp IS NULL
+                    """)
+                    
+                    await session.execute(update_query, {
+                        "exit_timestamp": current_utc_time,
+                        "duration_seconds": duration_seconds,
+                        "exit_lat": sector.last_lat,
+                        "exit_lon": sector.last_lon,
+                        "exit_altitude": sector.last_alt,
+                        "callsign": sector.callsign,
+                        "sector_name": sector.sector_name
+                    })
+                    
+                    self.logger.debug(f"🧹 Closed sector {sector.sector_name} for flight {sector.callsign} (duration: {duration_seconds}s)")
+                    closed_count += 1
+                    
+                except Exception as e:
+                    self.logger.error(f"❌ Failed to close sector {sector.sector_name} for flight {sector.callsign}: {e}")
+                    continue
+            
+            if closed_count > 0:
+                await session.commit()
+                self.logger.info(f"✅ Committed {closed_count} sector closures")
+            
+            return closed_count
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error in _close_stale_sectors: {e}")
+            raise
+    
+    async def _cleanup_memory_state_for_closed_sectors(self, session: AsyncSession) -> int:
+        """
+        Clean up in-memory flight sector states for sectors that were closed.
+        
+        Args:
+            session: Database session to check for closed sectors
+            
+        Returns:
+            Number of memory states cleaned
+        """
+        try:
+            # Get all callsigns that had sectors closed
+            query = text("""
+                SELECT DISTINCT callsign 
+                FROM flight_sector_occupancy 
+                WHERE exit_timestamp IS NOT NULL
+                AND callsign IN (
+                    SELECT DISTINCT callsign 
+                    FROM flight_sector_occupancy 
+                    WHERE exit_timestamp IS NULL
+                )
+            """)
+            
+            result = await session.execute(query)
+            closed_callsigns = result.scalars().all()
+            
+            cleaned_count = 0
+            for callsign in closed_callsigns:
+                if callsign in self.flight_sector_states:
+                    del self.flight_sector_states[callsign]
+                    cleaned_count += 1
+            
+            if cleaned_count > 0:
+                self.logger.info(f"🧹 Cleaned {cleaned_count} stale flight states from memory")
+            
+            return cleaned_count
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error cleaning memory state: {e}")
+            return 0
 
 
 # Global service instance

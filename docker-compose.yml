@@ -92,7 +92,12 @@ services:
       FLIGHT_SUMMARY_INTERVAL: 60              # Minutes between summary processing (1 hour)
       SECTOR_TRACKING_ENABLED: "true"         # Enable real-time sector occupancy tracking
       SECTOR_UPDATE_INTERVAL: 60              # Seconds between sector position updates (1 minute)
-      SECTOR_OFFLINE_THRESHOLD_MINUTES: 2     # Minutes offline before forcing sector exit
+      
+      # Cleanup Configuration
+      # How long (in seconds) a flight must be without updates before being considered "stale"
+      # Stale flights have their open sector entries automatically closed with last known position
+      # Default: 300 seconds (5 minutes) - adjust based on VATSIM data update frequency
+      CLEANUP_FLIGHT_TIMEOUT: 300
 
 
 
