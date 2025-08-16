@@ -15,11 +15,11 @@ services:
     restart: unless-stopped
     #check postgres is up before allowing app to connect
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U vatsim_user -d vatsim_data"]
-      interval: 30s        # Increase from 10s
-      timeout: 10s         # Increase from 5s  
-      retries: 10          # Increase from 5
-      start_period: 60s    # Increase from 30s
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 60s        # Much more lenient for CI/CD
+      timeout: 30s         # Much more lenient for CI/CD
+      retries: 15          # More retries for CI/CD
+      start_period: 120s   # Much longer grace period for CI/CD
 
   # Main Application (API-First Architecture)
   app:
@@ -116,6 +116,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
     restart: unless-stopped
 
 
