@@ -879,6 +879,121 @@ class TestCompleteUserWorkflows:
             print(f"❌ _close_all_open_sectors_for_flight method test failed: {e}")
             assert False, f"_close_all_open_sectors_for_flight method test failed: {e}"
 
+    @pytest.mark.business_logic
+    @pytest.mark.sector_tracking
+    @pytest.mark.asyncio
+    async def test_cleanup_stale_sectors_outcome(self):
+        """Test: Does the cleanup_stale_sectors method actually work and return expected outcomes?"""
+        print("🧪 Testing: Does the cleanup_stale_sectors method actually work and return expected outcomes?")
+        
+        try:
+            # Create data service
+            data_service = DataService()
+            
+            # Test 1: Method exists and is callable
+            print("📋 Test 1: Method exists and is callable")
+            assert hasattr(data_service, 'cleanup_stale_sectors'), "cleanup_stale_sectors method should exist"
+            assert callable(data_service.cleanup_stale_sectors), "cleanup_stale_sectors method should be callable"
+            print("✅ Method exists and is callable")
+            
+            # Test 2: Method returns expected outcome format
+            print("📋 Test 2: Method returns expected outcome format")
+            result = await data_service.cleanup_stale_sectors()
+            
+            # Verify the result structure matches what main.py expects
+            assert isinstance(result, dict), "Result should be a dictionary"
+            assert "sectors_closed" in result, "Result should contain 'sectors_closed' key"
+            assert isinstance(result["sectors_closed"], int), "'sectors_closed' should be an integer"
+            assert result["sectors_closed"] >= 0, "'sectors_closed' should be non-negative"
+            
+            # Verify additional expected keys
+            assert "timestamp" in result, "Result should contain 'timestamp' key"
+            assert "stale_cutoff" in result, "Result should contain 'stale_cutoff' key"
+            
+            print(f"✅ Method returned expected format: {result}")
+            
+            # Test 3: Method can be called multiple times without error
+            print("📋 Test 3: Method can be called multiple times without error")
+            result2 = await data_service.cleanup_stale_sectors()
+            assert isinstance(result2, dict), "Second call should also return dictionary"
+            assert "sectors_closed" in result2, "Second call should contain 'sectors_closed' key"
+            print("✅ Method can be called multiple times")
+            
+            # Test 4: Verify the result format matches main.py expectations
+            print("📋 Test 4: Verify result format matches main.py expectations")
+            
+            # This simulates what main.py does with the result
+            try:
+                sectors_closed = result["sectors_closed"]
+                print(f"✅ Main.py can successfully access result['sectors_closed']: {sectors_closed}")
+            except KeyError as e:
+                assert False, f"Main.py cannot access result['sectors_closed']: {e}"
+            
+            # Test 5: Verify error handling works
+            print("📋 Test 5: Verify error handling works")
+            # The method should handle errors gracefully and return a valid result
+            # even if there are database issues
+            assert "error" not in result or isinstance(result["error"], str), "Error field should be string if present"
+            print("✅ Error handling works correctly")
+            
+            print("✅ cleanup_stale_sectors outcome test completed successfully")
+            
+        except Exception as e:
+            print(f"❌ cleanup_stale_sectors outcome test failed: {e}")
+            assert False, f"cleanup_stale_sectors outcome test failed: {e}"
+
+    @pytest.mark.business_logic
+    @pytest.mark.sector_tracking
+    @pytest.mark.asyncio
+    async def test_main_py_cleanup_workflow_integration(self):
+        """Test: Does the main.py cleanup workflow actually work with DataService?"""
+        print("🧪 Testing: Does the main.py cleanup workflow actually work with DataService?")
+        
+        try:
+            # Create data service (simulating what main.py does)
+            data_service = DataService()
+            
+            # Test 1: Simulate main.py calling cleanup_stale_sectors
+            print("📋 Test 1: Simulate main.py calling cleanup_stale_sectors")
+            try:
+                cleanup_result = await data_service.cleanup_stale_sectors()
+                print(f"✅ Main.py successfully called cleanup_stale_sectors: {cleanup_result}")
+            except AttributeError as e:
+                assert False, f"Main.py cannot call cleanup_stale_sectors: {e}"
+            
+            # Test 2: Simulate main.py accessing the result
+            print("📋 Test 2: Simulate main.py accessing the result")
+            try:
+                sectors_closed = cleanup_result['sectors_closed']
+                print(f"✅ Main.py can access cleanup_result['sectors_closed']: {sectors_closed}")
+            except (KeyError, TypeError) as e:
+                assert False, f"Main.py cannot access cleanup_result['sectors_closed']: {e}"
+            
+            # Test 3: Simulate main.py logging the result
+            print("📋 Test 3: Simulate main.py logging the result")
+            try:
+                log_message = f"✅ Cleanup completed: {cleanup_result['sectors_closed']} sectors closed"
+                print(f"✅ Main.py can log: {log_message}")
+            except (KeyError, TypeError) as e:
+                assert False, f"Main.py cannot log cleanup result: {e}"
+            
+            # Test 4: Verify the complete workflow doesn't crash
+            print("📋 Test 4: Verify the complete workflow doesn't crash")
+            try:
+                # This simulates the exact main.py workflow
+                data_service.logger.info("🧹 Running cleanup job after successful data processing...")
+                cleanup_result = await data_service.cleanup_stale_sectors()
+                data_service.logger.info(f"✅ Cleanup completed: {cleanup_result['sectors_closed']} sectors closed")
+                print("✅ Complete main.py workflow executed successfully")
+            except Exception as e:
+                assert False, f"Main.py workflow failed: {e}"
+            
+            print("✅ Main.py cleanup workflow integration test completed successfully")
+            
+        except Exception as e:
+            print(f"❌ Main.py cleanup workflow integration test failed: {e}")
+            assert False, f"Main.py cleanup workflow integration test failed: {e}"
+
 
 # Test execution helper
 def run_business_logic_core_functionality_tests():

@@ -5,6 +5,7 @@ data/postgres/pgdata/log/
 
 # Database files
 data/postgres/pgdata/
+database/
 
 # Python
 __pycache__/

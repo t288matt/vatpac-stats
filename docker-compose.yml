@@ -148,6 +148,7 @@ services:
       MB_SESSION_TIMEOUT_UNITS: minutes
     networks:
       - metanet1
+      - default
     depends_on:
       metabase_postgres:
         condition: service_healthy

@@ -895,6 +895,94 @@ class DataService:
             "update_interval": getattr(self, 'sector_update_interval', 60)
         }
 
+    async def cleanup_stale_sectors(self) -> Dict[str, Any]:
+        """
+        Clean up stale sector entries for flights that haven't been updated recently.
+        
+        This method finds flights that haven't been updated for CLEANUP_FLIGHT_TIMEOUT seconds
+        and closes their open sector entries with last known position data.
+        
+        Returns:
+            Dict[str, Any]: Result containing count of sectors closed
+        """
+        try:
+            cleanup_timeout = int(os.getenv("CLEANUP_FLIGHT_TIMEOUT", "300"))
+            stale_cutoff = datetime.now(timezone.utc) - timedelta(seconds=cleanup_timeout)
+            
+            sectors_closed = 0
+            
+            async with get_database_session() as session:
+                # Find flights with open sectors that haven't been updated recently
+                # Use subquery to get the most recent flight record for each callsign
+                result = await session.execute(text("""
+                    SELECT DISTINCT fso.callsign, fso.sector_name, fso.entry_timestamp,
+                           latest_flight.latitude, latest_flight.longitude, latest_flight.altitude, latest_flight.last_updated
+                    FROM flight_sector_occupancy fso
+                    JOIN (
+                        SELECT DISTINCT ON (callsign) 
+                            callsign, latitude, longitude, altitude, last_updated
+                        FROM flights 
+                        ORDER BY callsign, last_updated DESC
+                    ) latest_flight ON fso.callsign = latest_flight.callsign
+                    WHERE fso.exit_timestamp IS NULL
+                    AND latest_flight.last_updated < :stale_cutoff
+                """), {"stale_cutoff": stale_cutoff})
+                
+                stale_sectors = result.fetchall()
+                
+                for sector in stale_sectors:
+                    callsign = sector.callsign
+                    sector_name = sector.sector_name
+                    entry_timestamp = sector.entry_timestamp
+                    last_lat = sector.latitude
+                    last_lon = sector.longitude
+                    last_altitude = sector.altitude
+                    last_updated = sector.last_updated  # This is the most recent flight record timestamp
+                    
+                    # Calculate duration using the last flight record timestamp, not current time
+                    duration_seconds = int((last_updated - entry_timestamp).total_seconds())
+                    
+                    # Close the sector entry with last known position and last flight record timestamp
+                    await session.execute(text("""
+                        UPDATE flight_sector_occupancy 
+                        SET exit_timestamp = :exit_timestamp,
+                            exit_lat = :exit_lat,
+                            exit_lon = :exit_lon,
+                            exit_altitude = :exit_altitude,
+                            duration_seconds = :duration_seconds
+                        WHERE callsign = :callsign 
+                        AND sector_name = :sector_name
+                        AND exit_timestamp IS NULL
+                    """), {
+                        "exit_timestamp": last_updated,  # Use last flight record timestamp, not current time
+                        "exit_lat": last_lat,
+                        "exit_lon": last_lon,
+                        "exit_altitude": last_altitude,
+                        "duration_seconds": duration_seconds,
+                        "callsign": callsign,
+                        "sector_name": sector_name
+                    })
+                    
+                    sectors_closed += 1
+                    self.logger.info(f"Closed stale sector {sector_name} for flight {callsign} (duration: {duration_seconds}s, exit at: {last_updated})")
+                
+                if sectors_closed > 0:
+                    self.logger.info(f"Cleanup completed: {sectors_closed} stale sectors closed")
+                
+                return {
+                    "sectors_closed": sectors_closed,
+                    "stale_cutoff": stale_cutoff.isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+                
+        except Exception as e:
+            self.logger.error(f"Failed to cleanup stale sectors: {e}")
+            return {
+                "sectors_closed": 0,
+                "error": str(e),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+
     # ============================================================================
     # FLIGHT SUMMARY PROCESSING METHODS
     # ============================================================================

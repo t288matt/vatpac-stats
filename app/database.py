@@ -131,7 +131,13 @@ def get_database_session():
         
         async def __aexit__(self, exc_type, exc_val, exc_tb):
             if self.session:
-                await self.session.close()
+                try:
+                    if exc_type is None:  # No exception occurred
+                        await self.session.commit()  # COMMIT THE TRANSACTION
+                    else:
+                        await self.session.rollback()  # Rollback on exception
+                finally:
+                    await self.session.close()
     
     return AsyncSessionContextManager()
 
