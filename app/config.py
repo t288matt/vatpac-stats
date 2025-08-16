@@ -151,7 +151,6 @@ class SectorTrackingConfig:
     enabled: bool = True
     update_interval: int = 60  # seconds
     sectors_file_path: str = "config/australian_airspace_sectors.geojson"
-    offline_threshold_minutes: int = 2  # minutes offline before forcing sector exit
     
     @classmethod
     def from_env(cls):
@@ -160,7 +159,7 @@ class SectorTrackingConfig:
             enabled=os.getenv("SECTOR_TRACKING_ENABLED", "true").lower() == "true",
             update_interval=int(os.getenv("SECTOR_UPDATE_INTERVAL", "60")),
             sectors_file_path=os.getenv("SECTOR_DATA_PATH", "config/australian_airspace_sectors.geojson"),
-            offline_threshold_minutes=int(os.getenv("SECTOR_OFFLINE_THRESHOLD_MINUTES", "2"))
+
         )
 
 

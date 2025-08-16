@@ -163,6 +163,16 @@ async def run_data_ingestion():
         try:
             # Process VATSIM data without verbose logging
             await data_service.process_vatsim_data()
+            
+            # Run cleanup job after successful data processing to prevent locking issues
+            try:
+                logger.info("🧹 Running cleanup job after successful data processing...")
+                cleanup_result = await data_service.cleanup_stale_sectors()
+                logger.info(f"✅ Cleanup completed: {cleanup_result['sectors_closed']} sectors closed")
+            except Exception as cleanup_error:
+                logger.error(f"❌ Cleanup job failed: {cleanup_error}")
+                # Don't fail the main processing if cleanup fails
+            
             await asyncio.sleep(config.vatsim.polling_interval)
         except asyncio.CancelledError:
             logger.info("Data ingestion task cancelled")
@@ -401,6 +411,70 @@ async def get_database_status():
     except Exception as e:
         logger.error(f"Error getting database status: {e}")
         raise HTTPException(status_code=500, detail=f"Error getting database status: {str(e)}")
+
+# ============================================================================
+# CLEANUP ENDPOINTS
+# ============================================================================
+
+@app.post("/api/cleanup/stale-sectors")
+@handle_service_errors
+@log_operation("cleanup_stale_sectors")
+async def cleanup_stale_sectors():
+    """Manually trigger cleanup of stale sector entries"""
+    try:
+        data_service = await get_data_service()
+        result = await data_service.cleanup_stale_sectors()
+        
+        return {
+            "status": "success",
+            "message": "Cleanup job completed successfully",
+            "result": result
+        }
+        
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
+        raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")
+
+@app.get("/api/cleanup/status")
+@handle_service_errors
+@log_operation("get_cleanup_status")
+async def get_cleanup_status():
+    """Get current status of the cleanup system"""
+    try:
+        # Get configuration
+        cleanup_timeout = int(os.getenv("CLEANUP_FLIGHT_TIMEOUT", "300"))
+        
+        # Get counts of open sectors
+        async with get_database_session() as session:
+            open_sectors_count = await session.scalar(
+                text("SELECT COUNT(*) FROM flight_sector_occupancy WHERE exit_timestamp IS NULL")
+            )
+            
+            # Get count of potentially stale sectors (flights not updated recently)
+            stale_cutoff = datetime.now(timezone.utc) - timedelta(seconds=cleanup_timeout)
+            stale_sectors_count = await session.scalar(text("""
+                SELECT COUNT(*) FROM flight_sector_occupancy fso
+                JOIN flights f ON fso.callsign = f.callsign
+                WHERE fso.exit_timestamp IS NULL
+                AND f.last_updated < :stale_cutoff
+            """), {"stale_cutoff": stale_cutoff})
+        
+        return {
+            "cleanup_system": {
+                "status": "operational",
+                "timeout_seconds": cleanup_timeout,
+                "timeout_minutes": cleanup_timeout // 60,
+                "open_sectors_count": open_sectors_count or 0,
+                "potentially_stale_sectors_count": stale_sectors_count or 0,
+                "last_check": datetime.now(timezone.utc).isoformat()
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting cleanup status: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting cleanup status: {str(e)}")
+
+# Flight Data Endpoints
 
 # Flight Data Endpoints
 

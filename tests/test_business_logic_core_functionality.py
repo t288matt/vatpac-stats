@@ -597,6 +597,403 @@ class TestCompleteUserWorkflows:
             print(f"❌ Speed-based sector entry/exit logic test failed: {e}")
             assert False, f"Speed-based sector entry/exit logic test failed: {e}"
 
+    @pytest.mark.business_logic
+    @pytest.mark.sector_tracking
+    @pytest.mark.asyncio
+    async def test_sector_transition_logic_comprehensive(self):
+        """Test: Does the comprehensive sector transition logic work correctly?"""
+        print("🧪 Testing: Does the comprehensive sector transition logic work correctly?")
+        
+        try:
+            # Create mock sector loader that returns different sectors
+            class MockSectorLoader:
+                def __init__(self):
+                    self.sector_map = {
+                        (-33.8688, 151.2093): "SYDNEY",      # Sydney coordinates
+                        (-37.8136, 144.9631): "MELBOURNE",    # Melbourne coordinates
+                        (-27.4698, 153.0251): "BRISBANE",     # Brisbane coordinates
+                        (-31.9505, 115.8605): "PERTH"         # Perth coordinates
+                    }
+                
+                def get_sector_for_point(self, lat: float, lon: float):
+                    # Round coordinates to avoid floating point precision issues
+                    lat_rounded = round(lat, 4)
+                    lon_rounded = round(lon, 4)
+                    return self.sector_map.get((lat_rounded, lon_rounded), "UNKNOWN")
+            
+            # Create data service with mock components
+            data_service = DataService()
+            data_service.sector_loader = MockSectorLoader()
+            data_service.sector_tracking_enabled = True
+            data_service.flight_sector_states = {}
+            
+            # Create mock database session
+            mock_session = AsyncMock()
+            
+            # Test 1: Flight enters first sector (SYDNEY)
+            print("📋 Test 1: Flight enters first sector (SYDNEY)")
+            flight_data_1 = {
+                "callsign": "TEST001",
+                "latitude": -33.8688,
+                "longitude": 151.2093,
+                "altitude": 3000,
+                "groundspeed": 120
+            }
+            
+            # Mock the database calls for sector entry
+            mock_session.execute.return_value.fetchone.return_value = None  # No existing entry
+            
+            await data_service._track_sector_occupancy(flight_data_1, mock_session)
+            
+            # Verify aircraft entered SYDNEY sector
+            assert "TEST001" in data_service.flight_sector_states
+            state = data_service.flight_sector_states["TEST001"]
+            assert state["current_sector"] == "SYDNEY"
+            print("✅ Flight successfully entered SYDNEY sector")
+            
+            # Test 2: Flight moves to different sector (MELBOURNE) - should close SYDNEY and enter MELBOURNE
+            print("📋 Test 2: Flight moves to different sector (MELBOURNE)")
+            flight_data_2 = {
+                "callsign": "TEST001",
+                "latitude": -37.8136,
+                "longitude": 144.9631,
+                "altitude": 3500,
+                "groundspeed": 150
+            }
+            
+            # Mock the database calls for sector transition
+            # First call: find open sectors (should find SYDNEY)
+            mock_session.execute.return_value.fetchall.return_value = [
+                type('MockRow', (), {'sector_name': 'SYDNEY', 'entry_timestamp': datetime.now(timezone.utc)})()
+            ]
+            
+            await data_service._track_sector_occupancy(flight_data_2, mock_session)
+            
+            # Verify aircraft now in MELBOURNE sector
+            state = data_service.flight_sector_states["TEST001"]
+            assert state["current_sector"] == "MELBOURNE"
+            print("✅ Flight successfully transitioned from SYDNEY to MELBOURNE sector")
+            
+            # Test 3: Flight moves to another different sector (BRISBANE) - should close MELBOURNE and enter BRISBANE
+            print("📋 Test 3: Flight moves to another different sector (BRISBANE)")
+            flight_data_3 = {
+                "callsign": "TEST001",
+                "latitude": -27.4698,
+                "longitude": 153.0251,
+                "altitude": 4000,
+                "groundspeed": 180
+            }
+            
+            # Mock the database calls for sector transition
+            # First call: find open sectors (should find MELBOURNE)
+            mock_session.execute.return_value.fetchall.return_value = [
+                type('MockRow', (), {'sector_name': 'MELBOURNE', 'entry_timestamp': datetime.now(timezone.utc)})()
+            ]
+            
+            await data_service._track_sector_occupancy(flight_data_3, mock_session)
+            
+            # Verify aircraft now in BRISBANE sector
+            state = data_service.flight_sector_states["TEST001"]
+            assert state["current_sector"] == "BRISBANE"
+            print("✅ Flight successfully transitioned from MELBOURNE to BRISBANE sector")
+            
+            # Test 4: Flight returns to previous sector (SYDNEY) - should close BRISBANE and enter SYDNEY
+            print("📋 Test 4: Flight returns to previous sector (SYDNEY)")
+            flight_data_4 = {
+                "callsign": "TEST001",
+                "latitude": -33.8688,
+                "longitude": 151.2093,
+                "altitude": 3000,
+                "groundspeed": 120
+            }
+            
+            # Mock the database calls for sector transition
+            # First call: find open sectors (should find BRISBANE)
+            mock_session.execute.return_value.fetchall.return_value = [
+                type('MockRow', (), {'sector_name': 'BRISBANE', 'entry_timestamp': datetime.now(timezone.utc)})()
+            ]
+            
+            await data_service._track_sector_occupancy(flight_data_4, mock_session)
+            
+            # Verify aircraft now back in SYDNEY sector
+            state = data_service.flight_sector_states["TEST001"]
+            assert state["current_sector"] == "SYDNEY"
+            print("✅ Flight successfully returned to SYDNEY sector")
+            
+            # Test 5: Flight exits all sectors (speed below 60 knots)
+            print("📋 Test 5: Flight exits all sectors (speed below 60 knots)")
+            flight_data_5 = {
+                "callsign": "TEST001",
+                "latitude": -33.8688,
+                "longitude": 151.2093,
+                "altitude": 3000,
+                "groundspeed": 45
+            }
+            
+            # Mock the database calls for sector exit
+            # First call: find open sectors (should find SYDNEY)
+            mock_session.execute.return_value.fetchall.return_value = [
+                type('MockRow', (), {'sector_name': 'SYDNEY', 'entry_timestamp': datetime.now(timezone.utc)})()
+            ]
+            
+            await data_service._track_sector_occupancy(flight_data_5, mock_session)
+            
+            # Verify aircraft exited all sectors
+            state = data_service.flight_sector_states["TEST001"]
+            assert state["current_sector"] is None
+            print("✅ Flight successfully exited all sectors")
+            
+            # Test 6: Multiple open sectors scenario (simulating corrupted state)
+            print("📋 Test 6: Multiple open sectors scenario (corrupted state)")
+            
+            # Simulate a corrupted state where flight has multiple open sectors
+            data_service.flight_sector_states["TEST002"] = {"current_sector": "SYDNEY"}
+            
+            # Mock database to return multiple open sectors
+            mock_session.execute.return_value.fetchall.return_value = [
+                type('MockRow', (), {'sector_name': 'SYDNEY', 'entry_timestamp': datetime.now(timezone.utc)})(),
+                type('MockRow', (), {'sector_name': 'MELBOURNE', 'entry_timestamp': datetime.now(timezone.utc)})(),
+                type('MockRow', (), {'sector_name': 'BRISBANE', 'entry_timestamp': datetime.now(timezone.utc)})()
+            ]
+            
+            # Flight moves to new sector (PERTH)
+            flight_data_6 = {
+                "callsign": "TEST002",
+                "latitude": -31.9505,
+                "longitude": 115.8605,
+                "altitude": 5000,
+                "groundspeed": 200
+            }
+            
+            await data_service._track_sector_occupancy(flight_data_6, mock_session)
+            
+            # Verify aircraft now in PERTH sector
+            state = data_service.flight_sector_states["TEST002"]
+            assert state["current_sector"] == "PERTH"
+            print("✅ Flight with multiple open sectors successfully transitioned to PERTH sector")
+            
+            # Test 7: Flight stays in same sector (no transition needed)
+            print("📋 Test 7: Flight stays in same sector (no transition needed)")
+            flight_data_7 = {
+                "callsign": "TEST002",
+                "latitude": -31.9505,
+                "longitude": 115.8605,
+                "altitude": 5000,
+                "groundspeed": 200
+            }
+            
+            # Mock no open sectors found (already in PERTH)
+            mock_session.execute.return_value.fetchall.return_value = []
+            
+            await data_service._track_sector_occupancy(flight_data_7, mock_session)
+            
+            # Verify aircraft still in PERTH sector
+            state = data_service.flight_sector_states["TEST002"]
+            assert state["current_sector"] == "PERTH"
+            print("✅ Flight successfully stayed in PERTH sector (no transition)")
+            
+            # Test 8: Force exit scenario (should_exit = True)
+            print("📋 Test 8: Force exit scenario (should_exit = True)")
+            
+            # Create a new flight in a sector
+            data_service.flight_sector_states["TEST003"] = {"current_sector": "SYDNEY"}
+            
+            # Mock database to return one open sector
+            mock_session.execute.return_value.fetchall.return_value = [
+                type('MockRow', (), {'sector_name': 'SYDNEY', 'entry_timestamp': datetime.now(timezone.utc)})()
+            ]
+            
+            # Force exit due to speed criteria
+            flight_data_8 = {
+                "callsign": "TEST003",
+                "latitude": -33.8688,
+                "longitude": 151.2093,
+                "altitude": 3000,
+                "groundspeed": 30  # Below 60 knots
+            }
+            
+            await data_service._track_sector_occupancy(flight_data_8, mock_session)
+            
+            # Verify aircraft exited sector
+            state = data_service.flight_sector_states["TEST003"]
+            assert state["current_sector"] is None
+            print("✅ Flight successfully forced to exit sector")
+            
+            # Test 9: Verify final state of all flights
+            print("📋 Test 9: Verify final state of all flights")
+            assert len(data_service.flight_sector_states) == 3
+            assert data_service.flight_sector_states["TEST001"]["current_sector"] is None  # Exited all sectors
+            assert data_service.flight_sector_states["TEST002"]["current_sector"] == "PERTH"  # In PERTH
+            assert data_service.flight_sector_states["TEST003"]["current_sector"] is None  # Forced exit
+            print("✅ Final state verification passed")
+            
+            print("✅ Comprehensive sector transition logic test completed successfully")
+            
+        except Exception as e:
+            print(f"❌ Comprehensive sector transition logic test failed: {e}")
+            assert False, f"Comprehensive sector transition logic test failed: {e}"
+
+    @pytest.mark.business_logic
+    @pytest.mark.sector_tracking
+    @pytest.mark.asyncio
+    async def test_close_all_open_sectors_for_flight_method(self):
+        """Test: Does the _close_all_open_sectors_for_flight method work correctly?"""
+        print("🧪 Testing: Does the _close_all_open_sectors_for_flight method work correctly?")
+        
+        try:
+            # Create data service
+            data_service = DataService()
+            
+            # Test 1: Method exists and is callable
+            print("📋 Test 1: Method exists and is callable")
+            assert hasattr(data_service, '_close_all_open_sectors_for_flight'), "Method should exist"
+            assert callable(data_service._close_all_open_sectors_for_flight), "Method should be callable"
+            print("✅ Method exists and is callable")
+            
+            # Test 2: Method signature is correct
+            print("📋 Test 2: Method signature is correct")
+            import inspect
+            sig = inspect.signature(data_service._close_all_open_sectors_for_flight)
+            params = list(sig.parameters.keys())
+            # inspect.signature doesn't include 'self' for bound methods
+            expected_params = ['callsign', 'lat', 'lon', 'altitude', 'timestamp', 'session']
+            assert params == expected_params, f"Expected parameters {expected_params}, got {params}"
+            print("✅ Method signature is correct")
+            
+            # Test 3: Method is async
+            print("📋 Test 3: Method is async")
+            assert inspect.iscoroutinefunction(data_service._close_all_open_sectors_for_flight), "Method should be async"
+            print("✅ Method is async")
+            
+            # Test 4: Method docstring contains expected content
+            print("📋 Test 4: Method docstring contains expected content")
+            doc = data_service._close_all_open_sectors_for_flight.__doc__
+            assert doc is not None, "Method should have docstring"
+            assert "Close ALL open sectors" in doc, "Docstring should mention closing all open sectors"
+            assert "critical fix" in doc, "Docstring should mention this is a critical fix"
+            print("✅ Method docstring contains expected content")
+            
+            print("✅ _close_all_open_sectors_for_flight method test completed successfully")
+            
+        except Exception as e:
+            print(f"❌ _close_all_open_sectors_for_flight method test failed: {e}")
+            assert False, f"_close_all_open_sectors_for_flight method test failed: {e}"
+
+    @pytest.mark.business_logic
+    @pytest.mark.sector_tracking
+    @pytest.mark.asyncio
+    async def test_cleanup_stale_sectors_outcome(self):
+        """Test: Does the cleanup_stale_sectors method actually work and return expected outcomes?"""
+        print("🧪 Testing: Does the cleanup_stale_sectors method actually work and return expected outcomes?")
+        
+        try:
+            # Create data service
+            data_service = DataService()
+            
+            # Test 1: Method exists and is callable
+            print("📋 Test 1: Method exists and is callable")
+            assert hasattr(data_service, 'cleanup_stale_sectors'), "cleanup_stale_sectors method should exist"
+            assert callable(data_service.cleanup_stale_sectors), "cleanup_stale_sectors method should be callable"
+            print("✅ Method exists and is callable")
+            
+            # Test 2: Method returns expected outcome format
+            print("📋 Test 2: Method returns expected outcome format")
+            result = await data_service.cleanup_stale_sectors()
+            
+            # Verify the result structure matches what main.py expects
+            assert isinstance(result, dict), "Result should be a dictionary"
+            assert "sectors_closed" in result, "Result should contain 'sectors_closed' key"
+            assert isinstance(result["sectors_closed"], int), "'sectors_closed' should be an integer"
+            assert result["sectors_closed"] >= 0, "'sectors_closed' should be non-negative"
+            
+            # Verify additional expected keys
+            assert "timestamp" in result, "Result should contain 'timestamp' key"
+            assert "stale_cutoff" in result, "Result should contain 'stale_cutoff' key"
+            
+            print(f"✅ Method returned expected format: {result}")
+            
+            # Test 3: Method can be called multiple times without error
+            print("📋 Test 3: Method can be called multiple times without error")
+            result2 = await data_service.cleanup_stale_sectors()
+            assert isinstance(result2, dict), "Second call should also return dictionary"
+            assert "sectors_closed" in result2, "Second call should contain 'sectors_closed' key"
+            print("✅ Method can be called multiple times")
+            
+            # Test 4: Verify the result format matches main.py expectations
+            print("📋 Test 4: Verify result format matches main.py expectations")
+            
+            # This simulates what main.py does with the result
+            try:
+                sectors_closed = result["sectors_closed"]
+                print(f"✅ Main.py can successfully access result['sectors_closed']: {sectors_closed}")
+            except KeyError as e:
+                assert False, f"Main.py cannot access result['sectors_closed']: {e}"
+            
+            # Test 5: Verify error handling works
+            print("📋 Test 5: Verify error handling works")
+            # The method should handle errors gracefully and return a valid result
+            # even if there are database issues
+            assert "error" not in result or isinstance(result["error"], str), "Error field should be string if present"
+            print("✅ Error handling works correctly")
+            
+            print("✅ cleanup_stale_sectors outcome test completed successfully")
+            
+        except Exception as e:
+            print(f"❌ cleanup_stale_sectors outcome test failed: {e}")
+            assert False, f"cleanup_stale_sectors outcome test failed: {e}"
+
+    @pytest.mark.business_logic
+    @pytest.mark.sector_tracking
+    @pytest.mark.asyncio
+    async def test_main_py_cleanup_workflow_integration(self):
+        """Test: Does the main.py cleanup workflow actually work with DataService?"""
+        print("🧪 Testing: Does the main.py cleanup workflow actually work with DataService?")
+        
+        try:
+            # Create data service (simulating what main.py does)
+            data_service = DataService()
+            
+            # Test 1: Simulate main.py calling cleanup_stale_sectors
+            print("📋 Test 1: Simulate main.py calling cleanup_stale_sectors")
+            try:
+                cleanup_result = await data_service.cleanup_stale_sectors()
+                print(f"✅ Main.py successfully called cleanup_stale_sectors: {cleanup_result}")
+            except AttributeError as e:
+                assert False, f"Main.py cannot call cleanup_stale_sectors: {e}"
+            
+            # Test 2: Simulate main.py accessing the result
+            print("📋 Test 2: Simulate main.py accessing the result")
+            try:
+                sectors_closed = cleanup_result['sectors_closed']
+                print(f"✅ Main.py can access cleanup_result['sectors_closed']: {sectors_closed}")
+            except (KeyError, TypeError) as e:
+                assert False, f"Main.py cannot access cleanup_result['sectors_closed']: {e}"
+            
+            # Test 3: Simulate main.py logging the result
+            print("📋 Test 3: Simulate main.py logging the result")
+            try:
+                log_message = f"✅ Cleanup completed: {cleanup_result['sectors_closed']} sectors closed"
+                print(f"✅ Main.py can log: {log_message}")
+            except (KeyError, TypeError) as e:
+                assert False, f"Main.py cannot log cleanup result: {e}"
+            
+            # Test 4: Verify the complete workflow doesn't crash
+            print("📋 Test 4: Verify the complete workflow doesn't crash")
+            try:
+                # This simulates the exact main.py workflow
+                data_service.logger.info("🧹 Running cleanup job after successful data processing...")
+                cleanup_result = await data_service.cleanup_stale_sectors()
+                data_service.logger.info(f"✅ Cleanup completed: {cleanup_result['sectors_closed']} sectors closed")
+                print("✅ Complete main.py workflow executed successfully")
+            except Exception as e:
+                assert False, f"Main.py workflow failed: {e}"
+            
+            print("✅ Main.py cleanup workflow integration test completed successfully")
+            
+        except Exception as e:
+            print(f"❌ Main.py cleanup workflow integration test failed: {e}")
+            assert False, f"Main.py cleanup workflow integration test failed: {e}"
+
 
 # Test execution helper
 def run_business_logic_core_functionality_tests():

@@ -34,10 +34,12 @@ A real-time VATSIM data collection system that processes flight data, ATC positi
 ### **Current Status: Complete System ✅**
 - **Geographic boundary filtering implemented** for flights, transceivers, and controllers
 - **Real-time sector tracking fully operational** - tracks flights through 17 Australian airspace sectors
+- **Automatic cleanup system operational** - automatically closes stale sector entries with transaction safety
 - **Data ingestion fully functional** - all tables populated with live VATSIM data
 - **Schema mismatches resolved** - Python models match database schema
 - **Performance optimized** - filtering adds <1ms overhead for 100+ entities
-- **Sector tracking operational** - real-time sector occupancy monitoring
+- **Sector tracking operational** - real-time sector occupancy monitoring with automatic transitions
+- **Transaction safety implemented** - proper database commit/rollback handling for reliable persistence
 
 ### **Australian Airspace Data Structure**
 The system uses a comprehensive approach for geographic filtering and sector management:
@@ -102,6 +104,32 @@ The system tracks sector occupancy in the `flight_sector_occupancy` table:
 | `exit_lat/lon` | Exit coordinates | -33.9500, 151.2000 |
 | `entry_altitude` | Entry altitude (feet) | 25000 |
 | `exit_altitude` | Exit altitude (feet) | 25000 |
+
+### **Automatic Cleanup System: ✅ FULLY IMPLEMENTED**
+- **Purpose**: Automatically closes stale sector entries for flights that haven't been updated recently
+- **Execution**: Runs automatically after each successful VATSIM data processing cycle (every 60 seconds)
+- **Detection**: Identifies flights with open sector entries and no recent updates
+- **Timeout**: Configurable via `CLEANUP_FLIGHT_TIMEOUT` environment variable (default: 300 seconds / 5 minutes)
+- **Data Integrity**: Uses last known flight position and timestamp for accurate sector exit data
+- **Transaction Safety**: Proper database commit/rollback handling ensures reliable persistence
+
+#### **Cleanup Process Features**
+- **Automatic Operation**: No manual intervention required - runs automatically
+- **Stale Detection**: Finds flights with open sectors and no recent updates
+- **Position Accuracy**: Uses actual last known position for exit coordinates
+- **Duration Calculation**: Accurate sector duration using last flight record timestamp
+- **Memory Management**: Cleans up stale flight tracking state to prevent memory leaks
+- **Error Isolation**: Cleanup failures don't affect main data processing
+- **Performance Optimized**: Uses efficient SQL queries with `DISTINCT ON` for accurate data processing
+
+#### **Configuration**
+```bash
+CLEANUP_FLIGHT_TIMEOUT=300       # Seconds before considering a flight stale (5 minutes)
+```
+
+#### **API Endpoints**
+- `POST /api/cleanup/stale-sectors` - Manually trigger cleanup process
+- `GET /api/cleanup/status` - Get current cleanup system status
 
 #### **Sector Coverage**
 The system tracks **17 Australian en-route sectors**:
@@ -232,6 +260,12 @@ FLIGHT_SUMMARY_ENABLED=true      # Enable/disable the system
 SECTOR_TRACKING_ENABLED=true     # Enable real-time sector tracking
 SECTOR_UPDATE_INTERVAL=60        # Seconds between sector updates
 SECTOR_DATA_PATH=airspace_sector_data/australian_airspace_sectors.geojson
+```
+
+### Cleanup Process Configuration
+```bash
+# Cleanup Process System (Fully Operational)
+CLEANUP_FLIGHT_TIMEOUT=300       # Seconds (5 minutes) before considering a flight stale for cleanup
 ```
 
 ### Environment Variables
@@ -509,11 +543,12 @@ For issues, questions, or contributions:
 
 ---
 
-**📅 Last Updated**: 2025-01-08  
-**🚀 Status**: Production Ready with Geographic Filtering, Complete Flight Summary System & Real-Time Sector Tracking  
+**📅 Last Updated**: 2025-01-16  
+**🚀 Status**: Production Ready with Geographic Filtering, Complete Flight Summary System, Real-Time Sector Tracking & Automatic Cleanup Process  
 **🗺️ Geographic Coverage**: Australian Airspace  
 **⚡ Performance**: <1ms filtering overhead  
 **🔧 Architecture**: Simplified and optimized  
 **📊 Flight Summary**: Fully operational with complete API access  
 **🎯 Sector Tracking**: Fully operational with real-time monitoring  
+**🧹 Cleanup Process**: Fully operational with automatic stale sector management  
 **✅ System Status**: Complete and fully functional

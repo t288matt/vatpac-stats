@@ -4,15 +4,16 @@
 
 The VATSIM Data Collection System is a high-performance, API-driven platform designed for real-time air traffic control data collection, analysis, and monitoring. The system has evolved from a complex, over-engineered architecture to a **simplified, streamlined design** optimized for geographic boundary filtering and operational excellence.
 
-## ⚠️ **IMPORTANT: System Status - January 2025**
+## ✅ **System Status - January 2025**
 
-**The system has been significantly simplified and optimized with comprehensive geographic boundary filtering.** The current system provides:
+**The system has been significantly simplified and optimized with comprehensive geographic boundary filtering and automatic cleanup processes.** The current system provides:
 
 - ✅ **Complete VATSIM API field mapping** (1:1 mapping with API fields)
 - ✅ **Fully operational data pipeline** (flights, controllers, transceivers all working)
 - ✅ **Simplified service architecture** (over-engineered components removed)
 - ✅ **Geographic boundary filtering** (Shapely-based polygon filtering implemented and working)
 - ✅ **Multi-entity filtering** (flights, transceivers, and controllers)
+- ✅ **Automatic cleanup process** (stale sector management and memory cleanup)
 - ✅ **Production-ready deployment** (comprehensive documentation and security)
 - ✅ **All critical issues resolved** (data pipeline fully operational)
 
@@ -34,6 +35,7 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - **Storage Optimization**: ✅ **ACTIVE** - ~90% reduction in daily storage growth
 - **Sector Tracking System**: ✅ **ACTIVE** - real-time sector occupancy monitoring
 - **Real-Time Sector Monitoring**: ✅ **OPERATIONAL** - 17 Australian airspace sectors tracked
+- **Cleanup Process System**: ✅ **ACTIVE** - automatic stale sector cleanup after each data cycle
 
 ### 🎯 Core Principles
 
@@ -53,6 +55,8 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - **Real-Time Sector Tracking**: Automatic sector occupancy monitoring for airspace management
 - **Altitude Monitoring**: Vertical profile tracking for sector transitions
 - **Sector Analytics**: Comprehensive sector-based reporting and analysis
+- **Automatic Cleanup**: Stale sector management and memory state cleanup
+- **Data Integrity**: Ensures complete sector exit data and accurate duration calculations
 
 ## 📊 System Overview
 
@@ -98,6 +102,16 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 │  │  • <1ms Performance Overhead                           │   │
 │  └─────────────────────────────────────────────────────────┘   │
 ├─────────────────────────────────────────────────────────────────┤
+│  Cleanup Process Layer                                        │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │  Automatic Cleanup System                              │   │
+│  │  • Stale Flight Detection                              │   │
+│  │  • Sector Exit Completion                              │   │
+│  │  • Memory State Cleanup                                │   │
+│  │  • Last Known Position Accuracy                        │   │
+│  │  • Configurable Timeout (5 min default)                │   │
+│  └─────────────────────────────────────────────────────────┘   │
+├─────────────────────────────────────────────────────────────────┤
 │  Flight Plan Validation Filter Layer                          │
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │  Flight Plan Validation                                │   │
@@ -116,7 +130,9 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 │  │  • /api/flights                                       │   │
 │  │  • /api/flights/{callsign}/track                      │   │
 │  │  • /api/flights/{callsign}/stats                      │   │
-│  │  • /api/flights/summaries                             │   │
+│  │  • /api/flights/summaries                             │
+│  │  • /api/cleanup/stale-sectors                         │
+│  │  • /api/cleanup/status                                │   │
 │  │  • /api/database/*                                    │   │
 │  │  • /api/performance/*                                 │   │
 │  │  • /api/status/*                                      │   │
@@ -262,6 +278,48 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - **Storage Efficiency**: No wasted space on incomplete flight records
 - **Data Integrity**: Consistent data structure for all stored flights
 
+### 9. Cleanup Process System (`app/services/data_service.py`) ✅ **FULLY IMPLEMENTED**
+**Purpose**: Automatic cleanup of stale sector entries and memory state management
+
+**Current Status**: ✅ **FULLY OPERATIONAL** (January 2025)
+- **Automatic Execution**: Runs after each successful VATSIM data processing cycle
+- **Stale Flight Detection**: Identifies flights with open sector entries and no recent updates
+- **Sector Exit Completion**: Automatically closes open sectors with last known position data
+- **Memory Management**: Cleans up stale flight tracking state to prevent memory leaks
+- **Transaction Safety**: Fixed database transaction commit issues for reliable data persistence
+
+**Cleanup Process**:
+- **Trigger**: Automatically runs after successful `process_vatsim_data()` completion
+- **Detection**: Finds flights with open sector entries (`exit_timestamp IS NULL`) and no recent updates
+- **Timeout**: Configurable via `CLEANUP_FLIGHT_TIMEOUT` (default: 300 seconds / 5 minutes)
+- **Processing**: Updates sector exits with last known position, calculates duration, cleans memory state
+- **Data Integrity**: Uses `DISTINCT ON (callsign)` subquery to ensure only latest flight records are processed
+
+**Key Features**:
+- **Automatic Execution**: No manual intervention required
+- **Error Isolation**: Cleanup failures don't affect main data processing
+- **Coordinate Accuracy**: Uses actual last known position for exit coordinates
+- **Duration Calculation**: Automatically calculates accurate sector duration using last flight record timestamp
+- **Memory Cleanup**: Removes stale flight tracking state
+- **API Endpoints**: Manual trigger and status monitoring available
+- **Transaction Safety**: Proper database commit/rollback handling prevents silent failures
+
+**Configuration**:
+```bash
+CLEANUP_FLIGHT_TIMEOUT=300       # Seconds before considering a flight stale
+```
+
+**API Endpoints**:
+- `POST /api/cleanup/stale-sectors` - Manually trigger cleanup process
+- `GET /api/cleanup/status` - Get current cleanup system status
+
+**Benefits**:
+- **Data Integrity**: Ensures all sector entries have proper exit data
+- **Memory Efficiency**: Prevents memory leaks from stale flight tracking
+- **Accuracy**: Provides accurate sector duration and exit position data
+- **Automation**: Maintains system health without manual intervention
+- **Reliability**: Fixed transaction handling ensures cleanup operations are properly persisted
+
 ## 🗄️ Database Schema
 
 ### Core Tables
@@ -289,16 +347,19 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - ✅ **Real-time sector detection** using Shapely polygon calculations
 - ✅ **Altitude tracking** for entry/exit altitudes in each sector
 - ✅ **Duration calculation** for time spent in each sector
-- ✅ **Sector transitions** tracking flights moving between sectors
+- ✅ **Sector transitions** tracking flights moving between sectors with automatic exit handling
 - ✅ **GeoJSON sector boundaries** loaded from australian_airspace_sectors.geojson
 - ✅ **Performance optimized** with polygon caching and efficient algorithms
 - ✅ **Memory efficient** sector data management
 - ✅ **Comprehensive error handling** and logging for production reliability
+- ✅ **Automatic cleanup integration** with stale sector detection and closure
+- ✅ **Transaction safety** with proper database commit/rollback handling
 
 **Current Configuration**:
 - `SECTOR_TRACKING_ENABLED`: true (actively tracking)
 - `SECTOR_UPDATE_INTERVAL`: 60 seconds
 - `SECTOR_DATA_PATH`: airspace_sector_data/australian_airspace_sectors.geojson
+- `CLEANUP_FLIGHT_TIMEOUT`: 300 seconds (5 minutes for stale detection)
 
 **Operational Sector Tracking Pipeline**:
 ```
@@ -306,9 +367,11 @@ VATSIM Flight Position Updates (every 60 seconds)
       ↓
    Sector Boundary Detection → Check against 17 sector polygons
       ↓
-   Sector Transition Detection → Entry/exit events
+   Sector Transition Detection → Entry/exit events with automatic cleanup
       ↓
-   Database Updates → flight_sector_occupancy table
+   Database Updates → flight_sector_occupancy table with transaction safety
+      ↓
+   Cleanup Integration → Automatic stale sector detection and closure
       ↓
    Flight Summary Integration → Sector breakdown data
 ```
@@ -318,12 +381,14 @@ VATSIM Flight Position Updates (every 60 seconds)
 - **Sector Coverage**: 17 Australian en-route sectors
 - **Data Accuracy**: Real-time position updates with altitude tracking
 - **Memory Usage**: Efficient polygon caching for optimal performance
+- **Cleanup Efficiency**: Automatic stale sector cleanup after each data processing cycle
 
 **Sector Data Structure**:
 - **Entry Events**: Recorded when flights enter sectors with coordinates and altitude
 - **Exit Events**: Recorded when flights exit sectors with coordinates and altitude
 - **Duration Calculation**: Automatic calculation of time spent in each sector
-- **Sector Breakdown**: Integration with flight summaries for comprehensive analytics
+- **Transition Handling**: Automatic closure of previous sectors when entering new ones
+- **Cleanup Integration**: Stale sector detection and closure using last known flight data
 
 **Enhanced Sector Entry/Exit Logic** (Planned Implementation):
 - **Entry Criteria**: Aircraft must be above 60 knots (inclusive) AND within sector geographic boundary
