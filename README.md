@@ -34,10 +34,12 @@ A real-time VATSIM data collection system that processes flight data, ATC positi
 ### **Current Status: Complete System ✅**
 - **Geographic boundary filtering implemented** for flights, transceivers, and controllers
 - **Real-time sector tracking fully operational** - tracks flights through 17 Australian airspace sectors
+- **Automatic cleanup system operational** - automatically closes stale sector entries with transaction safety
 - **Data ingestion fully functional** - all tables populated with live VATSIM data
 - **Schema mismatches resolved** - Python models match database schema
 - **Performance optimized** - filtering adds <1ms overhead for 100+ entities
-- **Sector tracking operational** - real-time sector occupancy monitoring
+- **Sector tracking operational** - real-time sector occupancy monitoring with automatic transitions
+- **Transaction safety implemented** - proper database commit/rollback handling for reliable persistence
 
 ### **Australian Airspace Data Structure**
 The system uses a comprehensive approach for geographic filtering and sector management:
@@ -103,6 +105,32 @@ The system tracks sector occupancy in the `flight_sector_occupancy` table:
 | `entry_altitude` | Entry altitude (feet) | 25000 |
 | `exit_altitude` | Exit altitude (feet) | 25000 |
 
+### **Automatic Cleanup System: ✅ FULLY IMPLEMENTED**
+- **Purpose**: Automatically closes stale sector entries for flights that haven't been updated recently
+- **Execution**: Runs automatically after each successful VATSIM data processing cycle (every 60 seconds)
+- **Detection**: Identifies flights with open sector entries and no recent updates
+- **Timeout**: Configurable via `CLEANUP_FLIGHT_TIMEOUT` environment variable (default: 300 seconds / 5 minutes)
+- **Data Integrity**: Uses last known flight position and timestamp for accurate sector exit data
+- **Transaction Safety**: Proper database commit/rollback handling ensures reliable persistence
+
+#### **Cleanup Process Features**
+- **Automatic Operation**: No manual intervention required - runs automatically
+- **Stale Detection**: Finds flights with open sectors and no recent updates
+- **Position Accuracy**: Uses actual last known position for exit coordinates
+- **Duration Calculation**: Accurate sector duration using last flight record timestamp
+- **Memory Management**: Cleans up stale flight tracking state to prevent memory leaks
+- **Error Isolation**: Cleanup failures don't affect main data processing
+- **Performance Optimized**: Uses efficient SQL queries with `DISTINCT ON` for accurate data processing
+
+#### **Configuration**
+```bash
+CLEANUP_FLIGHT_TIMEOUT=300       # Seconds before considering a flight stale (5 minutes)
+```
+
+#### **API Endpoints**
+- `POST /api/cleanup/stale-sectors` - Manually trigger cleanup process
+- `GET /api/cleanup/status` - Get current cleanup system status
+
 #### **Sector Coverage**
 The system tracks **17 Australian en-route sectors**:
 - **ARL** (Armidale), **WOL** (Wollongong), **HUO** (Huon)
@@ -118,42 +146,6 @@ The system tracks **17 Australian en-route sectors**:
 - **Database**: Real-time updates to flight_sector_occupancy table
 - **Performance**: <1ms per flight for sector detection
 - **Memory**: Efficient polygon caching for optimal performance
-
-### **Cleanup Process System: ✅ FULLY IMPLEMENTED**
-- **Backend logic implemented** in data service with automatic execution
-- **Automatic cleanup** runs after each VATSIM data processing cycle
-- **Stale sector detection** finds flights with open sector entries that haven't been updated
-- **Configurable timeout** (default: 5 minutes) for determining flight staleness
-- **Last known position** used for accurate sector exit coordinates
-- **Memory state cleanup** removes stale flight tracking data
-- **Status**: Complete and fully operational for maintaining data integrity
-
-#### **Cleanup Process Features**
-- **Automatic Execution**: Runs automatically after each data processing cycle
-- **Stale Flight Detection**: Identifies flights with open sector entries and no recent updates
-- **Sector Exit Completion**: Automatically closes open sectors with last known position data
-- **Coordinate Accuracy**: Uses actual last known position for exit coordinates
-- **Duration Calculation**: Automatically calculates accurate sector duration
-- **Memory Management**: Cleans up stale flight tracking state to prevent memory leaks
-- **Error Handling**: Robust error handling ensures cleanup doesn't affect main data processing
-
-#### **Cleanup Process Workflow**
-1. **Data Processing**: VATSIM data is processed normally
-2. **Cleanup Trigger**: Cleanup process automatically runs after successful data processing
-3. **Stale Detection**: System finds flights with open sector entries and no recent updates
-4. **Sector Closure**: Open sectors are closed with last known position and accurate timestamps
-5. **Memory Cleanup**: Stale flight tracking state is removed from memory
-6. **Result Reporting**: Cleanup statistics are logged for monitoring
-
-#### **Cleanup Configuration**
-```bash
-# Cleanup Process Configuration
-CLEANUP_FLIGHT_TIMEOUT=300       # Seconds (5 minutes) before considering a flight stale
-```
-
-#### **Cleanup API Endpoints**
-- `POST /api/cleanup/stale-sectors` - Manually trigger cleanup process
-- `GET /api/cleanup/status` - Get current cleanup system status
 
 ### **Flight Summary System: ✅ FULLY IMPLEMENTED**
 - **Backend logic implemented** in data service with scheduled processing

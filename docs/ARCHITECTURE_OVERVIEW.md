@@ -286,20 +286,23 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - **Stale Flight Detection**: Identifies flights with open sector entries and no recent updates
 - **Sector Exit Completion**: Automatically closes open sectors with last known position data
 - **Memory Management**: Cleans up stale flight tracking state to prevent memory leaks
+- **Transaction Safety**: Fixed database transaction commit issues for reliable data persistence
 
 **Cleanup Process**:
 - **Trigger**: Automatically runs after successful `process_vatsim_data()` completion
 - **Detection**: Finds flights with open sector entries (`exit_timestamp IS NULL`) and no recent updates
 - **Timeout**: Configurable via `CLEANUP_FLIGHT_TIMEOUT` (default: 300 seconds / 5 minutes)
 - **Processing**: Updates sector exits with last known position, calculates duration, cleans memory state
+- **Data Integrity**: Uses `DISTINCT ON (callsign)` subquery to ensure only latest flight records are processed
 
 **Key Features**:
 - **Automatic Execution**: No manual intervention required
 - **Error Isolation**: Cleanup failures don't affect main data processing
 - **Coordinate Accuracy**: Uses actual last known position for exit coordinates
-- **Duration Calculation**: Automatically calculates accurate sector duration
+- **Duration Calculation**: Automatically calculates accurate sector duration using last flight record timestamp
 - **Memory Cleanup**: Removes stale flight tracking state
 - **API Endpoints**: Manual trigger and status monitoring available
+- **Transaction Safety**: Proper database commit/rollback handling prevents silent failures
 
 **Configuration**:
 ```bash
@@ -315,6 +318,7 @@ CLEANUP_FLIGHT_TIMEOUT=300       # Seconds before considering a flight stale
 - **Memory Efficiency**: Prevents memory leaks from stale flight tracking
 - **Accuracy**: Provides accurate sector duration and exit position data
 - **Automation**: Maintains system health without manual intervention
+- **Reliability**: Fixed transaction handling ensures cleanup operations are properly persisted
 
 ## 🗄️ Database Schema
 
@@ -343,16 +347,19 @@ CLEANUP_FLIGHT_TIMEOUT=300       # Seconds before considering a flight stale
 - ✅ **Real-time sector detection** using Shapely polygon calculations
 - ✅ **Altitude tracking** for entry/exit altitudes in each sector
 - ✅ **Duration calculation** for time spent in each sector
-- ✅ **Sector transitions** tracking flights moving between sectors
+- ✅ **Sector transitions** tracking flights moving between sectors with automatic exit handling
 - ✅ **GeoJSON sector boundaries** loaded from australian_airspace_sectors.geojson
 - ✅ **Performance optimized** with polygon caching and efficient algorithms
 - ✅ **Memory efficient** sector data management
 - ✅ **Comprehensive error handling** and logging for production reliability
+- ✅ **Automatic cleanup integration** with stale sector detection and closure
+- ✅ **Transaction safety** with proper database commit/rollback handling
 
 **Current Configuration**:
 - `SECTOR_TRACKING_ENABLED`: true (actively tracking)
 - `SECTOR_UPDATE_INTERVAL`: 60 seconds
 - `SECTOR_DATA_PATH`: airspace_sector_data/australian_airspace_sectors.geojson
+- `CLEANUP_FLIGHT_TIMEOUT`: 300 seconds (5 minutes for stale detection)
 
 **Operational Sector Tracking Pipeline**:
 ```
@@ -360,9 +367,11 @@ VATSIM Flight Position Updates (every 60 seconds)
       ↓
    Sector Boundary Detection → Check against 17 sector polygons
       ↓
-   Sector Transition Detection → Entry/exit events
+   Sector Transition Detection → Entry/exit events with automatic cleanup
       ↓
-   Database Updates → flight_sector_occupancy table
+   Database Updates → flight_sector_occupancy table with transaction safety
+      ↓
+   Cleanup Integration → Automatic stale sector detection and closure
       ↓
    Flight Summary Integration → Sector breakdown data
 ```
@@ -372,12 +381,14 @@ VATSIM Flight Position Updates (every 60 seconds)
 - **Sector Coverage**: 17 Australian en-route sectors
 - **Data Accuracy**: Real-time position updates with altitude tracking
 - **Memory Usage**: Efficient polygon caching for optimal performance
+- **Cleanup Efficiency**: Automatic stale sector cleanup after each data processing cycle
 
 **Sector Data Structure**:
 - **Entry Events**: Recorded when flights enter sectors with coordinates and altitude
 - **Exit Events**: Recorded when flights exit sectors with coordinates and altitude
 - **Duration Calculation**: Automatic calculation of time spent in each sector
-- **Sector Breakdown**: Integration with flight summaries for comprehensive analytics
+- **Transition Handling**: Automatic closure of previous sectors when entering new ones
+- **Cleanup Integration**: Stale sector detection and closure using last known flight data
 
 **Enhanced Sector Entry/Exit Logic** (Planned Implementation):
 - **Entry Criteria**: Aircraft must be above 60 knots (inclusive) AND within sector geographic boundary
