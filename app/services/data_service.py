@@ -585,7 +585,7 @@ class DataService:
         # CRITICAL FIX: Close ALL open sectors for this flight before entering a new one
         # This prevents multiple open sectors when memory state gets corrupted
         if current_sector != previous_sector or should_exit:
-            await self._close_all_open_sectors_for_flight(callsign, lat, lon, altitude, timestamp, session)
+            await self._close_all_open_sectors_for_flight(callsign, session)
         
         # Enter new sector (only if different from previous)
         if current_sector and current_sector != previous_sector:
@@ -640,8 +640,7 @@ class DataService:
             self.logger.error(f"Failed to record sector entry for {callsign}: {e}")
 
     async def _close_all_open_sectors_for_flight(
-        self, callsign: str, lat: float, lon: float, 
-        altitude: int, timestamp: datetime, session: AsyncSession
+        self, callsign: str, session: AsyncSession
     ) -> None:
         """
         Close ALL open sectors for a flight to prevent multiple open sectors.
@@ -651,10 +650,6 @@ class DataService:
         
         Args:
             callsign: Flight callsign
-            lat: Current latitude (used for exit coordinates)
-            lon: Current longitude (used for exit coordinates)
-            altitude: Current altitude (used for exit altitude)
-            timestamp: Exit timestamp
             session: Database session
         """
         try:
@@ -671,6 +666,20 @@ class DataService:
             if not open_sectors:
                 return  # No open sectors to close
             
+            # Get the last known flight record for this callsign
+            flight_result = await session.execute(text("""
+                SELECT latitude, longitude, altitude, last_updated
+                FROM flights 
+                WHERE callsign = :callsign 
+                ORDER BY last_updated DESC 
+                LIMIT 1
+            """), {"callsign": callsign})
+            
+            last_flight = flight_result.fetchone()
+            if not last_flight:
+                self.logger.warning(f"No flight record found for {callsign}")
+                return
+            
             self.logger.debug(f"Closing {len(open_sectors)} open sectors for flight {callsign}")
             
             # Close each open sector
@@ -678,8 +687,8 @@ class DataService:
                 sector_name = sector.sector_name
                 entry_timestamp = sector.entry_timestamp
                 
-                # Calculate duration
-                duration_seconds = int((timestamp - entry_timestamp).total_seconds())
+                # Calculate duration using last flight record timestamp
+                duration_seconds = int((last_flight.last_updated - entry_timestamp).total_seconds())
                 
                 # Update the sector exit
                 await session.execute(text("""
@@ -693,10 +702,10 @@ class DataService:
                     AND sector_name = :sector_name
                     AND exit_timestamp IS NULL
                 """), {
-                    "exit_timestamp": timestamp,
-                    "exit_lat": lat,
-                    "exit_lon": lon,
-                    "exit_altitude": altitude,
+                    "exit_timestamp": last_flight.last_updated,  # Use last flight record timestamp
+                    "exit_lat": last_flight.latitude,           # Use last known position
+                    "exit_lon": last_flight.longitude,          # Use last known position
+                    "exit_altitude": last_flight.altitude,      # Use last known altitude
                     "duration_seconds": duration_seconds,
                     "callsign": callsign,
                     "sector_name": sector_name
