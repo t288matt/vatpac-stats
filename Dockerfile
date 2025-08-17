@@ -68,28 +68,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 
 CMD ["python", "run.py"]
 
-# =============================================================================
-# STAGE 3: CRON SERVICE FOR MATERIALIZED VIEW REFRESH
-# =============================================================================
-FROM alpine:latest as cron
-
-# Install required packages
-RUN apk add --no-cache \
-    docker-cli \
-    bash \
-    curl
-
-# Setup scripts and cron
-RUN mkdir -p /scripts /var/log
-
-# Copy and setup scripts
-COPY scripts/refresh_controller_stats_cron.sh /scripts/
-COPY scripts/test_cron_setup.sh /scripts/
-RUN chmod +x /scripts/*.sh
-
-# Configure cron job (refresh once per day at 16:00 UTC)
-RUN echo '0 16 * * * /scripts/refresh_controller_stats_cron.sh >> /var/log/cron.log 2>&1' > /etc/crontabs/root
-
-VOLUME ["/var/log"]
-
-CMD ["crond", "-f", "-d", "8"] 
+ 
