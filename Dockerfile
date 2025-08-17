@@ -50,6 +50,7 @@ COPY --from=builder /root/.local /home/app/.local
 COPY app/ ./app/
 COPY tests/ ./tests/
 COPY config/ ./config/
+COPY scripts/ ./scripts/
 COPY run.py .
 COPY requirements.txt .
 
