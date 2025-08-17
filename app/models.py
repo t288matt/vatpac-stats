@@ -71,6 +71,7 @@ class Controller(Base, TimestampMixin):
         Index('idx_controllers_cid_rating', 'cid', 'rating'),
         Index('idx_controllers_facility_server', 'facility', 'server'),
         Index('idx_controllers_last_updated', 'last_updated'),
+        Index('idx_controllers_rating_last_updated', 'rating', 'last_updated'),
         
         # ATC Detection Performance Indexes
         Index('idx_controllers_callsign_facility', 'callsign', 'facility'),
@@ -184,6 +185,9 @@ class Transceiver(Base):
         Index('idx_transceivers_entity_type_callsign', 'entity_type', 'callsign'),
         Index('idx_transceivers_entity_type_timestamp', 'entity_type', 'timestamp'),
         Index('idx_transceivers_atc_detection', 'entity_type', 'callsign', 'timestamp', 'frequency', 'position_lat', 'position_lon'),
+        
+        # Performance-optimized index for controller flight counting queries
+        Index('idx_transceivers_flight_frequency_callsign', 'entity_type', 'frequency', 'callsign'),
     )
     
     # Validation handled by database constraints - no Python validators needed

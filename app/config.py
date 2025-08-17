@@ -162,6 +162,20 @@ class SectorTrackingConfig:
 
         )
 
+@dataclass
+class ControllerCallsignFilterConfig:
+    """Controller callsign filter configuration"""
+    enabled: bool = True
+    callsign_list_path: str = "config/controller_callsigns_list.txt"
+    
+    @classmethod
+    def from_env(cls):
+        """Load controller callsign filter configuration from environment variables."""
+        return cls(
+            enabled=os.getenv("CONTROLLER_CALLSIGN_FILTER_ENABLED", "true").lower() == "true",
+            callsign_list_path=os.getenv("CONTROLLER_CALLSIGN_LIST_PATH", "config/controller_callsigns_list.txt")
+        )
+
 
 
 
@@ -207,6 +221,7 @@ class AppConfig:
     pilots: PilotConfig
     flight_summary: FlightSummaryConfig
     sector_tracking: SectorTrackingConfig
+    controller_callsign_filter: ControllerCallsignFilterConfig
     environment: str = "development"
     
     @classmethod
@@ -223,6 +238,7 @@ class AppConfig:
             pilots=PilotConfig.from_env(),
             flight_summary=FlightSummaryConfig.from_env(),
             sector_tracking=SectorTrackingConfig.from_env(),
+            controller_callsign_filter=ControllerCallsignFilterConfig.from_env(),
             environment=os.getenv("ENVIRONMENT", "development")
         )
 

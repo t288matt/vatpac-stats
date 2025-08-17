@@ -1209,6 +1209,75 @@ async def get_boundary_filter_info():
         logger.error(f"Error getting boundary filter info: {e}")
         raise HTTPException(status_code=500, detail=f"Error getting boundary filter info: {str(e)}")
 
+@app.get("/api/filter/controller-callsign/status")
+@handle_service_errors
+@log_operation("get_controller_callsign_filter_status")
+async def get_controller_callsign_filter_status():
+    """Get controller callsign filter status and performance"""
+    try:
+        # Get controller callsign filter status
+        data_service = await get_data_service()
+        controller_filter = data_service.controller_callsign_filter
+        
+        # Get filter statistics
+        filter_stats = controller_filter.get_filter_stats()
+        filter_status = controller_filter.get_filter_status()
+        
+        return {
+            "controller_callsign_filter": {
+                "enabled": filter_status["enabled"],
+                "status": "active" if filter_status["filtering_active"] else "inactive",
+                "performance": {
+                    "total_processed": filter_stats.get("total_processed", 0),
+                    "controllers_included": filter_stats.get("controllers_included", 0),
+                    "controllers_excluded": filter_stats.get("controllers_excluded", 0),
+                    "filtering_rate": f"{filter_stats.get('controllers_excluded', 0) / max(filter_stats.get('total_processed', 1), 1) * 100:.1f}%" if filter_stats.get('total_processed', 0) > 0 else "0%"
+                },
+                "configuration": {
+                    "callsign_list_path": filter_status["callsign_list_path"],
+                    "valid_callsigns_loaded": filter_status["valid_callsigns_loaded"],
+                    "case_sensitive": filter_status["case_sensitive"],
+                    "filtering_active": filter_status["filtering_active"]
+                },
+                "sample_callsigns": controller_filter.get_valid_callsigns_sample(5)
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting controller callsign filter status: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting controller callsign filter status: {str(e)}")
+
+@app.post("/api/filter/controller-callsign/reload")
+@handle_service_errors
+@log_operation("reload_controller_callsign_filter")
+async def reload_controller_callsign_filter():
+    """Reload the controller callsign list from file"""
+    try:
+        # Get controller callsign filter and reload
+        data_service = await get_data_service()
+        controller_filter = data_service.controller_callsign_filter
+        
+        # Attempt to reload callsigns
+        success = controller_filter.reload_callsigns()
+        
+        if success:
+            # Get updated status
+            filter_status = controller_filter.get_filter_status()
+            return {
+                "message": "Controller callsign filter reloaded successfully",
+                "status": "success",
+                "callsigns_loaded": filter_status["valid_callsigns_loaded"],
+                "filtering_active": filter_status["filtering_active"]
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to reload controller callsign filter")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error reloading controller callsign filter: {e}")
+        raise HTTPException(status_code=500, detail=f"Error reloading controller callsign filter: {str(e)}")
+
 # Analytics Endpoints
 
 @app.get("/api/analytics/flights")

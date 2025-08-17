@@ -29,6 +29,7 @@ from app.utils.error_handling import handle_service_errors, log_operation, fail_
 from app.services.vatsim_service import VATSIMService
 from app.filters.geographic_boundary_filter import GeographicBoundaryFilter
 from app.filters.callsign_pattern_filter import CallsignPatternFilter
+from app.filters.controller_callsign_filter import ControllerCallsignFilter
 from app.database import get_database_session
 from app.models import Flight, Controller, Transceiver
 from app.config import get_config
@@ -62,6 +63,7 @@ class DataService:
         # Initialize filters
         self.geographic_boundary_filter = GeographicBoundaryFilter()
         self.callsign_pattern_filter = CallsignPatternFilter()
+        self.controller_callsign_filter = ControllerCallsignFilter()
         
         # Initialize services
         self.vatsim_service = None
@@ -113,7 +115,7 @@ class DataService:
             # Don't get database session here - we'll get it when needed
             self.db_session = None
             
-            self.logger.info(f"Filters: geo={self.geographic_boundary_filter.config.enabled}, callsign={self.callsign_pattern_filter.config.enabled}, sector={self.sector_tracking_enabled}")
+            self.logger.info(f"Filters: geo={self.geographic_boundary_filter.config.enabled}, callsign={self.callsign_pattern_filter.config.enabled}, controller_callsign={self.controller_callsign_filter.config.enabled}, sector={self.sector_tracking_enabled}")
             self._initialized = True
             
             # Start scheduled flight summary processing
@@ -297,7 +299,7 @@ class DataService:
     @fail_fast_on_critical_errors
     async def _process_controllers(self, controllers_data: List[Dict[str, Any]]) -> int:
         """
-        Process and store controller data with geographic boundary filtering.
+        Process and store controller data with callsign filtering.
         
         Args:
             controllers_data: Raw controller data from VATSIM API
@@ -310,15 +312,15 @@ class DataService:
         
         processed_count = 0
         
-        # Apply geographic boundary filtering
-        if self.geographic_boundary_filter.config.enabled:
-            filtered_controllers = self.geographic_boundary_filter.filter_controllers_list(controllers_data)
+        # Apply controller callsign filtering (controllers don't have geographic data)
+        if self.controller_callsign_filter.config.enabled:
+            filtered_controllers = self.controller_callsign_filter.filter_controllers_list(controllers_data)
         else:
             filtered_controllers = controllers_data
         
         # Log only summary, not individual controller details
         if len(controllers_data) != len(filtered_controllers):
-            self.logger.info(f"Controllers: {len(controllers_data)} → {len(filtered_controllers)} (filtered)")
+            self.logger.info(f"Controllers: {len(controllers_data)} → {len(filtered_controllers)} (callsign filtered)")
         else:
             self.logger.debug(f"Controllers: {len(controllers_data)} → {len(filtered_controllers)}")
         

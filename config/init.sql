@@ -113,13 +113,14 @@ CREATE TABLE IF NOT EXISTS transceivers (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create indexes for performance (matching SQLAlchemy model definitions)
+-- Create indexes for performance (optimized for production queries)
 -- Controllers indexes
 CREATE INDEX IF NOT EXISTS idx_controllers_callsign ON controllers(callsign);
 CREATE INDEX IF NOT EXISTS idx_controllers_cid ON controllers(cid);
 CREATE INDEX IF NOT EXISTS idx_controllers_cid_rating ON controllers(cid, rating);
 CREATE INDEX IF NOT EXISTS idx_controllers_facility_server ON controllers(facility, server);
 CREATE INDEX IF NOT EXISTS idx_controllers_last_updated ON controllers(last_updated);
+CREATE INDEX IF NOT EXISTS idx_controllers_rating_last_updated ON controllers(rating, last_updated);
 
 -- ATC Detection Performance Indexes for controllers
 CREATE INDEX IF NOT EXISTS idx_controllers_callsign_facility ON controllers(callsign, facility);
@@ -140,7 +141,7 @@ CREATE INDEX IF NOT EXISTS idx_flights_revision_id ON flights(revision_id);
 CREATE INDEX IF NOT EXISTS idx_flights_callsign_departure_arrival ON flights(callsign, departure, arrival);
 CREATE INDEX IF NOT EXISTS idx_flights_callsign_logon ON flights(callsign, logon_time);
 
--- Transceivers indexes
+-- Transceivers indexes (optimized for frequency-based queries)
 CREATE INDEX IF NOT EXISTS idx_transceivers_callsign ON transceivers(callsign);
 CREATE INDEX IF NOT EXISTS idx_transceivers_callsign_timestamp ON transceivers(callsign, timestamp);
 CREATE INDEX IF NOT EXISTS idx_transceivers_frequency ON transceivers(frequency);
@@ -150,6 +151,9 @@ CREATE INDEX IF NOT EXISTS idx_transceivers_entity ON transceivers(entity_type, 
 CREATE INDEX IF NOT EXISTS idx_transceivers_entity_type_callsign ON transceivers(entity_type, callsign);
 CREATE INDEX IF NOT EXISTS idx_transceivers_entity_type_timestamp ON transceivers(entity_type, timestamp);
 CREATE INDEX IF NOT EXISTS idx_transceivers_atc_detection ON transceivers(entity_type, callsign, timestamp, frequency, position_lat, position_lon);
+
+-- Performance-optimized indexes for controller flight counting queries
+CREATE INDEX IF NOT EXISTS idx_transceivers_flight_frequency_callsign ON transceivers(entity_type, frequency, callsign) WHERE entity_type = 'flight';
 
 -- Create triggers for updated_at columns
 CREATE TRIGGER update_controllers_updated_at 

@@ -106,6 +106,7 @@ services:
       - ./logs:/app/logs:rw
       - ./config/australian_airspace_polygon.json:/app/airspace_sector_data/australian_airspace_polygon.json:ro
       - ./config/australian_airspace_sectors.geojson:/app/airspace_sector_data/australian_airspace_sectors.geojson:ro
+      - ./config/controller_callsigns_list.txt:/app/airspace_sector_data/controller_callsigns_list.txt:ro
       - ./config/init.sql:/app/database/init.sql:ro
       # REMOVE FOR PRODUCTION - Test and debug files
       - ./pytest.ini:/app/pytest.ini:ro
