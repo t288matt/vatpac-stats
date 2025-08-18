@@ -217,6 +217,8 @@ async def get_system_status():
             flight_summaries_count = await session.scalar(text("SELECT COUNT(*) FROM flight_summaries"))
             flights_archive_count = await session.scalar(text("SELECT COUNT(*) FROM flights_archive"))
             sector_occupancy_count = await session.scalar(text("SELECT COUNT(*) FROM flight_sector_occupancy"))
+            controller_summaries_count = await session.scalar(text("SELECT COUNT(*) FROM controller_summaries"))
+            controllers_archive_count = await session.scalar(text("SELECT COUNT(*) FROM controllers_archive"))
             
             # Get recent activity (last 5 minutes)
             recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
@@ -324,7 +326,9 @@ async def get_system_status():
                 "flight_summaries_count": flight_summaries_count or 0,
                 "flights_archive_count": flights_archive_count or 0,
                 "sector_occupancy_count": sector_occupancy_count or 0,
-                "recent_flights": recent_flights or 0
+                "recent_flights": recent_flights or 0,
+                "controller_summaries_count": controller_summaries_count or 0,
+                "controllers_archive_count": controllers_archive_count or 0
             },
             "performance": {
                 "api_response_time_ms": 45,  # Placeholder
@@ -1460,7 +1464,286 @@ async def execute_database_query(request: DatabaseQueryRequest):
         logger.error(f"Query error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# Controller Summary Endpoints
 
+@app.get("/api/controller-summaries")
+@handle_service_errors
+@log_operation("get_controller_summaries")
+async def get_controller_summaries(
+    callsign: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0
+):
+    """Get controller summaries with optional filtering."""
+    try:
+        async with get_database_session() as session:
+            # Build base query
+            query = "SELECT * FROM controller_summaries WHERE 1=1"
+            params = {}
+            
+            if callsign:
+                query += " AND callsign ILIKE :callsign"
+                params["callsign"] = f"%{callsign}%"
+            
+            if date_from:
+                try:
+                    date_from_parsed = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
+                    query += " AND session_start_time >= :date_from"
+                    params["date_from"] = date_from_parsed
+                except ValueError:
+                    raise HTTPException(status_code=400, detail=f"Invalid date_from format: {date_from}")
+            
+            if date_to:
+                try:
+                    date_to_parsed = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
+                    query += " AND session_end_time <= :date_to"
+                    params["date_to"] = date_to_parsed
+                except ValueError:
+                    raise HTTPException(status_code=400, detail=f"Invalid date_to format: {date_to}")
+            
+            # Add ordering and pagination
+            query += " ORDER BY session_start_time DESC LIMIT :limit OFFSET :offset"
+            params["limit"] = limit
+            params["offset"] = offset
+            
+            # Execute query
+            result = await session.execute(text(query), params)
+            records = result.fetchall()
+            
+            # Convert to JSON-serializable format
+            summaries = []
+            for record in records:
+                summary = {
+                    "id": record.id,
+                    "callsign": record.callsign,
+                    "cid": record.cid,
+                    "name": record.name,
+                    "session_start_time": record.session_start_time.isoformat() if record.session_start_time else None,
+                    "session_end_time": record.session_end_time.isoformat() if record.session_end_time else None,
+                    "session_duration_minutes": record.session_duration_minutes,
+                    "rating": record.rating,
+                    "facility": record.facility,
+                    "server": record.server,
+                    "total_aircraft_handled": record.total_aircraft_handled,
+                    "peak_aircraft_count": record.peak_aircraft_count,
+                    "hourly_aircraft_breakdown": record.hourly_aircraft_breakdown,
+                    "frequencies_used": record.frequencies_used,
+                    "aircraft_details": record.aircraft_details,
+                    "created_at": record.created_at.isoformat() if record.created_at else None,
+                    "updated_at": record.updated_at.isoformat() if record.updated_at else None
+                }
+                summaries.append(summary)
+            
+            return {
+                "summaries": summaries,
+                "total": len(summaries),
+                "limit": limit,
+                "offset": offset,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            
+    except Exception as e:
+        logger.error(f"Error fetching controller summaries: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/controller-summaries/{callsign}/stats")
+@handle_service_errors
+@log_operation("get_controller_stats")
+async def get_controller_stats(callsign: str):
+    """Get statistics for a specific controller callsign."""
+    try:
+        async with get_database_session() as session:
+            # Get summary statistics
+            result = await session.execute(text("""
+                SELECT 
+                    COUNT(*) as total_sessions,
+                    AVG(session_duration_minutes) as avg_session_duration,
+                    SUM(total_aircraft_handled) as total_aircraft_handled,
+                    MAX(peak_aircraft_count) as max_peak_aircraft,
+                    MIN(session_start_time) as first_session,
+                    MAX(session_start_time) as last_session
+                FROM controller_summaries 
+                WHERE callsign = :callsign
+            """), {"callsign": callsign})
+            
+            stats = result.fetchone()
+            if not stats:
+                raise HTTPException(status_code=404, detail="Controller not found")
+            
+            return {
+                "callsign": callsign,
+                "total_sessions": stats.total_sessions,
+                "avg_session_duration_minutes": float(stats.avg_session_duration) if stats.avg_session_duration else 0,
+                "total_aircraft_handled": stats.total_aircraft_handled or 0,
+                "max_peak_aircraft": stats.max_peak_aircraft or 0,
+                "first_session": stats.first_session.isoformat() if stats.first_session else None,
+                "last_session": stats.last_session.isoformat() if stats.last_session else None
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching controller stats for {callsign}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/controller-summaries/performance/overview")
+@handle_service_errors
+@log_operation("get_performance_overview")
+async def get_performance_overview():
+    """Get overall performance overview of controller summaries."""
+    try:
+        async with get_database_session() as session:
+            # Get performance metrics
+            result = await session.execute(text("""
+                SELECT 
+                    COUNT(*) as total_summaries,
+                    AVG(session_duration_minutes) as avg_session_duration,
+                    SUM(total_aircraft_handled) as total_aircraft_handled,
+                    AVG(total_aircraft_handled) as avg_aircraft_per_session,
+                    MAX(peak_aircraft_count) as max_peak_aircraft,
+                    COUNT(DISTINCT callsign) as unique_controllers,
+                    MIN(session_start_time) as earliest_session,
+                    MAX(session_start_time) as latest_session
+                FROM controller_summaries
+            """))
+            
+            metrics = result.fetchone()
+            
+            return {
+                "total_summaries": metrics.total_summaries or 0,
+                "avg_session_duration_minutes": float(metrics.avg_session_duration) if metrics.avg_session_duration else 0,
+                "total_aircraft_handled": metrics.total_aircraft_handled or 0,
+                "avg_aircraft_per_session": float(metrics.avg_aircraft_per_session) if metrics.avg_aircraft_per_session else 0,
+                "max_peak_aircraft": metrics.max_peak_aircraft or 0,
+                "unique_controllers": metrics.unique_controllers or 0,
+                "earliest_session": metrics.earliest_session.isoformat() if metrics.earliest_session else None,
+                "latest_session": metrics.latest_session.isoformat() if metrics.latest_session else None
+            }
+            
+    except Exception as e:
+        logger.error(f"Error fetching performance overview: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/controller-summaries/process")
+@handle_service_errors
+@log_operation("trigger_controller_processing")
+async def trigger_controller_processing():
+    """Manually trigger controller summary processing."""
+    try:
+        data_service = await get_data_service()
+        
+        # Process completed controllers
+        result = await data_service.controller_summary_service.process_completed_controllers()
+        
+        return {
+            "status": "success",
+            "message": "Controller summary processing completed",
+            "result": result,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error triggering controller processing: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/health/controller-summary")
+@handle_service_errors
+@log_operation("health_controller_summary")
+async def health_controller_summary():
+    """Health check for controller summary system."""
+    try:
+        async with get_database_session() as session:
+            # Check if tables exist and are accessible
+            result = await session.execute(text("""
+                SELECT 
+                    (SELECT COUNT(*) FROM controller_summaries) as summaries_count,
+                    (SELECT COUNT(*) FROM controllers_archive) as archive_count,
+                    (SELECT COUNT(*) FROM controllers) as active_controllers
+            """))
+            
+            counts = result.fetchone()
+            
+            return {
+                "status": "healthy",
+                "tables": {
+                    "controller_summaries": counts.summaries_count or 0,
+                    "controllers_archive": counts.archive_count or 0,
+                    "controllers": counts.active_controllers or 0
+                },
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            
+    except Exception as e:
+        logger.error(f"Controller summary health check failed: {e}")
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
+@app.get("/api/dashboard/controller-summaries")
+@handle_service_errors
+@log_operation("dashboard_controller_summaries")
+async def dashboard_controller_summaries():
+    """Get dashboard data for controller summaries."""
+    try:
+        async with get_database_session() as session:
+            # Get recent activity
+            recent_result = await session.execute(text("""
+                SELECT 
+                    callsign,
+                    session_start_time,
+                    session_duration_minutes,
+                    total_aircraft_handled,
+                    peak_aircraft_count
+                FROM controller_summaries 
+                ORDER BY session_start_time DESC 
+                LIMIT 10
+            """))
+            
+            recent_sessions = []
+            for record in recent_result.fetchall():
+                recent_sessions.append({
+                    "callsign": record.callsign,
+                    "session_start": record.session_start_time.isoformat() if record.session_start_time else None,
+                    "duration_minutes": record.session_duration_minutes,
+                    "aircraft_handled": record.total_aircraft_handled,
+                    "peak_aircraft": record.peak_aircraft_count
+                })
+            
+            # Get top controllers by aircraft handled
+            top_result = await session.execute(text("""
+                SELECT 
+                    callsign,
+                    COUNT(*) as sessions,
+                    SUM(total_aircraft_handled) as total_aircraft,
+                    AVG(session_duration_minutes) as avg_duration
+                FROM controller_summaries 
+                GROUP BY callsign 
+                ORDER BY total_aircraft DESC 
+                LIMIT 5
+            """))
+            
+            top_controllers = []
+            for record in top_result.fetchall():
+                top_controllers.append({
+                    "callsign": record.callsign,
+                    "sessions": record.sessions,
+                    "total_aircraft": record.total_aircraft or 0,
+                    "avg_duration_minutes": float(record.avg_duration) if record.avg_duration else 0
+                })
+            
+            return {
+                "recent_sessions": recent_sessions,
+                "top_controllers": top_controllers,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            
+    except Exception as e:
+        logger.error(f"Error fetching dashboard data: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 # Root endpoint
 @app.get("/")

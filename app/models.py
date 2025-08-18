@@ -266,6 +266,71 @@ class FlightSummary(Base, TimestampMixin):
         Index('idx_flight_summaries_cid', 'cid'),
     )
 
+class ControllerSummary(Base, TimestampMixin):
+    """Controller summary model for completed ATC sessions with aircraft interaction data"""
+    __tablename__ = "controller_summaries"
+    
+    id = Column(BigInteger, primary_key=True, index=True)
+    callsign = Column(String(50), nullable=False, index=True)  # Controller callsign
+    cid = Column(Integer, nullable=True, index=True)  # Controller ID from VATSIM
+    name = Column(String(100), nullable=True)  # Controller name
+    session_start_time = Column(TIMESTAMP(timezone=True), nullable=False, index=True)  # Session start
+    session_end_time = Column(TIMESTAMP(timezone=True), nullable=True, index=True)  # Session end
+    session_duration_minutes = Column(Integer, nullable=True, default=0)  # Session duration
+    rating = Column(Integer, nullable=True, index=True)  # Controller rating
+    facility = Column(Integer, nullable=True, index=True)  # Facility type
+    server = Column(String(50), nullable=True)  # Network server
+    total_aircraft_handled = Column(Integer, nullable=True, default=0)  # Total aircraft count
+    peak_aircraft_count = Column(Integer, nullable=True, default=0)  # Peak aircraft count
+    hourly_aircraft_breakdown = Column(Text, nullable=True)  # JSON hourly breakdown
+    frequencies_used = Column(Text, nullable=True)  # JSON array of frequencies
+    aircraft_details = Column(Text, nullable=True)  # JSON aircraft interaction details
+    
+    # Constraints
+    __table_args__ = (
+        CheckConstraint('rating >= 1 AND rating <= 11', name='valid_rating'),
+        CheckConstraint('total_aircraft_handled >= 0', name='valid_aircraft_counts'),
+        CheckConstraint('peak_aircraft_count >= 0 AND peak_aircraft_count <= total_aircraft_handled', name='valid_peak_aircraft'),
+        CheckConstraint('session_duration_minutes >= 0', name='valid_session_duration'),
+        CheckConstraint('session_end_time IS NULL OR session_end_time > session_start_time', name='valid_session_times'),
+        Index('idx_controller_summaries_callsign', 'callsign'),
+        Index('idx_controller_summaries_callsign_session', 'callsign', 'session_start_time'),
+        Index('idx_controller_summaries_session_time', 'session_start_time', 'session_end_time'),
+        Index('idx_controller_summaries_rating', 'rating'),
+        Index('idx_controller_summaries_facility', 'facility'),
+        Index('idx_controller_summaries_duration_aircraft', 'session_duration_minutes', 'total_aircraft_handled'),
+        Index('idx_controller_summaries_rating_facility', 'rating', 'facility'),
+        Index('idx_controller_summaries_aircraft_count', 'total_aircraft_handled'),
+    )
+
+class ControllersArchive(Base, TimestampMixin):
+    """Archive table for old controller records after summarization"""
+    __tablename__ = "controllers_archive"
+    
+    id = Column(Integer, primary_key=True)  # Keep original ID for reference
+    callsign = Column(String(50), nullable=False)  # Controller callsign
+    frequency = Column(String(20), nullable=True)  # Frequency used
+    cid = Column(Integer, nullable=True)  # Controller ID
+    name = Column(String(100), nullable=True)  # Controller name
+    rating = Column(Integer, nullable=True)  # Controller rating
+    facility = Column(Integer, nullable=True)  # Facility type
+    visual_range = Column(Integer, nullable=True)  # Visual range
+    text_atis = Column(Text, nullable=True)  # ATIS text
+    server = Column(String(50), nullable=True)  # Network server
+    last_updated = Column(TIMESTAMP(timezone=True), nullable=True)  # Last update
+    logon_time = Column(TIMESTAMP(timezone=True), nullable=True)  # Logon time
+    archived_at = Column(TIMESTAMP(timezone=True), default=func.now())  # When archived
+    
+    # Constraints
+    __table_args__ = (
+        CheckConstraint('rating >= -1 AND rating <= 12', name='valid_rating'),
+        CheckConstraint('facility >= 0 AND facility <= 6', name='valid_facility'),
+        CheckConstraint('visual_range >= 0', name='valid_visual_range'),
+        Index('idx_controllers_archive_callsign', 'callsign'),
+        Index('idx_controllers_archive_cid', 'cid'),
+        Index('idx_controllers_archive_archived_at', 'archived_at'),
+    )
+
 # Event listeners for automatic timestamp updates
 @event.listens_for(Base, 'before_update', propagate=True)
 def timestamp_before_update(mapper, connection, target):

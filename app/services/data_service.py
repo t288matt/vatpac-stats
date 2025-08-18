@@ -32,13 +32,370 @@ from app.filters.callsign_pattern_filter import CallsignPatternFilter
 from app.filters.controller_callsign_filter import ControllerCallsignFilter
 from app.database import get_database_session
 from app.models import Flight, Controller, Transceiver
-from app.config import get_config
+from app.config import get_config, AppConfig
 from app.services.atc_detection_service import ATCDetectionService
 from app.utils.sector_loader import SectorLoader
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger_for_module("services.data_service")
+
+
+class ControllerSummaryService:
+    """Service for processing controller summaries."""
+    
+    def __init__(self, config: AppConfig, logger):
+        self.config = config
+        self.logger = logger
+    
+    @handle_service_errors
+    @log_operation("process_completed_controllers")
+    async def process_completed_controllers(self) -> Dict[str, Any]:
+        """Main entry point for controller summary processing."""
+        try:
+            self.logger.info("🚀 Starting controller summary processing")
+            
+            # Get configuration
+            completion_minutes = getattr(self.config.controller_summary, 'completion_minutes', 30)
+            retention_hours = getattr(self.config.controller_summary, 'retention_hours', 168)
+            
+            # Step 1: Identify completed controllers
+            completed_controllers = await self._identify_completed_controllers(completion_minutes)
+            
+            if not completed_controllers:
+                self.logger.info("✅ No completed controllers found for processing")
+                return {
+                    "summaries_created": 0,
+                    "records_archived": 0,
+                    "records_deleted": 0,
+                    "status": "no_work"
+                }
+            
+            self.logger.info(f"📊 Found {len(completed_controllers)} completed controllers to process")
+            
+            # Step 2: Create summaries
+            summaries_created = await self._create_controller_summaries(completed_controllers)
+            
+            # Step 3: Archive completed records
+            records_archived = await self._archive_completed_controllers(completed_controllers)
+            
+            # Step 4: Delete archived records
+            records_deleted = await self._delete_completed_controllers(completed_controllers)
+            
+            result = {
+                "summaries_created": summaries_created,
+                "records_archived": records_archived,
+                "records_deleted": records_deleted,
+                "status": "completed"
+            }
+            
+            self.logger.info(f"✅ Controller summary processing completed: {result}")
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"❌ Controller summary processing failed: {e}")
+            raise
+    
+    async def _identify_completed_controllers(self, completion_minutes: int) -> List[tuple]:
+        """Identify controllers that have been inactive for the specified time."""
+        try:
+            completion_threshold = datetime.now(timezone.utc) - timedelta(minutes=completion_minutes)
+            
+            query = """
+                SELECT DISTINCT callsign, logon_time
+                FROM controllers 
+                WHERE last_updated < :completion_threshold
+                AND callsign NOT IN (
+                    SELECT DISTINCT callsign FROM controller_summaries
+                )
+                AND callsign NOT IN (
+                    SELECT DISTINCT callsign FROM controllers_archive
+                )
+            """
+            
+            async with get_database_session() as session:
+                result = await session.execute(text(query), {"completion_threshold": completion_threshold})
+                completed_controllers = result.fetchall()
+                
+                self.logger.debug(f"Identified {len(completed_controllers)} completed controllers older than {completion_minutes} minutes")
+                return completed_controllers
+                
+        except Exception as e:
+            self.logger.error(f"Error identifying completed controllers: {e}")
+            raise
+    
+    async def _create_controller_summaries(self, completed_controllers: List[tuple]) -> int:
+        """Create summary records for completed controllers."""
+        processed_count = 0
+        async with get_database_session() as session:
+            for controller_key in completed_controllers:
+                callsign, logon_time = controller_key
+                
+                try:
+                    # Get all records for this controller session
+                    controller_records = await session.execute(text("""
+                        SELECT * FROM controllers 
+                        WHERE callsign = :callsign 
+                        AND logon_time = :logon_time
+                        ORDER BY created_at
+                    """), {
+                        "callsign": callsign,
+                        "logon_time": logon_time
+                    })
+                    
+                    records = controller_records.fetchall()
+                    if not records:
+                        continue
+                    
+                    # Get first and last records
+                    first_record = records[0]
+                    last_record = records[-1]
+                    
+                    # Calculate session duration
+                    session_duration_minutes = int((last_record.last_updated - first_record.logon_time).total_seconds() / 60)
+                    
+                    # Get all frequencies used during session
+                    frequencies_used = await self._get_session_frequencies(callsign, logon_time, session)
+                    
+                    # Get aircraft interaction data
+                    aircraft_data = await self._get_aircraft_interactions(callsign, logon_time, last_record.last_updated, session)
+                    
+                    # Create summary data
+                    summary_data = {
+                        "callsign": callsign,
+                        "cid": first_record.cid,
+                        "name": first_record.name,
+                        "session_start_time": first_record.logon_time,
+                        "session_end_time": last_record.last_updated,
+                        "session_duration_minutes": session_duration_minutes,
+                        "rating": first_record.rating,
+                        "facility": first_record.facility,
+                        "server": first_record.server,
+                        "total_aircraft_handled": aircraft_data["total_aircraft"],
+                        "peak_aircraft_count": aircraft_data["peak_count"],
+                        "hourly_aircraft_breakdown": json.dumps(aircraft_data["hourly_breakdown"]),
+                        "frequencies_used": json.dumps(frequencies_used),
+                        "aircraft_details": json.dumps(aircraft_data["details"])
+                    }
+                    
+                    # Insert summary
+                    await session.execute(text("""
+                        INSERT INTO controller_summaries (
+                            callsign, cid, name, session_start_time, session_end_time,
+                            session_duration_minutes, rating, facility, server,
+                            total_aircraft_handled, peak_aircraft_count,
+                            hourly_aircraft_breakdown, frequencies_used, aircraft_details
+                        ) VALUES (
+                            :callsign, :cid, :name, :session_start_time, :session_end_time,
+                            :session_duration_minutes, :rating, :facility, :server,
+                            :total_aircraft_handled, :peak_aircraft_count,
+                            :hourly_aircraft_breakdown, :frequencies_used, :aircraft_details
+                        )
+                    """), summary_data)
+                    
+                    processed_count += 1
+                    
+                except Exception as e:
+                    self.logger.error(f"Failed to process controller {callsign}: {e}")
+                    continue
+            
+            # Commit all changes
+            await session.commit()
+            return processed_count
+    
+    async def _get_session_frequencies(self, callsign: str, logon_time: datetime, session) -> List[str]:
+        """Get all frequencies used during a controller session."""
+        try:
+            result = await session.execute(text("""
+                SELECT DISTINCT frequency 
+                FROM controllers 
+                WHERE callsign = :callsign 
+                AND logon_time = :logon_time
+                AND frequency IS NOT NULL
+                ORDER BY frequency
+            """), {
+                "callsign": callsign,
+                "logon_time": logon_time
+            })
+            
+            frequencies = [str(row.frequency) for row in result.fetchall()]
+            return frequencies
+            
+        except Exception as e:
+            self.logger.error(f"Error getting frequencies for {callsign}: {e}")
+            return []
+    
+    async def _get_aircraft_interactions(self, callsign: str, session_start: datetime, session_end: datetime, session) -> Dict[str, Any]:
+        """Get aircraft interaction data for a controller session."""
+        try:
+            # Get controller frequencies
+            frequencies_result = await session.execute(text("""
+                SELECT DISTINCT frequency 
+                FROM controllers 
+                WHERE callsign = :callsign 
+                AND logon_time = :session_start
+                AND frequency IS NOT NULL
+            """), {
+                "callsign": callsign,
+                "session_start": session_start
+            })
+            
+            frequencies = [row.frequency for row in frequencies_result.fetchall()]
+            if not frequencies:
+                return self._empty_aircraft_data()
+            
+            # Convert MHz to Hz for transceivers lookup
+            frequencies_hz = [int(float(freq) * 1000000) for freq in frequencies]
+            
+            # Get aircraft data
+            aircraft_result = await session.execute(text("""
+                SELECT 
+                    callsign as aircraft_callsign,
+                    frequency,
+                    MIN(timestamp) as first_seen,
+                    MAX(timestamp) as last_seen,
+                    COUNT(*) as updates_count
+                FROM transceivers 
+                WHERE entity_type = 'flight'
+                AND frequency = ANY(:frequencies_hz)
+                AND timestamp BETWEEN :session_start AND :session_end
+                GROUP BY callsign, frequency
+                ORDER BY first_seen
+            """), {
+                "frequencies_hz": frequencies_hz,
+                "session_start": session_start,
+                "session_end": session_end
+            })
+            
+            aircraft_records = aircraft_result.fetchall()
+            
+            # Process into summary format
+            return self._process_aircraft_data(aircraft_records, session_start, session_end)
+            
+        except Exception as e:
+            self.logger.error(f"Error getting aircraft interactions for {callsign}: {e}")
+            return self._empty_aircraft_data()
+    
+    def _empty_aircraft_data(self) -> Dict[str, Any]:
+        """Return empty aircraft data structure."""
+        return {
+            "total_aircraft": 0,
+            "peak_count": 0,
+            "hourly_breakdown": {},
+            "details": []
+        }
+    
+    def _process_aircraft_data(self, aircraft_records: List, session_start: datetime, session_end: datetime) -> Dict[str, Any]:
+        """Process aircraft records into summary format."""
+        if not aircraft_records:
+            return self._empty_aircraft_data()
+        
+        # Calculate hourly breakdown
+        hourly_breakdown = {}
+        for hour in range(24):
+            hourly_breakdown[hour] = 0
+        
+        # Process each aircraft
+        aircraft_details = []
+        total_aircraft = len(aircraft_records)
+        peak_count = 0
+        
+        for record in aircraft_records:
+            # Calculate time on frequency
+            time_on_frequency = (record.last_seen - record.first_seen).total_seconds() / 60
+            
+            # Add to hourly breakdown
+            start_hour = record.first_seen.hour
+            end_hour = record.last_seen.hour
+            
+            if start_hour == end_hour:
+                hourly_breakdown[start_hour] += 1
+            else:
+                # Aircraft active across multiple hours
+                for hour in range(start_hour, end_hour + 1):
+                    if hour < 24:
+                        hourly_breakdown[hour] += 1
+            
+            # Track peak count
+            peak_count = max(peak_count, hourly_breakdown[start_hour])
+            
+            # Create aircraft detail record
+            aircraft_detail = {
+                "callsign": record.aircraft_callsign,
+                "frequency": record.frequency,
+                "first_seen": record.first_seen.isoformat(),
+                "last_seen": record.last_seen.isoformat(),
+                "time_on_frequency_minutes": int(time_on_frequency),
+                "updates_count": record.updates_count
+            }
+            aircraft_details.append(aircraft_detail)
+        
+        return {
+            "total_aircraft": total_aircraft,
+            "peak_count": peak_count,
+            "hourly_breakdown": hourly_breakdown,
+            "details": aircraft_details
+        }
+    
+    async def _archive_completed_controllers(self, completed_controllers: List[tuple]) -> int:
+        """Archive completed controller records."""
+        archived_count = 0
+        async with get_database_session() as session:
+            for controller_key in completed_controllers:
+                callsign, logon_time = controller_key
+                
+                try:
+                    # Archive all records for this session
+                    result = await session.execute(text("""
+                        INSERT INTO controllers_archive (
+                            id, callsign, frequency, cid, name, rating, facility,
+                            visual_range, text_atis, server, last_updated, logon_time,
+                            created_at, updated_at
+                        )
+                        SELECT 
+                            id, callsign, frequency, cid, name, rating, facility,
+                            visual_range, text_atis, server, last_updated, logon_time,
+                            created_at, updated_at
+                        FROM controllers
+                        WHERE callsign = :callsign AND logon_time = :logon_time
+                    """), {
+                        "callsign": callsign,
+                        "logon_time": logon_time
+                    })
+                    
+                    archived_count += result.rowcount
+                    
+                except Exception as e:
+                    self.logger.error(f"Failed to archive controller {callsign}: {e}")
+                    continue
+            
+            await session.commit()
+            return archived_count
+    
+    async def _delete_completed_controllers(self, completed_controllers: List[tuple]) -> int:
+        """Delete completed controller records from main table."""
+        deleted_count = 0
+        async with get_database_session() as session:
+            for controller_key in completed_controllers:
+                callsign, logon_time = controller_key
+                
+                try:
+                    result = await session.execute(text("""
+                        DELETE FROM controllers
+                        WHERE callsign = :callsign AND logon_time = :logon_time
+                    """), {
+                        "callsign": callsign,
+                        "logon_time": logon_time
+                    })
+                    
+                    deleted_count += result.rowcount
+                    
+                except Exception as e:
+                    self.logger.error(f"Failed to delete controller {callsign}: {e}")
+                    continue
+            
+            await session.commit()
+            return deleted_count
 
 
 class DataService:
@@ -71,6 +428,9 @@ class DataService:
         
         # Initialize ATC detection service
         self.atc_detection_service = ATCDetectionService()
+        
+        # Initialize controller summary service
+        self.controller_summary_service = ControllerSummaryService(self.config, self.logger)
         
         # NEW: Initialize sector tracking
         self.sector_tracking_enabled = self.config.sector_tracking.enabled
@@ -120,6 +480,10 @@ class DataService:
             
             # Start scheduled flight summary processing
             await self.start_scheduled_flight_processing()
+            
+            # Start scheduled controller summary processing
+            if self.config.controller_summary.enabled:
+                await self.start_scheduled_controller_processing()
             
             return True
             
@@ -1392,6 +1756,51 @@ class DataService:
         except Exception as e:
             self.logger.error(f"Failed to start scheduled flight processing: {e}")
 
+    async def start_scheduled_controller_processing(self):
+        """Start automatic scheduled controller summary processing."""
+        try:
+            # Validate configuration before starting
+            self._validate_controller_summary_config()
+            
+            # Get interval from config (convert minutes to seconds)
+            interval_minutes = getattr(self.config.controller_summary, 'summary_interval_minutes', 60)
+            interval_seconds = interval_minutes * 60
+            
+            self.logger.info(f"🚀 Starting scheduled controller summary processing - interval: {interval_minutes} minutes ({interval_seconds} seconds)")
+            
+            # Start background task
+            asyncio.create_task(self._scheduled_controller_processing_loop(interval_seconds))
+            
+        except Exception as e:
+            self.logger.error(f"Failed to start scheduled controller processing: {e}")
+
+    def _validate_controller_summary_config(self):
+        """Validate controller summary configuration before starting scheduled processing."""
+        try:
+            if not hasattr(self.config, 'controller_summary'):
+                raise ValueError("Controller summary configuration not found")
+            
+            config = self.config.controller_summary
+            
+            if not config.enabled:
+                self.logger.info("Controller summary processing is disabled")
+                return
+            
+            if config.summary_interval_minutes < 1:
+                raise ValueError("CONTROLLER_SUMMARY_INTERVAL must be at least 1 minute")
+            
+            if config.completion_minutes < 1:
+                raise ValueError("CONTROLLER_COMPLETION_MINUTES must be at least 1 minute")
+            
+            if config.retention_hours < 1:
+                raise ValueError("CONTROLLER_RETENTION_HOURS must be at least 1 hour")
+            
+            self.logger.info(f"✅ Controller summary configuration validated: interval={config.summary_interval_minutes}min, completion={config.completion_minutes}min, retention={config.retention_hours}h")
+            
+        except Exception as e:
+            self.logger.error(f"❌ Controller summary configuration validation failed: {e}")
+            raise
+
     def _validate_flight_summary_config(self):
         """Validate flight summary configuration before starting scheduled processing."""
         try:
@@ -1440,11 +1849,43 @@ class DataService:
                 # Wait a bit before retrying
                 await asyncio.sleep(60)  # Wait 1 minute before retry
 
+    async def _scheduled_controller_processing_loop(self, interval_seconds: int):
+        """Background loop for scheduled controller summary processing."""
+        while True:
+            try:
+                # Log the scheduled run
+                self.logger.info(f"⏰ Scheduled controller summary processing started at {datetime.now(timezone.utc)}")
+                
+                # Process completed controllers
+                result = await self.controller_summary_service.process_completed_controllers()
+                
+                # Log the results
+                self.logger.info(f"✅ Scheduled controller processing completed: {result['summaries_created']} summaries created, {result['records_archived']} records archived")
+                
+                # Wait for next interval
+                await asyncio.sleep(interval_seconds)
+                
+            except Exception as e:
+                self.logger.error(f"❌ Error in scheduled controller processing: {e}")
+                # Wait a bit before retrying
+                await asyncio.sleep(60)  # Wait 1 minute before retry
+
     async def trigger_flight_summary_processing(self) -> Dict[str, Any]:
         """Manually trigger flight summary processing (for testing/admin use)."""
         try:
             self.logger.info("🔧 Manual flight summary processing triggered")
             result = await self.process_completed_flights()
+            self.logger.info(f"✅ Manual processing completed: {result}")
+            return result
+        except Exception as e:
+            self.logger.error(f"❌ Manual processing failed: {e}")
+            raise
+
+    async def trigger_controller_summary_processing(self) -> Dict[str, Any]:
+        """Manually trigger controller summary processing (for testing/admin use)."""
+        try:
+            self.logger.info("🔧 Manual controller summary processing triggered")
+            result = await self.controller_summary_service.process_completed_controllers()
             self.logger.info(f"✅ Manual processing completed: {result}")
             return result
         except Exception as e:

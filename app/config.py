@@ -38,9 +38,10 @@ ENVIRONMENT VARIABLES:
 """
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 from pathlib import Path
+# from pydantic import BaseSettings, validator  # Not used in current implementation
 
 
 @dataclass
@@ -209,6 +210,28 @@ class PilotConfig:
 
 
 @dataclass
+class ControllerSummaryConfig:
+    """Configuration for controller summary processing."""
+    enabled: bool = True
+    completion_minutes: int = 30
+    retention_hours: int = 168
+    summary_interval_minutes: int = 60
+    
+    @classmethod
+    def from_env(cls):
+        """Load controller summary configuration from environment variables."""
+        return cls(
+            enabled=os.getenv("CONTROLLER_SUMMARY_ENABLED", "true").lower() == "true",
+            completion_minutes=int(os.getenv("CONTROLLER_COMPLETION_MINUTES", "30")),
+            retention_hours=int(os.getenv("CONTROLLER_RETENTION_HOURS", "168")),
+            summary_interval_minutes=int(os.getenv("CONTROLLER_SUMMARY_INTERVAL", "60"))
+        )
+
+
+
+
+
+@dataclass
 class AppConfig:
     """Main application configuration with no hardcoding."""
     database: DatabaseConfig
@@ -222,6 +245,7 @@ class AppConfig:
     flight_summary: FlightSummaryConfig
     sector_tracking: SectorTrackingConfig
     controller_callsign_filter: ControllerCallsignFilterConfig
+    controller_summary: ControllerSummaryConfig = field(default_factory=ControllerSummaryConfig)
     environment: str = "development"
     
     @classmethod
@@ -239,6 +263,7 @@ class AppConfig:
             flight_summary=FlightSummaryConfig.from_env(),
             sector_tracking=SectorTrackingConfig.from_env(),
             controller_callsign_filter=ControllerCallsignFilterConfig.from_env(),
+            controller_summary=ControllerSummaryConfig.from_env(),
             environment=os.getenv("ENVIRONMENT", "development")
         )
 

@@ -99,7 +99,11 @@ services:
       # Default: 300 seconds (5 minutes) - adjust based on VATSIM data update frequency
       CLEANUP_FLIGHT_TIMEOUT: 300
 
-
+      # Controller Summary Configuration
+      CONTROLLER_SUMMARY_ENABLED: "true"
+      CONTROLLER_COMPLETION_MINUTES: "30"
+      CONTROLLER_RETENTION_HOURS: "168"
+      CONTROLLER_SUMMARY_INTERVAL: "60"
 
 
     volumes:
