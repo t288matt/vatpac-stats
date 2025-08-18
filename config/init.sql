@@ -399,42 +399,11 @@ WHERE table_schema = 'public'
 ORDER BY table_name, ordinal_position;
 
 -- ============================================================================
--- MATERIALIZED VIEW OPTIMIZATION FOR CONTROLLER STATISTICS
+-- MATERIALIZED VIEW OPTIMIZATION REMOVED
 -- ============================================================================
--- This section creates the materialized view and related objects for
--- dramatically improved controller statistics query performance.
+-- The controller_weekly_stats materialized view and related objects have been
+-- removed to simplify the database schema.
 -- 
--- Performance improvement: 5-15 seconds → 10-50ms (100-300x faster)
--- Eliminates N+1 subquery problem with pre-computed results
-
--- Create materialized view for controller weekly statistics
--- This pre-computes controller performance data for the last week
-CREATE MATERIALIZED VIEW IF NOT EXISTS controller_weekly_stats AS
-SELECT 
-    jsonb_object_keys(fs.controller_callsigns::jsonb) as controller_callsign,
-    COUNT(DISTINCT fs.callsign) as unique_flights_handled,
-    MAX(fs.completion_time) as last_flight_time,
-    COUNT(*) as total_interactions
-FROM flight_summaries fs 
-WHERE fs.completion_time >= NOW() - INTERVAL '1 week'
-    AND fs.controller_callsigns IS NOT NULL 
-    AND fs.controller_callsigns != '{}'
-GROUP BY jsonb_object_keys(fs.controller_callsigns::jsonb);
-
--- Create performance indexes for the materialized view
--- These ensure fast lookups and sorting operations
-CREATE INDEX IF NOT EXISTS idx_controller_stats_callsign ON controller_weekly_stats(controller_callsign);
-CREATE INDEX IF NOT EXISTS idx_controller_stats_flight_count ON controller_weekly_stats(unique_flights_handled);
-
--- Create refresh function for the materialized view
--- This allows updating the view with fresh data when needed
-CREATE OR REPLACE FUNCTION refresh_controller_stats() 
-RETURNS void AS $$
-BEGIN 
-    REFRESH MATERIALIZED VIEW controller_weekly_stats; 
-END; 
-$$ LANGUAGE plpgsql;
-
--- ============================================================================
--- END OF MATERIALIZED VIEW OPTIMIZATION
+-- If you need to restore this optimization in the future, see:
+-- docs/MATERIALIZED_VIEW_OPTIMIZATION.md
 -- ============================================================================ 
