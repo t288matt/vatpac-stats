@@ -207,16 +207,6 @@ class FlightDetectionService:
                     FROM controller_transceivers ct 
                     JOIN flight_transceivers ft ON ct.frequency_mhz = ft.frequency_mhz 
                     AND ABS(EXTRACT(EPOCH FROM (ct.timestamp - ft.timestamp))) <= :time_window
-                    AND (
-                        -- Haversine formula for distance in nautical miles
-                        (3440.065 * ACOS(
-                            LEAST(1, GREATEST(-1, 
-                                SIN(RADIANS(ct.position_lat)) * SIN(RADIANS(ft.position_lat)) +
-                                COS(RADIANS(ct.position_lat)) * COS(RADIANS(ft.position_lat)) * 
-                                COS(RADIANS(ct.position_lon - ft.position_lon))
-                            ))
-                        )) <= :proximity_threshold_nm
-                    )
                 )
                 SELECT 
                     controller_callsign,
@@ -230,6 +220,16 @@ class FlightDetectionService:
                     flight_lon,
                     ABS(EXTRACT(EPOCH FROM (controller_time - flight_time))) as time_diff_seconds
                 FROM frequency_matches
+                WHERE (
+                    -- Haversine formula for distance in nautical miles
+                    (3440.065 * ACOS(
+                        LEAST(1, GREATEST(-1, 
+                            SIN(RADIANS(controller_lat)) * SIN(RADIANS(flight_lat)) +
+                            COS(RADIANS(controller_lat)) * COS(RADIANS(flight_lat)) * 
+                            COS(RADIANS(controller_lon - flight_lon))
+                        ))
+                    )) <= :proximity_threshold_nm
+                )
                 ORDER BY flight_time, controller_time
             """
             

@@ -112,6 +112,34 @@ This document consolidates all remaining work across the VATSIM data project, or
 
 ---
 
+## 🎮 **Priority 4.5: Controller Summary System Enhancement**
+
+### **Current Status**: ✅ **BASIC IMPLEMENTATION COMPLETE** - Core functionality working, needs enhancement
+
+### **Completed Tasks**:
+- ✅ **Controller summary processing** - Automatic creation of controller session summaries
+- ✅ **Flight detection service** - Geographic proximity filtering for controller-pilot interactions
+- ✅ **JSON serialization fix** - Proper handling of Decimal and datetime objects
+- ✅ **Data integrity protection** - Only successful summaries trigger archiving
+- ✅ **30nm proximity filter** - Basic geographic filtering implemented
+
+### **Required Tasks**:
+- [ ] **Implement different ranges for different controllers** - Configure proximity thresholds based on controller type/facility
+  - **Ground controllers**: 15-20nm (local airport operations)
+  - **Tower controllers**: 25-30nm (approach/departure operations)  
+  - **Approach controllers**: 50-75nm (terminal area operations)
+  - **Center controllers**: 100-150nm (enroute operations)
+- [ ] **Controller type detection** - Automatically identify controller type from callsign/facility
+- [ ] **Dynamic proximity configuration** - Adjust ranges based on controller role
+- [ ] **Facility-based filtering** - Different ranges for different airport facilities
+- [ ] **Performance optimization** - Optimize queries for different controller types
+- [ ] **Configuration management** - Environment variables for different controller ranges
+
+### **Estimated Time**: 3-4 days
+### **Dependencies**: Current controller summary system (✅ RESOLVED)
+
+---
+
 ## 🧹 **Priority 5: Cleanup System Implementation**
 
 ### **Current Status**: ✅ **COMPLETED** - Fully implemented and operational
