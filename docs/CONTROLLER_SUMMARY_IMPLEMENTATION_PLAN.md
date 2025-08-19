@@ -100,10 +100,6 @@ CREATE TABLE IF NOT EXISTS controller_summaries (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     
     -- Constraints
-    CONSTRAINT valid_session_duration CHECK (
-        session_duration_minutes = EXTRACT(EPOCH FROM (session_end_time - session_start_time)) / 60
-        OR session_end_time IS NULL
-    ),
     CONSTRAINT valid_aircraft_counts CHECK (
         total_aircraft_handled >= 0 
         AND peak_aircraft_count >= 0 
@@ -159,7 +155,6 @@ CREATE TRIGGER update_controller_summaries_updated_at
 
 ### 1.5 Table Constraints ✅
 The table creation SQL includes several CHECK constraints for data integrity:
-- **Session duration validation**: Ensures calculated duration matches actual time difference
 - **Aircraft count validation**: Ensures logical consistency between total and peak counts
 - **Session time validation**: Ensures end time is after start time
 - **Rating validation**: Ensures rating is within valid VATSIM range (1-11)

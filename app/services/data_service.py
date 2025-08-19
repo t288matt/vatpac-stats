@@ -34,6 +34,7 @@ from app.database import get_database_session
 from app.models import Flight, Controller, Transceiver
 from app.config import get_config, AppConfig
 from app.services.atc_detection_service import ATCDetectionService
+from app.services.flight_detection_service import FlightDetectionService
 from app.utils.sector_loader import SectorLoader
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -76,10 +77,23 @@ class ControllerSummaryService:
             # Step 2: Create summaries
             summaries_created = await self._create_controller_summaries(completed_controllers)
             
-            # Step 3: Archive completed records
+            # CRITICAL: Validate summaries were created before proceeding
+            if summaries_created == 0:
+                self.logger.error("❌ No summaries were created - aborting archiving to prevent data loss")
+                return {
+                    "summaries_created": 0,
+                    "records_archived": 0,
+                    "records_deleted": 0,
+                    "status": "failed_no_summaries",
+                    "error": "No summaries created - archiving aborted to prevent data loss"
+                }
+            
+            self.logger.info(f"✅ Successfully created {summaries_created} summaries - proceeding with archiving")
+            
+            # Step 3: Archive completed records (only if summaries were created)
             records_archived = await self._archive_completed_controllers(completed_controllers)
             
-            # Step 4: Delete archived records
+            # Step 4: Delete completed records (only if summaries were created)
             records_deleted = await self._delete_completed_controllers(completed_controllers)
             
             result = {
@@ -108,9 +122,6 @@ class ControllerSummaryService:
                 AND callsign NOT IN (
                     SELECT DISTINCT callsign FROM controller_summaries
                 )
-                AND callsign NOT IN (
-                    SELECT DISTINCT callsign FROM controllers_archive
-                )
             """
             
             async with get_database_session() as session:
@@ -119,7 +130,7 @@ class ControllerSummaryService:
                 
                 self.logger.debug(f"Identified {len(completed_controllers)} completed controllers older than {completion_minutes} minutes")
                 return completed_controllers
-                
+            
         except Exception as e:
             self.logger.error(f"Error identifying completed controllers: {e}")
             raise
@@ -127,6 +138,8 @@ class ControllerSummaryService:
     async def _create_controller_summaries(self, completed_controllers: List[tuple]) -> int:
         """Create summary records for completed controllers."""
         processed_count = 0
+        failed_count = 0
+        
         async with get_database_session() as session:
             for controller_key in completed_controllers:
                 callsign, logon_time = controller_key
@@ -145,6 +158,8 @@ class ControllerSummaryService:
                     
                     records = controller_records.fetchall()
                     if not records:
+                        self.logger.warning(f"No records found for controller {callsign} with logon_time {logon_time}")
+                        failed_count += 1
                         continue
                     
                     # Get first and last records
@@ -194,13 +209,19 @@ class ControllerSummaryService:
                     """), summary_data)
                     
                     processed_count += 1
+                    self.logger.debug(f"✅ Created summary for controller {callsign}")
                     
                 except Exception as e:
-                    self.logger.error(f"Failed to process controller {callsign}: {e}")
+                    self.logger.error(f"❌ Failed to process controller {callsign}: {e}")
+                    failed_count += 1
                     continue
             
             # Commit all changes
             await session.commit()
+            
+            if failed_count > 0:
+                self.logger.warning(f"⚠️ Summary creation completed with {failed_count} failures out of {len(completed_controllers)} controllers")
+            
             return processed_count
     
     async def _get_session_frequencies(self, callsign: str, logon_time: datetime, session) -> List[str]:
@@ -226,51 +247,25 @@ class ControllerSummaryService:
             return []
     
     async def _get_aircraft_interactions(self, callsign: str, session_start: datetime, session_end: datetime, session) -> Dict[str, Any]:
-        """Get aircraft interaction data for a controller session."""
+        """Get aircraft interaction data for a controller session using Flight Detection Service."""
         try:
-            # Get controller frequencies
-            frequencies_result = await session.execute(text("""
-                SELECT DISTINCT frequency 
-                FROM controllers 
-                WHERE callsign = :callsign 
-                AND logon_time = :session_start
-                AND frequency IS NOT NULL
-            """), {
-                "callsign": callsign,
-                "session_start": session_start
-            })
+            # Use the Flight Detection Service for accurate controller-pilot pairing
+            # This ensures 300nm geographic proximity validation and proper frequency matching
+            flight_data = await self.flight_detection_service.detect_controller_flight_interactions_with_timeout(
+                callsign, session_start, session_end, timeout_seconds=30.0
+            )
             
-            frequencies = [row.frequency for row in frequencies_result.fetchall()]
-            if not frequencies:
+            if not flight_data.get("flights_detected", False):
+                self.logger.debug(f"No flight interactions detected for controller {callsign}")
                 return self._empty_aircraft_data()
             
-            # Convert MHz to Hz for transceivers lookup
-            frequencies_hz = [int(float(freq) * 1000000) for freq in frequencies]
-            
-            # Get aircraft data
-            aircraft_result = await session.execute(text("""
-                SELECT 
-                    callsign as aircraft_callsign,
-                    frequency,
-                    MIN(timestamp) as first_seen,
-                    MAX(timestamp) as last_seen,
-                    COUNT(*) as updates_count
-                FROM transceivers 
-                WHERE entity_type = 'flight'
-                AND frequency = ANY(:frequencies_hz)
-                AND timestamp BETWEEN :session_start AND :session_end
-                GROUP BY callsign, frequency
-                ORDER BY first_seen
-            """), {
-                "frequencies_hz": frequencies_hz,
-                "session_start": session_start,
-                "session_end": session_end
-            })
-            
-            aircraft_records = aircraft_result.fetchall()
-            
-            # Process into summary format
-            return self._process_aircraft_data(aircraft_records, session_start, session_end)
+            # Convert Flight Detection Service format to existing summary format
+            return {
+                "total_aircraft": flight_data["total_aircraft"],
+                "peak_count": flight_data["peak_count"],
+                "hourly_breakdown": flight_data["hourly_breakdown"],
+                "details": flight_data["details"]
+            }
             
         except Exception as e:
             self.logger.error(f"Error getting aircraft interactions for {callsign}: {e}")
@@ -428,6 +423,9 @@ class DataService:
         
         # Initialize ATC detection service
         self.atc_detection_service = ATCDetectionService()
+        
+        # Initialize Flight detection service for controller summaries
+        self.flight_detection_service = FlightDetectionService()
         
         # Initialize controller summary service
         self.controller_summary_service = ControllerSummaryService(self.config, self.logger)

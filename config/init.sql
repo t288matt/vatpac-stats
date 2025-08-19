@@ -5,6 +5,8 @@
 -- IMPORTANT: This script includes the flight_sector_occupancy table with altitude fields
 -- required for real-time sector tracking functionality.
 -- 
+-- This script also includes controller summary and archive tables for completed controller sessions.
+-- 
 -- VATSIM API Field Mapping - EXACT 1:1 mapping with API field names:
 -- - API "cid" → cid (Controller ID from VATSIM)
 -- - API "name" → name (Controller name from VATSIM)  
@@ -364,6 +366,67 @@ CREATE TRIGGER update_flight_summaries_updated_at
     BEFORE UPDATE ON flight_summaries 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- Controller Summaries table for completed controller session data
+CREATE TABLE IF NOT EXISTS controller_summaries (
+    id BIGSERIAL PRIMARY KEY,
+    
+    -- Controller Identity
+    callsign VARCHAR(50) NOT NULL,
+    cid INTEGER,
+    name VARCHAR(100),
+    
+    -- Session Summary
+    session_start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    session_end_time TIMESTAMP WITH TIME ZONE,
+    session_duration_minutes INTEGER DEFAULT 0,
+    
+    -- Controller Details
+    rating INTEGER,
+    facility INTEGER,
+    server VARCHAR(50),
+    
+    -- Aircraft Activity
+    total_aircraft_handled INTEGER DEFAULT 0,
+    peak_aircraft_count INTEGER DEFAULT 0,
+    hourly_aircraft_breakdown JSONB,
+    frequencies_used JSONB,
+    aircraft_details JSONB,
+    
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Constraints
+    CONSTRAINT valid_aircraft_counts CHECK (
+        total_aircraft_handled >= 0 
+        AND peak_aircraft_count >= 0 
+        AND peak_aircraft_count <= total_aircraft_handled
+    ),
+    CONSTRAINT valid_session_times CHECK (
+        session_end_time IS NULL OR session_end_time > session_start_time
+    ),
+    CONSTRAINT valid_rating CHECK (rating >= 1 AND rating <= 11)
+);
+
+-- Controllers Archive table for detailed historical records
+CREATE TABLE IF NOT EXISTS controllers_archive (
+    id INTEGER PRIMARY KEY,
+    callsign VARCHAR(50) NOT NULL,
+    frequency VARCHAR(20),
+    cid INTEGER,
+    name VARCHAR(100),
+    rating INTEGER,
+    facility INTEGER,
+    visual_range INTEGER,
+    text_atis TEXT,
+    server VARCHAR(50),
+    last_updated TIMESTAMP(0) WITH TIME ZONE,
+    logon_time TIMESTAMP(0) WITH TIME ZONE,
+    created_at TIMESTAMP(0) WITH TIME ZONE,
+    updated_at TIMESTAMP(0) WITH TIME ZONE,
+    archived_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Flight Sector Occupancy table for tracking sector entry/exit
 CREATE TABLE IF NOT EXISTS flight_sector_occupancy (
     id BIGSERIAL PRIMARY KEY,
@@ -386,6 +449,24 @@ CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_callsign ON flight_sector
 CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_sector_name ON flight_sector_occupancy(sector_name);
 CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_entry_timestamp ON flight_sector_occupancy(entry_timestamp);
 
+-- Create indexes for controller_summaries table
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_callsign ON controller_summaries(callsign);
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_session_time ON controller_summaries(session_start_time, session_end_time);
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_aircraft_count ON controller_summaries(total_aircraft_handled);
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_rating ON controller_summaries(rating);
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_facility ON controller_summaries(facility);
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_frequencies ON controller_summaries USING GIN(frequencies_used);
+
+-- Create indexes for controllers_archive table
+CREATE INDEX IF NOT EXISTS idx_controllers_archive_callsign ON controllers_archive(callsign);
+CREATE INDEX IF NOT EXISTS idx_controllers_archive_logon_time ON controllers_archive(logon_time);
+CREATE INDEX IF NOT EXISTS idx_controllers_archive_last_updated ON controllers_archive(last_updated);
+
+-- Create triggers for updated_at columns on controller tables
+CREATE TRIGGER update_controller_summaries_updated_at 
+    BEFORE UPDATE ON controller_summaries 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- Verify all tables were created successfully
 SELECT 
     table_name,
@@ -395,7 +476,7 @@ SELECT
     column_default
 FROM information_schema.columns 
 WHERE table_schema = 'public' 
-    AND table_name IN ('controllers', 'flights', 'transceivers', 'flight_summaries', 'flights_archive', 'flight_sector_occupancy')
+    AND table_name IN ('controllers', 'flights', 'transceivers', 'flight_summaries', 'flights_archive', 'flight_sector_occupancy', 'controller_summaries', 'controllers_archive')
 ORDER BY table_name, ordinal_position;
 
 -- ============================================================================

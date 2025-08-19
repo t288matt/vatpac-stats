@@ -101,9 +101,13 @@ services:
 
       # Controller Summary Configuration
       CONTROLLER_SUMMARY_ENABLED: "true"
-      CONTROLLER_COMPLETION_MINUTES: "30"
+      CONTROLLER_COMPLETION_MINUTES: "30"     # 30 minutes - this is when summaries are made and records archived
       CONTROLLER_RETENTION_HOURS: "168"
       CONTROLLER_SUMMARY_INTERVAL: "60"
+      
+      # Flight Detection Service Configuration (for controller summaries)
+      FLIGHT_DETECTION_TIME_WINDOW_SECONDS: "180"    # Time window for frequency matching (3 minutes)
+      FLIGHT_DETECTION_PROXIMITY_THRESHOLD_NM: "30"  # Geographic proximity threshold in nautical miles
 
 
     volumes:

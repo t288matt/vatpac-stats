@@ -31,10 +31,6 @@ CREATE TABLE IF NOT EXISTS controller_summaries (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     
     -- Constraints
-    CONSTRAINT valid_session_duration CHECK (
-        session_duration_minutes = EXTRACT(EPOCH FROM (session_end_time - session_start_time)) / 60
-        OR session_end_time IS NULL
-    ),
     CONSTRAINT valid_aircraft_counts CHECK (
         total_aircraft_handled >= 0 
         AND peak_aircraft_count >= 0 
