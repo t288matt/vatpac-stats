@@ -2,19 +2,28 @@
 
 ## Purpose
 
-This system extracts controller callsigns from the VATSIM `Positions.xml` file and implements a high-performance filter to process VATSIM API controller data. The filter ensures only Australian controller callsigns are stored, significantly reducing database storage and improving performance.
+This system extracts controller callsigns from the VATSIM `Sectors.xml` file and implements a high-performance filter to process VATSIM API controller data. The filter ensures only Australian controller callsigns are stored, significantly reducing database storage and improving performance.
 
 ## Background
 
-The VATSIM API provides real-time data about air traffic controllers worldwide, but we only need Australian controllers. Since controllers don't have geographic coordinates, traditional geographic boundary filtering cannot be used. Instead, we use a predefined list of valid Australian controller callsigns extracted from the official VATSIM `Positions.xml` configuration.
+The VATSIM API provides real-time data about air traffic controllers worldwide, but we only need Australian controllers. Since controllers don't have geographic coordinates, traditional geographic boundary filtering cannot be used. Instead, we use a predefined list of valid Australian controller callsigns extracted from the official VATSIM `Sectors.xml` configuration.
 
 ## What We've Implemented
 
 ### 1. Callsign Extraction Script
-- **Script**: `extract_controller_callsigns_from_positions.py`
-- **Input**: `Positions.xml` (VATSIM position configuration)
-- **Output**: `controller_callsigns_list.txt` (88 unique Australian controller callsigns)
+- **Script**: `extract_controller_callsigns_from_sectors.py`
+- **Input**: `Sectors.xml` (VATSIM sector configuration)
+- **Output**: `controller_callsigns_list.txt` (254 unique filtered controller callsigns)
 - **Format**: Plain text, one callsign per line, alphabetically sorted
+- **Filtering Rules**:
+  - For callsigns ending `_CTR` or `_FSS`: Only keep those starting with `ML-` or `BN-`
+  - All other callsigns: Retain regardless of format
+  - **Examples**:
+    - `ML-ASP_CTR` → **KEPT** (CTR starting with ML-)
+    - `BN-ARA_CTR` → **KEPT** (CTR starting with BN-)
+    - `VRMF_CTR` → **FILTERED OUT** (CTR not starting with ML- or BN-)
+    - `SY_TWR` → **KEPT** (not CTR/FSS, so retained)
+    - `NFFN_APP` → **KEPT** (not CTR/FSS, so retained)
 
 ### 2. Controller Callsign Filter (`ControllerCallsignFilter`)
 - **Location**: `app/filters/controller_callsign_filter.py`
@@ -52,20 +61,21 @@ The VATSIM API provides real-time data about air traffic controllers worldwide, 
 - **Filename**: `controller_callsigns_list.txt`
 - **Location**: `config/` directory (mounted as Docker volume)
 - **Format**: Plain text, one callsign per line
-- **Content**: 88 unique Australian controller callsigns
+- **Content**: 254 unique filtered controller callsigns
 - **Example**:
   ```
   AD-W_APP
+  AD_APP
   AD_DEL
   AD_FMP
   AD_GND
-  AF_GND
-  AMB_DEL
-  AMB_GND
-  AV_APP
-  AY_GND
-  BK_GND
-  BN-C_APP
+  AD_TWR
+  BN-ARA_CTR
+  BN-COL_FSS
+  ML-ASP_CTR
+  ML-IND_FSS
+  NFFN_APP
+  SY_TWR
   ...
   ```
 
@@ -84,7 +94,7 @@ The VATSIM API provides real-time data about air traffic controllers worldwide, 
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │           ControllerCallsignFilter                 │   │
 │  │  ┌─────────────────────────────────────────────┐   │   │
-│  │  │        Load callsigns from file            │   │   │
+│  │  │        Load filtered callsigns from file  │   │   │
 │  │  │        (config/controller_callsigns_list.txt)│   │   │
 │  │  └─────────────────────────────────────────────┘   │   │
 │  │                                                     │   │
@@ -112,12 +122,12 @@ The VATSIM API provides real-time data about air traffic controllers worldwide, 
 ### Time Complexity
 - **Filtering**: O(n) where n = number of controllers in API response
 - **Lookup**: O(1) per callsign using Python set
-- **Memory**: O(k) where k = number of valid callsigns (88)
+- **Memory**: O(k) where k = number of valid callsigns (254)
 
 ### Real-World Performance
 - **API Response**: ~1000-5000 controllers worldwide
 - **Filtering Time**: <1ms for typical responses
-- **Memory Usage**: ~2KB for callsign set
+- **Memory Usage**: ~6KB for callsign set
 - **Database Storage**: 95%+ reduction (worldwide → Australian only)
 
 ## Usage Examples
@@ -131,7 +141,7 @@ curl http://localhost:8001/api/filter/controller-callsign/status
 ```json
 {
   "enabled": true,
-  "valid_callsigns_loaded": 88,
+  "valid_callsigns_loaded": 254,
   "callsign_list_path": "config/controller_callsigns_list.txt",
   "case_sensitive": true,
   "filtering_active": true
@@ -152,11 +162,11 @@ curl http://localhost:8001/api/filter/controller-callsign/status
 ```json
 {
   "enabled": true,
-  "valid_callsigns_loaded": 88,
+  "valid_callsigns_loaded": 254,
   "total_processed": 1250,
   "controllers_included": 47,
   "controllers_excluded": 1203,
-  "callsign_list_path": "config/controller_callsigns_list_path",
+  "callsign_list_path": "config/controller_callsigns_list.txt",
   "case_sensitive": true
 }
 ```
@@ -177,7 +187,8 @@ project_root/
 │   ├── config.py                                 # Configuration management
 │   └── main.py                                   # API endpoints
 ├── airspace_sector_data/
-│   ├── Positions.xml                             # Source VATSIM configuration
+│   ├── Sectors.xml                               # Source VATSIM configuration
+│   ├── extract_controller_callsigns_from_sectors.py  # Extraction script
 │   └── CONTROLLER_CALLSIGN_EXTRACTION_README.md  # This documentation
 └── docker-compose.yml                            # Docker configuration
 ```
@@ -212,7 +223,7 @@ volumes:
 ## Maintenance
 
 ### Updating Callsigns
-1. **Extract**: Run `extract_controller_callsigns_from_positions.py` when VATSIM updates `Positions.xml`
+1. **Extract**: Run `extract_controller_callsigns_from_sectors.py` when VATSIM updates `Sectors.xml`
 2. **Deploy**: Copy new `controller_callsigns_list.txt` to `config/` directory
 3. **Reload**: Use API endpoint to reload without restart: `POST /api/filter/controller-callsign/reload`
 

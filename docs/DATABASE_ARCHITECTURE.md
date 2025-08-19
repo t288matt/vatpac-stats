@@ -536,3 +536,5 @@ CREATE TRIGGER update_controllers_updated_at
 
 *This document provides a comprehensive overview of the database architecture. For specific implementation details, refer to the individual table specifications and related documentation.*
 
+
+

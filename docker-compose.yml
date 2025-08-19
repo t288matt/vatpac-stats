@@ -107,7 +107,19 @@ services:
       
       # Flight Detection Service Configuration (for controller summaries)
       FLIGHT_DETECTION_TIME_WINDOW_SECONDS: "180"    # Time window for frequency matching (3 minutes)
-      FLIGHT_DETECTION_PROXIMITY_THRESHOLD_NM: "30"  # Geographic proximity threshold in nautical miles
+      
+      # Controller-specific proximity configuration
+      CONTROLLER_PROXIMITY_GROUND_NM: "15"
+      CONTROLLER_PROXIMITY_TOWER_NM: "15"
+      CONTROLLER_PROXIMITY_APPROACH_NM: "60"
+      CONTROLLER_PROXIMITY_CENTER_NM: "400"
+      CONTROLLER_PROXIMITY_FSS_NM: "1000"
+      
+      # Enable/disable controller-specific ranges
+      ENABLE_CONTROLLER_SPECIFIC_RANGES: "true"
+      
+      # Fallback proximity for unknown controller types
+      CONTROLLER_PROXIMITY_DEFAULT_NM: "30"
 
 
     volumes:

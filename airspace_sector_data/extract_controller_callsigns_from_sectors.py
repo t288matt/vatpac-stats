@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """
-Extract Controller Callsigns List from VATSIM Positions.xml
+Extract Controller Callsigns List from VATSIM Sectors.xml
 
-This script extracts just the callsigns as a simple list.
+This script extracts callsigns as a simple list with filtering rules:
+- For callsigns ending 'CTR' or 'FSS', only keep those starting 'ML' or 'BN'
+- Retain everything else from the callsign field
+- Output is a list of callsigns as text
 """
 
 import xml.etree.ElementTree as ET
@@ -11,7 +14,7 @@ from pathlib import Path
 
 
 def extract_callsigns_list(xml_file_path: str) -> list:
-    """Extract callsigns as a simple list."""
+    """Extract callsigns as a simple list with filtering rules."""
     try:
         tree = ET.parse(xml_file_path)
         root = tree.getroot()
@@ -29,14 +32,20 @@ def extract_callsigns_list(xml_file_path: str) -> list:
     
     callsigns = []
     
-    # Process all positions
-    for position in root.findall('.//Position'):
-        # Extract callsigns from ControllerInfo elements
-        controller_infos = position.findall('ControllerInfo')
-        for controller_info in controller_infos:
-            callsign = controller_info.get('Callsign', '')
-            if callsign and callsign not in callsigns:
-                callsigns.append(callsign)
+    # Process all sectors
+    for sector in root.findall('.//Sector'):
+        callsign = sector.get('Callsign', '')
+        if callsign:
+            # Apply filtering rules
+            if callsign.endswith('_CTR') or callsign.endswith('_FSS'):
+                # Only keep CTR/FSS callsigns starting with ML or BN
+                if callsign.startswith('ML-') or callsign.startswith('BN-'):
+                    if callsign not in callsigns:
+                        callsigns.append(callsign)
+            else:
+                # Retain all other callsigns
+                if callsign not in callsigns:
+                    callsigns.append(callsign)
     
     return sorted(callsigns)
 
@@ -44,10 +53,10 @@ def extract_callsigns_list(xml_file_path: str) -> list:
 def main():
     """Main function."""
     script_dir = Path(__file__).parent
-    xml_file = script_dir / "Positions.xml"
+    xml_file = script_dir / "Sectors.xml"
     
     if not xml_file.exists():
-        print(f"Error: Positions.xml not found at {xml_file}")
+        print(f"Error: Sectors.xml not found at {xml_file}")
         sys.exit(1)
     
     print(f"Extracting callsigns from {xml_file}...")
@@ -72,3 +81,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

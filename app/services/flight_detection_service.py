@@ -6,7 +6,7 @@ This service detects flight interactions for controller sessions, mirroring the 
 but in the reverse direction. It ensures accurate controller-pilot pairing based on:
 1. Frequency matching
 2. Time window validation (180 seconds)
-3. Geographic proximity (300nm using Haversine formula)
+3. Geographic proximity (dynamic ranges based on controller type)
 
 This service is used by the Controller Summary Service to accurately identify which aircraft
 each controller actually handled during their session.
@@ -19,27 +19,29 @@ from typing import Dict, List, Any
 from sqlalchemy import text
 
 from app.database import get_database_session
+from app.services.controller_type_detector import ControllerTypeDetector
 
 
 class FlightDetectionService:
     """Service for detecting flight interactions with controllers."""
     
-    def __init__(self, time_window_seconds: int = None, proximity_threshold_nm: float = None):
+    def __init__(self, time_window_seconds: int = None):
         """
         Initialize Flight Detection Service.
         
         Args:
             time_window_seconds: Time window for frequency matching (default: from environment or 180s)
-            proximity_threshold_nm: Geographic proximity threshold in nautical miles (default: from environment or 300nm)
         """
         import os
         
         # Load from environment variables with defaults
         self.time_window_seconds = time_window_seconds or int(os.getenv("FLIGHT_DETECTION_TIME_WINDOW_SECONDS", "180"))
-        self.proximity_threshold_nm = proximity_threshold_nm or float(os.getenv("FLIGHT_DETECTION_PROXIMITY_THRESHOLD_NM", "30.0"))
+        
+        # Initialize controller type detector for dynamic proximity ranges
+        self.controller_type_detector = ControllerTypeDetector()
         
         self.logger = logging.getLogger(__name__)
-        self.logger.info(f"Flight Detection Service initialized: time_window={self.time_window_seconds}s, proximity_threshold={self.proximity_threshold_nm}nm")
+        self.logger.info(f"Flight Detection Service initialized: time_window={self.time_window_seconds}s, dynamic proximity ranges enabled")
         
     async def detect_controller_flight_interactions(self, controller_callsign: str, session_start: datetime, session_end: datetime) -> Dict[str, Any]:
         """
@@ -56,6 +58,12 @@ class FlightDetectionService:
         try:
             self.logger.debug(f"Detecting flight interactions for controller {controller_callsign}")
             
+            # Get controller type and proximity range
+            controller_info = self.controller_type_detector.get_controller_info(controller_callsign)
+            proximity_threshold_nm = controller_info["proximity_threshold"]
+            
+            self.logger.debug(f"Controller {controller_callsign} detected as {controller_info['type']} with {proximity_threshold_nm}nm proximity range")
+            
             # Get controller transceivers
             controller_transceivers = await self._get_controller_transceivers(controller_callsign, session_start, session_end)
             if not controller_transceivers:
@@ -69,7 +77,7 @@ class FlightDetectionService:
                 return self._create_empty_flight_data()
             
             # Find frequency matches with proximity and time constraints using SQL JOIN
-            frequency_matches = await self._find_frequency_matches(controller_transceivers, flight_transceivers, controller_callsign, session_start, session_end)
+            frequency_matches = await self._find_frequency_matches(controller_transceivers, flight_transceivers, controller_callsign, session_start, session_end, proximity_threshold_nm)
             
             # Calculate flight interaction metrics
             flight_data = await self._calculate_flight_metrics(controller_callsign, session_start, session_end, frequency_matches)
@@ -181,7 +189,7 @@ class FlightDetectionService:
             self.logger.error(f"Error getting flight transceivers: {e}")
             return []
     
-    async def _find_frequency_matches(self, controller_transceivers: List[Dict], flight_transceivers: List[Dict], controller_callsign: str, session_start: datetime, session_end: datetime) -> List[Dict[str, Any]]:
+    async def _find_frequency_matches(self, controller_transceivers: List[Dict], flight_transceivers: List[Dict], controller_callsign: str, session_start: datetime, session_end: datetime, proximity_threshold_nm: float) -> List[Dict[str, Any]]:
         """Find frequency matches between controller and flight transceivers using the planned CTE query."""
         try:
             # Use the exact planned query structure from ATC Detection Service but reversed
@@ -239,7 +247,7 @@ class FlightDetectionService:
                     "session_start": session_start,
                     "session_end": session_end,
                     "time_window": self.time_window_seconds,
-                    "proximity_threshold_nm": self.proximity_threshold_nm
+                    "proximity_threshold_nm": proximity_threshold_nm
                 })
                 
                 matches = []
