@@ -1473,7 +1473,13 @@ class DataService:
         """Get aircraft interaction data for a controller session using Flight Detection Service."""
         try:
             # Use the Flight Detection Service for accurate controller-pilot pairing
-            # This ensures 30nm geographic proximity validation and proper frequency matching
+            # This ensures dynamic geographic proximity validation based on controller type and proper frequency matching
+            # Controller types get appropriate ranges: Ground/Tower (15nm), Approach (60nm), Center (400nm), FSS (1000nm)
+            
+            # Log controller type and proximity range for debugging
+            controller_info = self.flight_detection_service.controller_type_detector.get_controller_info(callsign)
+            self.logger.info(f"Controller {callsign} detected as {controller_info['type']} with {controller_info['proximity_threshold']}nm proximity range")
+            
             flight_data = await self.flight_detection_service.detect_controller_flight_interactions_with_timeout(
                 callsign, session_start, session_end, timeout_seconds=30.0
             )

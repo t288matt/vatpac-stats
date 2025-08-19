@@ -756,9 +756,11 @@ The implementation leverages existing infrastructure while adding intelligent co
 - ✅ Update method signatures and SQL queries
 - ✅ Remove `FLIGHT_DETECTION_PROXIMITY_THRESHOLD_NM` from docker-compose.yml
 
-**Phase 3: 🔄 IN PROGRESS**
-- 🔄 Update `DataService` to pass controller callsigns to flight detection service
-- 🔄 Integrate controller-specific proximity in data processing pipeline
+**Phase 3: ✅ COMPLETED**
+- ✅ Update `DataService` to pass controller callsigns to flight detection service
+- ✅ Integrate controller-specific proximity in data processing pipeline
+- ✅ Add enhanced logging for controller type detection and proximity ranges
+- ✅ Test integration between DataService and FlightDetectionService
 
 **Phase 4: ✅ COMPLETED**
 - ✅ Add controller-specific proximity environment variables to `docker-compose.yml`
@@ -776,6 +778,7 @@ The implementation leverages existing infrastructure while adding intelligent co
 ### **Current Status Summary**
 - **Core Service**: ✅ `ControllerTypeDetector` created and tested
 - **Integration**: ✅ `FlightDetectionService` updated with dynamic ranges
+- **DataService**: ✅ Integrated with controller-specific proximity system
 - **Configuration**: ✅ Docker environment variables configured
 - **Testing**: ✅ Unit tests passing for all components
-- **Next Step**: 🔄 Phase 3 - Update `DataService` integration
+- **Next Step**: 🔄 Phase 5 - Update integration tests
