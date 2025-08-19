@@ -98,6 +98,20 @@ DataService.process_vatsim_data()
     ├── _process_flights()
     │   ├── GeographicBoundaryFilter.filter_flights()
     │   ├── CallsignPatternFilter.filter_flights()
+    │
+    ├── _process_controllers()
+    │   ├── GeographicBoundaryFilter.filter_controllers()
+    │   ├── CallsignPatternFilter.filter_controllers()
+    │   └── ControllerTypeDetector.get_controller_info()
+    │       └── Automatic controller type detection
+    │       └── Dynamic proximity range assignment
+    │
+    ├── _create_controller_summaries()
+    │   ├── FlightDetectionService.detect_controller_flight_interactions()
+    │   │   └── ControllerTypeDetector.get_controller_info()
+    │   │   └── Dynamic proximity threshold retrieval
+    │   │   └── Geographic proximity filtering with controller-specific ranges
+    │   └── Aircraft interaction detection using appropriate proximity ranges
     │   └── DatabaseService.store_flights()
     │
     ├── _process_controllers()
@@ -149,7 +163,54 @@ CallsignPatternFilter.filter_entity()
         └── Return True/False (True = keep, False = exclude)
 ```
 
-### **4. Database Service Interactions**
+### **4. Controller Proximity System Interactions**
+
+#### **Controller Type Detection Flow**
+```
+ControllerTypeDetector.get_controller_info()
+    │
+    ├── Callsign pattern analysis
+    │   ├── Extract last 3 characters
+    │   ├── Pattern matching (_TWR, _APP, _CTR, _FSS, _GND, _DEL)
+    │   └── Controller type identification
+    │
+    ├── Proximity range assignment
+    │   ├── Ground/Tower: 15nm (local airport operations)
+    │   ├── Approach: 60nm (terminal area operations)
+    │   ├── Center: 400nm (enroute operations)
+    │   └── FSS: 1000nm (flight service operations)
+    │
+    └── Return controller info
+        ├── Controller type
+        ├── Proximity threshold
+        └── Detection confidence
+```
+
+#### **Flight Detection Service Integration**
+```
+FlightDetectionService.detect_controller_flight_interactions()
+    │
+    ├── Controller type detection
+    │   └── ControllerTypeDetector.get_controller_info()
+    │   └── Dynamic proximity threshold retrieval
+    │
+    ├── Geographic proximity filtering
+    │   ├── Use controller-specific proximity range
+    │   ├── Haversine distance calculation
+    │   └── Aircraft within proximity threshold
+    │
+    ├── Frequency matching
+    │   ├── Controller frequency identification
+    │   ├── Aircraft frequency matching
+    │   └── Time window validation
+    │
+    └── Aircraft interaction detection
+        ├── Proximity + frequency + time validation
+        ├── Aircraft count calculation
+        └── Interaction summary generation
+```
+
+### **5. Database Service Interactions**
 
 #### **Database Operations**
 ```

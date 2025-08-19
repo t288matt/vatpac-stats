@@ -25,11 +25,11 @@ This document provides visual and textual representations of how data flows thro
 ### **Data Processing Pipeline**
 
 ```
-VATSIM API → VATSIM Service → Data Service → Filters → Database Service → PostgreSQL
-     │              │              │           │              │
-     ▼              ▼              ▼           ▼              ▼
-Raw JSON    Parsed Data    Business    Filtered    Stored      Persistent
-Response    Objects        Logic       Data        Records     Storage
+VATSIM API → VATSIM Service → Data Service → Filters → Controller Type Detection → Database Service → PostgreSQL
+     │              │              │           │              │              │              │
+     ▼              ▼              ▼           ▼              ▼              ▼              ▼
+Raw JSON    Parsed Data    Business    Filtered    Proximity    Stored      Persistent
+Response    Objects        Logic       Data        Ranges       Records     Storage
 ```
 
 ## 📊 **Detailed Data Flow Breakdown**
@@ -61,12 +61,20 @@ Response    Objects        Logic       Data        Records     Storage
 
 #### **Filtering Logic**:
 ```
-Raw Data → Geographic Filter → Callsign Filter → Validation Filter → Storage
-   │              │                │                │
-   ▼              ▼                ▼                ▼
-All Data    Within AU      Valid Callsigns    Complete Flight
-            Airspace       (exclude ATIS)     Plans Only
+Raw Data → Geographic Filter → Callsign Filter → Validation Filter → Controller Type Detection → Storage
+   │              │                │                │                │
+   ▼              ▼                ▼                ▼                ▼
+All Data    Within AU      Valid Callsigns    Complete Flight    Proximity Ranges
+            Airspace       (exclude ATIS)     Plans Only        (15nm-1000nm)
 ```
+
+#### **Controller Proximity System**:
+- **Ground/Tower Controllers**: 15nm proximity range (local airport operations)
+- **Approach Controllers**: 60nm proximity range (terminal area operations)
+- **Center Controllers**: 400nm proximity range (enroute operations)
+- **FSS Controllers**: 1000nm proximity range (flight service operations)
+- **Automatic Detection**: Controller type identified from callsign patterns
+- **Dynamic Configuration**: Proximity ranges configurable via environment variables
 
 ### **3. Data Storage & Persistence**
 

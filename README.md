@@ -34,6 +34,7 @@ A real-time VATSIM data collection system that processes flight data, ATC positi
 ### **Current Status: Complete System ✅**
 - **Geographic boundary filtering implemented** for flights, transceivers, and controllers
 - **Real-time sector tracking fully operational** - tracks flights through 17 Australian airspace sectors
+- **Controller-specific proximity ranges fully implemented** - dynamic ranges based on controller type
 - **Automatic cleanup system operational** - automatically closes stale sector entries with transaction safety
 - **Data ingestion fully functional** - all tables populated with live VATSIM data
 - **Schema mismatches resolved** - Python models match database schema
@@ -71,6 +72,24 @@ The system uses a comprehensive approach for geographic filtering and sector man
 3. **Processing Metadata**: `australian_sectors_data.json` provides reference information about processing results
 4. **Real-time Filtering**: Geographic boundary filter uses the external polygon for efficient position checking
 5. **Sector Analysis**: Processed sectors used for detailed airspace coverage, ATC position mapping, and **real-time sector tracking**
+
+### **Controller-Specific Proximity Ranges: ✅ FULLY IMPLEMENTED**
+The system now uses intelligent proximity ranges based on controller type, making ATC operations much more realistic:
+
+- **Ground controllers**: 15nm (local airport operations)
+- **Tower controllers**: 15nm (approach/departure operations)
+- **Approach controllers**: 60nm (terminal area operations)
+- **Center controllers**: 400nm (enroute operations)
+- **FSS controllers**: 1000nm (flight service operations)
+
+**Features**:
+- **Automatic controller type detection** from callsign patterns
+- **Dynamic proximity configuration** via environment variables
+- **Real-time aircraft interaction detection** using appropriate ranges
+- **Performance optimized** - faster queries for ground/tower controllers
+- **Realistic ATC operations** - matches real-world controller coverage areas
+
+**Status**: Complete and fully operational with real outcome verification
 
 ### **Real-Time Sector Tracking System: ✅ FULLY IMPLEMENTED**
 - **Backend logic implemented** in data service with real-time processing

@@ -85,11 +85,13 @@ services:
       # Callsign Pattern Filter Configuration
       EXCLUDED_CALLSIGN_PATTERNS: "ATIS"
       
-      # Flight Summary System Configuration
+      # Flight Summary System Configuration (used by DataService)
       FLIGHT_SUMMARY_ENABLED: "true"          # Enable flight summary processing
       FLIGHT_COMPLETION_HOURS: 14              # Hours after logon to mark flight as complete
       FLIGHT_RETENTION_HOURS: 168             # Hours to keep detailed flight data (7 days)
       FLIGHT_SUMMARY_INTERVAL: 60              # Minutes between summary processing (1 hour)
+      
+      # Sector Tracking Configuration (used by DataService)
       SECTOR_TRACKING_ENABLED: "true"         # Enable real-time sector occupancy tracking
       SECTOR_UPDATE_INTERVAL: 60              # Seconds between sector position updates (1 minute)
       
@@ -99,26 +101,28 @@ services:
       # Default: 300 seconds (5 minutes) - adjust based on VATSIM data update frequency
       CLEANUP_FLIGHT_TIMEOUT: 300
 
-      # Controller Summary Configuration
+      # Controller Summary Configuration (used by DataService)
       CONTROLLER_SUMMARY_ENABLED: "true"
       CONTROLLER_COMPLETION_MINUTES: "30"     # 30 minutes - this is when summaries are made and records archived
       CONTROLLER_RETENTION_HOURS: "168"
       CONTROLLER_SUMMARY_INTERVAL: "60"
       
-      # Flight Detection Service Configuration (for controller summaries)
+      # Shared Configuration for Both Detection Services
+      # Used by: FlightDetectionService (ATC → Flight) AND ATCDetectionService (Flight → ATC)
       FLIGHT_DETECTION_TIME_WINDOW_SECONDS: "180"    # Time window for frequency matching (3 minutes)
       
-      # Controller-specific proximity configuration
-      CONTROLLER_PROXIMITY_GROUND_NM: "15"
-      CONTROLLER_PROXIMITY_TOWER_NM: "15"
-      CONTROLLER_PROXIMITY_APPROACH_NM: "60"
-      CONTROLLER_PROXIMITY_CENTER_NM: "400"
-      CONTROLLER_PROXIMITY_FSS_NM: "1000"
+      # Controller-specific proximity configuration (used by both services)
+      # Both services use ControllerTypeDetector to get these ranges based on controller type
+      CONTROLLER_PROXIMITY_GROUND_NM: "15"      # Ground controllers: 15nm (both services)
+      CONTROLLER_PROXIMITY_TOWER_NM: "15"       # Tower controllers: 15nm (both services)
+      CONTROLLER_PROXIMITY_APPROACH_NM: "60"    # Approach controllers: 60nm (both services)
+      CONTROLLER_PROXIMITY_CENTER_NM: "400"     # Center controllers: 400nm (both services)
+      CONTROLLER_PROXIMITY_FSS_NM: "1000"      # FSS controllers: 1000nm (both services)
       
-      # Enable/disable controller-specific ranges
+      # Enable/disable controller-specific ranges (used by both services)
       ENABLE_CONTROLLER_SPECIFIC_RANGES: "true"
       
-      # Fallback proximity for unknown controller types
+      # Fallback proximity for unknown controller types (used by both services)
       CONTROLLER_PROXIMITY_DEFAULT_NM: "30"
 
 

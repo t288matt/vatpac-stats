@@ -386,9 +386,40 @@ CREATE TABLE controller_summaries (
 
 **Key Features**:
 - **Session analytics**: Complete controller session summaries
-- **Aircraft tracking**: Detailed aircraft interaction data
+- **Aircraft tracking**: Detailed aircraft interaction data using controller-specific proximity ranges
 - **Performance optimized**: 100-300x faster than real-time queries
 - **JSONB flexibility**: Rich data structures for detailed analysis
+- **Controller-specific proximity**: Dynamic ranges based on controller type (Ground/Tower: 15nm, Approach: 60nm, Center: 400nm, FSS: 1000nm)
+
+---
+
+## 🎮 **Controller-Specific Proximity System**
+
+### **Purpose**
+The system uses intelligent proximity ranges based on controller type to provide realistic ATC operations and optimized performance.
+
+### **Proximity Ranges by Controller Type**
+```sql
+-- Environment variable configuration in docker-compose.yml
+CONTROLLER_PROXIMITY_GROUND_NM: "15"      -- Ground controllers (local airport operations)
+CONTROLLER_PROXIMITY_TOWER_NM: "15"       -- Tower controllers (approach/departure operations)
+CONTROLLER_PROXIMITY_APPROACH_NM: "60"    -- Approach controllers (terminal area operations)
+CONTROLLER_PROXIMITY_CENTER_NM: "400"     -- Center controllers (enroute operations)
+CONTROLLER_PROXIMITY_FSS_NM: "1000"      -- FSS controllers (flight service operations)
+CONTROLLER_PROXIMITY_DEFAULT_NM: "30"     -- Fallback for unknown controller types
+```
+
+### **Implementation Details**
+- **Automatic Detection**: Controller type detected from callsign patterns (last 3 characters)
+- **Dynamic Configuration**: Proximity ranges configurable via environment variables
+- **Performance Impact**: Ground/Tower controllers get faster queries due to smaller search radius
+- **Realistic Operations**: Matches real-world ATC coverage areas and responsibilities
+
+### **Database Integration**
+- **Flight Detection Service**: Uses dynamic proximity ranges for aircraft interaction detection
+- **Controller Summaries**: Aircraft counts calculated using appropriate proximity ranges
+- **Real-time Processing**: Proximity ranges applied during live data processing
+- **Performance Monitoring**: System tracks proximity range usage and effectiveness
 
 ---
 
