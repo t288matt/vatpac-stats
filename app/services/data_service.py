@@ -1375,25 +1375,35 @@ class DataService:
             return obj
 
     async def _create_controller_summaries(self, completed_controllers: List[tuple]) -> Dict[str, Any]:
-        """Create summary records for completed controllers."""
+        """Create summary records for completed controllers with session merging."""
         processed_count = 0
         failed_count = 0
         successful_controllers = []  # Track which controllers got summaries
+        
+        # Configuration for session merging - 5 minute threshold for reconnections
+        reconnection_threshold_minutes = 5
         
         async with get_database_session() as session:
             for controller_key in completed_controllers:
                 callsign, logon_time = controller_key
                 
                 try:
-                    # Get all records for this controller session
+                    # Get all records for this controller including potential reconnections within 5 minutes
                     controller_records = await session.execute(text("""
                         SELECT * FROM controllers 
                         WHERE callsign = :callsign 
-                        AND logon_time = :logon_time
+                        AND (
+                            logon_time = :logon_time  -- Original session
+                            OR (
+                                logon_time > :logon_time 
+                                AND logon_time <= :logon_time + INTERVAL ':reconnection_threshold minutes'
+                            )
+                        )
                         ORDER BY created_at
                     """), {
                         "callsign": callsign,
-                        "logon_time": logon_time
+                        "logon_time": logon_time,
+                        "reconnection_threshold": reconnection_threshold_minutes
                     })
                     
                     records = controller_records.fetchall()
@@ -1402,20 +1412,20 @@ class DataService:
                         failed_count += 1
                         continue
                     
-                    # Get first and last records
+                    # Get first and last records across merged sessions
                     first_record = records[0]
                     last_record = records[-1]
                     
-                    # Calculate session duration
+                    # Calculate total session duration including reconnections
                     session_duration_minutes = int((last_record.last_updated - first_record.logon_time).total_seconds() / 60)
                     
-                    # Get all frequencies used during session
+                    # Get all frequencies used across merged sessions
                     frequencies_used = await self._get_session_frequencies(callsign, logon_time, session)
                     
-                    # Get aircraft interaction data using Flight Detection Service
+                    # Get aircraft interaction data across merged sessions
                     aircraft_data = await self._get_aircraft_interactions(callsign, logon_time, last_record.last_updated, session)
                     
-                    # Create summary data
+                    # Create merged summary data
                     summary_data = {
                         "callsign": callsign,
                         "cid": first_record.cid,
@@ -1433,7 +1443,7 @@ class DataService:
                         "aircraft_details": json.dumps(self._convert_for_json(aircraft_data["details"]))
                     }
                     
-                    # Insert summary
+                    # Insert merged summary
                     await session.execute(text("""
                         INSERT INTO controller_summaries (
                             callsign, cid, name, session_start_time, session_end_time,
@@ -1450,7 +1460,12 @@ class DataService:
                     
                     processed_count += 1
                     successful_controllers.append(controller_key)  # Track successful summary creation
-                    self.logger.debug(f"✅ Created summary for controller {callsign}")
+                    
+                    # Log whether sessions were merged
+                    if len(records) > 1:
+                        self.logger.debug(f"✅ Created merged summary for controller {callsign} (duration: {session_duration_minutes} min, {len(records)} sessions merged)")
+                    else:
+                        self.logger.debug(f"✅ Created summary for controller {callsign} (duration: {session_duration_minutes} min)")
                     
                 except Exception as e:
                     self.logger.error(f"❌ Failed to process controller {callsign}: {e}")
