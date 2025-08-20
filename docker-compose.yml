@@ -36,7 +36,7 @@ services:
       
       # Production Settings
       PRODUCTION_MODE: "true"
-      CI_MODE: "false"  # Set to "true" in GitHub Actions for faster startup
+      CI_CD_MODE: "false"  # Set to "true" in GitHub Actions for faster startup
       
       # Performance Settings
       MEMORY_LIMIT_MB: 2048

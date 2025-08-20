@@ -79,6 +79,7 @@ if __name__ == "__main__":
     
     # Check if we're in production (Docker) or development
     is_production = os.getenv("PRODUCTION_MODE", "false").lower() == "true"
+    is_ci_cd = os.getenv("CI_CD_MODE", "false").lower() == "true"
     
     # Check port availability before starting
     host = "0.0.0.0"
@@ -110,7 +111,7 @@ if __name__ == "__main__":
             host=host,
             port=port,
             reload=not is_production,  # Disable reload in production
-            log_level="info"
+            log_level="info" if not is_ci_cd else "warning"  # Reduce logging in CI/CD
         )
     except OSError as e:
         if "address already in use" in str(e).lower() or "errno 98" in str(e) or "errno 10048" in str(e):

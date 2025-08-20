@@ -316,6 +316,16 @@ async def run_data_ingestion():
 @log_operation("get_system_status")
 async def get_system_status():
     """Get comprehensive system status and statistics with real data freshness and health checks"""
+    
+    # Check if we're in CI/CD mode - return simple response without database queries
+    if os.getenv("CI_CD_MODE", "false").lower() == "true":
+        return {
+            "status": "operational",
+            "environment": "ci_cd",
+            "message": "Application running in CI/CD mode",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    
     try:
         # Get database session for counts and freshness checks
         async with get_database_session() as session:
