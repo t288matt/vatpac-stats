@@ -396,16 +396,19 @@ async def get_system_status():
                     "status": "fresh" if (datetime.now(timezone.utc) - summaries_freshness).total_seconds() < 7200 else "stale"
                 }
             
-            # Flights archive - check last_updated (when archived)
-            archive_freshness = await session.scalar(
-                text("SELECT MAX(last_updated) FROM flights_archive WHERE last_updated IS NOT NULL")
-            )
-            if archive_freshness:
-                data_freshness["flights_archive"] = {
-                    "last_update": archive_freshness.isoformat(),
-                    "age_seconds": int((datetime.now(timezone.utc) - archive_freshness).total_seconds()),
-                    "status": "fresh" if (datetime.now(timezone.utc) - archive_freshness).total_seconds() < 3600 else "stale"
-                }
+            # Archive tables are historical data - don't check freshness
+            # They contain intentionally old data and should not affect system status
+            # Just include them in statistics for completeness
+            
+            # Add archive tables to data_freshness with explanatory note
+            data_freshness["flights_archive"] = {
+                "note": "Historical data - freshness not applicable",
+                "status": "historical"
+            }
+            data_freshness["controllers_archive"] = {
+                "note": "Historical data - freshness not applicable", 
+                "status": "historical"
+            }
             
             # Sector occupancy - check entry_timestamp (when sector entered)
             sector_freshness = await session.scalar(
@@ -419,7 +422,9 @@ async def get_system_status():
                 }
             
             # Determine overall data freshness status
-            stale_tables = [table for table, data in data_freshness.items() if data["status"] == "stale"]
+            # Exclude historical tables (archive tables) from stale count
+            stale_tables = [table for table, data in data_freshness.items() 
+                          if data["status"] == "stale" and data.get("status") != "historical"]
             if stale_tables:
                 overall_freshness_status = "degraded"
                 overall_freshness_message = f"Stale data in {len(stale_tables)} tables: {', '.join(stale_tables)}"
