@@ -1130,7 +1130,7 @@ class DataService:
                     
                     # Detect ATC interactions for this flight with timeout protection
                     atc_data = await self.atc_detection_service.detect_flight_atc_interactions_with_timeout(
-                        callsign, departure, arrival, cid, deptime, timeout_seconds=30.0
+                        callsign, departure, arrival, first_record.logon_time, timeout_seconds=30.0
                     )
                     
                     # NEW: Calculate sector breakdown for this completed flight
