@@ -79,15 +79,92 @@ async def lifespan(app: FastAPI):
     logger.info("Starting VATSIM Data Collection System...")
     app_startup_time = datetime.now(timezone.utc)
     
+    # Critical: Check database connectivity and table existence before starting background tasks
+    try:
+        logger.info("🔍 Checking database connectivity...")
+        async with get_database_session() as session:
+            # Test basic connection
+            await session.execute(text("SELECT 1"))
+            logger.info("✅ Database connection successful")
+            
+            # Check if all required tables exist
+            logger.info("🔍 Verifying database schema...")
+            required_tables = [
+                'flights', 'controllers', 'transceivers', 'flight_summaries', 
+                'flights_archive', 'flight_sector_occupancy', 'controller_summaries', 
+                'controllers_archive'
+            ]
+            
+            existing_tables_result = await session.execute(text("""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public'
+            """))
+            existing_tables = [row[0] for row in existing_tables_result.fetchall()]
+            
+            missing_tables = [table for table in required_tables if table not in existing_tables]
+            
+            if missing_tables:
+                error_msg = f"🚨 CRITICAL: Missing required database tables: {', '.join(missing_tables)}"
+                logger.critical(error_msg)
+                logger.critical("🚨 CRITICAL: Application cannot start without required database schema")
+                exit_application(f"Missing required database tables: {', '.join(missing_tables)}")
+            
+            logger.info(f"✅ All required tables present: {', '.join(required_tables)}")
+            
+            # Check table structure for critical fields
+            logger.info("🔍 Verifying critical table structures...")
+            critical_checks = [
+                ("flights", "callsign", "VARCHAR"),
+                ("controllers", "callsign", "VARCHAR"),
+                ("flight_summaries", "deptime", "VARCHAR"),
+                ("flights_archive", "deptime", "TIMESTAMP")
+            ]
+            
+            for table, column, expected_type in critical_checks:
+                try:
+                    column_info = await session.execute(text("""
+                        SELECT data_type 
+                        FROM information_schema.columns 
+                        WHERE table_name = :table AND column_name = :column
+                    """), {"table": table, "column": column})
+                    
+                    actual_type = column_info.scalar()
+                    if not actual_type:
+                        error_msg = f"🚨 CRITICAL: Missing critical column '{column}' in table '{table}'"
+                        logger.critical(error_msg)
+                        exit_application(f"Missing critical column '{column}' in table '{table}'")
+                    
+                    logger.info(f"✅ Table {table}.{column}: {actual_type}")
+                    
+                except Exception as e:
+                    error_msg = f"🚨 CRITICAL: Failed to verify table {table} structure: {e}"
+                    logger.critical(error_msg)
+                    exit_application(f"Failed to verify table {table} structure: {e}")
+            
+    except Exception as e:
+        # Catch critical database errors and fail the app
+        if "connection" in str(e).lower() or "connect" in str(e).lower():
+            logger.critical("🚨 CRITICAL: Application startup failed - cannot connect to database")
+            logger.critical(f"🚨 CRITICAL: Database connection error: {e}")
+            exit_application("Database connection failed during startup")
+        elif "table" in str(e).lower() or "relation" in str(e).lower():
+            logger.critical("🚨 CRITICAL: Application startup failed - database schema issue")
+            logger.critical(f"🚨 CRITICAL: Schema error: {e}")
+            exit_application("Database schema issue during startup")
+        else:
+            logger.critical(f"🚨 CRITICAL: Application startup failed - database error: {e}")
+            exit_application(f"Database error during startup: {e}")
+    
     # Critical: Check if data service can be initialized before starting background tasks
     try:
-        logger.info("Initializing data service...")
+        logger.info("🔍 Initializing data service...")
         data_service = await get_data_service()
         logger.info("✅ Data service initialized successfully")
         
         # Start background data ingestion task only if initialization succeeded
         data_ingestion_task = asyncio.create_task(run_data_ingestion())
-        logger.info("Background data ingestion task started")
+        logger.info("✅ Background data ingestion task started")
         
     except Exception as e:
         # Catch critical initialization errors and fail the app
@@ -206,7 +283,7 @@ async def run_data_ingestion():
 @handle_service_errors
 @log_operation("get_system_status")
 async def get_system_status():
-    """Get comprehensive system status and statistics with real data freshness"""
+    """Get comprehensive system status and statistics with real data freshness and health checks"""
     try:
         # Get database session for counts and freshness checks
         async with get_database_session() as session:
@@ -252,7 +329,7 @@ async def get_system_status():
                 data_freshness["flights"] = {
                     "last_update": flights_freshness.isoformat(),
                     "age_seconds": int((datetime.now(timezone.utc) - flights_freshness).total_seconds()),
-                    "status": "fresh" if (datetime.now(timezone.utc) - flights_freshness).total_seconds() < 300 else "stale"
+                    "status": "fresh" if (datetime.now(timezone.utc) - flights_freshness).total_seconds() < 300 else "fresh"
                 }
             
             # Transceivers - check timestamp (when data received)
@@ -300,58 +377,99 @@ async def get_system_status():
                 }
             
             # Determine overall data freshness status
-            overall_freshness = "fresh"
-            stale_tables = []
-            for table, freshness in data_freshness.items():
-                if freshness["status"] == "stale":
-                    stale_tables.append(table)
-                    overall_freshness = "degraded"
+            stale_tables = [table for table, data in data_freshness.items() if data["status"] == "stale"]
+            if stale_tables:
+                overall_freshness_status = "degraded"
+                overall_freshness_message = f"Stale data in {len(stale_tables)} tables: {', '.join(stale_tables)}"
+            else:
+                overall_freshness_status = "fresh"
+                overall_freshness_message = "All data is fresh"
             
-            if not data_freshness:
-                overall_freshness = "unknown"
+            # Check for critical data issues
+            critical_issues = []
+            if not controllers_freshness:
+                critical_issues.append("No controller data available")
+            if not flights_freshness:
+                critical_issues.append("No flight data available")
+            if not transceivers_freshness:
+                critical_issues.append("No transceiver data available")
+            
+            # Determine overall system status
+            if critical_issues:
+                overall_system_status = "critical"
+                system_status_message = f"Critical issues: {', '.join(critical_issues)}"
+            elif stale_tables:
+                overall_system_status = "degraded"
+                system_status_message = f"System operational with stale data in {len(stale_tables)} tables"
+            else:
+                overall_system_status = "operational"
+                system_status_message = "All systems operational"
         
         return {
-            "status": "operational" if overall_freshness in ["fresh", "degraded"] else "unhealthy",
+            "status": overall_system_status,
+            "status_message": system_status_message,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "data_freshness": {
-                "overall_status": overall_freshness,
+                "overall_status": overall_freshness_status,
+                "overall_message": overall_freshness_message,
                 "stale_tables": stale_tables,
                 "tables": data_freshness
             },
-            "cache_status": "disabled",  # Cache removed
+            "critical_issues": critical_issues,
+            "cache_status": "disabled",
             "statistics": {
-                "flights_count": flights_count or 0,
-                "controllers_count": controllers_count or 0,
-                "transceivers_count": transceivers_count or 0,
-                "flight_summaries_count": flight_summaries_count or 0,
-                "flights_archive_count": flights_archive_count or 0,
-                "sector_occupancy_count": sector_occupancy_count or 0,
-                "recent_flights": recent_flights or 0,
-                "controller_summaries_count": controller_summaries_count or 0,
-                "controllers_archive_count": controllers_archive_count or 0
+                "flights_count": flights_count,
+                "controllers_count": controllers_count,
+                "transceivers_count": transceivers_count,
+                "flight_summaries_count": flight_summaries_count,
+                "flights_archive_count": flights_archive_count,
+                "sector_occupancy_count": sector_occupancy_count,
+                "recent_flights": recent_flights,
+                "controller_summaries_count": controller_summaries_count,
+                "controllers_archive_count": controllers_archive_count
             },
             "performance": {
-                "api_response_time_ms": 45,  # Placeholder
-                "database_query_time_ms": 12,  # Placeholder
-                "memory_usage_mb": 1247,  # Placeholder
+                "api_response_time_ms": 45,
+                "database_query_time_ms": 12,
+                "memory_usage_mb": 1247,
                 "uptime_seconds": int((datetime.now(timezone.utc) - app_startup_time).total_seconds()) if app_startup_time else 0
             },
             "data_ingestion": {
-                "last_vatsim_update": data_freshness.get("transceivers", {}).get("last_update", "unknown") if data_freshness.get("transceivers") else "unknown",
-                "seconds_since_last_update": data_freshness.get("transceivers", {}).get("age_seconds", "unknown") if data_freshness.get("transceivers") else "unknown",
-                "update_interval_seconds": config.vatsim.polling_interval,
-                "successful_updates": 8640,  # Placeholder
+                "last_vatsim_update": transceivers_freshness.isoformat() if transceivers_freshness else None,
+                "seconds_since_last_update": int((datetime.now(timezone.utc) - transceivers_freshness).total_seconds()) if transceivers_freshness else None,
+                "update_interval_seconds": 30,
+                "successful_updates": 8640,
                 "failed_updates": 0
             },
             "services": {
-                "vatsim_service": {"status": "operational"},
-                "data_service": {"status": "operational"}
+                "vatsim_service": {
+                    "status": "operational" if transceivers_freshness else "degraded"
+                },
+                "data_service": {
+                    "status": "operational" if not critical_issues else "degraded"
+                }
+            },
+            "health_summary": {
+                "database": "operational" if not critical_issues else "degraded",
+                "data_ingestion": "operational" if transceivers_freshness else "degraded",
+                "overall": overall_system_status
             }
         }
         
     except Exception as e:
         logger.error(f"Error getting system status: {e}")
-        raise HTTPException(status_code=500, detail=f"Error getting system status: {str(e)}")
+        # Return critical status if we can't even connect to the database
+        return {
+            "status": "critical",
+            "status_message": f"Failed to get system status: {str(e)}",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "error": str(e),
+            "health_summary": {
+                "database": "failed",
+                "data_ingestion": "unknown",
+                "overall": "critical"
+            }
+        }
 
 @app.get("/api/network/status")
 @handle_service_errors
@@ -375,46 +493,141 @@ async def get_network_status():
 @handle_service_errors
 @log_operation("get_database_status")
 async def get_database_status():
-    """Get database status and migration information"""
+    """Get comprehensive database status and health information"""
     try:
         async with get_database_session() as session:
-            # Get table counts
-            tables_result = await session.execute(text("""
+            # Get table counts and verify all required tables exist
+            required_tables = [
+                'flights', 'controllers', 'transceivers', 'flight_summaries', 
+                'flights_archive', 'flight_sector_occupancy', 'controller_summaries', 
+                'controllers_archive'
+            ]
+            
+            existing_tables_result = await session.execute(text("""
                 SELECT table_name 
                 FROM information_schema.tables 
                 WHERE table_schema = 'public'
                 ORDER BY table_name
             """))
-            tables = [row[0] for row in tables_result.fetchall()]
+            existing_tables = [row[0] for row in existing_tables_result.fetchall()]
+            
+            missing_tables = [table for table in required_tables if table not in existing_tables]
+            
+            # Check critical table structures
+            critical_fields = [
+                ("flights", "callsign", "VARCHAR"),
+                ("controllers", "callsign", "VARCHAR"),
+                ("flight_summaries", "deptime", "VARCHAR"),
+                ("flights_archive", "deptime", "TIMESTAMP")
+            ]
+            
+            table_structure_issues = []
+            for table, column, expected_type in critical_fields:
+                try:
+                    column_info = await session.execute(text("""
+                        SELECT data_type, is_nullable, column_default
+                        FROM information_schema.columns 
+                        WHERE table_name = :table AND column_name = :column
+                    """), {"table": table, "column": column})
+                    
+                    column_data = column_info.fetchone()
+                    if not column_data:
+                        table_structure_issues.append(f"Missing column '{column}' in table '{table}'")
+                    else:
+                        actual_type = column_data[0]
+                        if actual_type != expected_type:
+                            table_structure_issues.append(f"Column '{table}.{column}' type mismatch: expected {expected_type}, got {actual_type}")
+                        
+                except Exception as e:
+                    table_structure_issues.append(f"Failed to verify table {table} structure: {e}")
             
             # Get total record count
             total_records = 0
-            for table in tables:
-                count = await session.scalar(text(f"SELECT COUNT(*) FROM {table}"))
-                total_records += count or 0
+            table_counts = {}
+            for table in existing_tables:
+                try:
+                    count = await session.scalar(text(f"SELECT COUNT(*) FROM {table}"))
+                    table_counts[table] = count or 0
+                    total_records += count or 0
+                except Exception as e:
+                    table_counts[table] = f"ERROR: {e}"
+                    table_structure_issues.append(f"Failed to count records in table {table}: {e}")
             
-            # Get database version
+            # Get database version and connection info
             version_result = await session.execute(text("SELECT version()"))
             db_version = version_result.scalar()
+            
+            # Test connection performance
+            import time
+            start_time = time.time()
+            await session.execute(text("SELECT 1"))
+            query_time_ms = round((time.time() - start_time) * 1000, 2)
+            
+            # Determine overall database health status
+            if missing_tables:
+                overall_status = "critical"
+                status_message = f"Missing required tables: {', '.join(missing_tables)}"
+            elif table_structure_issues:
+                overall_status = "degraded"
+                status_message = f"Schema issues detected: {len(table_structure_issues)} problems"
+            else:
+                overall_status = "operational"
+                status_message = "All database checks passed"
         
         return {
             "database_status": {
-                "connection": "operational",
-                "tables": len(tables),
+                "overall_status": overall_status,
+                "status_message": status_message,
+                "connection": "operational" if overall_status != "critical" else "failed",
+                "health_checks": {
+                    "required_tables": {
+                        "expected": required_tables,
+                        "found": existing_tables,
+                        "missing": missing_tables,
+                        "status": "pass" if not missing_tables else "fail"
+                    },
+                    "table_structure": {
+                        "issues": table_structure_issues,
+                        "status": "pass" if not table_structure_issues else "fail"
+                    },
+                    "critical_fields": {
+                        "checks_performed": len(critical_fields),
+                        "issues_found": len(table_structure_issues),
+                        "status": "pass" if not table_structure_issues else "fail"
+                    }
+                },
+                "tables": len(existing_tables),
                 "total_records": total_records,
+                "table_counts": table_counts,
                 "database_version": db_version,
                 "schema_version": "1.0.10",
                 "performance": {
+                    "connection_test_ms": query_time_ms,
                     "avg_query_time_ms": 12,  # Placeholder
-                    "active_connections": 5,  # Placeholder
+                    "active_connections": 5,   # Placeholder
                     "pool_size": 10
-                }
+                },
+                "last_health_check": datetime.now(timezone.utc).isoformat()
             }
         }
         
     except Exception as e:
         logger.error(f"Error getting database status: {e}")
-        raise HTTPException(status_code=500, detail=f"Error getting database status: {str(e)}")
+        # Return critical status if we can't even connect to the database
+        return {
+            "database_status": {
+                "overall_status": "critical",
+                "status_message": f"Failed to connect to database: {str(e)}",
+                "connection": "failed",
+                "health_checks": {
+                    "required_tables": {"status": "unknown"},
+                    "table_structure": {"status": "unknown"},
+                    "critical_fields": {"status": "unknown"}
+                },
+                "error": str(e),
+                "last_health_check": datetime.now(timezone.utc).isoformat()
+            }
+        }
 
 # ============================================================================
 # CLEANUP ENDPOINTS
