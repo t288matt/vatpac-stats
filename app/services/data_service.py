@@ -1628,13 +1628,17 @@ class DataService:
                                 route, flight_rules, aircraft_faa, planned_altitude, aircraft_short,
                                 cid, name, server, pilot_rating, military_rating,
                                 latitude, longitude, altitude, groundspeed, heading,
-                                last_updated
+                                last_updated, deptime, controller_callsigns, controller_time_percentage,
+                                time_online_minutes, primary_enroute_sector, total_enroute_sectors,
+                                total_enroute_time_minutes, sector_breakdown, completion_time
                             ) VALUES (
                                 :callsign, :aircraft_type, :departure, :arrival, :logon_time,
                                 :route, :flight_rules, :aircraft_faa, :planned_altitude, :aircraft_short,
                                 :cid, :name, :server, :pilot_rating, :military_rating,
                                 :latitude, :longitude, :altitude, :groundspeed, :heading,
-                                :last_updated
+                                :last_updated, :deptime, :controller_callsigns, :controller_time_percentage,
+                                :time_online_minutes, :primary_enroute_sector, :total_enroute_sectors,
+                                :total_enroute_time_minutes, :sector_breakdown, :completion_time
                             )
                         """), {
                             "callsign": record.callsign,
@@ -1657,7 +1661,16 @@ class DataService:
                             "altitude": record.altitude,
                             "groundspeed": record.groundspeed,
                             "heading": record.heading,
-                            "last_updated": record.last_updated
+                            "last_updated": record.last_updated,
+                            "deptime": getattr(record, 'deptime', None),
+                            "controller_callsigns": getattr(record, 'controller_callsigns', None),
+                            "controller_time_percentage": getattr(record, 'controller_time_percentage', None),
+                            "time_online_minutes": getattr(record, 'time_online_minutes', None),
+                            "primary_enroute_sector": getattr(record, 'primary_enroute_sector', None),
+                            "total_enroute_sectors": getattr(record, 'total_enroute_sectors', None),
+                            "total_enroute_time_minutes": getattr(record, 'total_enroute_time_minutes', None),
+                            "sector_breakdown": getattr(record, 'sector_breakdown', None),
+                            "completion_time": getattr(record, 'completion_time', None)
                         })
                     
                     processed_count += len(records)
@@ -1729,6 +1742,53 @@ class DataService:
                 
         except Exception as e:
             self.logger.error(f"Failed to delete old archived records from flights_archive: {e}")
+            raise
+
+    async def populate_flights_archive_summary_fields(self) -> int:
+        """Populate summary fields in flights_archive from flight_summaries table."""
+        try:
+            processed_count = 0
+            async with get_database_session() as session:
+                # Update flights_archive with summary data from flight_summaries
+                result = await session.execute(text("""
+                    UPDATE flights_archive 
+                    SET 
+                        deptime = fs.deptime,
+                        controller_callsigns = fs.controller_callsigns,
+                        controller_time_percentage = fs.controller_time_percentage,
+                        time_online_minutes = fs.time_online_minutes,
+                        primary_enroute_sector = fs.primary_enroute_sector,
+                        total_enroute_sectors = fs.total_enroute_sectors,
+                        total_enroute_time_minutes = fs.total_enroute_time_minutes,
+                        sector_breakdown = fs.sector_breakdown,
+                        completion_time = fs.completion_time,
+                        updated_at = NOW()
+                    FROM flight_summaries fs
+                    WHERE flights_archive.callsign = fs.callsign
+                    AND flights_archive.departure = fs.departure
+                    AND flights_archive.arrival = fs.arrival
+                    AND flights_archive.cid = fs.cid
+                    AND flights_archive.deptime = fs.deptime
+                    AND (
+                        flights_archive.controller_callsigns IS NULL
+                        OR flights_archive.controller_time_percentage IS NULL
+                        OR flights_archive.time_online_minutes IS NULL
+                        OR flights_archive.primary_enroute_sector IS NULL
+                        OR flights_archive.total_enroute_sectors IS NULL
+                        OR flights_archive.total_enroute_time_minutes IS NULL
+                        OR flights_archive.sector_breakdown IS NULL
+                        OR flights_archive.completion_time IS NULL
+                    )
+                """))
+                
+                processed_count = result.rowcount
+                await session.commit()
+                
+                self.logger.info(f"✅ Updated {processed_count} flights_archive records with summary data")
+                return processed_count
+                
+        except Exception as e:
+            self.logger.error(f"Failed to populate flights_archive summary fields: {e}")
             raise
 
     async def start_scheduled_flight_processing(self):

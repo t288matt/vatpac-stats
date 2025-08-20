@@ -1648,6 +1648,88 @@ async def trigger_controller_processing():
         logger.error(f"Error triggering controller processing: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+@app.post("/api/flights/archive/populate-summary")
+@handle_service_errors
+@log_operation("populate_flights_archive_summary")
+async def populate_flights_archive_summary():
+    """Manually populate summary fields in flights_archive from flight_summaries."""
+    try:
+        data_service = await get_data_service()
+        
+        # Populate summary fields
+        result = await data_service.populate_flights_archive_summary_fields()
+        
+        return {
+            "status": "success",
+            "message": "Flights archive summary fields populated",
+            "records_updated": result,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error populating flights archive summary fields: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/flights/archive/sync-status")
+@handle_service_errors
+@log_operation("check_flights_archive_sync_status")
+async def check_flights_archive_sync_status():
+    """Check synchronization status between flight_summaries and flights_archive."""
+    try:
+        async with get_database_session() as session:
+            # Check how many flights_archive records have summary data
+            result = await session.execute(text("""
+                SELECT 
+                    COUNT(*) as total_records,
+                    COUNT(deptime) as with_deptime,
+                    COUNT(controller_callsigns) as with_controller_callsigns,
+                    COUNT(controller_time_percentage) as with_controller_time,
+                    COUNT(time_online_minutes) as with_time_online,
+                    COUNT(primary_enroute_sector) as with_primary_sector,
+                    COUNT(total_enroute_sectors) as with_total_sectors,
+                    COUNT(total_enroute_time_minutes) as with_total_time,
+                    COUNT(sector_breakdown) as with_sector_breakdown,
+                    COUNT(completion_time) as with_completion_time
+                FROM flights_archive
+            """))
+            
+            counts = result.fetchone()
+            
+            # Calculate completion percentages
+            total = counts.total_records or 0
+            if total == 0:
+                return {
+                    "status": "no_data",
+                    "message": "No records in flights_archive table",
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+            
+            completion_rates = {
+                "deptime": round((counts.with_deptime or 0) / total * 100, 2),
+                "controller_callsigns": round((counts.with_controller_callsigns or 0) / total * 100, 2),
+                "controller_time_percentage": round((counts.with_controller_time or 0) / total * 100, 2),
+                "time_online_minutes": round((counts.with_time_online or 0) / total * 100, 2),
+                "primary_enroute_sector": round((counts.with_primary_sector or 0) / total * 100, 2),
+                "total_enroute_sectors": round((counts.with_total_sectors or 0) / total * 100, 2),
+                "total_enroute_time_minutes": round((counts.with_total_time or 0) / total * 100, 2),
+                "sector_breakdown": round((counts.with_sector_breakdown or 0) / total * 100, 2),
+                "completion_time": round((counts.with_completion_time or 0) / total * 100, 2)
+            }
+            
+            overall_completion = round(sum(completion_rates.values()) / len(completion_rates), 2)
+            
+            return {
+                "status": "success",
+                "total_records": total,
+                "overall_completion_percentage": overall_completion,
+                "field_completion_rates": completion_rates,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            
+    except Exception as e:
+        logger.error(f"Error checking flights archive sync status: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 @app.get("/api/health/controller-summary")
 @handle_service_errors
 @log_operation("health_controller_summary")
