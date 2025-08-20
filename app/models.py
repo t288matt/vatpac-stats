@@ -231,6 +231,7 @@ class FlightSummary(Base, TimestampMixin):
     aircraft_type = Column(String(20), nullable=True)  # Aircraft type
     departure = Column(String(10), nullable=True, index=True)  # Departure airport
     arrival = Column(String(10), nullable=True, index=True)  # Arrival airport
+    deptime = Column(String(10), nullable=True)  # Departure time from flight plan
     logon_time = Column(TIMESTAMP(timezone=True), nullable=True)  # When pilot connected
     route = Column(Text, nullable=True)  # Flight plan route
     flight_rules = Column(String(10), nullable=True)  # IFR/VFR

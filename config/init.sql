@@ -300,6 +300,7 @@ CREATE TABLE IF NOT EXISTS flight_summaries (
     aircraft_type VARCHAR(20),
     departure VARCHAR(10),
     arrival VARCHAR(10),
+    deptime VARCHAR(10),            -- Departure time from flight_plan.deptime
     logon_time TIMESTAMP(0) WITH TIME ZONE,
     route TEXT,
     flight_rules VARCHAR(10),

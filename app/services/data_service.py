@@ -1145,6 +1145,7 @@ class DataService:
                         "aircraft_type": first_record.aircraft_type,
                         "departure": departure,
                         "arrival": arrival,
+                        "deptime": deptime,
                         "logon_time": first_record.logon_time,
                         "route": first_record.route,
                         "flight_rules": first_record.flight_rules,
@@ -1169,14 +1170,14 @@ class DataService:
                     # Insert summary
                     await session.execute(text("""
                         INSERT INTO flight_summaries (
-                            callsign, aircraft_type, departure, arrival, logon_time,
+                            callsign, aircraft_type, departure, arrival, deptime, logon_time,
                             route, flight_rules, aircraft_faa, planned_altitude, aircraft_short,
                             cid, name, server, pilot_rating, military_rating,
                             controller_callsigns, controller_time_percentage, time_online_minutes,
                             primary_enroute_sector, total_enroute_sectors, total_enroute_time_minutes, sector_breakdown,
                             completion_time
                         ) VALUES (
-                            :callsign, :aircraft_type, :departure, :arrival, :logon_time,
+                            :callsign, :aircraft_type, :departure, :arrival, :deptime, :logon_time,
                             :route, :flight_rules, :aircraft_faa, :planned_altitude, :aircraft_short,
                             :cid, :name, :server, :pilot_rating, :military_rating,
                             :controller_callsigns, :controller_time_percentage, :time_online_minutes,
