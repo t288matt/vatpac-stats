@@ -331,7 +331,7 @@ CREATE TABLE IF NOT EXISTS flights_archive (
     aircraft_type VARCHAR(20),
     departure VARCHAR(10),
     arrival VARCHAR(10),
-    deptime TIMESTAMP WITH TIME ZONE,  -- Departure time from flight plan
+    deptime VARCHAR(10),            -- Departure time from flight plan
     logon_time TIMESTAMP(0) WITH TIME ZONE,
     route TEXT,
     flight_rules VARCHAR(10),

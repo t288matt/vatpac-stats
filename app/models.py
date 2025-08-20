@@ -332,6 +332,110 @@ class ControllersArchive(Base, TimestampMixin):
         Index('idx_controllers_archive_archived_at', 'archived_at'),
     )
 
+class FlightsArchive(Base, TimestampMixin):
+    """Archive table for old flight records after summarization"""
+    __tablename__ = "flights_archive"
+    
+    id = Column(Integer, primary_key=True)  # Keep original ID for reference
+    callsign = Column(String(50), nullable=False, index=True)  # Flight callsign
+    aircraft_type = Column(String(20), nullable=True)  # Aircraft type
+    departure = Column(String(10), nullable=True)  # Departure airport
+    arrival = Column(String(10), nullable=True)  # Arrival airport
+    deptime = Column(String(10), nullable=True)  # Departure time from flight plan
+    logon_time = Column(TIMESTAMP(timezone=True), nullable=True, index=True)  # When pilot connected
+    route = Column(Text, nullable=True)  # Flight plan route
+    flight_rules = Column(String(10), nullable=True)  # IFR/VFR
+    aircraft_faa = Column(String(20), nullable=True)  # FAA aircraft code
+    planned_altitude = Column(String(10), nullable=True)  # Planned cruise altitude
+    aircraft_short = Column(String(20), nullable=True)  # Short aircraft code
+    cid = Column(Integer, nullable=True)  # VATSIM user ID
+    name = Column(String(100), nullable=True)  # Pilot name
+    server = Column(String(50), nullable=True)  # Network server
+    pilot_rating = Column(Integer, nullable=True)  # Pilot rating
+    military_rating = Column(Integer, nullable=True)  # Military rating
+    latitude = Column(Float, nullable=True)  # Position latitude
+    longitude = Column(Float, nullable=True)  # Position longitude
+    altitude = Column(Integer, nullable=True)  # Current altitude
+    groundspeed = Column(Integer, nullable=True)  # Ground speed
+    heading = Column(Integer, nullable=True)  # Current heading
+    last_updated = Column(TIMESTAMP(timezone=True), nullable=True, index=True)  # Last update
+    controller_callsigns = Column(Text, nullable=True)  # JSON array of ATC callsigns
+    controller_time_percentage = Column(Float, nullable=True)  # Percentage of time on ATC
+    time_online_minutes = Column(Integer, nullable=True)  # Total time online
+    primary_enroute_sector = Column(String(50), nullable=True, index=True)  # Primary sector flown
+    total_enroute_sectors = Column(Integer, nullable=True)  # Total sectors visited
+    total_enroute_time_minutes = Column(Integer, nullable=True)  # Total enroute time
+    sector_breakdown = Column(Text, nullable=True)  # JSON sector breakdown
+    completion_time = Column(TIMESTAMP(timezone=True), nullable=True, index=True)  # When flight completed
+    
+    # Constraints
+    __table_args__ = (
+        CheckConstraint('pilot_rating >= 0 AND pilot_rating <= 63', name='valid_pilot_rating'),
+        CheckConstraint('military_rating >= 0 AND military_rating <= 63', name='valid_military_rating'),
+        CheckConstraint('controller_time_percentage >= 0 AND controller_time_percentage <= 100', name='valid_controller_time'),
+        CheckConstraint('time_online_minutes >= 0', name='valid_time_online'),
+        CheckConstraint('total_enroute_sectors >= 0', name='valid_total_sectors'),
+        CheckConstraint('total_enroute_time_minutes >= 0', name='valid_enroute_time'),
+        Index('idx_flights_archive_callsign', 'callsign'),
+        Index('idx_flights_archive_logon_time', 'logon_time'),
+        Index('idx_flights_archive_last_updated', 'last_updated'),
+        Index('idx_flights_archive_deptime', 'deptime'),
+        Index('idx_flights_archive_completion_time', 'completion_time'),
+        Index('idx_flights_archive_primary_sector', 'primary_enroute_sector'),
+    )
+
+class FlightsArchive(Base, TimestampMixin):
+    """Archive table for completed flight records after summarization"""
+    __tablename__ = "flights_archive"
+    
+    id = Column(Integer, primary_key=True)  # Keep original ID for reference
+    callsign = Column(String(50), nullable=False, index=True)  # Flight callsign
+    aircraft_type = Column(String(20), nullable=True)  # Aircraft type
+    departure = Column(String(10), nullable=True)  # Departure airport
+    arrival = Column(String(10), nullable=True)  # Arrival airport
+    deptime = Column(String(10), nullable=True)  # Departure time from flight plan
+    logon_time = Column(TIMESTAMP(timezone=True), nullable=True)  # When pilot connected
+    route = Column(Text, nullable=True)  # Flight plan route
+    flight_rules = Column(String(10), nullable=True)  # IFR/VFR
+    aircraft_faa = Column(String(20), nullable=True)  # FAA aircraft code
+    planned_altitude = Column(String(10), nullable=True)  # Planned cruise altitude
+    aircraft_short = Column(String(20), nullable=True)  # Short aircraft code
+    cid = Column(Integer, nullable=True, index=True)  # VATSIM user ID
+    name = Column(String(100), nullable=True)  # Pilot name
+    server = Column(String(50), nullable=True)  # Network server
+    pilot_rating = Column(Integer, nullable=True)  # Pilot rating
+    military_rating = Column(Integer, nullable=True)  # Military rating
+    latitude = Column(Float, nullable=True)  # Position latitude
+    longitude = Column(Float, nullable=True)  # Position longitude
+    altitude = Column(Integer, nullable=True)  # Current altitude
+    groundspeed = Column(Integer, nullable=True)  # Ground speed
+    heading = Column(Integer, nullable=True)  # Current heading
+    last_updated = Column(TIMESTAMP(timezone=True), nullable=True)  # Last update
+    controller_callsigns = Column(Text, nullable=True)  # JSON array of ATC callsigns
+    controller_time_percentage = Column(Float, nullable=True)  # Percentage of time on ATC
+    time_online_minutes = Column(Integer, nullable=True)  # Total time online
+    primary_enroute_sector = Column(String(50), nullable=True)  # Primary sector flown
+    total_enroute_sectors = Column(Integer, nullable=True)  # Total sectors visited
+    total_enroute_time_minutes = Column(Integer, nullable=True)  # Total enroute time
+    sector_breakdown = Column(Text, nullable=True)  # JSON sector breakdown
+    completion_time = Column(TIMESTAMP(timezone=True), nullable=True)  # When flight completed
+    
+    # Constraints
+    __table_args__ = (
+        CheckConstraint('pilot_rating >= 0 AND pilot_rating <= 63', name='valid_pilot_rating'),
+        CheckConstraint('military_rating >= 0 AND military_rating <= 63', name='valid_military_rating'),
+        CheckConstraint('controller_time_percentage >= 0 AND controller_time_percentage <= 100', name='valid_controller_time'),
+        CheckConstraint('time_online_minutes >= 0', name='valid_time_online'),
+        CheckConstraint('total_enroute_sectors >= 0', name='valid_total_sectors'),
+        CheckConstraint('total_enroute_time_minutes >= 0', name='valid_enroute_time'),
+        Index('idx_flights_archive_callsign', 'callsign'),
+        Index('idx_flights_archive_logon_time', 'logon_time'),
+        Index('idx_flights_archive_last_updated', 'last_updated'),
+        Index('idx_flights_archive_deptime', 'deptime'),
+        Index('idx_flights_archive_completion_time', 'completion_time'),
+        Index('idx_flights_archive_primary_sector', 'primary_enroute_sector'),
+    )
+
 # Event listeners for automatic timestamp updates
 @event.listens_for(Base, 'before_update', propagate=True)
 def timestamp_before_update(mapper, connection, target):
