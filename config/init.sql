@@ -331,6 +331,7 @@ CREATE TABLE IF NOT EXISTS flights_archive (
     aircraft_type VARCHAR(20),
     departure VARCHAR(10),
     arrival VARCHAR(10),
+    deptime TIMESTAMP WITH TIME ZONE,  -- Departure time from flight plan
     logon_time TIMESTAMP(0) WITH TIME ZONE,
     route TEXT,
     flight_rules VARCHAR(10),
@@ -347,8 +348,17 @@ CREATE TABLE IF NOT EXISTS flights_archive (
     altitude INTEGER,
     groundspeed INTEGER,
     heading INTEGER,
+    controller_callsigns JSONB,  -- JSON array of controller callsigns
+    controller_time_percentage DECIMAL(5,2),  -- Percentage of time with ATC contact
+    time_online_minutes INTEGER,  -- Total time online in minutes
+    primary_enroute_sector VARCHAR(50),  -- Primary sector flown through
+    total_enroute_sectors INTEGER,  -- Total number of sectors flown through
+    total_enroute_time_minutes INTEGER,  -- Total time in enroute sectors
+    sector_breakdown JSONB,  -- Detailed sector breakdown data
+    completion_time TIMESTAMP WITH TIME ZONE,  -- When flight completed
     last_updated TIMESTAMP(0) WITH TIME ZONE,
-    created_at TIMESTAMP(0) WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP(0) WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create indexes for flight_summaries table
@@ -361,10 +371,20 @@ CREATE INDEX IF NOT EXISTS idx_flight_summaries_controller_time ON flight_summar
 CREATE INDEX IF NOT EXISTS idx_flights_archive_callsign ON flights_archive(callsign);
 CREATE INDEX IF NOT EXISTS idx_flights_archive_logon_time ON flights_archive(logon_time);
 CREATE INDEX IF NOT EXISTS idx_flights_archive_last_updated ON flights_archive(last_updated);
+CREATE INDEX IF NOT EXISTS idx_flights_archive_deptime ON flights_archive(deptime);
+CREATE INDEX IF NOT EXISTS idx_flights_archive_controller_callsigns ON flights_archive USING GIN(controller_callsigns);
+CREATE INDEX IF NOT EXISTS idx_flights_archive_controller_time ON flights_archive(controller_time_percentage);
+CREATE INDEX IF NOT EXISTS idx_flights_archive_primary_sector ON flights_archive(primary_enroute_sector);
+CREATE INDEX IF NOT EXISTS idx_flights_archive_sector_breakdown ON flights_archive USING GIN(sector_breakdown);
+CREATE INDEX IF NOT EXISTS idx_flights_archive_completion_time ON flights_archive(completion_time);
 
 -- Create triggers for updated_at columns on new tables
 CREATE TRIGGER update_flight_summaries_updated_at 
     BEFORE UPDATE ON flight_summaries 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_flights_archive_updated_at 
+    BEFORE UPDATE ON flights_archive 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Controller Summaries table for completed controller session data

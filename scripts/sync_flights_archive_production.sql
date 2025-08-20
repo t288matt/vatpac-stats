@@ -15,8 +15,8 @@ BEGIN
     -- Add controller_callsigns column if it doesn't exist
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
                    WHERE table_name = 'flights_archive' AND column_name = 'controller_callsigns') THEN
-        ALTER TABLE flights_archive ADD COLUMN controller_callsigns TEXT[];
-        COMMENT ON COLUMN flights_archive.controller_callsigns IS 'Array of controller callsigns that handled this flight';
+        ALTER TABLE flights_archive ADD COLUMN controller_callsigns JSONB;
+        COMMENT ON COLUMN flights_archive.controller_callsigns IS 'JSON array of controller callsigns that handled this flight';
     END IF;
 
     -- Add controller_time_percentage column if it doesn't exist
@@ -67,6 +67,13 @@ BEGIN
         ALTER TABLE flights_archive ADD COLUMN completion_time TIMESTAMP WITH TIME ZONE;
         COMMENT ON COLUMN flights_archive.completion_time IS 'Time when flight summary was completed';
     END IF;
+
+    -- Add updated_at column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'flights_archive' AND column_name = 'updated_at') THEN
+        ALTER TABLE flights_archive ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+        COMMENT ON COLUMN flights_archive.updated_at IS 'Last update timestamp';
+    END IF;
 END $$;
 
 -- Phase 2: Create indexes for performance (idempotent)
@@ -85,6 +92,27 @@ BEGIN
     -- Create index on primary_enroute_sector if it doesn't exist
     IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'flights_archive' AND indexname = 'idx_flights_archive_primary_sector') THEN
         CREATE INDEX idx_flights_archive_primary_sector ON flights_archive(primary_enroute_sector);
+    END IF;
+
+    -- Create index on sector_breakdown if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'flights_archive' AND indexname = 'idx_flights_archive_sector_breakdown') THEN
+        CREATE INDEX idx_flights_archive_sector_breakdown ON flights_archive USING GIN(sector_breakdown);
+    END IF;
+
+    -- Create index on controller_time_percentage if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'flights_archive' AND indexname = 'idx_flights_archive_controller_time') THEN
+        CREATE INDEX idx_flights_archive_controller_time ON flights_archive(controller_time_percentage);
+    END IF;
+END $$;
+
+-- Phase 2.5: Create triggers for updated_at columns
+DO $$
+BEGIN
+    -- Create trigger for updated_at on flights_archive if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_flights_archive_updated_at') THEN
+        CREATE TRIGGER update_flights_archive_updated_at 
+            BEFORE UPDATE ON flights_archive 
+            FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
     END IF;
 END $$;
 
