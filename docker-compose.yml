@@ -16,10 +16,10 @@ services:
     #check postgres is up before allowing app to connect
     healthcheck:
       test: ["CMD-SHELL", "pg_isready"]
-      interval: 60s        # Much more lenient for CI/CD
-      timeout: 30s         # Much more lenient for CI/CD
-      retries: 15          # More retries for CI/CD
-      start_period: 120s   # Much longer grace period for CI/CD
+      interval: 10s        # Faster checks for CI/CD
+      timeout: 5s          # Faster timeouts for CI/CD
+      retries: 6           # Fewer retries for CI/CD
+      start_period: 30s    # Shorter grace period for CI/CD
 
   # Main Application (API-First Architecture)
   app:
@@ -36,6 +36,7 @@ services:
       
       # Production Settings
       PRODUCTION_MODE: "true"
+      CI_MODE: "false"  # Set to "true" in GitHub Actions for faster startup
       
       # Performance Settings
       MEMORY_LIMIT_MB: 2048

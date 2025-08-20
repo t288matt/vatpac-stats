@@ -24,15 +24,48 @@ def check_port_availability(host: str, port: int) -> bool:
 
 def setup_startup_logging():
     """Setup logging for startup process"""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(sys.stdout),
-            logging.FileHandler('logs/startup.log') if os.path.exists('logs') else logging.NullHandler()
-        ]
-    )
-    return logging.getLogger(__name__)
+    try:
+        # Try to create logs directory if it doesn't exist
+        if not os.path.exists('logs'):
+            try:
+                os.makedirs('logs', exist_ok=True)
+            except PermissionError:
+                pass  # Continue without logs directory if we can't create it
+        
+        # Setup logging with fallback for permission issues
+        handlers = [logging.StreamHandler(sys.stdout)]
+        
+        # Try to add file handler, but fallback gracefully if there are permission issues
+        try:
+            if os.path.exists('logs') and os.access('logs', os.W_OK):
+                handlers.append(logging.FileHandler('logs/startup.log'))
+            else:
+                # Use NullHandler if we can't write to logs directory
+                handlers.append(logging.NullHandler())
+        except (PermissionError, OSError):
+            # If we can't create file handler, just use console logging
+            handlers.append(logging.NullHandler())
+        
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=handlers
+        )
+        
+        logger = logging.getLogger(__name__)
+        logger.info("Startup logging configured successfully")
+        return logger
+        
+    except Exception as e:
+        # Fallback to basic console logging if setup fails
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[logging.StreamHandler(sys.stdout)]
+        )
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Failed to setup advanced logging, using console only: {e}")
+        return logger
 
 if __name__ == "__main__":
     logger = setup_startup_logging()
