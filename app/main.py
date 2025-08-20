@@ -87,7 +87,7 @@ async def lifespan(app: FastAPI):
             await session.execute(text("SELECT 1"))
             logger.info("✅ Database connection successful")
             
-            # Check if all required tables exist
+            # Check if all required tables exist - MORE ROBUST VALIDATION
             logger.info("🔍 Verifying database schema...")
             required_tables = [
                 'flights', 'controllers', 'transceivers', 'flight_summaries', 
@@ -95,24 +95,40 @@ async def lifespan(app: FastAPI):
                 'controllers_archive'
             ]
             
-            existing_tables_result = await session.execute(text("""
-                SELECT table_name 
-                FROM information_schema.tables 
-                WHERE table_schema = 'public'
-            """))
-            existing_tables = [row[0] for row in existing_tables_result.fetchall()]
+            # Get existing tables with explicit error handling
+            try:
+                existing_tables_result = await session.execute(text("""
+                    SELECT table_name 
+                    FROM information_schema.tables 
+                    WHERE table_schema = 'public'
+                    ORDER BY table_name
+                """))
+                existing_tables = [row[0] for row in existing_tables_result.fetchall()]
+                logger.info(f"🔍 Found {len(existing_tables)} existing tables: {', '.join(existing_tables)}")
+            except Exception as e:
+                error_msg = f"🚨 CRITICAL: Failed to query database schema: {e}"
+                logger.critical(error_msg)
+                exit_application(f"Database schema query failed: {e}")
             
-            missing_tables = [table for table in required_tables if table not in existing_tables]
+            # Explicitly check each required table
+            missing_tables = []
+            for table in required_tables:
+                if table not in existing_tables:
+                    missing_tables.append(table)
+                    logger.critical(f"🚨 CRITICAL: Required table '{table}' is missing")
+                else:
+                    logger.info(f"✅ Required table '{table}' found")
             
             if missing_tables:
                 error_msg = f"🚨 CRITICAL: Missing required database tables: {', '.join(missing_tables)}"
                 logger.critical(error_msg)
                 logger.critical("🚨 CRITICAL: Application cannot start without required database schema")
+                logger.critical("🚨 CRITICAL: Please check database initialization and run init.sql")
                 exit_application(f"Missing required database tables: {', '.join(missing_tables)}")
             
             logger.info(f"✅ All required tables present: {', '.join(required_tables)}")
             
-            # Check table structure for critical fields
+            # Check table structure for critical fields - MORE ROBUST VALIDATION
             logger.info("🔍 Verifying critical table structures...")
             critical_checks = [
                 ("flights", "callsign", "VARCHAR"),
@@ -121,26 +137,42 @@ async def lifespan(app: FastAPI):
                 ("flights_archive", "deptime", "TIMESTAMP")
             ]
             
+            table_structure_errors = []
             for table, column, expected_type in critical_checks:
                 try:
+                    # First verify table exists
+                    if table not in existing_tables:
+                        table_structure_errors.append(f"Table '{table}' does not exist")
+                        continue
+                    
                     column_info = await session.execute(text("""
-                        SELECT data_type 
+                        SELECT data_type, is_nullable, column_default
                         FROM information_schema.columns 
                         WHERE table_name = :table AND column_name = :column
                     """), {"table": table, "column": column})
                     
-                    actual_type = column_info.scalar()
-                    if not actual_type:
+                    column_data = column_info.fetchone()
+                    if not column_data:
                         error_msg = f"🚨 CRITICAL: Missing critical column '{column}' in table '{table}'"
                         logger.critical(error_msg)
-                        exit_application(f"Missing critical column '{column}' in table '{table}'")
-                    
-                    logger.info(f"✅ Table {table}.{column}: {actual_type}")
-                    
+                        table_structure_errors.append(f"Missing column '{column}' in table '{table}'")
+                    else:
+                        actual_type = column_data[0]
+                        logger.info(f"✅ Table {table}.{column}: {actual_type}")
+                        
                 except Exception as e:
                     error_msg = f"🚨 CRITICAL: Failed to verify table {table} structure: {e}"
                     logger.critical(error_msg)
-                    exit_application(f"Failed to verify table {table} structure: {e}")
+                    table_structure_errors.append(f"Failed to verify table {table} structure: {e}")
+            
+            if table_structure_errors:
+                error_msg = f"🚨 CRITICAL: Table structure validation failed: {len(table_structure_errors)} errors"
+                logger.critical(error_msg)
+                for error in table_structure_errors:
+                    logger.critical(f"🚨 CRITICAL: {error}")
+                exit_application(f"Table structure validation failed: {len(table_structure_errors)} errors")
+            
+            logger.info("✅ All critical table structures validated successfully")
             
     except Exception as e:
         # Catch critical database errors and fail the app
@@ -2047,4 +2079,94 @@ async def root():
     return {
         "status": "operational",
         "version": "1.0.0"
-    } 
+    }
+
+@app.get("/api/startup/health")
+async def startup_health_check():
+    """Startup health check - verifies all required database tables exist"""
+    try:
+        async with get_database_session() as session:
+            # Get all required tables
+            required_tables = [
+                'flights', 'controllers', 'transceivers', 'flight_summaries', 
+                'flights_archive', 'flight_sector_occupancy', 'controller_summaries', 
+                'controllers_archive'
+            ]
+            
+            # Query existing tables
+            existing_tables_result = await session.execute(text("""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public'
+                ORDER BY table_name
+            """))
+            existing_tables = [row[0] for row in existing_tables_result.fetchall()]
+            
+            # Check each required table
+            table_status = {}
+            missing_tables = []
+            
+            for table in required_tables:
+                if table in existing_tables:
+                    # Verify table is accessible by doing a simple count
+                    try:
+                        count_result = await session.execute(text(f"SELECT COUNT(*) FROM {table}"))
+                        count = count_result.scalar()
+                        table_status[table] = {
+                            "exists": True,
+                            "accessible": True,
+                            "record_count": count or 0,
+                            "status": "healthy"
+                        }
+                    except Exception as e:
+                        table_status[table] = {
+                            "exists": True,
+                            "accessible": False,
+                            "error": str(e),
+                            "status": "unhealthy"
+                        }
+                else:
+                    table_status[table] = {
+                        "exists": False,
+                        "accessible": False,
+                        "status": "missing"
+                    }
+                    missing_tables.append(table)
+            
+            # Determine overall health
+            if missing_tables:
+                overall_status = "critical"
+                status_message = f"Missing {len(missing_tables)} required tables: {', '.join(missing_tables)}"
+            else:
+                # Check if all tables are accessible
+                inaccessible_tables = [table for table, status in table_status.items() 
+                                    if not status.get("accessible", True)]
+                if inaccessible_tables:
+                    overall_status = "degraded"
+                    status_message = f"{len(inaccessible_tables)} tables are inaccessible"
+                else:
+                    overall_status = "healthy"
+                    status_message = "All required tables exist and are accessible"
+            
+            return {
+                "startup_health": {
+                    "overall_status": overall_status,
+                    "status_message": status_message,
+                    "required_tables_count": len(required_tables),
+                    "existing_tables_count": len(existing_tables),
+                    "missing_tables_count": len(missing_tables),
+                    "missing_tables": missing_tables,
+                    "table_status": table_status,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+            }
+            
+    except Exception as e:
+        return {
+            "startup_health": {
+                "overall_status": "critical",
+                "status_message": f"Failed to check database health: {str(e)}",
+                "error": str(e),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        }

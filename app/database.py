@@ -179,6 +179,27 @@ def get_database_session():
                 error_msg = f"🚨 CRITICAL: Failed to create database session: {e}"
                 logger.critical(error_msg)
                 logger.critical("🚨 CRITICAL: This indicates a database connection failure")
+                
+                # Provide specific error guidance based on error type
+                if "connection" in str(e).lower() or "connect" in str(e).lower():
+                    logger.critical("🚨 CRITICAL: Database connection failed - check:")
+                    logger.critical("   - Database service is running (docker-compose ps)")
+                    logger.critical("   - Database credentials are correct")
+                    logger.critical("   - Network connectivity between app and database")
+                elif "authentication" in str(e).lower() or "password" in str(e).lower():
+                    logger.critical("🚨 CRITICAL: Database authentication failed - check:")
+                    logger.critical("   - Database username and password")
+                    logger.critical("   - Database user permissions")
+                elif "database" in str(e).lower() and "does not exist" in str(e).lower():
+                    logger.critical("🚨 CRITICAL: Database does not exist - check:")
+                    logger.critical("   - Database name in connection string")
+                    logger.critical("   - Database initialization script ran successfully")
+                elif "relation" in str(e).lower() or "table" in str(e).lower():
+                    logger.critical("🚨 CRITICAL: Database schema issue - check:")
+                    logger.critical("   - Database initialization script ran successfully")
+                    logger.critical("   - Required tables exist")
+                    logger.critical("   - Table permissions are correct")
+                
                 raise RuntimeError(f"Database session creation failed: {e}")
         
         async def __aexit__(self, exc_type, exc_val, exc_tb):

@@ -18,11 +18,30 @@ try {
     exit 1
 }
 
+# Check if the SQL script exists
+if (-not (Test-Path "scripts/create_production_controller_tables.sql")) {
+    Write-Host "Error: SQL script not found at scripts/create_production_controller_tables.sql" -ForegroundColor Red
+    exit 1
+}
+
 Write-Host "Executing SQL script to create controller tables..." -ForegroundColor Yellow
 
 # Execute the SQL script using Docker Compose
 try {
-    docker-compose exec -T db psql -U postgres -d vatsim_data -f /scripts/create_production_controller_tables.sql
+    # Copy the SQL script to the postgres container
+    Write-Host "Copying SQL script to postgres container..." -ForegroundColor Yellow
+    docker cp "scripts/create_production_controller_tables.sql" vatsim_postgres:/tmp/
+    
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "SQL script copied successfully" -ForegroundColor Green
+    } else {
+        Write-Host "Error: Failed to copy SQL script to container" -ForegroundColor Red
+        exit 1
+    }
+    
+    # Execute the SQL script
+    Write-Host "Executing SQL script..." -ForegroundColor Yellow
+    docker-compose exec -T postgres psql -U vatsim_user -d vatsim_data -f /tmp/create_production_controller_tables.sql
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Successfully created controller tables!" -ForegroundColor Green
@@ -43,8 +62,6 @@ try {
 
 Write-Host ""
 Write-Host "Verification: You can now check the tables exist by running:" -ForegroundColor Yellow
-Write-Host "  docker-compose exec db psql -U postgres -d vatsim_data -c \"\dt controller*\"" -ForegroundColor White
+Write-Host "  docker-compose exec postgres psql -U vatsim_user -d vatsim_data -c \"\dt controller*\"" -ForegroundColor White
 Write-Host ""
 Write-Host "Script execution completed." -ForegroundColor Green
-
-

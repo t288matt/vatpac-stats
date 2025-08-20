@@ -164,3 +164,4 @@ FROM information_schema.triggers
 WHERE event_object_table IN ('controller_summaries', 'controllers_archive')
 ORDER BY event_object_table, trigger_name;
 
+
