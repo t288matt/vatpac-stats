@@ -61,11 +61,15 @@ Response    Objects        Logic       Data        Ranges       Records     Stor
 
 #### **Filtering Logic**:
 ```
-Raw Data → Geographic Filter → Callsign Filter → Validation Filter → Controller Type Detection → Storage
-   │              │                │                │                │
-   ▼              ▼                ▼                ▼                ▼
-All Data    Within AU      Valid Callsigns    Complete Flight    Proximity Ranges
-            Airspace       (exclude ATIS)     Plans Only        (15nm-1000nm)
+Raw Data → Geographic Filter → Callsign Filter → Flight Plan Filter → Controller Type Detection → Storage
+   │              │                │                │                │                │
+   ▼              ▼                ▼                ▼                ▼                ▼
+All Data    Within AU      Valid Callsigns    Complete Flight    Proximity Ranges    Database
+            Airspace       (exclude ATIS)     Plans Only        (15nm-1000nm)      Storage
+                                    │                │
+                                    ▼                ▼
+                            Valid Callsigns    Departure + Arrival
+                            (exclude ATIS)     Must Be Populated
 ```
 
 #### **Controller Proximity System**:
@@ -75,6 +79,9 @@ All Data    Within AU      Valid Callsigns    Complete Flight    Proximity Range
 - **FSS Controllers**: 1000nm proximity range (flight service operations)
 - **Automatic Detection**: Controller type identified from callsign patterns
 - **Dynamic Configuration**: Proximity ranges configurable via environment variables
+- **Service Symmetry**: ATCDetectionService and FlightDetectionService use identical logic
+- **Comprehensive Testing**: 8 ATCDetectionService tests + enhanced E2E tests with real outcome verification
+- **Real Outcomes Verified**: Tests verify actual controller detection, proximity assignment, and live API behavior
 
 ### **3. Data Storage & Persistence**
 
@@ -148,8 +155,9 @@ All Data    Within AU      Valid Callsigns    Complete Flight    Proximity Range
 
 ### **Business Logic Validation**
 - **Geographic Bounds**: Within Australian airspace
-- **Flight Plans**: Complete departure/arrival information
+- **Flight Plans**: Complete departure/arrival information (both fields must be populated)
 - **Callsigns**: Valid pattern, not excluded types
+- **Flight Plan Completeness**: Flights without departure or arrival are filtered out at ingestion
 
 ### **Storage Validation**
 - **Database Constraints**: Foreign keys, unique constraints

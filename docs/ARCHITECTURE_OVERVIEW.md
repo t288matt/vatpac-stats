@@ -251,26 +251,25 @@ The VATSIM Data Collection System is a high-performance, API-driven platform des
 - **Production Ready**: Comprehensive error handling and logging
 - **Actively Filtering**: Currently processing and filtering VATSIM data in real-time
 
-### 8. Flight Plan Validation Filter (`app/services/data_service.py`) ✅ **NEWLY IMPLEMENTED**
+### 8. Flight Plan Validation Filter (`app/services/data_service.py`) ✅ **UPDATED IMPLEMENTATION**
 **Purpose**: Automatic validation of flight plan completeness before database storage
 
-**Current Status**: ✅ **NEWLY IMPLEMENTED** (January 2025)
+**Current Status**: ✅ **UPDATED IMPLEMENTATION** (January 2025)
 - **Data Quality**: Ensures 100% of stored flights have complete flight plan data
-- **Validation Criteria**: 4 essential fields required (departure, arrival, flight_rules, aircraft_faa)
-- **Filter Pipeline**: Applied before geographic boundary filtering
-- **Configuration**: Environment variable controlled (`FLIGHT_PLAN_VALIDATION_ENABLED`)
+- **Validation Criteria**: 2 essential fields required (departure, arrival)
+- **Filter Pipeline**: Applied during data ingestion, before database storage
+- **Configuration**: Built-in filter, no configuration required
 
 **Validation Requirements**:
 - **`departure`**: Must be present and non-empty airport code
-- **`arrival`**: Must be present and non-empty airport code  
-- **`flight_rules`**: Must be "I" (IFR) or "V" (VFR)
-- **`aircraft_faa`**: Must be present and non-empty aircraft type code
+- **`arrival`**: Must be present and non-empty airport code
 
 **Filter Behavior**:
-- **Enabled by default**: `FLIGHT_PLAN_VALIDATION_ENABLED=true`
-- **Applied first**: Before geographic boundary filtering
-- **Rejects incomplete flights**: Flights missing any of the 4 essential fields
+- **Always enabled**: Built-in filter that cannot be disabled
+- **Applied early**: During data ingestion, before database storage
+- **Rejects incomplete flights**: Flights missing departure or arrival are filtered out
 - **Ensures data quality**: All stored flights have complete, analyzable data
+- **Prevents multiple summaries**: Eliminates the root cause of duplicate flight summary records
 
 **Benefits**:
 - **Reporting Accuracy**: Flight summary reports are 100% reliable
@@ -464,7 +463,7 @@ VATSIM Raw Data (~120 flights per cycle)
   - Manual trigger capability for testing/admin use
 
 ### **Controller-Specific Proximity Ranges: ✅ COMPLETED**
-- **Status**: Fully implemented, tested, and operational in production
+- **Status**: Fully implemented, tested, and operational in production with comprehensive real outcome testing
 - **Purpose**: Uses intelligent proximity ranges based on controller type for realistic ATC operations
 - **Proximity Ranges**:
   - Ground/Tower controllers: 15nm (local airport operations)
@@ -477,7 +476,9 @@ VATSIM Raw Data (~120 flights per cycle)
   - Real-time aircraft interaction detection using appropriate ranges
   - Performance optimized queries for different controller types
   - Realistic ATC operations matching real-world coverage areas
-- **Real Outcomes Verified**: End-to-end tests confirm proximity ranges working in live system
+- **Comprehensive Testing**: 8 ATCDetectionService tests + enhanced E2E tests with real outcome verification
+- **Service Symmetry**: ATCDetectionService and FlightDetectionService use identical logic and return identical results
+- **Real Outcomes Verified**: Tests verify actual controller detection, proximity assignment, and live API behavior
 
 ### **Next Phase: Sprint 3**
 - **Focus**: Database & Error Handling Simplification

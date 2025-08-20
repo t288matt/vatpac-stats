@@ -207,7 +207,11 @@ class DataService:
     
     async def _process_flights(self, flights_data: List[Dict[str, Any]]) -> int:
         """
-        Process and store flight data with geographic boundary filtering.
+        Process and store flight data with geographic boundary filtering and incomplete flight filtering.
+        
+        This method applies two levels of filtering:
+        1. Geographic boundary filtering (if enabled)
+        2. Flight plan completeness filtering (departure and arrival must be populated)
         
         Args:
             flights_data: Raw flight data from VATSIM API
@@ -236,16 +240,27 @@ class DataService:
                 try:
                     # Prepare bulk data
                     bulk_flights = []
+                    incomplete_flights_count = 0
                     
                     for flight_dict in filtered_flights:
                         try:
+                            # NEW: Filter incomplete flights before processing
+                            departure = flight_dict.get("departure", "")
+                            arrival = flight_dict.get("arrival", "")
+                            
+                            # Skip flights without complete flight plan data
+                            if not departure or not arrival:
+                                incomplete_flights_count += 1
+                                self.logger.debug(f"Skipping incomplete flight {flight_dict.get('callsign', 'unknown')}: departure='{departure}', arrival='{arrival}'")
+                                continue
+                            
                             # Create data dictionary for bulk insert
                             flight_data = {
                                 "callsign": flight_dict.get("callsign", ""),
                                 "name": flight_dict.get("name", ""),
                                 "aircraft_type": flight_dict.get("aircraft_type", ""),
-                                "departure": flight_dict.get("departure", ""),
-                                "arrival": flight_dict.get("arrival", ""),
+                                "departure": departure,  # Already validated above
+                                "arrival": arrival,      # Already validated above
                                 "route": flight_dict.get("route", ""),
                                 "altitude": flight_dict.get("altitude", 0),
                                 "latitude": flight_dict.get("latitude"),
@@ -277,6 +292,10 @@ class DataService:
                         except Exception as e:
                             self.logger.warning(f"Failed to prepare flight data for {flight_dict.get('callsign', 'unknown')}: {e}")
                             continue
+                    
+                    # Log incomplete flight filtering results
+                    if incomplete_flights_count > 0:
+                        self.logger.info(f"Flights: {len(filtered_flights)} → {len(bulk_flights)} (incomplete flights filtered: {incomplete_flights_count})")
                     
                     # Bulk insert all flights
                     if bulk_flights:
@@ -1050,7 +1069,7 @@ class DataService:
             completion_threshold = datetime.now(timezone.utc) - timedelta(hours=completion_hours)
             
             query = """
-                SELECT DISTINCT callsign, departure, arrival, logon_time
+                SELECT DISTINCT callsign, departure, arrival, cid, deptime
                 FROM flights 
                 WHERE last_updated < :completion_threshold
                 AND callsign NOT IN (
@@ -1074,7 +1093,7 @@ class DataService:
         processed_count = 0
         async with get_database_session() as session:
             for flight_key in completed_flights:
-                callsign, departure, arrival, logon_time = flight_key
+                callsign, departure, arrival, cid, deptime = flight_key
                 
                 try:
                     # Step 2: Get all records for this flight
@@ -1083,13 +1102,15 @@ class DataService:
                         WHERE callsign = :callsign 
                         AND departure = :departure 
                         AND arrival = :arrival 
-                        AND logon_time = :logon_time
+                        AND cid = :cid
+                        AND deptime = :deptime
                         ORDER BY last_updated
                     """), {
                         "callsign": callsign,
                         "departure": departure,
                         "arrival": arrival,
-                        "logon_time": logon_time
+                        "cid": cid,
+                        "deptime": deptime
                     })
                     
                     records = flight_records.fetchall()
@@ -1109,7 +1130,7 @@ class DataService:
                     
                     # Detect ATC interactions for this flight with timeout protection
                     atc_data = await self.atc_detection_service.detect_flight_atc_interactions_with_timeout(
-                        callsign, departure, arrival, logon_time, timeout_seconds=30.0
+                        callsign, departure, arrival, cid, deptime, timeout_seconds=30.0
                     )
                     
                     # NEW: Calculate sector breakdown for this completed flight
@@ -1124,7 +1145,7 @@ class DataService:
                         "aircraft_type": first_record.aircraft_type,
                         "departure": departure,
                         "arrival": arrival,
-                        "logon_time": logon_time,
+                        "logon_time": first_record.logon_time,
                         "route": first_record.route,
                         "flight_rules": first_record.flight_rules,
                         "aircraft_faa": first_record.aircraft_faa,
@@ -1574,7 +1595,7 @@ class DataService:
         processed_count = 0
         async with get_database_session() as session:
             for flight_key in completed_flights:
-                callsign, departure, arrival, logon_time = flight_key
+                callsign, departure, arrival, cid, deptime = flight_key
                 
                 try:
                     # Get all records for this flight
@@ -1583,13 +1604,15 @@ class DataService:
                         WHERE callsign = :callsign 
                         AND departure = :departure 
                         AND arrival = :arrival 
-                        AND logon_time = :logon_time
+                        AND cid = :cid
+                        AND deptime = :deptime
                         ORDER BY last_updated
                     """), {
                         "callsign": callsign,
                         "departure": departure,
                         "arrival": arrival,
-                        "logon_time": logon_time
+                        "cid": cid,
+                        "deptime": deptime
                     })
                     
                     records = flight_records.fetchall()
@@ -1652,7 +1675,7 @@ class DataService:
         processed_count = 0
         async with get_database_session() as session:
             for flight_key in completed_flights:
-                callsign, departure, arrival, logon_time = flight_key
+                callsign, departure, arrival, cid, deptime = flight_key
                 
                 try:
                     # Delete all records for this flight
@@ -1661,12 +1684,14 @@ class DataService:
                         WHERE callsign = :callsign 
                         AND departure = :departure 
                         AND arrival = :arrival 
-                        AND logon_time = :logon_time
+                        AND cid = :cid
+                        AND deptime = :deptime
                     """), {
                         "callsign": callsign,
                         "departure": departure,
                         "arrival": arrival,
-                        "logon_time": logon_time
+                        "cid": cid,
+                        "deptime": deptime
                     })
                     
                     processed_count += result.rowcount

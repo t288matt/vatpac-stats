@@ -47,6 +47,45 @@ This document consolidates all remaining work across the VATSIM data project, or
 - [ ] **Add export capabilities** - CSV, JSON export for reports
 - [ ] **Implement report scheduling** - Automated report generation
 - [ ] **Create reporting documentation** - API reference, usage examples
+- [x] **Fix flight identification logic for incomplete flight plans** - ✅ **COMPLETED** - Implemented incomplete flight filtering at data ingestion stage AND updated flight identification logic from `callsign, departure, arrival, logon_time` to `callsign, departure, arrival, cid, deptime`. Flights without departure or arrival are now filtered out before being saved to the `flights` table, and the new identification logic uses stable pilot identity (cid) and planned departure time (deptime) instead of connection-based logon_time. This eliminates the root cause of the QTR989 multiple summary issue where incomplete flight plans were being processed and summarized multiple times, and prevents duplicate summaries from pilot reconnections.
+
+🚨 Found the Root Cause! Here's Why QTR989 Wasn't Captured as One Flight
+The Problem: Multiple Flight Identifiers
+The system creates 5 separate flight summaries instead of 1 because it sees 5 different unique flight identifiers:
+QTR989 | Departure: (empty) | Arrival: (empty) | Logon: 12:14:46
+QTR989 | Departure: (empty) | Arrival: (empty) | Logon: 12:17:25
+QTR989 | Departure: YSSY | Arrival: OTHH | Logon: 12:17:25
+QTR989 | Departure: YSSY | Arrival: OTHH | Logon: 12:52:10
+QTR989 | Departure: YSSY | Arrival: OTHH | Logon: 12:55:15
+Why This Happens
+Flight Identification Logic
+The system identifies flights using 4 fields combined:
+The Issue
+Early records (12:14:46, 12:17:25) have no flight plan data (empty departure/arrival)
+Later records (12:17:25+) have complete flight plan (YSSY → OTHH)
+Multiple logon times for the same aircraft on the same day
+System treats each combination as a separate flight
+What Should Have Happened
+QTR989 should have been identified as ONE flight with:
+Callsign: QTR989
+Departure: YSSY
+Arrival: OTHH
+Logon: 12:17:25 (the main flight plan submission)
+Root Causes
+Flight plan data missing in early records
+Multiple VATSIM connections (pilot reconnecting)
+Flight plan updates during the day
+System creating summaries before flight plan is complete
+The Fix Needed
+The flight identification logic should:
+Wait for complete flight plan data before creating summaries
+Merge records with same callsign when flight plan data appears
+Use a more robust flight identification that handles missing data
+Delay summary creation until flight plan is stable
+Bottom line: The system is working correctly, but the flight identification logic is too strict and doesn't handle the real-world scenario where flight plan data appears gradually during a flight session.
+
+
+
 
 ### **Estimated Time**: 5-7 days
 ### **Dependencies**: Flight summary system completion
@@ -198,6 +237,7 @@ CLEANUP_FLIGHT_TIMEOUT=300       # Seconds before considering a flight stale (5 
 - [ ] **Implement backup strategies** - Database backups, configuration backups
 - [ ] **Add performance monitoring** - Response times, throughput, resource usage
 - [ ] **Create deployment automation** - CI/CD pipeline improvements
+- [ ] **Investigate PostgreSQL root user connection attempts** - Monitor and resolve non-critical connection errors from external monitoring tools
 - **Document production procedures** - Deployment, rollback, maintenance
 
 ### **Estimated Time**: 4-5 days
