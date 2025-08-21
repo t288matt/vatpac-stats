@@ -42,14 +42,16 @@
 ## 🎯 **1. Executive Summary**
 
 ### **System Purpose**
-The VATSIM Data Collection System is a production-ready, real-time air traffic control data collection and analysis platform designed for **any airspace worldwide**. While initially implemented for Australian airspace, the system is fully configurable through configuration files and can be deployed for any geographic region. The system provides comprehensive flight tracking, controller monitoring, and sector occupancy analysis through a streamlined, API-first architecture.
+The VATSIM Data Collection System is a production-ready, real-time air traffic control data collection and analysis platform designed for VATSIM divisions to understand more about what happens ni their airspace. While initially implemented for Australian airspace, the system is fully configurable through configuration files and can be deployed for any geographic region. The system provides comprehensive flight tracking, controller tracking, and sector occupancy analysis through a streamlined, API-first architecture. 
+
+Importantly it matches ATC and flights through radio frequencies to allow deeper insights into effectiveness of ATC strategies, coverage and the service being provided to pilots. Used with a reporting tool such as Metabase rich datacan be extracted and used to drive insights and decisions. 
 
 ### **Current Status**
 - **Operational Status**: ✅ **PRODUCTION READY** with active data collection
-- **Geographic Filtering**: ✅ **ACTIVE** - Configurable airspace boundary filtering operational (currently configured for Australian airspace)
-- **Data Pipeline**: ✅ **OPERATIONAL** - Real-time VATSIM data ingestion every 60 seconds
-- **Sector Tracking**: ✅ **ACTIVE** - Configurable sector monitoring operational (currently configured for 17 Australian airspace sectors)
-- **Flight Summaries**: ✅ **OPERATIONAL** - Automatic processing every 60 minutes
+- **Geographic Filtering**: ✅ **ACTIVE** - Configurable airspace boundary filtering operational (currently configured for Australian airspace but can be configured for any airspace with json files.
+- **Data Pipeline**: ✅ **OPERATIONAL** - Real-time VATSIM data ingestion every 60 seconds (configurable)
+- **Sector Tracking**: ✅ **ACTIVE** - Configurable sector monitoring operational (currently configured for 17 Australian airspace sectors. Configurable to any airspace) 
+- **Flight Summaries**: ✅ **OPERATIONAL** - Automatic processing every 60 minutes (configurable)
 
 ### **Core Capabilities**
 - **Real-time Data Collection**: Continuous VATSIM API v3 integration with 60-second polling
@@ -112,23 +114,6 @@ The system addresses critical needs in air traffic control operations:
 - **Data Archiving**: Complete flight position history preserved in archive tables
 - **Automatic Cleanup**: Stale sector management and memory state cleanup
 - **Storage Optimization**: Intelligent data lifecycle management
-
-### **User Personas**
-
-#### **ATC Controllers**
-- **Primary Need**: Real-time awareness of aircraft in their sectors
-- **System Usage**: Monitor sector occupancy, track flight transitions, analyze coverage
-- **Key Benefits**: Enhanced situational awareness, improved sector management
-
-#### **Aviation Analysts**
-- **Primary Need**: Historical data analysis and operational insights
-- **System Usage**: Flight pattern analysis, ATC coverage assessment, performance metrics
-- **Key Benefits**: Data-driven operational planning, performance optimization
-
-#### **System Administrators**
-- **Primary Need**: System monitoring, performance management, operational health
-- **System Usage**: Monitor system status, performance metrics, error tracking
-- **Key Benefits**: Proactive system management, operational reliability
 
 ---
 
@@ -278,7 +263,6 @@ The VATSIM Data Collection System follows a **simplified, API-first architecture
 #### **Deployment & Infrastructure**
 - **Docker**: Containerization for consistent deployment
 - **Docker Compose**: Multi-container orchestration
-- **Nginx**: Reverse proxy and load balancing (optional)
 - **Grafana**: Monitoring and observability dashboards
 
 ### **Dependency Management**
@@ -337,21 +321,12 @@ pre-commit==3.5.0
 - **Service Integration**: Coordinates communication between all system services
 - **Error Handling**: Centralized error management and recovery
 
-#### **Key Methods**
-```python
-class DataService:
-    async def process_vatsim_data(self) -> Dict[str, Any]:
-        """Main data processing pipeline"""
-        
-    async def _bulk_insert_flights(self, flights: List[Dict]) -> int:
-        """Bulk insert flight data with geographic filtering"""
-        
-    async def _bulk_insert_controllers(self, controllers: List[Dict]) -> int:
-        """Bulk insert controller data"""
-        
-    async def _process_sector_occupancy(self, flights: List[Dict]) -> None:
-        """Process sector occupancy tracking"""
-```
+#### **Key Operations**
+The Data Service provides the following core operations:
+- **Main Data Processing Pipeline**: Coordinates the entire data collection and processing workflow
+- **Flight Data Insertion**: Handles bulk insertion of flight data with geographic filtering applied
+- **Controller Data Insertion**: Manages bulk insertion of controller data into the database
+- **Sector Occupancy Processing**: Processes real-time sector occupancy tracking for all flights
 
 ### **VATSIM Service (API Integration)**
 
@@ -362,33 +337,19 @@ class DataService:
 - **Data Validation**: Input validation and data quality checks
 
 #### **Data Structure Mapping**
-```python
-# Flight Data Structure (25+ fields)
-FLIGHT_FIELDS = {
-    "callsign": str,           # Aircraft callsign
-    "latitude": float,         # Current latitude
-    "longitude": float,        # Current longitude
-    "altitude": int,           # Current altitude (feet)
-    "groundspeed": int,        # Ground speed (knots)
-    "heading": int,            # Current heading (degrees)
-    "departure": str,          # Departure airport (ICAO)
-    "arrival": str,            # Arrival airport (ICAO)
-    "aircraft_type": str,      # Aircraft type code
-    "flight_plan": str,        # Flight plan route
-    # ... additional fields
-}
+The system processes comprehensive data structures from the VATSIM API:
 
-# Controller Data Structure (11+ fields)
-CONTROLLER_FIELDS = {
-    "callsign": str,           # Controller callsign
-    "frequency": str,          # Radio frequency
-    "cid": int,                # VATSIM CID
-    "name": str,               # Controller name
-    "rating": int,             # Controller rating (1-12)
-    "facility": int,           # Facility type
-    # ... additional fields
-}
-```
+**Flight Data (25+ fields)** includes:
+- Aircraft identification (callsign, aircraft type)
+- Position data (latitude, longitude, altitude)
+- Movement data (groundspeed, heading)
+- Flight plan information (departure, arrival airports, route)
+- Additional operational fields
+
+**Controller Data (11+ fields)** includes:
+- Controller identification (callsign, VATSIM CID, name)
+- Operational data (frequency, rating, facility type)
+- Additional controller-specific information
 
 ### **Geographic Boundary Filter**
 
@@ -399,20 +360,11 @@ CONTROLLER_FIELDS = {
 - **Performance Optimization**: Cached boundary data and optimized polygon operations
 
 #### **Implementation Details**
-```python
-class GeographicBoundaryFilter:
-    def __init__(self):
-        self.boundary_polygon = self._load_boundary_polygon()
-        
-    def filter_flights_list(self, flights: List[Dict]) -> List[Dict]:
-        """Filter flights to only those within configured airspace"""
-        
-    def _is_within_boundary(self, flight: Dict) -> bool:
-        """Check if individual flight is within boundary"""
-        
-    def _load_boundary_polygon(self) -> Polygon:
-        """Load configured airspace boundary from configuration"""
-```
+The Geographic Boundary Filter operates through several key processes:
+- **Boundary Loading**: The system loads the configured airspace polygon from configuration files during initialisation
+- **Flight List Filtering**: Processes entire lists of flights to identify those within the configured airspace boundary
+- **Individual Flight Checking**: Evaluates each flight's position against the boundary polygon to determine inclusion
+- **Configuration Integration**: Retrieves airspace boundary definitions from external configuration files
 
 ### **Sector Loader & Management**
 
@@ -423,17 +375,12 @@ class GeographicBoundaryFilter:
 - **Automatic Cleanup**: Stale sector state management
 
 #### **Sector Data Structure**
-```python
-SECTOR_DATA = {
-    "sector_name": str,        # Sector identifier (e.g., "SYA")
-    "full_name": str,          # Full sector name
-    "facility_type": str,      # Facility type (approach, en-route, etc.)
-    "frequency": str,          # Primary frequency
-    "altitude_floor": int,     # Lower altitude limit
-    "altitude_ceiling": int,   # Upper altitude limit
-    "polygon": Polygon,        # Shapely polygon for boundary
-}
-```
+Each sector contains comprehensive information including:
+- **Sector Identification**: Short identifier (e.g., "SYA") and full descriptive name
+- **Facility Classification**: Type designation (approach, en-route, etc.)
+- **Radio Information**: Primary frequency for communications
+- **Altitude Boundaries**: Lower and upper altitude limits defining vertical coverage
+- **Geographic Boundaries**: Polygon shape defining the horizontal sector boundaries
 
 ### **ATC Detection Service (Controller Proximity Detection)**
 
@@ -444,100 +391,47 @@ SECTOR_DATA = {
 - **Intelligent Range Management**: Controller-specific proximity ranges for realistic ATC operations
 
 #### **Controller Type Classification**
-```python
-CONTROLLER_TYPES = {
-    "ground": {
-        "proximity_range_nm": 15,
-        "description": "Local airport operations",
-        "examples": ["SY_GND", "ML_GND", "BN_GND"]
-    },
-    "tower": {
-        "proximity_range_nm": 15,
-        "description": "Approach/departure operations",
-        "examples": ["SY_TWR", "ML_TWR", "BN_TWR"]
-    },
-    "approach": {
-        "proximity_range_nm": 60,
-        "description": "Terminal area operations",
-        "examples": ["SY_APP", "ML_APP", "BN_APP"]
-    },
-    "center": {
-        "proximity_range_nm": 400,
-        "description": "Enroute control operations",
-        "examples": ["BN_CTR", "ML_CTR", "SY_CTR"]
-    },
-    "fss": {
-        "proximity_range_nm": 1000,
-        "description": "Flight service operations",
-        "examples": ["AU_FSS", "NZ_FSS"]
-    }
-}
-```
+The system recognises five distinct controller types, each with specific proximity ranges:
+
+**Ground Controllers** (15 nautical miles):
+- Handle local airport operations
+- Examples: SY_GND, ML_GND, BN_GND
+
+**Tower Controllers** (15 nautical miles):
+- Manage approach and departure operations
+- Examples: SY_TWR, ML_TWR, BN_TWR
+
+**Approach Controllers** (60 nautical miles):
+- Control terminal area operations
+- Examples: SY_APP, ML_APP, BN_APP
+
+**Centre Controllers** (400 nautical miles):
+- Manage en-route control operations
+- Examples: BN_CTR, ML_CTR, SY_CTR
+
+**Flight Service Stations** (1000 nautical miles):
+- Provide flight service operations
+- Examples: AU_FSS, NZ_FSS
 
 #### **Proximity Detection Logic**
-```python
-class ATCDetectionService:
-    def __init__(self):
-        self.controller_types = self._load_controller_types()
-    
-    async def detect_aircraft_interactions(self, controller: Dict, flights: List[Dict]) -> List[Dict]:
-        """Detect aircraft within controller-specific proximity range"""
-        controller_type = self._classify_controller(controller)
-        proximity_range = self._get_proximity_range(controller_type)
-        
-        interactions = []
-        for flight in flights:
-            if self._is_within_proximity(controller, flight, proximity_range):
-                interactions.append({
-                    "controller_callsign": controller["callsign"],
-                    "flight_callsign": flight["callsign"],
-                    "distance_nm": self._calculate_distance(controller, flight),
-                    "proximity_range_nm": proximity_range,
-                    "controller_type": controller_type
-                })
-        
-        return interactions
-    
-    def _classify_controller(self, controller: Dict) -> str:
-        """Classify controller type from callsign and facility code"""
-        callsign = controller["callsign"].upper()
-        facility = controller.get("facility", 0)
-        
-        # Facility code classification
-        if facility == 1:
-            return "ground"
-        elif facility == 2:
-            return "tower"
-        elif facility == 3:
-            return "approach"
-        elif facility == 4:
-            return "center"
-        elif facility == 5:
-            return "fss"
-        
-        # Callsign pattern classification
-        if "_GND" in callsign:
-            return "ground"
-        elif "_TWR" in callsign:
-            return "tower"
-        elif "_APP" in callsign:
-            return "approach"
-        elif "_CTR" in callsign:
-            return "center"
-        elif "_FSS" in callsign:
-            return "fss"
-        
-        return "unknown"
-    
-    def _get_proximity_range(self, controller_type: str) -> int:
-        """Get proximity range for controller type"""
-        return self.controller_types.get(controller_type, {}).get("proximity_range_nm", 30)
-```
+The ATC Detection Service operates through several key processes:
+
+**Controller Type Classification**: The system identifies controller types using two methods:
+- **Facility Code Classification**: Uses VATSIM facility codes (1=ground, 2=tower, 3=approach, 4=centre, 5=fss)
+- **Callsign Pattern Recognition**: Analyses callsign suffixes (_GND, _TWR, _APP, _CTR, _FSS)
+
+**Aircraft Interaction Detection**: For each controller, the system:
+- Determines the controller's type and corresponding proximity range
+- Evaluates all active flights against the proximity range
+- Records interactions including distance calculations and controller classifications
+- Generates comprehensive interaction records for database storage
+
+**Range Assignment**: Controllers receive proximity ranges based on their operational scope, with unknown types defaulting to 30 nautical miles
 
 #### **Proximity Range Benefits**
 - **Realistic ATC Operations**: Ground/tower controllers detect local aircraft (15nm)
 - **Terminal Area Coverage**: Approach controllers cover terminal areas (60nm)
-- **Enroute Control**: Center controllers manage wide areas (400nm)
+- **En-route Control**: Centre controllers manage wide areas (400nm)
 - **Flight Service**: FSS controllers provide broad coverage (1000nm)
 - **Performance Optimization**: Smaller search radii for faster queries
 - **Operational Accuracy**: Matches real-world ATC operational patterns
@@ -551,30 +445,14 @@ class ATCDetectionService:
 - **Performance Optimization**: Efficient proximity calculations with configurable ranges
 
 #### **Service Architecture**
-```python
-class FlightDetectionService:
-    def __init__(self):
-        self.atc_detection_service = ATCDetectionService()
-    
-    async def detect_controller_interactions(self, flight: Dict, controllers: List[Dict]) -> List[Dict]:
-        """Detect controllers within flight proximity (mirrors ATC detection logic)"""
-        interactions = []
-        
-        for controller in controllers:
-            controller_type = self.atc_detection_service._classify_controller(controller)
-            proximity_range = self.atc_detection_service._get_proximity_range(controller_type)
-            
-            if self._is_within_proximity(flight, controller, proximity_range):
-                interactions.append({
-                    "flight_callsign": flight["callsign"],
-                    "controller_callsign": controller["callsign"],
-                    "distance_nm": self._calculate_distance(flight, controller),
-                    "proximity_range_nm": proximity_range,
-                    "controller_type": controller_type
-                })
-        
-        return interactions
-```
+
+The Flight Detection Service operates as a mirror to the ATC Detection Service, implementing identical proximity detection logic but from the flight's perspective. It utilises the ATC Detection Service's controller classification and proximity range calculations to identify when flights come within range of controllers.
+
+**Key Operations:**
+- **Controller Interaction Detection**: Identifies controllers within flight proximity using the same logic as ATC detection
+- **Proximity Range Calculation**: Uses controller type-specific proximity ranges for accurate detection
+- **Distance Calculation**: Computes actual distance between flight and controller positions
+- **Interaction Recording**: Creates detailed interaction records with distance and controller type information
 
 #### **Integration with Data Pipeline**
 - **Automatic Detection**: Integrated into main data processing pipeline
@@ -676,43 +554,16 @@ class CallsignPatternFilter:
 - **Validation Criteria**: 2 essential fields required (departure, arrival)
 
 #### **Validation Requirements**
-```python
-class FlightPlanValidationFilter:
-    def __init__(self):
-        self.required_fields = ["departure", "arrival"]
-        self.validation_enabled = True  # Always enabled, cannot be disabled
-    
-    def validate_flight_plan(self, flight: Dict) -> bool:
-        """Validate that flight has complete flight plan data"""
-        if not self.validation_enabled:
-            return True
-        
-        # Check required fields
-        for field in self.required_fields:
-            if not flight.get(field):
-                return False
-        
-        # Ensure fields are non-empty strings
-        departure = flight.get("departure", "").strip()
-        arrival = flight.get("arrival", "").strip()
-        
-        return len(departure) > 0 and len(arrival) > 0
-    
-    def filter_flights(self, flights: List[Dict]) -> List[Dict]:
-        """Filter flights to only those with complete flight plans"""
-        if not self.validation_enabled:
-            return flights
-        
-        validated_flights = []
-        for flight in flights:
-            if self.validate_flight_plan(flight):
-                validated_flights.append(flight)
-            else:
-                # Log rejected flight for monitoring
-                self.logger.debug(f"Flight {flight.get('callsign')} rejected: incomplete flight plan")
-        
-        return validated_flights
-```
+The Flight Plan Validation Filter implements a mandatory validation system that ensures all stored flights have complete flight plan data. This filter operates automatically and cannot be disabled, providing consistent data quality assurance.
+
+**Validation Process:**
+- **Required Fields**: Departure and arrival airports are mandatory for all flights
+- **Field Validation**: Both fields must be present and contain non-empty string values
+- **Automatic Filtering**: Flights missing required data are automatically rejected during processing
+- **Logging**: Rejected flights are logged for monitoring and debugging purposes
+
+**Filtering Behaviour:**
+The filter processes flight lists and returns only those flights that pass validation. This ensures that all stored flights have complete, analysable data for accurate reporting and analytics. The filter operates early in the data processing pipeline, preventing incomplete data from reaching the database.
 
 #### **Filter Behavior**
 - **Always Enabled**: Built-in filter that cannot be disabled
@@ -737,80 +588,20 @@ class FlightPlanValidationFilter:
 - **Transaction Safety**: Fixed database transaction commit issues for reliable data persistence
 
 #### **Cleanup Process Flow**
-```python
-class CleanupProcessSystem:
-    def __init__(self):
-        self.cleanup_timeout = int(os.getenv("CLEANUP_FLIGHT_TIMEOUT", "300"))  # 5 minutes
-        self.logger = logging.getLogger(__name__)
-    
-    async def cleanup_stale_sectors(self, db_session) -> Dict[str, Any]:
-        """Clean up stale sector entries and memory state"""
-        try:
-            # Find flights with open sector entries and no recent updates
-            stale_flights = await self._find_stale_flights(db_session)
-            
-            if not stale_flights:
-                return {"status": "no_cleanup_needed", "flights_processed": 0}
-            
-            # Process each stale flight
-            processed_count = 0
-            for flight in stale_flights:
-                await self._cleanup_flight_sectors(db_session, flight)
-                processed_count += 1
-            
-            # Commit all changes
-            await db_session.commit()
-            
-            return {
-                "status": "cleanup_completed",
-                "flights_processed": processed_count,
-                "cleanup_timeout_seconds": self.cleanup_timeout
-            }
-            
-        except Exception as e:
-            await db_session.rollback()
-            self.logger.error(f"Cleanup process failed: {e}")
-            raise
-    
-    async def _find_stale_flights(self, db_session) -> List[Dict]:
-        """Find flights with open sector entries and no recent updates"""
-        query = """
-        SELECT DISTINCT ON (f.callsign) 
-            f.callsign, f.latitude, f.longitude, f.altitude, f.timestamp
-        FROM flights f
-        INNER JOIN flight_sector_occupancy fso ON f.id = fso.flight_id
-        WHERE fso.exit_time IS NULL 
-        AND f.timestamp < NOW() - INTERVAL '%s seconds'
-        ORDER BY f.callsign, f.timestamp DESC
-        """ % self.cleanup_timeout
-        
-        result = await db_session.execute(query)
-        return [dict(row) for row in result.fetchall()]
-    
-    async def _cleanup_flight_sectors(self, db_session, flight: Dict):
-        """Clean up sectors for a specific flight"""
-        # Update sector exits with last known position
-        update_query = """
-        UPDATE flight_sector_occupancy 
-        SET exit_time = %s, 
-            exit_latitude = %s, 
-            exit_longitude = %s, 
-            exit_altitude = %s,
-            duration_minutes = EXTRACT(EPOCH FROM (%s - entry_time)) / 60,
-            is_active = FALSE
-        WHERE flight_id = (SELECT id FROM flights WHERE callsign = %s ORDER BY timestamp DESC LIMIT 1)
-        AND exit_time IS NULL
-        """
-        
-        await db_session.execute(update_query, (
-            flight["timestamp"],
-            flight["latitude"],
-            flight["longitude"], 
-            flight["altitude"],
-            flight["timestamp"],
-            flight["callsign"]
-        ))
-```
+
+The Cleanup Process System operates automatically to maintain system health and data integrity by processing stale flight data and completing incomplete sector entries.
+
+**Core Operations:**
+- **Stale Flight Detection**: Identifies flights with open sector entries that haven't been updated within the configured timeout period
+- **Sector Completion**: Automatically closes open sectors using the flight's last known position data
+- **Duration Calculation**: Computes accurate sector duration based on entry and exit timestamps
+- **Transaction Management**: Ensures all cleanup operations are properly committed or rolled back
+
+**Process Flow:**
+The system queries for flights with incomplete sector data, processes each stale flight by updating sector exit information with the last known position, and commits all changes in a single transaction. This prevents memory leaks and ensures data consistency across the system.
+
+**Database Operations:**
+The cleanup process executes SQL queries to identify stale flights and update sector occupancy records, ensuring all sector entries have complete entry and exit data for accurate analytics and reporting.
 
 #### **Configuration**
 ```bash
@@ -840,77 +631,20 @@ CLEANUP_LOG_LEVEL=INFO           # Logging level for cleanup operations
 - **Migration Support**: Database schema evolution and versioning
 
 #### **Service Architecture**
-```python
-class DatabaseService:
-    def __init__(self):
-        self.engine = None
-        self.session_factory = None
-        self.logger = logging.getLogger(__name__)
-    
-    async def initialize(self):
-        """Initialize database connection and session factory"""
-        self.engine = create_async_engine(
-            DATABASE_URL,
-            pool_size=20,
-            max_overflow=40,
-            pool_timeout=10,
-            pool_recycle=3600,
-            echo=False
-        )
-        
-        self.session_factory = sessionmaker(
-            bind=self.engine,
-            class_=AsyncSession,
-            expire_on_commit=False
-        )
-    
-    async def get_session(self) -> AsyncSession:
-        """Get database session with connection pooling"""
-        if not self.session_factory:
-            await self.initialize()
-        
-        return self.session_factory()
-    
-    async def execute_query(self, query: str, params: Dict = None) -> List[Dict]:
-        """Execute raw SQL query with parameters"""
-        async with self.get_session() as session:
-            try:
-                result = await session.execute(text(query), params or {})
-                return [dict(row) for row in result.fetchall()]
-            except Exception as e:
-                self.logger.error(f"Query execution failed: {e}")
-                await session.rollback()
-                raise
-    
-    async def health_check(self) -> Dict[str, Any]:
-        """Check database health and connection status"""
-        try:
-            async with self.get_session() as session:
-                # Test basic connectivity
-                result = await session.execute("SELECT 1 as test")
-                row = result.fetchone()
-                
-                # Check connection pool status
-                pool_status = {
-                    "pool_size": self.engine.pool.size(),
-                    "checked_out": self.engine.pool.checkedout(),
-                    "overflow": self.engine.pool.overflow()
-                }
-                
-                return {
-                    "status": "healthy",
-                    "connection_test": "passed",
-                    "pool_status": pool_status,
-                    "timestamp": datetime.utcnow().isoformat()
-                }
-                
-        except Exception as e:
-            return {
-                "status": "unhealthy",
-                "error": str(e),
-                "timestamp": datetime.utcnow().isoformat()
-            }
-```
+
+The Database Service provides comprehensive database management capabilities including connection pooling, session management, and health monitoring.
+
+**Core Operations:**
+- **Connection Initialisation**: Establishes database engine with connection pooling configuration
+- **Session Management**: Creates and manages database sessions with automatic cleanup
+- **Query Execution**: Executes raw SQL queries with parameter binding and error handling
+- **Health Monitoring**: Performs connectivity tests and connection pool status checks
+
+**Connection Pool Configuration:**
+The service utilises SQLAlchemy's async engine with optimised connection pooling settings including a pool size of 20 active connections, 40 overflow connections, 10-second timeout, and 1-hour connection recycling. This ensures efficient resource utilisation and reliable database connectivity.
+
+**Health Check System:**
+The service includes comprehensive health monitoring that tests basic connectivity, monitors connection pool utilisation, and provides detailed status information for operational monitoring and troubleshooting.
 
 #### **Connection Pool Management**
 - **Pool Size**: 20 active connections
@@ -926,49 +660,33 @@ class DatabaseService:
 - **Performance Optimization**: Query analysis and index recommendations
 
 ### **Advanced Indexing Strategies**
-```sql
--- Performance Indexes
-CREATE INDEX idx_flights_callsign ON flights(callsign);
-CREATE INDEX idx_flights_timestamp ON flights(timestamp);
-CREATE INDEX idx_flights_coordinates ON flights(latitude, longitude);
-CREATE INDEX idx_flights_departure_arrival ON flights(departure, arrival);
 
-CREATE INDEX idx_controllers_callsign ON controllers(callsign);
-CREATE INDEX idx_controllers_cid ON controllers(cid);
-CREATE INDEX idx_controllers_timestamp ON controllers(timestamp);
+The system utilises comprehensive database indexing to optimise query performance across all major data access patterns.
 
-CREATE INDEX idx_sector_occupancy_flight ON flight_sector_occupancy(flight_id);
-CREATE INDEX idx_sector_occupancy_sector ON flight_sector_occupancy(sector_name);
-CREATE INDEX idx_sector_occupancy_active ON flight_sector_occupancy(is_active);
+**Primary Indexes:**
+- **Flight Data**: Indexes on callsign, timestamp, coordinates, and departure/arrival combinations
+- **Controller Data**: Indexes on callsign, CID, and timestamp for efficient controller lookups
+- **Sector Occupancy**: Indexes on flight ID, sector name, and active status for sector tracking
 
--- Composite Indexes for Common Query Patterns
-CREATE INDEX CONCURRENTLY idx_flights_callsign_timestamp 
-ON flights(callsign, timestamp DESC);
+**Composite Indexes:**
+- **Flight Queries**: Combined callsign and timestamp index for efficient flight history retrieval
+- **Sector Analysis**: Combined sector name, active status, and entry time for sector occupancy analysis
 
-CREATE INDEX CONCURRENTLY idx_sector_occupancy_sector_active 
-ON flight_sector_occupancy(sector_name, is_active, entry_time);
-```
+**Performance Benefits:**
+These indexing strategies ensure sub-second response times for common queries including flight lookups, controller searches, and sector occupancy analysis, supporting real-time operational requirements.
 
 ### **JSONB Data Structures**
-```json
-// Controller Interaction Data (controller_callsigns)
-{
-  "SY_TWR": {
-    "callsign": "SY_TWR",
-    "type": "TWR",
-    "time_minutes": 15,
-    "first_contact": "2025-01-15T10:00:00Z",
-    "last_contact": "2025-01-15T10:15:00Z"
-  }
-}
 
-// Sector Breakdown Data (sector_breakdown)
-{
-  "ARL": 5,     // 5 minutes in Armidale
-  "WOL": 45,    // 45 minutes in Wollongong
-  "HUO": 10     // 10 minutes in Huon
-}
-```
+The system utilises PostgreSQL's JSONB data type to store flexible, structured data for controller interactions and sector breakdowns.
+
+**Controller Interaction Data:**
+Stores detailed interaction records including controller callsign, type, duration, and contact timestamps. This enables comprehensive analysis of aircraft-controller interactions and time spent with each controller type.
+
+**Sector Breakdown Data:**
+Records time spent in each sector during a flight, providing granular sector occupancy analysis. This data supports route analysis, sector utilisation studies, and operational efficiency metrics.
+
+**Data Benefits:**
+JSONB storage provides flexibility for evolving data structures while maintaining query performance through PostgreSQL's JSONB indexing capabilities. This enables complex queries and analytics on interaction patterns and sector utilisation.
 
 ---
 
@@ -985,183 +703,108 @@ The VATSIM Data Collection System exposes a **RESTful API** built with FastAPI, 
 - **Geographic Queries**: Sector occupancy, boundary filtering, and spatial analysis
 
 #### **API Base Configuration**
-```python
-# FastAPI Application Configuration
-app = FastAPI(
-    title="VATSIM Data Collection System API",
-    description="Real-time air traffic control data collection and analysis API",
-    version="1.0.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc"
-)
 
-# CORS Configuration
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Configurable for production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-```
+The FastAPI application is configured with comprehensive API documentation and cross-origin resource sharing support.
+
+**Application Settings:**
+- **Title and Description**: Clear identification as the VATSIM Data Collection System API
+- **Version Management**: Semantic versioning for API evolution tracking
+- **Documentation**: Automatic API documentation generation at `/api/docs` and `/api/redoc` endpoints
+
+**CORS Configuration:**
+The API includes configurable cross-origin resource sharing middleware to support web-based clients and integration with external systems. Production deployments can restrict origins for security purposes while maintaining flexibility for development and testing environments.
 
 ### **Core API Endpoints**
 
 #### **1. Flight Data Endpoints**
-```python
-@app.get("/api/flights")
-async def get_flights(
-    limit: int = Query(100, ge=1, le=1000),
-    offset: int = Query(0, ge=0),
-    callsign: Optional[str] = None,
-    sector: Optional[str] = None
-) -> List[FlightResponse]:
-    """Get current flights with optional filtering"""
 
-@app.get("/api/flights/{callsign}")
-async def get_flight_by_callsign(callsign: str) -> FlightResponse:
-    """Get specific flight by callsign"""
+The flight data endpoints provide comprehensive access to current and historical flight information with flexible filtering and detailed analytics capabilities.
 
-@app.get("/api/flights/{callsign}/positions")
-async def get_flight_positions(
-    callsign: str,
-    hours: int = Query(24, ge=1, le=168)
-) -> List[PositionResponse]:
-    """Get flight position history"""
+**Core Flight Endpoints:**
+- **Flight Listing**: Retrieves current flights with configurable limits, pagination, and filtering by callsign or sector
+- **Individual Flight Data**: Provides detailed information for specific flights by callsign
+- **Position History**: Retrieves flight position updates over configurable time periods (1-168 hours)
+- **Complete Flight Tracks**: Returns comprehensive flight paths with all recorded position updates
+- **Flight Statistics**: Provides summary statistics and performance metrics for individual flights
 
-@app.get("/api/flights/{callsign}/track")
-async def get_flight_track(callsign: str) -> TrackResponse:
-    """Get complete flight track with all position updates"""
-
-@app.get("/api/flights/{callsign}/stats")
-async def get_flight_stats(callsign: str) -> StatsResponse:
-    """Get flight statistics and summary"""
-```
+**Query Parameters:**
+All endpoints support flexible query parameters including pagination controls, time-based filtering, and sector-specific queries to enable efficient data retrieval for operational and analytical purposes.
 
 #### **2. Controller Data Endpoints**
-```python
-@app.get("/api/controllers")
-async def get_controllers(
-    limit: int = Query(100, ge=1, le=1000),
-    facility: Optional[int] = None,
-    rating: Optional[int] = None
-) -> List[ControllerResponse]:
-    """Get current controllers with optional filtering"""
 
-@app.get("/api/controllers/{callsign}")
-async def get_controller_by_callsign(callsign: str) -> ControllerResponse:
-    """Get specific controller by callsign"""
+The controller data endpoints provide access to current ATC controller information, session history, and position data for operational monitoring and analysis.
 
-@app.get("/api/controllers/{callsign}/sessions")
-async def get_controller_sessions(
-    callsign: str,
-    days: int = Query(7, ge=1, le=30)
-) -> List[SessionResponse]:
-    """Get controller session history"""
+**Core Controller Endpoints:**
+- **Controller Listing**: Retrieves current controllers with filtering by facility type and rating level
+- **Individual Controller Data**: Provides detailed information for specific controllers by callsign
+- **Session History**: Retrieves controller session records over configurable time periods (1-30 days)
+- **ATC Position Data**: Returns current controller positions and operational status
+- **Grouped Position Data**: Provides controller positions organised by controller ID for efficient data processing
 
-@app.get("/api/atc-positions")
-async def get_atc_positions() -> List[ATCPositionResponse]:
-    """Alternative endpoint for ATC positions"""
-
-@app.get("/api/atc-positions/by-controller-id")
-async def get_atc_positions_by_controller() -> Dict[str, List[ATCPositionResponse]]:
-    """ATC positions grouped by controller"""
-```
+**Filtering Capabilities:**
+Endpoints support filtering by facility type (tower, approach, centre, etc.) and controller rating levels, enabling targeted queries for specific operational requirements and analytical purposes.
 
 #### **3. Sector & Geographic Endpoints**
-```python
-@app.get("/api/sectors")
-async def get_sectors() -> List[SectorResponse]:
-    """Get all configured airspace sectors"""
 
-@app.get("/api/sectors/{sector_name}")
-async def get_sector_details(sector_name: str) -> SectorResponse:
-    """Get specific sector details"""
+The sector and geographic endpoints provide access to airspace configuration, sector occupancy data, and geographic boundary information for operational planning and analysis.
 
-@app.get("/api/sectors/{sector_name}/occupancy")
-async def get_sector_occupancy(
-    sector_name: str,
-    active_only: bool = Query(True)
-) -> List[OccupancyResponse]:
-    """Get current sector occupancy"""
+**Core Sector Endpoints:**
+- **Sector Configuration**: Retrieves all configured airspace sectors and their operational parameters
+- **Individual Sector Details**: Provides comprehensive information for specific sectors including boundaries and operational characteristics
+- **Sector Occupancy**: Returns current flight occupancy data for sectors with optional filtering for active flights only
+- **Geographic Boundaries**: Provides configured airspace boundary information for geographic filtering and analysis
 
-@app.get("/api/geographic/boundary")
-async def get_geographic_boundary() -> BoundaryResponse:
-    """Get configured airspace boundary information"""
-```
+**Operational Support:**
+These endpoints enable real-time monitoring of sector utilisation, support geographic boundary filtering operations, and provide essential data for airspace management and operational planning activities.
 
 #### **4. System & Health Endpoints**
-```python
-@app.get("/api/health")
-async def get_system_health() -> HealthResponse:
-    """Get comprehensive system health status"""
 
-@app.get("/api/status")
-async def get_system_status() -> StatusResponse:
-    """Get current system operational status"""
+The system and health endpoints provide comprehensive monitoring, diagnostics, and operational status information for the VATSIM Data Collection System.
 
-@app.get("/api/network/status")
-async def get_network_status() -> NetworkStatusResponse:
-    """Get network status and metrics"""
+**Core Health Endpoints:**
+- **System Health**: Comprehensive health status including all system components and dependencies
+- **Operational Status**: Current system operational state and availability information
+- **Network Monitoring**: Network connectivity, performance metrics, and status indicators
+- **Database Status**: Database connectivity, migration status, and performance metrics
 
-@app.get("/api/database/status")
-async def get_database_status() -> DatabaseStatusResponse:
-    """Get database status and migration info"""
+**Performance and Analytics:**
+- **System Metrics**: Overall system performance indicators and resource utilisation
+- **Performance Monitoring**: Detailed performance metrics and optimisation recommendations
+- **Optimisation Control**: Manual triggering of performance optimisation processes
+- **Version Information**: API version details and compatibility information
 
-@app.get("/api/metrics")
-async def get_system_metrics() -> MetricsResponse:
-    """Get system performance metrics"""
-
-@app.get("/api/performance/metrics")
-async def get_performance_metrics() -> PerformanceMetricsResponse:
-    """Get detailed performance metrics"""
-
-@app.post("/api/performance/optimize")
-async def trigger_performance_optimization() -> OptimizationResponse:
-    """Trigger performance optimization"""
-
-@app.get("/api/version")
-async def get_api_version() -> VersionResponse:
-    """Get API version information"""
-```
+**Operational Support:**
+These endpoints enable comprehensive system monitoring, performance analysis, and operational troubleshooting, supporting both automated monitoring systems and manual operational activities.
 
 #### **5. Flight Filtering & Analytics Endpoints**
-```python
-@app.get("/api/filter/boundary/status")
-async def get_boundary_filter_status() -> FilterStatusResponse:
-    """Get geographic boundary filter status and performance"""
 
-@app.get("/api/filter/boundary/info")
-async def get_boundary_filter_info() -> FilterInfoResponse:
-    """Get boundary polygon information and configuration"""
+The flight filtering and analytics endpoints provide access to geographic filtering capabilities, flight analytics data, and summary processing operations.
 
-@app.get("/api/analytics/flights")
-async def get_flight_analytics() -> FlightAnalyticsResponse:
-    """Get flight summary data and analytics"""
+**Filtering Endpoints:**
+- **Boundary Filter Status**: Current status and performance metrics for the geographic boundary filtering system
+- **Boundary Configuration**: Detailed information about configured boundary polygons and filtering parameters
 
-@app.get("/api/flights/summaries")
-async def get_flight_summaries() -> List[FlightSummaryResponse]:
-    """Get completed flight summaries"""
+**Analytics and Summaries:**
+- **Flight Analytics**: Comprehensive flight data analysis and performance metrics
+- **Flight Summaries**: Access to completed flight summary records and historical data
+- **Summary Processing**: Manual triggering of flight summary processing operations
 
-@app.post("/api/flights/summaries/process")
-async def process_flight_summaries() -> ProcessingResponse:
-    """Manual flight summary processing"""
-```
+**Operational Capabilities:**
+These endpoints support geographic filtering operations, provide access to analytical data for operational decision-making, and enable manual control of data processing workflows. They form the foundation for geographic analysis and flight performance evaluation within the system.
 
 #### **6. Database & System Management Endpoints**
-```python
-@app.get("/api/database/tables")
-async def get_database_tables() -> DatabaseTablesResponse:
-    """Get database tables and record counts"""
 
-@app.post("/api/database/query")
-async def execute_database_query(query: DatabaseQueryRequest) -> QueryResponse:
-    """Execute custom SQL queries"""
+The database and system management endpoints provide administrative access to database information, custom query execution, and VATSIM system data.
 
-@app.get("/api/vatsim/ratings")
-async def get_vatsim_ratings() -> List[RatingResponse]:
-    """Get VATSIM controller ratings"""
-```
+**Database Management:**
+- **Table Information**: Retrieves database table structures and current record counts for operational monitoring
+- **Custom Query Execution**: Enables execution of custom SQL queries for advanced data analysis and troubleshooting
+
+**VATSIM Integration:**
+- **Controller Ratings**: Provides access to VATSIM controller rating information and classification data
+
+**Administrative Support:**
+These endpoints support system administration, database monitoring, and advanced data analysis requirements. They enable operational staff to monitor database health, execute custom queries for troubleshooting, and access VATSIM system information for operational planning and analysis.
 
 ### **Error Handling Architecture**
 
@@ -1169,13 +812,12 @@ async def get_vatsim_ratings() -> List[RatingResponse]:
 The system implements a comprehensive centralized error handling strategy:
 
 #### **Error Handling Decorators**
-```python
-@handle_service_errors
-@log_operation("operation_name")
-async def service_method():
-    # Service logic with automatic error handling
-    pass
-```
+
+The system utilises decorator-based error handling to provide consistent error management across all service methods. This approach ensures automatic error logging, recovery mechanisms, and operational context preservation without cluttering individual method implementations.
+
+**Decorator Functions:**
+- **Service Error Handler**: Automatically captures and processes service-level errors
+- **Operation Logging**: Records operational context and performance metrics for all decorated methods
 
 #### **Error Handler Components**
 - **Service Error Handler**: `app/utils/error_handling.py`
@@ -1193,35 +835,28 @@ async def service_method():
 ### **External Integrations**
 
 #### **1. VATSIM API v3 Integration**
-```python
-class VATSIMService:
-    BASE_URL = "https://data.vatsim.net/v3"
-    
-    async def get_current_data(self) -> Dict[str, Any]:
-        """Fetch current VATSIM data"""
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(f"{self.BASE_URL}/flights.json")
-            response.raise_for_status()
-            return response.json()
-    
-    async def get_status(self) -> Dict[str, Any]:
-        """Check VATSIM API status"""
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(f"{self.BASE_URL}/status.json")
-            response.raise_for_status()
-            return response.json()
-```
+
+The VATSIM Service provides integration with the official VATSIM API v3 for real-time air traffic control data retrieval.
+
+**Core Operations:**
+- **Current Data Retrieval**: Fetches live flight and controller data from the VATSIM network with 30-second timeout
+- **API Status Monitoring**: Checks VATSIM API availability and operational status with 10-second timeout
+- **HTTP Client Management**: Utilises httpx for efficient async HTTP operations with configurable timeouts
+
+**Integration Features:**
+The service establishes connections to the official VATSIM data endpoints, handles HTTP responses, and provides structured access to real-time air traffic information. It includes automatic error handling and status validation to ensure reliable data retrieval for the system's core operations.
 
 #### **2. Database Integration**
-```python
-# PostgreSQL Connection
-DATABASE_URL = "postgresql+asyncpg://user:password@localhost/vatsim_data"
 
-# Connection Pool Management
-async def get_db_session():
-    async with engine.begin() as conn:
-        yield conn
-```
+The system integrates with PostgreSQL using async database drivers and connection pooling for optimal performance and reliability.
+
+**Connection Configuration:**
+- **Database Driver**: Utilises asyncpg for high-performance async PostgreSQL operations
+- **Connection String**: Configurable database connection parameters for different environments
+- **Connection Pooling**: Implements efficient connection management to minimise connection overhead
+
+**Session Management:**
+The database integration provides async session management with automatic connection lifecycle handling. This ensures efficient resource utilisation and reliable database operations across all system components.
 
 ---
 
@@ -1239,28 +874,16 @@ The VATSIM Data Collection System employs a comprehensive testing strategy:
 5. **Data Validation**: Data quality and integrity verification
 
 #### **Testing Framework Configuration**
-```python
-# pytest.ini Configuration
-[tool:pytest]
-testpaths = tests
-python_files = test_*.py
-python_classes = Test*
-python_functions = test_*
-addopts = 
-    -v
-    --tb=short
-    --strict-markers
-    --disable-warnings
-    --cov=app
-    --cov-report=term-missing
-    --cov-report=html
-markers =
-    unit: Unit tests
-    integration: Integration tests
-    performance: Performance tests
-    e2e: End-to-end tests
-    slow: Slow running tests
-```
+
+The testing framework utilises pytest with comprehensive configuration for multi-layer testing and code coverage analysis.
+
+**Framework Settings:**
+- **Test Discovery**: Automatic test discovery in the tests directory with standard naming conventions
+- **Output Configuration**: Verbose output with short traceback format for efficient debugging
+- **Coverage Analysis**: Integrated code coverage reporting with terminal and HTML output formats
+
+**Test Categories:**
+The framework supports categorised testing including unit tests, integration tests, performance tests, end-to-end tests, and slow-running tests. This enables targeted test execution and comprehensive quality assurance across all system components.
 
 ### **Unit Testing**
 
@@ -1314,177 +937,59 @@ class TestDataService:
 ```
 
 #### **Geographic Utilities Testing**
-```python
-import pytest
-from app.utils.geographic_utils import GeographicBoundaryFilter
-from shapely.geometry import Point
 
-class TestGeographicBoundaryFilter:
-    @pytest.fixture
-    def filter_instance(self):
-        return GeographicBoundaryFilter()
-    
-    @pytest.mark.unit
-    def test_boundary_loading(self, filter_instance):
-        """Test that configured airspace boundary loads correctly"""
-        assert filter_instance.boundary_polygon is not None
-        assert filter_instance.boundary_polygon.is_valid
-    
-    @pytest.mark.unit
-    def test_flight_within_boundary(self, filter_instance):
-        """Test that Sydney flight is within boundary"""
-        sydney_flight = {
-            "callsign": "TEST123",
-            "latitude": -33.8688,
-            "longitude": 151.2093
-        }
-        assert filter_instance._is_within_boundary(sydney_flight) == True
-    
-    @pytest.mark.unit
-    def test_flight_outside_boundary(self, filter_instance):
-        """Test that New York flight is outside boundary"""
-        ny_flight = {
-            "callsign": "TEST456",
-            "latitude": 40.7128,
-            "longitude": -74.0060
-        }
-        assert filter_instance._is_within_boundary(ny_flight) == False
-    
-    @pytest.mark.unit
-    def test_filter_performance(self, filter_instance):
-        """Test that filtering completes within performance threshold"""
-        import time
-        
-        # Create test data
-        flights = [
-            {"callsign": f"TEST{i}", "latitude": -33.8688, "longitude": 151.2093}
-            for i in range(1000)
-        ]
-        
-        # Measure performance
-        start_time = time.time()
-        filtered_flights = filter_instance.filter_flights_list(flights)
-        end_time = time.time()
-        
-        processing_time = (end_time - start_time) * 1000  # Convert to milliseconds
-        assert processing_time < 10  # Must complete within 10ms
-        assert len(filtered_flights) == 1000  # All flights should be within boundary
-```
+The geographic utilities testing validates the core functionality of the boundary filtering system and ensures performance meets operational requirements.
+
+**Test Coverage:**
+- **Boundary Loading**: Verifies that configured airspace boundaries load correctly and are valid geometric polygons
+- **Geographic Filtering**: Tests that flights within the configured boundary (e.g., Sydney) are correctly identified, while flights outside (e.g., New York) are properly filtered out
+- **Performance Validation**: Ensures that filtering operations complete within the 10-millisecond performance threshold for real-time operational requirements
+
+**Test Scenarios:**
+The tests utilise realistic geographic coordinates including Sydney (-33.8688, 151.2093) and New York (40.7128, -74.0060) to validate boundary filtering accuracy. Performance testing processes 1000 test flights to ensure the system can handle realistic data volumes efficiently.
 
 ### **Integration Testing**
 
 #### **Database Integration Testing**
-```python
-import pytest
-import asyncio
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from app.database import get_db_session
-from app.services.data_service import DataService
+The database integration testing validates the complete data flow from service layer to database persistence, ensuring data integrity and operational reliability.
 
-class TestDatabaseIntegration:
-    @pytest.fixture
-    async def test_engine(self):
-        """Create test database engine"""
-        engine = create_async_engine(
-            "postgresql+asyncpg://test_user:test_pass@localhost/test_db",
-            echo=False
-        )
-        yield engine
-        await engine.dispose()
-    
-    @pytest.fixture
-    async def test_session(self, test_engine):
-        """Create test database session"""
-        async with test_engine.begin() as conn:
-            yield conn
-    
-    @pytest.mark.integration
-    async def test_flight_data_persistence(self, test_session):
-        """Test that flight data is correctly persisted to database"""
-        # Arrange
-        data_service = DataService()
-        test_flight = {
-            "callsign": "INTEGRATION_TEST",
-            "latitude": -33.8688,
-            "longitude": 151.2093,
-            "altitude": 30000,
-            "groundspeed": 450,
-            "heading": 90
-        }
-        
-        # Act
-        result = await data_service._bulk_insert_flights([test_flight])
-        
-        # Assert
-        assert result == 1
-        
-        # Verify data in database
-        query = "SELECT callsign, latitude, longitude FROM flights WHERE callsign = 'INTEGRATION_TEST'"
-        result = await test_session.execute(query)
-        row = result.fetchone()
-        
-        assert row is not None
-        assert row.callsign == "INTEGRATION_TEST"
-        assert float(row.latitude) == -33.8688
-        assert float(row.longitude) == 151.2093
-```
+**Test Infrastructure:**
+- **Test Database Engine**: Creates isolated test database connections using asyncpg driver
+- **Session Management**: Provides test database sessions with proper lifecycle management
+- **Data Isolation**: Ensures test data is isolated from production systems
+
+**Test Coverage:**
+- **Data Persistence**: Validates that flight data is correctly stored in the database with accurate coordinate and flight parameter preservation
+- **Data Retrieval**: Verifies that stored data can be retrieved and matches the original input values
+- **Service Integration**: Tests the complete data service workflow from data processing to database storage
+
+**Test Data:**
+Utilises realistic flight data including Sydney coordinates (-33.8688, 151.2093), altitude (30,000 feet), groundspeed (450 knots), and heading (90 degrees) to validate real-world operational scenarios.
 
 ### **Performance Testing**
 
 #### **Load Testing with Locust**
-```python
-# locustfile.py
-from locust import HttpUser, task, between
-import json
 
-class VATSIMAPIUser(HttpUser):
-    wait_time = between(1, 3)
-    
-    @task(3)
-    def get_flights(self):
-        """Test flight data endpoint performance"""
-        self.client.get("/api/flights?limit=100")
-    
-    @task(2)
-    def get_controllers(self):
-        """Test controller data endpoint performance"""
-        self.client.get("/api/controllers?limit=50")
-    
-    @task(1)
-    def get_sectors(self):
-        """Test sector data endpoint performance"""
-        self.client.get("/api/sectors")
-    
-    @task(1)
-    def get_health(self):
-        """Test health check endpoint performance"""
-        self.client.get("/api/health")
-    
-    @task(1)
-    def get_flight_by_callsign(self):
-        """Test individual flight lookup performance"""
-        self.client.get("/api/flights/QFA123")
-```
+The system utilises Locust for comprehensive load testing and performance validation of the API endpoints under realistic operational conditions.
+
+**Load Testing Configuration:**
+- **User Behaviour Simulation**: Simulates realistic user patterns with randomised wait times between requests
+- **Endpoint Coverage**: Tests all major API endpoints including flights, controllers, sectors, health checks, and individual flight lookups
+- **Request Distribution**: Prioritises high-frequency operations like flight data retrieval (weight 3) and controller data (weight 2)
+
+**Performance Validation:**
+The load testing framework provides comprehensive performance metrics including response times, throughput, and error rates under various load conditions. This ensures the system can handle expected operational loads while maintaining performance standards.
 
 #### **Performance Benchmarks**
-```python
-# Performance test configuration
-PERFORMANCE_TARGETS = {
-    "api_response_time": {
-        "p95": 200,      # 95% of requests under 200ms
-        "p99": 500,      # 99% of requests under 500ms
-        "max": 1000      # No request over 1 second
-    },
-    "geographic_filtering": {
-        "max_time_ms": 10,           # Geographic filtering under 10ms
-        "max_memory_mb": 50          # Memory usage under 50MB
-    },
-    "database_operations": {
-        "bulk_insert_timeout": 5,    # Bulk inserts under 5 seconds
-        "query_timeout": 2           # Queries under 2 seconds
-    }
-}
-```
+The system establishes clear performance targets to ensure operational efficiency and user experience quality across all critical operations.
+
+**Response Time Targets:**
+- **API Performance**: 95% of API requests must complete within 200 milliseconds, 99% within 500 milliseconds, with no request exceeding 1 second
+- **Geographic Filtering**: Boundary filtering operations must complete within 10 milliseconds with memory usage under 50MB
+- **Database Operations**: Bulk insert operations must complete within 5 seconds, and individual queries within 2 seconds
+
+**Performance Monitoring:**
+Continuous monitoring and benchmarking ensure the system consistently meets these performance targets, supporting real-time operational requirements and providing reliable user experience for air traffic control professionals.
 
 ---
 
@@ -1493,198 +998,142 @@ PERFORMANCE_TARGETS = {
 ### **Database Schema Overview**
 
 #### **Core Tables Structure**
-```sql
--- Real-time Flight Data
-CREATE TABLE flights (
-    id SERIAL PRIMARY KEY,
-    callsign VARCHAR(10) NOT NULL,
-    latitude DECIMAL(10, 8) NOT NULL,
-    longitude DECIMAL(11, 8) NOT NULL,
-    altitude INTEGER NOT NULL,
-    groundspeed INTEGER,
-    heading INTEGER,
-    departure VARCHAR(4),
-    arrival VARCHAR(4),
-    aircraft_type VARCHAR(10),
-    flight_plan TEXT,
-    timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    vatsim_id VARCHAR(50) UNIQUE
-);
 
--- Real-time Controller Data
-CREATE TABLE controllers (
-    id SERIAL PRIMARY KEY,
-    callsign VARCHAR(20) NOT NULL,
-    frequency VARCHAR(10),
-    cid INTEGER NOT NULL,
-    name VARCHAR(100),
-    rating INTEGER,
-    facility INTEGER,
-    timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    vatsim_id VARCHAR(50) UNIQUE
-);
+The database schema is designed to support real-time air traffic control data collection and analysis with efficient storage and retrieval capabilities.
 
--- Sector Occupancy Tracking
-CREATE TABLE flight_sector_occupancy (
-    id SERIAL PRIMARY KEY,
-    flight_id INTEGER REFERENCES flights(id),
-    sector_name VARCHAR(10) NOT NULL,
-    entry_time TIMESTAMP WITH TIME ZONE NOT NULL,
-    exit_time TIMESTAMP WITH TIME ZONE,
-    duration_minutes INTEGER,
-    is_active BOOLEAN DEFAULT TRUE
-);
-```
+**Real-time Flight Data:**
+The flights table stores live flight information including position coordinates (latitude/longitude with 8 decimal precision), altitude, groundspeed, heading, departure/arrival airports, aircraft type, and flight plan details. Each flight record includes a unique VATSIM identifier and timestamp for tracking purposes.
+
+**Real-time Controller Data:**
+The controllers table maintains current ATC controller information including callsign, frequency, controller ID (CID), name, rating level, facility type, and operational status. This supports real-time controller monitoring and interaction analysis.
+
+**Sector Occupancy Tracking:**
+The flight_sector_occupancy table tracks when flights enter and exit airspace sectors, recording entry/exit times, duration, and active status. This enables comprehensive sector utilisation analysis and operational planning.
 
 #### **Summary Tables**
-```sql
--- Flight Summaries (Processed every 60 minutes)
-CREATE TABLE flight_summaries (
-    id SERIAL PRIMARY KEY,
-    callsign VARCHAR(10) NOT NULL,
-    departure VARCHAR(4),
-    arrival VARCHAR(4),
-    aircraft_type VARCHAR(10),
-    total_positions INTEGER,
-    first_seen TIMESTAMP WITH TIME ZONE,
-    last_seen TIMESTAMP WITH TIME ZONE,
-    total_distance_nm DECIMAL(10, 2),
-    average_groundspeed INTEGER,
-    max_altitude INTEGER,
-    sectors_visited TEXT[],
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
 
--- Controller Summaries
-CREATE TABLE controller_summaries (
-    id SERIAL PRIMARY KEY,
-    callsign VARCHAR(20) NOT NULL,
-    cid INTEGER NOT NULL,
-    total_sessions INTEGER,
-    total_hours_online DECIMAL(5, 2),
-    average_session_length DECIMAL(5, 2),
-    last_online TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-```
+The summary tables provide aggregated data for operational analysis and reporting, processing data every 60 minutes to maintain performance while providing comprehensive insights.
+
+**Flight Summaries:**
+The flight_summaries table consolidates completed flight data including total positions recorded, first and last sighting timestamps, total distance travelled in nautical miles, average groundspeed, maximum altitude reached, and array of sectors visited. This enables comprehensive flight performance analysis and route optimisation studies.
+
+**Controller Summaries:**
+The controller_summaries table aggregates controller operational data including total sessions, cumulative online hours, average session duration, and last online timestamp. This supports controller performance analysis, training assessment, and operational planning for ATC facilities.
 
 ### **Data Models (SQLAlchemy)**
 
 #### **Flight Model**
-```python
-class Flight(Base):
-    __tablename__ = "flights"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    callsign = Column(String(10), nullable=False, index=True)
-    latitude = Column(DECIMAL(10, 8), nullable=False)
-    longitude = Column(DECIMAL(11, 8), nullable=False)
-    altitude = Column(Integer, nullable=False)
-    groundspeed = Column(Integer)
-    heading = Column(Integer)
-    departure = Column(String(4), index=True)
-    arrival = Column(String(4), index=True)
-    aircraft_type = Column(String(10))
-    flight_plan = Column(Text)
-    timestamp = Column(DateTime(timezone=True), default=datetime.utcnow)
-    vatsim_id = Column(String(50), unique=True, index=True)
-    
-    # Relationships
-    sector_occupancy = relationship("FlightSectorOccupancy", back_populates="flight")
-```
+
+The Flight model utilises SQLAlchemy ORM to provide object-relational mapping for the flights table, enabling type-safe database operations and efficient data access.
+
+**Model Structure:**
+- **Primary Key**: Auto-incrementing integer ID with database indexing for optimal performance
+- **Flight Identification**: Callsign field with database indexing for efficient flight lookups
+- **Position Data**: Latitude and longitude coordinates with high precision (8 decimal places) for accurate geographic positioning
+- **Flight Parameters**: Altitude, groundspeed, and heading for comprehensive flight state tracking
+- **Route Information**: Departure and arrival airport codes with database indexing for route analysis queries
+- **Metadata**: Aircraft type, flight plan details, and UTC timestamps for comprehensive flight tracking
+- **VATSIM Integration**: Unique VATSIM identifier with indexing for external system integration
+
+**Performance Optimisation:**
+The model includes strategic database indexes on frequently queried fields including callsign, departure, arrival airports, and VATSIM ID to ensure sub-second response times for operational queries. It also establishes relationships with sector occupancy data for comprehensive flight analysis.
 
 #### **Controller Model**
-```python
-class Controller(Base):
-    __tablename__ = "controllers"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    callsign = Column(String(20), nullable=False, index=True)
-    frequency = Column(String(10))
-    cid = Column(Integer, nullable=False, index=True)
-    name = Column(String(100))
-    rating = Column(Integer)
-    facility = Column(Integer)
-    timestamp = Column(DateTime(timezone=True), default=datetime.utcnow)
-    vatsim_id = Column(String(50), unique=True, index=True)
-```
+
+The Controller model provides object-relational mapping for ATC controller data, supporting real-time controller monitoring and operational analysis.
+
+**Model Structure:**
+- **Primary Key**: Auto-incrementing integer ID with database indexing for optimal performance
+- **Controller Identification**: Callsign field with database indexing for efficient controller lookups
+- **Operational Parameters**: Frequency, controller ID (CID), and facility type for operational status tracking
+- **Personal Information**: Controller name and rating level for training and performance assessment
+- **Temporal Data**: UTC timestamps for tracking controller online status and session duration
+- **VATSIM Integration**: Unique VATSIM identifier with indexing for external system integration
+
+**Performance Optimisation:**
+The model includes strategic database indexes on frequently queried fields including callsign and CID to ensure efficient controller lookups and real-time operational monitoring.
 
 ### **Database Performance Configuration**
 
 #### **Connection Pooling**
-```python
-# Database Engine Configuration
-engine = create_async_engine(
-    DATABASE_URL,
-    pool_size=20,                    # Active connections
-    max_overflow=40,                 # Additional overflow connections
-    pool_timeout=10,                 # Connection timeout (seconds)
-    pool_recycle=3600,               # Connection recycle time (1 hour)
-    echo=False                       # Disable SQL logging in production
-)
-```
+
+The database engine utilises comprehensive connection pooling to optimise performance and resource utilisation across all database operations.
+
+**Pool Configuration:**
+- **Active Connections**: Maintains 20 active database connections for immediate availability
+- **Overflow Capacity**: Supports up to 40 additional connections during peak load periods
+- **Connection Timeout**: 10-second timeout for connection acquisition to prevent indefinite waiting
+- **Connection Recycling**: Automatic connection refresh every hour to maintain database connectivity
+- **Production Optimisation**: SQL logging disabled in production for optimal performance
+
+**Performance Benefits:**
+This configuration ensures efficient database resource utilisation, minimises connection overhead, and provides reliable connectivity for high-throughput air traffic control data processing operations.
 
 ---
 
 ## 📊 **8. Data Flow Architecture**
 
 ### **High-Level Data Flow Overview**
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        DATA FLOW DIAGRAM                       │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  VATSIM API v3 ──60s──→ VATSIM Service ──JSON──→ Data Service │
-│       ↓                    ↓                    ↓              │
-│   Raw API data      Parsed flight/ATC      Geographic         │
-│   (flights,         data structures        filtering           │
-│    controllers,     (dict objects)         (Shapely)          │
-│    transceivers)                           ↓                  │
-│                                            ↓                  │
-│  REST API Clients ←─JSON─── FastAPI App ←─Filtered─── Data    │
-│       ↓                    (Port 8001)     Data      Service  │
-│   HTTP responses            ↓                    ↓              │
-│   (flight status,           ↓                    ↓              │
-│    sector info,      Background Tasks      Sector              │
-│    ATC coverage)            ↓              Tracking            │
-│                              ↓                    ↓              │
-│  Database Clients ←─SQL─── PostgreSQL ←─Processed─── Summary  │
-│       ↓                    Database       Data      Processing │
-│   Query results             ↓                    ↓              │
-│   (analytics,               ↓                    ↓              │
-│    reports)           Archive Tables      Data                 │
-│                              ↓              Archiving           │
-│                         Historical data    (7-day retention)   │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+
+The system implements a comprehensive data flow architecture that processes real-time air traffic control data from external sources through to analytical storage and API access.
+
+**Data Ingestion Pipeline:**
+- **External Source**: VATSIM API v3 provides raw flight and controller data every 60 seconds
+- **Data Processing**: VATSIM Service parses JSON responses into structured data objects
+- **Geographic Filtering**: Data Service applies configurable airspace boundaries using Shapely geometry operations
+- **Storage**: Filtered data is stored in PostgreSQL with comprehensive indexing
+
+**Operational Data Flow:**
+- **API Access**: FastAPI application (Port 8001) provides RESTful access to processed data
+- **Background Processing**: Continuous sector tracking and summary generation operations
+- **Data Archiving**: Historical data retention with 7-day archival policies
+- **Client Access**: REST API clients consume processed data for operational and analytical purposes
+
+**Data Transformation:**
+The pipeline transforms raw VATSIM API data through geographic filtering, sector tracking, and summary processing to provide clean, analysable data for air traffic control operations and performance monitoring.
 
 ### **Detailed Data Flow Descriptions**
 
 #### **1. External Data Ingestion Flow**
-```
-VATSIM API v3 → VATSIM Service → Data Service → Geographic Filter → Database
-     ↓              ↓              ↓              ↓              ↓
-  Raw JSON    Parsed Data    Filtered Data   Validated    Stored
-  Response    Structures     (Configured     Positions   Records
-  (60s)      (25+ fields)    airspace)      (unique)    (indexed)
-```
+
+The external data ingestion flow processes raw VATSIM API data through multiple validation and transformation stages to ensure data quality and operational relevance.
+
+**Processing Stages:**
+- **VATSIM API v3**: Provides raw JSON responses every 60 seconds containing flight and controller data
+- **VATSIM Service**: Parses JSON responses into structured data objects with 25+ fields
+- **Data Service**: Applies business logic and data validation rules
+- **Geographic Filter**: Validates positions against configured airspace boundaries
+- **Database**: Stores validated, unique records with comprehensive indexing
+
+**Data Quality Assurance:**
+Each stage includes validation checks to ensure only relevant, accurate data reaches the database, supporting reliable operational analytics and reporting.
 
 #### **2. Geographic Processing Flow**
-```
-Flight Positions → Boundary Check → Sector Assignment → Duration Calculation
-      ↓              ↓              ↓              ↓
-   Raw Data    Within Boundary?   Sector Match   Time Tracking
-   (lat/lon)   (Shapely)         (any sectors)   (entry/exit)
-```
+
+The geographic processing flow applies spatial analysis to flight position data to determine airspace boundaries and sector occupancy patterns.
+
+**Processing Stages:**
+- **Flight Positions**: Raw latitude/longitude coordinates from VATSIM data
+- **Boundary Check**: Validates positions against configured airspace boundaries using Shapely geometry operations
+- **Sector Assignment**: Matches valid positions to appropriate airspace sectors based on geographic boundaries
+- **Duration Calculation**: Tracks entry and exit times for sector occupancy analysis
+
+**Spatial Analysis:**
+This flow utilises advanced geometric calculations to ensure accurate airspace monitoring and sector utilisation tracking, supporting operational planning and performance analysis.
 
 #### **3. Summary Processing Flow**
-```
-Active Flights → Completion Check → Summary Generation → Archive → Cleanup
-      ↓              ↓              ↓              ↓          ↓
-   Real-time    >14 hours old?   Aggregated     Historical   Stale Data
-   Positions    (configurable)   Statistics     Storage      Removal
-```
+
+The summary processing flow transforms real-time flight data into aggregated analytics and historical records for operational analysis and reporting.
+
+**Processing Stages:**
+- **Active Flights**: Real-time position updates from ongoing flights
+- **Completion Check**: Identifies flights older than 14 hours (configurable threshold) for summary processing
+- **Summary Generation**: Aggregates flight data into comprehensive statistics including distance, duration, and sector utilisation
+- **Archive**: Stores historical data for long-term analysis and trend identification
+- **Cleanup**: Removes stale data to maintain system performance and storage efficiency
+
+**Data Lifecycle Management:**
+This flow ensures efficient data storage while preserving comprehensive historical records for operational analysis, performance monitoring, and regulatory compliance requirements.
 
 ### **Data Flow Characteristics**
 
@@ -1786,34 +1235,25 @@ Active Flights → Completion Check → Summary Generation → Archive → Clean
 ### **Quick Reference Cards**
 
 #### **System Status Commands**
-```bash
-# Check system health
-curl http://localhost:8001/api/health
 
-# View application logs
-docker-compose logs -f app
+The system provides comprehensive monitoring and management commands for operational oversight and troubleshooting.
 
-# Check database status
-docker-compose exec postgres pg_isready
+**Health Monitoring:**
+- **System Health**: Check overall system status and component health via health endpoint
+- **Application Logs**: View real-time application logs for operational monitoring and debugging
+- **Database Status**: Verify database connectivity and operational status
+- **Resource Monitoring**: Monitor system resource utilisation including CPU, memory, and network usage
 
-# Monitor system resources
-docker stats
-```
+**Operational Support:**
+These commands enable operational staff to monitor system health, troubleshoot issues, and maintain optimal performance across all system components.
 
 #### **Common Operations**
-```bash
-# Restart services
-docker-compose restart
 
-# Update application
-git pull && docker-compose build --no-cache && docker-compose up -d
-
-# Database backup
-./scripts/backup-database.sh
-
-# View API documentation
-open http://localhost:8001/api/docs
-```
+**Service Management:**
+- **Service Restart**: Restart all system services using Docker Compose for operational maintenance
+- **Application Updates**: Pull latest code changes, rebuild containers without cache, and redeploy services
+- **Database Backup**: Execute database backup scripts for data protection and recovery procedures
+- **API Documentation Access**: Open web-based API documentation for development and integration reference
 
 ### **Implementation Checklists**
 
@@ -1867,215 +1307,118 @@ open http://localhost:8001/api/docs
 ### **Environment Variables**
 
 #### **Core Configuration Variables**
-```bash
-# Database Configuration
-DATABASE_URL=postgresql+asyncpg://user:password@localhost/vatsim_data
-DB_POOL_SIZE=20
-DB_MAX_OVERFLOW=40
-DB_POOL_TIMEOUT=10
-DB_POOL_RECYCLE=3600
 
-# Application Configuration
-APP_HOST=0.0.0.0
-APP_PORT=8001
-APP_RELOAD=false
-APP_WORKERS=4
-APP_LOG_LEVEL=INFO
+**Database Configuration:**
+- **Connection String**: PostgreSQL connection with async driver support
+- **Connection Pool**: 20 active connections with 40 overflow capacity
+- **Connection Management**: 10-second timeout and hourly connection recycling
+- **Performance Optimisation**: Optimised pool settings for production workloads
 
-# VATSIM API Configuration
-VATSIM_API_TIMEOUT=30
-VATSIM_API_RETRY_ATTEMPTS=3
-VATSIM_API_RETRY_DELAY=5
-VATSIM_POLLING_INTERVAL=60
+**Application Configuration:**
+- **Network Binding**: Binds to all network interfaces on port 8001
+- **Development Mode**: Reload disabled, 4 worker processes for production
+- **Logging**: Information-level logging for operational monitoring
 
-# Geographic Configuration
-GEOGRAPHIC_BOUNDARY_FILE=config/airspace_boundary_polygon.json
-SECTOR_DATA_FILE=config/airspace_sectors.geojson
-GEOGRAPHIC_FILTER_ENABLED=true
+**VATSIM API Configuration:**
+- **Timeout Settings**: 30-second timeout with 3 retry attempts
+- **Retry Strategy**: 5-second delay between retry attempts
+- **Polling Frequency**: 60-second intervals for real-time data updates
 
-# Data Processing Configuration
-FLIGHT_SUMMARY_INTERVAL=60
-FLIGHT_ARCHIVE_RETENTION_DAYS=7
-SECTOR_CLEANUP_INTERVAL=300
-MAX_FLIGHT_AGE_HOURS=14
+**Geographic Configuration:**
+- **Boundary Files**: Configurable airspace boundary and sector definition files
+- **Filtering**: Geographic filtering enabled for airspace-specific data collection
 
-# Cleanup Process Configuration
-CLEANUP_FLIGHT_TIMEOUT=300
-CLEANUP_ENABLED=true
-CLEANUP_LOG_LEVEL=INFO
-```
+**Data Processing Configuration:**
+- **Summary Generation**: 60-second intervals for flight data aggregation
+- **Data Retention**: 7-day archival policy for historical data
+- **Cleanup Operations**: 300-second intervals for sector cleanup and 14-hour maximum flight age
+
+**Cleanup Process Configuration:**
+- **Flight Cleanup**: 300-second timeout for flight data processing
+- **Process Control**: Cleanup enabled with information-level logging
 
 #### **Environment-Specific Configurations**
 
 ##### **Development Environment**
-```bash
-# Development Settings
-APP_RELOAD=true
-APP_LOG_LEVEL=DEBUG
-DB_POOL_SIZE=5
-DB_MAX_OVERFLOW=10
-VATSIM_POLLING_INTERVAL=120  # Slower for development
-```
+
+**Development Optimisations:**
+- **Hot Reload**: Application reload enabled for rapid development iteration
+- **Debug Logging**: Detailed debug-level logging for development troubleshooting
+- **Resource Management**: Reduced connection pool (5 active, 10 overflow) for development workloads
+- **Polling Frequency**: 120-second intervals for development testing and reduced API load
 
 ##### **Production Environment**
-```bash
-# Production Settings
-APP_RELOAD=false
-APP_WORKERS=8
-APP_LOG_LEVEL=WARNING
-DB_POOL_SIZE=50
-DB_MAX_OVERFLOW=100
-VATSIM_POLLING_INTERVAL=60   # Real-time for production
-```
+
+**Production Optimisations:**
+- **Performance Mode**: Hot reload disabled, 8 worker processes for high-throughput production
+- **Logging Level**: Warning-level logging to reduce log volume in production
+- **Connection Scaling**: Enhanced connection pool (50 active, 100 overflow) for production workloads
+- **Real-time Updates**: 60-second polling intervals for live air traffic control operations
 
 ### **Configuration Files**
 
 #### **1. Geographic Boundary Configuration**
-```json
-{
-  "boundary_name": "Configured Airspace",
-  "description": "Complete airspace boundary for geographic filtering",
-  "coordinates": [
-    [113.338953, -43.634597],
-    [153.611523, -43.634597],
-    [153.611523, -10.668186],
-    [113.338953, -10.668186],
-    [113.338953, -43.634597]
-  ],
-  "metadata": {
-    "area_km2": 7617930,
-    "created": "2024-01-01T00:00:00Z",
-    "source": "Configurable - currently set for Australian airspace"
-  }
-}
-```
+
+**Boundary Definition:**
+- **Boundary Name**: Configured Airspace for geographic filtering operations
+- **Description**: Complete airspace boundary configuration for data collection scope
+- **Geographic Coverage**: Coordinates spanning from 113.34°E to 153.61°E longitude and -43.63°S to -10.67°S latitude
+- **Area Coverage**: Approximately 7.6 million square kilometres of airspace
+- **Configuration Source**: Currently configured for Australian airspace but fully configurable for any geographic region
+- **Metadata**: Includes creation timestamp and source information for configuration management
 
 #### **2. Sector Configuration (GeoJSON)**
-```json
-{
-  "type": "FeatureCollection",
-  "features": [
-    {
-      "type": "Feature",
-      "properties": {
-        "sector_name": "SYA",
-        "full_name": "Sydney Approach",
-        "facility_type": "approach",
-        "frequency": "118.1",
-        "altitude_floor": 0,
-        "altitude_ceiling": 45000
-      },
-      "geometry": {
-        "type": "Polygon",
-        "coordinates": [[[...]]]
-      }
-    }
-  ]
-}
-```
+
+**Sector Definition Structure:**
+- **Feature Collection**: Standard GeoJSON format for geographic feature representation
+- **Sector Properties**: Comprehensive sector metadata including name, facility type, and operational parameters
+- **Example Sector**: Sydney Approach (SYA) with approach facility type and 118.1 MHz frequency
+- **Altitude Coverage**: Full altitude range from ground level (0 feet) to 45,000 feet
+- **Geometric Representation**: Polygon geometry for precise airspace boundary definition
+- **Standard Compliance**: Follows GeoJSON specification for interoperability with mapping and GIS systems
 
 ### **Docker Compose Configuration**
 
 #### **Main Application Service**
-```yaml
-version: '3.8'
 
-services:
-  vatsim-app:
-    build: .
-    container_name: vatsim-data-app
-    ports:
-      - "8001:8001"
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://vatsim_user:vatsim_pass@postgres:5432/vatsim_data
-      - APP_HOST=0.0.0.0
-      - APP_PORT=8001
-      - APP_LOG_LEVEL=INFO
-    volumes:
-      - ./config:/app/config:ro
-      - ./logs:/app/logs
-    depends_on:
-      - postgres
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-```
+**Service Configuration:**
+- **Version**: Docker Compose 3.8 specification for modern container orchestration
+- **Application Build**: Local build from current directory with custom container naming
+- **Network Binding**: Exposes port 8001 for API access and external connectivity
+- **Environment Variables**: Comprehensive configuration including database connection, host binding, and logging levels
+- **Volume Mounts**: Read-only config access and persistent log storage for operational monitoring
+- **Dependencies**: Ensures PostgreSQL service availability before application startup
+- **Operational Resilience**: Automatic restart policy and comprehensive health monitoring with 30-second intervals
 
 #### **Database Service**
-```yaml
-  postgres:
-    image: postgres:16
-    container_name: vatsim-postgres
-    environment:
-      - POSTGRES_DB=vatsim_data
-      - POSTGRES_USER=vatsim_user
-      - POSTGRES_PASSWORD=vatsim_pass
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./config/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    ports:
-      - "5432:5432"
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U vatsim_user -d vatsim_data"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
-volumes:
-  postgres_data:
-```
+**PostgreSQL Configuration:**
+- **Database Image**: PostgreSQL 16 for latest features and security updates
+- **Container Naming**: Custom naming for easy identification and management
+- **Environment Setup**: Database name, user, and password configuration for secure access
+- **Data Persistence**: Named volume for persistent data storage across container restarts
+- **Initialisation**: SQL script mounting for database schema setup and initial data
+- **Network Access**: Port 5432 exposure for external database connectivity
+- **Operational Resilience**: Automatic restart policy and comprehensive health monitoring using pg_isready
+- **Volume Management**: Dedicated volume for PostgreSQL data persistence and backup operations
 
 ### **Configuration Validation**
 
 #### **Pydantic Settings Management**
-```python
-from pydantic import BaseSettings, validator
-from typing import Optional
 
-class Settings(BaseSettings):
-    # Database Settings
-    database_url: str
-    db_pool_size: int = 20
-    db_max_overflow: int = 40
-    
-    # Application Settings
-    app_host: str = "0.0.0.0"
-    app_port: int = 8001
-    app_reload: bool = False
-    app_workers: int = 4
-    
-    # VATSIM Settings
-    vatsim_api_timeout: int = 30
-    vatsim_polling_interval: int = 60
-    
-    # Geographic Settings
-    geographic_boundary_file: str
-    sector_data_file: str
-    geographic_filter_enabled: bool = True
-    
-    @validator('database_url')
-    def validate_database_url(cls, v):
-        if not v.startswith(('postgresql://', 'postgresql+asyncpg://')):
-            raise ValueError('Invalid database URL format')
-        return v
-    
-    @validator('vatsim_polling_interval')
-    def validate_polling_interval(cls, v):
-        if v < 30 or v > 300:
-            raise ValueError('Polling interval must be between 30 and 300 seconds')
-        return v
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
+**Configuration Framework:**
+- **Base Class**: Extends Pydantic BaseSettings for automatic environment variable parsing
+- **Type Safety**: Comprehensive type annotations for all configuration parameters
+- **Database Configuration**: Connection string, pool size, and overflow capacity settings
+- **Application Settings**: Host binding, port configuration, and worker process management
+- **VATSIM Integration**: API timeout, retry attempts, and polling interval configuration
+- **Geographic Settings**: Boundary file paths and filtering enablement flags
 
-# Global settings instance
-settings = Settings()
-```
+**Validation Logic:**
+- **Database URL Validation**: Ensures proper PostgreSQL connection string format
+- **Polling Interval Validation**: Enforces 30-300 second range for operational efficiency
+- **Configuration Management**: Environment file support with case-insensitive variable handling
+- **Global Instance**: Centralised settings access throughout the application
 
 ---
 
@@ -2084,397 +1427,151 @@ settings = Settings()
 ### **Deployment Procedures**
 
 #### **Production Deployment Checklist**
-```markdown
-## Pre-Deployment Checklist
-- [ ] Database migrations tested and validated
-- [ ] Configuration files updated for production environment
-- [ ] Environment variables configured correctly
-- [ ] SSL certificates installed and configured
-- [ ] Firewall rules configured for production ports
-- [ ] Monitoring and alerting configured
-- [ ] Backup procedures tested and validated
 
-## Deployment Steps
-1. **Stop Current Services**
-   ```bash
-   docker-compose down
-   ```
+**Pre-Deployment Preparation:**
+- **Database Validation**: Ensure all migrations are tested and validated before production deployment
+- **Configuration Updates**: Update configuration files and environment variables for production environment
+- **Security Setup**: Install SSL certificates and configure firewall rules for production ports
+- **Monitoring Configuration**: Set up comprehensive monitoring and alerting systems
+- **Backup Verification**: Test and validate all backup procedures for data protection
 
-2. **Update Application Code**
-   ```bash
-   git pull origin main
-   docker-compose build --no-cache
-   ```
+**Deployment Process:**
+- **Service Management**: Stop current services, update application code, and rebuild containers
+- **Database Operations**: Execute database migrations to ensure schema compatibility
+- **Service Deployment**: Start services with production configuration and verify deployment
+- **Health Verification**: Confirm system health through API endpoints and log monitoring
 
-3. **Run Database Migrations**
-   ```bash
-   docker-compose run --rm app alembic upgrade head
-   ```
-
-4. **Start Services**
-   ```bash
-   docker-compose up -d
-   ```
-
-5. **Verify Deployment**
-   ```bash
-   curl -f http://localhost:8001/api/health
-   docker-compose logs -f app
-   ```
-
-## Post-Deployment Verification
-- [ ] Health check endpoint responding
-- [ ] VATSIM data ingestion active
-- [ ] Database connections stable
-- [ ] Geographic filtering operational
-- [ ] Sector tracking functional
-- [ ] API endpoints responding correctly
-- [ ] Error logs clean
-- [ ] Performance metrics within normal range
-```
+**Post-Deployment Validation:**
+- **System Health**: Verify health check endpoints and overall system responsiveness
+- **Data Pipeline**: Confirm VATSIM data ingestion and geographic filtering operations
+- **Database Stability**: Ensure database connections and sector tracking functionality
+- **Performance Monitoring**: Validate API endpoints and maintain clean error logs
 
 #### **Rollback Procedures**
-```bash
-# Quick Rollback to Previous Version
-git checkout HEAD~1
-docker-compose build --no-cache
-docker-compose up -d
 
-# Database Rollback (if needed)
-docker-compose run --rm app alembic downgrade -1
-
-# Verify Rollback
-curl -f http://localhost:8001/api/health
-docker-compose logs -f app
-```
+**Quick Rollback Process:**
+- **Version Reversion**: Checkout previous version using Git HEAD~1 for immediate rollback
+- **Container Rebuild**: Rebuild containers without cache to ensure clean deployment
+- **Service Restart**: Restart services with previous version configuration
+- **Database Rollback**: Execute Alembic downgrade if database schema changes are involved
+- **Verification**: Confirm rollback success through health checks and log monitoring
 
 ### **Monitoring & Alerting**
 
 #### **Health Check Endpoints**
-```python
-@app.get("/api/health")
-async def get_system_health() -> HealthResponse:
-    """Comprehensive system health check"""
-    health_status = {
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
-        "version": "1.0.0",
-        "checks": {}
-    }
-    
-    # Database Health Check
-    try:
-        async with get_db_session() as session:
-            await session.execute("SELECT 1")
-        health_status["checks"]["database"] = {"status": "healthy", "response_time_ms": 0}
-    except Exception as e:
-        health_status["checks"]["database"] = {"status": "unhealthy", "error": str(e)}
-        health_status["status"] = "degraded"
-    
-    # VATSIM API Health Check
-    try:
-        vatsim_status = await vatsim_service.get_status()
-        health_status["checks"]["vatsim_api"] = {"status": "healthy", "data": vatsim_status}
-    except Exception as e:
-        health_status["checks"]["vatsim_api"] = {"status": "unhealthy", "error": str(e)}
-        health_status["status"] = "degraded"
-    
-    # Geographic Filter Health Check
-    try:
-        boundary_loaded = geographic_filter.boundary_polygon is not None
-        health_status["checks"]["geographic_filter"] = {
-            "status": "healthy" if boundary_loaded else "unhealthy",
-            "boundary_loaded": boundary_loaded
-        }
-    except Exception as e:
-        health_status["checks"]["geographic_filter"] = {"status": "unhealthy", "error": str(e)}
-        health_status["status"] = "degraded"
-    
-    return health_status
-```
+
+**Comprehensive Health Monitoring:**
+- **System Status**: Overall health status with timestamp and version information
+- **Database Health**: Connection validation through simple query execution
+- **VATSIM API Status**: External API connectivity and data availability verification
+- **Geographic Filter**: Boundary polygon loading and configuration validation
+- **Error Handling**: Graceful degradation with detailed error reporting
+- **Response Format**: Structured JSON response with component-level health status
 
 #### **Performance Monitoring**
-```python
-# Performance Metrics Collection
-import time
-import psutil
-from functools import wraps
 
-def monitor_performance(func_name: str):
-    """Decorator to monitor function performance"""
-    def decorator(func):
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            start_time = time.time()
-            start_memory = psutil.Process().memory_info().rss / 1024 / 1024  # MB
-            
-            try:
-                result = await func(*args, **kwargs)
-                return result
-            finally:
-                end_time = time.time()
-                end_memory = psutil.Process().memory_info().rss / 1024 / 1024  # MB
-                
-                execution_time = (end_time - start_time) * 1000  # ms
-                memory_delta = end_memory - start_memory
-                
-                # Log performance metrics
-                logger.info(
-                    f"Performance: {func_name}",
-                    execution_time_ms=execution_time,
-                    memory_delta_mb=memory_delta,
-                    memory_peak_mb=end_memory
-                )
-        
-        return wrapper
-    return decorator
-
-# Usage Example
-@monitor_performance("geographic_filtering")
-async def filter_flights_geographically(self, flights: List[Dict]) -> List[Dict]:
-    """Filter flights to configured airspace with performance monitoring"""
-    return self.geographic_filter.filter_flights_list(flights)
-```
+**Performance Metrics Collection:**
+- **Execution Timing**: Precise measurement of function execution time in milliseconds
+- **Memory Monitoring**: Real-time memory usage tracking using psutil library
+- **Decorator Pattern**: Non-intrusive performance monitoring through function decorators
+- **Comprehensive Metrics**: Execution time, memory delta, and peak memory usage logging
+- **Async Support**: Full support for asynchronous functions with performance tracking
+- **Practical Application**: Example implementation for geographic filtering operations
 
 ### **Backup & Recovery**
 
 #### **Database Backup Procedures**
-```bash
-#!/bin/bash
-# backup-database.sh
 
-# Configuration
-BACKUP_DIR="/backups/database"
-DATE_SUFFIX=$(date +%Y%m%d_%H%M%S)
-BACKUP_FILE="vatsim_data_backup_${DATE_SUFFIX}.sql"
-RETENTION_DAYS=30
-
-# Create backup directory if it doesn't exist
-mkdir -p $BACKUP_DIR
-
-# Perform database backup
-echo "Starting database backup at $(date)"
-docker-compose exec -T postgres pg_dump \
-    -U vatsim_user \
-    -d vatsim_data \
-    --verbose \
-    --clean \
-    --if-exists \
-    --create \
-    --format=custom \
-    --file="/tmp/${BACKUP_FILE}"
-
-# Copy backup from container to host
-docker cp vatsim-postgres:/tmp/${BACKUP_FILE} ${BACKUP_DIR}/${BACKUP_FILE}
-
-# Clean up container backup file
-docker-compose exec -T postgres rm /tmp/${BACKUP_FILE}
-
-# Compress backup file
-gzip ${BACKUP_DIR}/${BACKUP_FILE}
-
-# Remove old backups
-find ${BACKUP_DIR} -name "*.sql.gz" -mtime +${RETENTION_DAYS} -delete
-
-echo "Database backup completed at $(date)"
-echo "Backup file: ${BACKUP_DIR}/${BACKUP_FILE}.gz"
-```
+**Automated Backup Process:**
+- **Configuration Management**: Configurable backup directory and retention policies
+- **Timestamp Naming**: Unique backup files with date and time suffixes
+- **Docker Integration**: Direct database backup using pg_dump within containers
+- **Data Transfer**: Secure backup file transfer from container to host system
+- **Compression**: Automatic gzip compression for storage efficiency
+- **Cleanup Automation**: Automatic removal of backups older than 30 days
+- **Process Logging**: Comprehensive logging of backup operations and completion status
 
 #### **Data Recovery Procedures**
-```bash
-#!/bin/bash
-# restore-database.sh
 
-# Configuration
-BACKUP_FILE=$1
-DATABASE_NAME="vatsim_data"
-
-if [ -z "$BACKUP_FILE" ]; then
-    echo "Usage: $0 <backup_file>"
-    echo "Example: $0 vatsim_data_backup_20240101_120000.sql.gz"
-    exit 1
-fi
-
-# Verify backup file exists
-if [ ! -f "$BACKUP_FILE" ]; then
-    echo "Backup file not found: $BACKUP_FILE"
-    exit 1
-fi
-
-echo "Starting database restoration at $(date)"
-echo "Backup file: $BACKUP_FILE"
-
-# Stop application to prevent data corruption
-echo "Stopping application services..."
-docker-compose stop app
-
-# Restore database
-echo "Restoring database from backup..."
-gunzip -c "$BACKUP_FILE" | docker-compose exec -T postgres psql \
-    -U vatsim_user \
-    -d postgres
-
-# Verify restoration
-echo "Verifying database restoration..."
-docker-compose exec -T postgres psql \
-    -U vatsim_user \
-    -d $DATABASE_NAME \
-    -c "SELECT COUNT(*) FROM flights;"
-
-# Restart application
-echo "Restarting application services..."
-docker-compose start app
-
-echo "Database restoration completed at $(date)"
-```
+**Comprehensive Recovery Process:**
+- **Input Validation**: Command-line argument validation with usage examples
+- **File Verification**: Backup file existence and accessibility confirmation
+- **Service Management**: Application service shutdown to prevent data corruption
+- **Database Restoration**: Direct restoration from compressed backup files
+- **Verification Process**: Data integrity confirmation through record count validation
+- **Service Recovery**: Automatic application service restart after successful restoration
+- **Process Logging**: Detailed logging of restoration steps and completion status
 
 ### **Performance Optimization**
 
 #### **Database Query Optimization**
-```sql
--- Analyze table statistics for query optimization
-ANALYZE flights;
-ANALYZE controllers;
-ANALYZE flight_sector_occupancy;
 
--- Create composite indexes for common query patterns
-CREATE INDEX CONCURRENTLY idx_flights_callsign_timestamp 
-ON flights(callsign, timestamp DESC);
-
-CREATE INDEX CONCURRENTLY idx_sector_occupancy_sector_active 
-ON flight_sector_occupancy(sector_name, is_active, entry_time);
-
--- Partition large tables by date (if needed)
-CREATE TABLE flights_partitioned (
-    LIKE flights INCLUDING ALL
-) PARTITION BY RANGE (timestamp);
-
--- Create monthly partitions
-CREATE TABLE flights_2024_01 PARTITION OF flights_partitioned
-FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');
-```
+**Performance Enhancement Strategies:**
+- **Statistics Analysis**: Regular table statistics updates for query planner optimisation
+- **Composite Indexing**: Strategic index creation for common query patterns and performance
+- **Concurrent Operations**: Non-blocking index creation for production environments
+- **Table Partitioning**: Date-based partitioning for large tables to improve query performance
+- **Monthly Partitions**: Automatic monthly partition creation for time-series data management
 
 #### **Application Performance Tuning**
-```python
-# Connection Pool Optimization
-DATABASE_CONFIG = {
-    "pool_size": 20,           # Active connections
-    "max_overflow": 40,        # Additional overflow connections
-    "pool_timeout": 10,        # Connection timeout (seconds)
-    "pool_recycle": 3600,      # Connection recycle time (1 hour)
-    "pool_pre_ping": True,     # Validate connections before use
-    "echo": False              # Disable SQL logging in production
-}
 
-# Batch Processing Optimization
-BATCH_CONFIG = {
-    "max_batch_size": 1000,    # Maximum records per batch
-    "batch_timeout": 30,       # Batch processing timeout (seconds)
-    "retry_attempts": 3,       # Number of retry attempts
-    "retry_delay": 1           # Delay between retries (seconds)
-}
+**Connection Pool Optimisation:**
+- **Pool Configuration**: 20 active connections with 40 overflow capacity
+- **Connection Management**: 10-second timeout and hourly connection recycling
+- **Validation**: Pre-ping validation for connection reliability
+- **Production Optimisation**: SQL logging disabled for optimal performance
 
-# Memory Management
-MEMORY_CONFIG = {
-    "max_flight_cache": 10000,     # Maximum flights in memory cache
-    "cache_cleanup_interval": 300, # Cache cleanup interval (seconds)
-    "gc_threshold": 0.8            # Garbage collection threshold
-}
-```
+**Batch Processing Optimisation:**
+- **Batch Size**: Maximum 1000 records per batch for optimal throughput
+- **Timeout Management**: 30-second batch processing timeout
+- **Retry Logic**: 3 retry attempts with 1-second delay intervals
+
+**Memory Management:**
+- **Cache Control**: Maximum 10,000 flights in memory cache
+- **Cleanup Automation**: 300-second cache cleanup intervals
+- **Garbage Collection**: 80% threshold for memory management optimisation
 
 ### **Troubleshooting**
 
 #### **Common Issues & Solutions**
 
 ##### **1. Database Connection Issues**
-```bash
-# Check database connectivity
-docker-compose exec postgres pg_isready -U vatsim_user -d vatsim_data
 
-# Check connection pool status
-docker-compose exec app python -c "
-from app.database import engine
-print(f'Pool size: {engine.pool.size()}')
-print(f'Checked out: {engine.pool.checkedout()}')
-print(f'Overflow: {engine.pool.overflow()}')
-"
-```
+**Connectivity Diagnostics:**
+- **Database Health Check**: Verify PostgreSQL service availability using pg_isready
+- **Connection Pool Monitoring**: Check pool size, active connections, and overflow capacity
+- **Real-time Status**: Live monitoring of database connection pool utilisation
 
 ##### **2. Geographic Filtering Issues**
-```bash
-# Verify boundary file loading
-docker-compose exec app python -c "
-from app.filters.geographic_boundary_filter import GeographicBoundaryFilter
-filter = GeographicBoundaryFilter()
-print(f'Boundary loaded: {filter.boundary_polygon is not None}')
-print(f'Boundary valid: {filter.boundary_polygon.is_valid}')
-print(f'Boundary area: {filter.boundary_polygon.area}')
-"
-```
+
+**Boundary Validation:**
+- **File Loading Check**: Verify boundary file loading and polygon object creation
+- **Geometry Validation**: Confirm polygon validity and geometric integrity
+- **Area Calculation**: Validate boundary area for airspace coverage verification
 
 ##### **3. VATSIM API Issues**
-```bash
-# Test VATSIM API connectivity
-curl -v "https://data.vatsim.net/v3/status.json"
 
-# Check API response times
-docker-compose exec app python -c "
-import asyncio
-from app.services.vatsim_service import VATSIMService
-import time
-
-async def test_api():
-    service = VATSIMService()
-    start = time.time()
-    try:
-        status = await service.get_status()
-        duration = (time.time() - start) * 1000
-        print(f'API response time: {duration:.2f}ms')
-        print(f'Status: {status}')
-    except Exception as e:
-        print(f'API error: {e}')
-
-asyncio.run(test_api())
-"
-```
+**API Connectivity Testing:**
+- **Direct API Test**: Verify external VATSIM API connectivity using curl
+- **Response Time Measurement**: Measure API response times for performance monitoring
+- **Service Integration**: Test internal VATSIM service integration and error handling
+- **Performance Metrics**: Real-time response time measurement in milliseconds
 
 #### **Emergency Procedures**
 
 ##### **System Recovery**
-```bash
-# Emergency system restart
-docker-compose down
-docker system prune -f
-docker-compose up -d
 
-# Emergency database restart
-docker-compose restart postgres
-sleep 10
-docker-compose restart app
-
-# Emergency configuration reload
-docker-compose exec app pkill -HUP -f "uvicorn"
-```
+**Emergency Recovery Procedures:**
+- **Complete System Restart**: Full container shutdown, cleanup, and restart
+- **Database Recovery**: PostgreSQL service restart with 10-second stabilisation delay
+- **Configuration Reload**: Application configuration refresh using process signal handling
 
 ##### **Data Integrity Verification**
-```sql
--- Check for data inconsistencies
-SELECT 
-    COUNT(*) as total_flights,
-    COUNT(DISTINCT callsign) as unique_callsigns,
-    COUNT(DISTINCT DATE(timestamp)) as active_days
-FROM flights 
-WHERE timestamp >= NOW() - INTERVAL '24 hours';
 
--- Verify sector occupancy integrity
-SELECT 
-    sector_name,
-    COUNT(*) as active_occupancies,
-    COUNT(CASE WHEN exit_time IS NULL THEN 1 END) as open_occupancies
-FROM flight_sector_occupancy 
-WHERE is_active = true
-GROUP BY sector_name;
-```
+**Data Consistency Checks:**
+- **Flight Data Validation**: 24-hour flight count, unique callsigns, and active days verification
+- **Sector Occupancy Integrity**: Active occupancy counts and open sector verification
+- **Real-time Monitoring**: Continuous data integrity validation for operational reliability
 
 ---
 
@@ -2483,47 +1580,29 @@ GROUP BY sector_name;
 ### **Environment Configuration**
 
 #### **Core System Settings**
-```bash
-# Production Mode
-PRODUCTION_MODE: "true"
-CI_CD_MODE: "false"
 
-# Performance Settings
-MEMORY_LIMIT_MB: 2048
-BATCH_SIZE_THRESHOLD: 10000
-VATSIM_POLLING_INTERVAL: 60
-WRITE_TO_DISK_INTERVAL: 30
-
-# Database Configuration
-DATABASE_POOL_SIZE: 20
-DATABASE_MAX_OVERFLOW: 40
-DATABASE_POOL_TIMEOUT: 10
-```
+**Production Configuration:**
+- **Environment Mode**: Production mode enabled with CI/CD mode disabled
+- **Performance Optimisation**: 2GB memory limit and 10,000 record batch processing
+- **Data Collection**: 60-second VATSIM API polling with 30-second disk write intervals
+- **Database Optimisation**: 20 active connections with 40 overflow capacity and 10-second timeout
 
 #### **Geographic Filtering Configuration**
-```bash
-# Geographic Boundary Filter
-ENABLE_BOUNDARY_FILTER: "true"
-BOUNDARY_DATA_PATH: "config/airspace_boundary_polygon.json"
-BOUNDARY_FILTER_LOG_LEVEL: "INFO"
-BOUNDARY_FILTER_PERFORMANCE_THRESHOLD: "10.0"
 
-# Sector Tracking
-SECTOR_TRACKING_ENABLED: "true"
-SECTOR_UPDATE_INTERVAL: 60
-```
+**Boundary Filter Settings:**
+- **Filter Enablement**: Geographic boundary filtering enabled for airspace operations
+- **Configuration Path**: Boundary data loaded from configurable JSON polygon file
+- **Logging Level**: Information-level logging with 10ms performance threshold monitoring
+- **Sector Tracking**: Real-time sector monitoring with 60-second update intervals
 
 #### **Data Management Configuration**
-```bash
-# Flight Summary System
-FLIGHT_SUMMARY_ENABLED: "true"
-FLIGHT_COMPLETION_HOURS: 14
-FLIGHT_RETENTION_HOURS: 168
-FLIGHT_SUMMARY_INTERVAL: 60
 
-# Cleanup Configuration
-CLEANUP_FLIGHT_TIMEOUT: 300
-```
+**Flight Summary System:**
+- **System Enablement**: Flight summary processing enabled for data aggregation
+- **Completion Threshold**: 14-hour completion threshold for flight processing
+- **Data Retention**: 168-hour (7-day) retention policy for historical data
+- **Processing Intervals**: 60-second intervals for continuous summary generation
+- **Cleanup Management**: 300-second timeout for flight cleanup operations
 
 ### **Active Features**
 

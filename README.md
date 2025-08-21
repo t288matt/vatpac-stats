@@ -283,6 +283,135 @@ The flight summary system automatically consolidates completed flights to reduce
 
 ## ⚙️ Configuration
 
+### Config Directory Structure
+The `config/` directory contains essential configuration files that define the system's behavior, data sources, and operational parameters. These files are critical for the system's functionality and should not be modified without understanding their purpose.
+
+#### **`init.sql` - Database Schema Initialization**
+- **Purpose**: Defines the complete database structure including all tables, indexes, and constraints
+- **Content**: SQL DDL statements for creating the database schema from scratch
+- **Format**: Standard SQL with PostgreSQL-specific syntax
+- **Usage**: Automatically executed when the database container starts for the first time
+- **Why Necessary**: Ensures consistent database structure across all deployments and provides a clean slate for new installations
+- **Maintenance**: Update when adding new tables, modifying existing schema, or changing database constraints
+
+#### **`australian_airspace_polygon.json` - Geographic Boundary Definition**
+- **Purpose**: Defines the external boundary of Australian Flight Information Region (FIR) for geographic filtering
+- **Content**: Single polygon with coordinates covering all of Australia and surrounding airspace
+- **Format**: GeoJSON polygon with decimal degree coordinates
+- **Usage**: Used by the geographic boundary filter to determine if flights/controllers are within Australian airspace
+- **Why Necessary**: Essential for the geographic filtering system that focuses data collection on Australian airspace
+- **Maintenance**: **Static file** - does not change and represents the official Australian FIR boundary
+
+**🌍 Worldwide Airspace Support**: While currently configured for Australian airspace, the system architecture supports airspace files from any worldwide location. You can replace the Australian boundary file with any other country's FIR boundary or create multiple boundary files for different regions. The geographic filtering system will automatically work with any properly formatted GeoJSON polygon file.
+
+#### **`australian_airspace_sectors.geojson` - Sector Boundary Definitions**
+- **Purpose**: Contains processed airspace sector boundaries for detailed sector analysis and real-time tracking
+- **Content**: FeatureCollection with each main sector as a separate Feature containing combined subsector polygons
+- **Format**: Standard GeoJSON FeatureCollection with Polygon geometries
+- **Usage**: Used for sector analysis, ATC coverage mapping, and real-time sector tracking
+- **Why Necessary**: Required for the sector tracking system that monitors flights through different airspace sectors
+- **Maintenance**: **Automatically generated** from VATSYS XML files - do not edit manually
+
+**🌍 Worldwide Sector Support**: The sector tracking system works with any properly formatted GeoJSON sector files. While currently configured for Australian sectors, you can replace these files with sector definitions from any worldwide airspace (US, European, Asian, etc.). The system will automatically track flights through whatever sectors are defined in the configuration files.
+
+#### **`controller_callsigns_list.txt` - Controller Callsign Reference**
+- **Purpose**: Provides a reference list of known controller callsigns for validation and analysis
+- **Content**: Plain text file with one callsign per line
+- **Format**: Simple text format with no special formatting
+- **Usage**: Used by controller detection services and for callsign pattern analysis
+- **Why Necessary**: Helps validate controller data and provides reference for callsign pattern matching
+- **Maintenance**: Update when new controller callsigns are identified or patterns change
+
+### Airspace Sector Data Directory
+The `airspace_sector_data/` directory contains the source files and processing scripts for airspace sector definitions. While currently configured for Australian airspace, this directory can be adapted for any worldwide airspace system. This directory works in conjunction with the `config/` directory to provide comprehensive airspace coverage.
+
+#### **`Sectors.xml` & `Volumes.xml` - VATSYS Source Files**
+- **Purpose**: Raw VATSYS XML files containing official airspace sector definitions
+- **Content**: XML format with sector coordinates, altitudes, and hierarchical structure
+- **Format**: VATSYS XML format (proprietary airspace definition standard)
+- **Usage**: Source data for generating processed sector boundaries
+- **Why Necessary**: Official source of truth for airspace sector definitions
+- **Maintenance**: Update when new sector definition files are released by the relevant aviation authority
+
+**🌍 Worldwide Format Support**: While these files are currently Australian VATSYS format, the processing scripts can be adapted to work with other airspace definition formats worldwide (US NASR, European AIP, etc.). The system architecture supports any properly formatted sector definition files.
+
+#### **`SectorHierarchy.txt` - Sector Structure Definition**
+- **Purpose**: Simplified text-based definition of main sectors and their subsectors
+- **Content**: Plain text with hierarchical sector relationships
+- **Format**: Simple text format with indentation showing hierarchy
+- **Usage**: Used by the simplified processing script to generate sector boundaries
+- **Why Necessary**: Provides a maintainable way to define sector relationships without complex XML parsing
+- **Maintenance**: Edit when sector structure changes or new sectors are added
+
+**🌍 Universal Format**: This text-based hierarchy format is universal and can be used to define sectors for any worldwide airspace. Simply edit the file to define the sector structure for your target airspace, and the processing scripts will generate the appropriate GeoJSON files.
+
+#### **Processing Scripts**
+- **`process_australian_sectors.py`**: Main script that converts airspace definition files to GeoJSON
+- **`extract_controller_callsigns_from_sectors.py`**: Extracts controller callsigns from sector definitions
+- **`process_australian_sectors.py`**: Simplified processing using SectorHierarchy.txt approach
+
+**🌍 Worldwide Processing Support**: While currently named for Australian processing, these scripts can be adapted to work with any worldwide airspace definition format. The core processing logic is universal and will work with properly formatted input files from any aviation authority.
+
+**Note**: The airspace_sector_data directory contains both source files and processing tools, while the config directory contains the final processed files used by the system.
+
+### Configuration File Relationships and Importance
+The configuration structure is designed with a clear separation of concerns and data flow:
+
+#### **Data Flow Architecture**
+1. **Source Files** (`airspace_sector_data/`): Raw airspace definition files and processing scripts
+2. **Processing** (`airspace_sector_data/`): Scripts convert raw data to usable formats
+3. **Runtime Files** (`config/`): Processed files used by the running system
+4. **System Operation**: Geographic filters, sector tracking, and data validation use these files
+
+**🌍 Universal Airspace Support**: This architecture supports any worldwide airspace system. Simply replace the source files with your target airspace definitions, run the processing scripts, and the system will automatically work with the new airspace boundaries and sectors.
+
+#### **Why This Structure is Critical**
+- **Separation of Concerns**: Source files and runtime files are kept separate to prevent accidental modification
+- **Data Integrity**: Raw source files remain unchanged while processed files are regenerated as needed
+- **Maintainability**: Changes to sector definitions only require updating source files, not runtime configuration
+- **Version Control**: Source files can be version controlled while runtime files are generated
+- **Deployment Safety**: New deployments automatically generate correct configuration from source files
+- **System Reliability**: Consistent configuration across all environments and deployments
+
+#### **File Modification Guidelines**
+- **Never modify** files in the `config/` directory directly
+- **Update source files** in `airspace_sector_data/` when changes are needed
+- **Run processing scripts** to regenerate runtime configuration files
+- **Test changes** in development before deploying to production
+- **Backup source files** before making modifications
+
+**🌍 Switching Airspace Systems**: To switch from Australian airspace to any other worldwide airspace:
+1. **Replace source files** in `airspace_sector_data/` with your target airspace definitions
+2. **Update SectorHierarchy.txt** to define the new sector structure
+3. **Run processing scripts** to generate new GeoJSON files
+4. **Update config files** with the new processed boundaries
+5. **Restart the system** to use the new airspace configuration
+
+### 🌍 Worldwide Airspace Support
+The VATSIM Data Collection System is designed with universal airspace support, not limited to Australian airspace. The current Australian configuration serves as a working example that can be easily adapted for any worldwide airspace system.
+
+#### **Supported Airspace Formats**
+- **VATSYS XML** (Australian, similar systems)
+- **US NASR** (National Airspace System Resources)
+- **European AIP** (Aeronautical Information Publication)
+- **Any GeoJSON polygon** format for boundaries
+- **Any GeoJSON FeatureCollection** for sector definitions
+
+#### **How to Implement Different Airspace Systems**
+1. **Obtain airspace definition files** from your target aviation authority
+2. **Convert to supported format** or adapt processing scripts
+3. **Update SectorHierarchy.txt** with new sector structure
+4. **Run processing scripts** to generate GeoJSON files
+5. **Update configuration** to use new airspace boundaries
+6. **Test and validate** the new airspace configuration
+
+#### **Benefits of Universal Architecture**
+- **No code changes required** - just configuration file updates
+- **Same filtering and tracking logic** works for any airspace
+- **Consistent API endpoints** regardless of airspace location
+- **Scalable to multiple regions** by adding multiple boundary files
+- **Future-proof** for new airspace systems and formats
+
 ### Flight Summary System Configuration
 ```bash
 # Flight Summary System (Fully Operational)
