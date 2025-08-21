@@ -1945,7 +1945,7 @@ class DataService:
                 result = await self.process_completed_controllers()
                 
                 # Log the results
-                self.logger.info(f"✅ Scheduled controller processing completed: {result['summaries_processed']} summaries created, {result['records_archived']} records archived")
+                self.logger.info(f"✅ Scheduled controller processing completed: {result['summaries_created']} summaries created, {result['records_archived']} records archived")
                 
                 # Wait for next interval
                 await asyncio.sleep(interval_seconds)
