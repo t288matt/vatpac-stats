@@ -1584,7 +1584,7 @@ These commands enable operational staff to monitor system health, troubleshoot i
 **Production Configuration:**
 - **Environment Mode**: Production mode enabled with CI/CD mode disabled
 - **Performance Optimisation**: 2GB memory limit and 10,000 record batch processing
-- **Data Collection**: 60-second VATSIM API polling with 30-second disk write intervals
+- **Data Collection**: 60-second VATSIM API polling
 - **Database Optimisation**: 20 active connections with 40 overflow capacity and 10-second timeout
 
 #### **Geographic Filtering Configuration**
@@ -3177,7 +3177,6 @@ CI_CD_MODE: "false"
 MEMORY_LIMIT_MB: 2048
 BATCH_SIZE_THRESHOLD: 10000
 VATSIM_POLLING_INTERVAL: 60
-WRITE_TO_DISK_INTERVAL: 30
 
 # Database Configuration
 DATABASE_POOL_SIZE: 20
@@ -4783,7 +4782,6 @@ CI_CD_MODE: "false"
 MEMORY_LIMIT_MB: 2048
 BATCH_SIZE_THRESHOLD: 10000
 VATSIM_POLLING_INTERVAL: 60
-WRITE_TO_DISK_INTERVAL: 30
 
 # Database Configuration
 DATABASE_POOL_SIZE: 20

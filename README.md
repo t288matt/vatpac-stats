@@ -204,9 +204,8 @@ The system tracks **17 Australian en-route sectors**:
 
 ### Data Flow
 1. **VATSIM API** → Data Service → Geographic Filtering → Memory Cache → Database
-2. **10-second polling** interval for real-time updates
-3. **15-second disk write** interval for SSD optimization
-4. **Geographic filtering** applied to flights, transceivers, and controllers
+2. **60-second polling** interval for real-time updates
+3. **Geographic filtering** applied to flights, transceivers, and controllers
 
 ### **Geographic Boundary Filtering Features**
 - **Multi-entity support**: Flights, transceivers, and controllers
