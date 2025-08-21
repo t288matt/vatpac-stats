@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 class GeographicBoundaryConfig:
     """Geographic boundary filter configuration"""
     enabled: bool = False
-    boundary_data_path: str = ""
+    boundary_data_path: str = "airspace_sector_data/australian_airspace_polygon.json"
     log_level: str = "INFO"
 
 class GeographicBoundaryFilter:
@@ -74,7 +74,6 @@ class GeographicBoundaryFilter:
         """Get filter configuration from environment variables"""
         return GeographicBoundaryConfig(
             enabled=os.getenv("ENABLE_BOUNDARY_FILTER", "false").lower() == "true",
-            boundary_data_path=os.getenv("BOUNDARY_DATA_PATH", ""),
             log_level=os.getenv("BOUNDARY_FILTER_LOG_LEVEL", "INFO")
         )
     
