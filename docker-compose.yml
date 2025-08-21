@@ -105,6 +105,7 @@ services:
       CONTROLLER_COMPLETION_MINUTES: "30"     # 30 minutes - this is when summaries are made and records archived
       CONTROLLER_RETENTION_HOURS: "168"
       CONTROLLER_SUMMARY_INTERVAL: "60"
+      CONTROLLER_RECONNECTION_THRESHOLD_MINUTES: "5"  # Minutes to merge controller reconnections into one session
       
       # Shared Configuration for Both Detection Services
       # Used by: FlightDetectionService (ATC → Flight) AND ATCDetectionService (Flight → ATC)
@@ -171,6 +172,9 @@ services:
       MB_MAX_MEMORY_PERCENTAGE: 75
       MB_SESSION_TIMEOUT: 20160  # 14 days in minutes
       MB_SESSION_TIMEOUT_UNITS: minutes
+      # Logging configuration to reduce verbosity
+      MB_LOGGING_LEVEL: "WARN"
+      JAVA_OPTS: "-Dlog.level=WARN -Dlogback.configurationFile= -Dlog4j.configuration= -Dlogging.level.root=WARN -Dlogging.level.metabase=WARN -Dlogging.level.org.hibernate=WARN -Dlogging.level.org.postgresql=WARN -Dlogging.level.com.zaxxer.hikari=WARN -Dlogging.level.org.eclipse.jetty=WARN"
     networks:
       - metanet1
       - default

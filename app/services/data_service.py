@@ -83,6 +83,10 @@ class DataService:
             "transceivers": 0,
             "last_run": None
         }
+        
+        # Task tracking for scheduled processing
+        self.flight_summary_task: Optional[asyncio.Task] = None
+        self.controller_summary_task: Optional[asyncio.Task] = None
     
     async def initialize(self) -> bool:
         """Initialize data service with dependencies."""
@@ -1380,8 +1384,8 @@ class DataService:
         failed_count = 0
         successful_controllers = []  # Track which controllers got summaries
         
-        # Configuration for session merging - 5 minute threshold for reconnections
-        reconnection_threshold_minutes = 5
+        # Configuration for session merging - configurable threshold for reconnections
+        reconnection_threshold_minutes = int(os.getenv("CONTROLLER_RECONNECTION_THRESHOLD_MINUTES", "5"))
         
         async with get_database_session() as session:
             for controller_key in completed_controllers:
@@ -1396,7 +1400,7 @@ class DataService:
                             logon_time = :logon_time  -- Original session
                             OR (
                                 logon_time > :logon_time 
-                                AND logon_time <= :logon_time + INTERVAL ':reconnection_threshold minutes'
+                                AND logon_time <= :logon_time + (INTERVAL '1 minute' * :reconnection_threshold)
                             )
                         )
                         ORDER BY created_at
@@ -1818,8 +1822,11 @@ class DataService:
             
             self.logger.info(f"🚀 Starting scheduled flight summary processing - interval: {interval_minutes} minutes ({interval_seconds} seconds)")
             
-            # Start background task
-            asyncio.create_task(self._scheduled_processing_loop(interval_seconds))
+            # Start background task and store reference
+            self.flight_summary_task = asyncio.create_task(self._scheduled_processing_loop(interval_seconds))
+            
+            # Add callback to handle task completion/failure
+            self.flight_summary_task.add_done_callback(self._on_flight_summary_task_done)
             
         except Exception as e:
             self.logger.error(f"Failed to start scheduled flight processing: {e}")
@@ -1836,8 +1843,11 @@ class DataService:
             
             self.logger.info(f"🚀 Starting scheduled controller summary processing - interval: {interval_minutes} minutes ({interval_seconds} seconds)")
             
-            # Start background task
-            asyncio.create_task(self._scheduled_controller_processing_loop(interval_seconds))
+            # Start background task and store reference
+            self.controller_summary_task = asyncio.create_task(self._scheduled_controller_processing_loop(interval_seconds))
+            
+            # Add callback to handle task completion/failure
+            self.controller_summary_task.add_done_callback(self._on_controller_summary_task_done)
             
         except Exception as e:
             self.logger.error(f"Failed to start scheduled controller processing: {e}")
@@ -1898,6 +1908,8 @@ class DataService:
 
     async def _scheduled_processing_loop(self, interval_seconds: int):
         """Background loop for scheduled flight summary processing."""
+        self.logger.info(f"⏰ Scheduled flight summary processing loop started at {datetime.now(timezone.utc)}")
+        
         while True:
             try:
                 # Log the scheduled run
@@ -1912,13 +1924,18 @@ class DataService:
                 # Wait for next interval
                 await asyncio.sleep(interval_seconds)
                 
+            except asyncio.CancelledError:
+                self.logger.info("Scheduled flight summary processing task was cancelled")
+                break
             except Exception as e:
                 self.logger.error(f"❌ Error in scheduled flight processing: {e}")
-                # Wait a bit before retrying
+                # Wait a bit before retrying, but don't wait the full interval
                 await asyncio.sleep(60)  # Wait 1 minute before retry
 
     async def _scheduled_controller_processing_loop(self, interval_seconds: int):
         """Background loop for scheduled controller summary processing."""
+        self.logger.info(f"⏰ Scheduled controller summary processing loop started at {datetime.now(timezone.utc)}")
+        
         while True:
             try:
                 # Log the scheduled run
@@ -1928,14 +1945,17 @@ class DataService:
                 result = await self.process_completed_controllers()
                 
                 # Log the results
-                self.logger.info(f"✅ Scheduled controller processing completed: {result['summaries_created']} summaries created, {result['records_archived']} records archived")
+                self.logger.info(f"✅ Scheduled controller processing completed: {result['summaries_processed']} summaries created, {result['records_archived']} records archived")
                 
                 # Wait for next interval
                 await asyncio.sleep(interval_seconds)
                 
+            except asyncio.CancelledError:
+                self.logger.info("Scheduled controller summary processing task was cancelled")
+                break
             except Exception as e:
                 self.logger.error(f"❌ Error in scheduled controller processing: {e}")
-                # Wait a bit before retrying
+                # Wait a bit before retrying, but don't wait the full interval
                 await asyncio.sleep(60)  # Wait 1 minute before retry
 
     async def trigger_flight_summary_processing(self) -> Dict[str, Any]:
@@ -1960,6 +1980,52 @@ class DataService:
             self.logger.error(f"❌ Manual processing failed: {e}")
             raise
 
+    def _on_flight_summary_task_done(self, task):
+        """Callback when flight summary task completes or fails."""
+        try:
+            if task.cancelled():
+                self.logger.info("Flight summary task was cancelled")
+            elif task.exception():
+                self.logger.error(f"Flight summary task failed with exception: {task.exception()}")
+                # Restart the task after a delay
+                asyncio.create_task(self._restart_flight_summary_task())
+            else:
+                self.logger.info("Flight summary task completed normally")
+        except Exception as e:
+            self.logger.error(f"Error in flight summary task callback: {e}")
+
+    def _on_controller_summary_task_done(self, task):
+        """Callback when controller summary task completes or fails."""
+        try:
+            if task.cancelled():
+                self.logger.info("Controller summary task was cancelled")
+            elif task.exception():
+                self.logger.error(f"Controller summary task failed with exception: {task.exception()}")
+                # Restart the task after a delay
+                asyncio.create_task(self._restart_controller_summary_task())
+            else:
+                self.logger.info("Controller summary task completed normally")
+        except Exception as e:
+            self.logger.error(f"Error in controller summary task callback: {e}")
+
+    async def _restart_flight_summary_task(self):
+        """Restart the flight summary processing task after a failure."""
+        try:
+            await asyncio.sleep(30)  # Wait 30 seconds before restarting
+            self.logger.info("🔄 Restarting flight summary processing task...")
+            await self.start_scheduled_flight_processing()
+        except Exception as e:
+            self.logger.error(f"Failed to restart flight summary task: {e}")
+
+    async def _restart_controller_summary_task(self):
+        """Restart the controller summary processing task after a failure."""
+        try:
+            await asyncio.sleep(30)  # Wait 30 seconds before restarting
+            self.logger.info("🔄 Restarting controller summary processing task...")
+            await self.start_scheduled_controller_processing()
+        except Exception as e:
+            self.logger.error(f"Failed to restart controller summary task: {e}")
+
     def get_processing_stats(self) -> Dict[str, Any]:
         """
         Get processing statistics for the data service.
@@ -1978,7 +2044,19 @@ class DataService:
                 "active_flight_sector_states": len(getattr(self, 'flight_sector_states', {})),
                 "last_processing_time": getattr(self, '_last_processing_time', None),
                 "processing_errors": getattr(self, '_processing_errors', 0),
-                "successful_processing_count": getattr(self, '_successful_processing_count', 0)
+                "successful_processing_count": getattr(self, '_successful_processing_count', 0),
+                "flight_summary_task_status": {
+                    "running": self.flight_summary_task is not None and not self.flight_summary_task.done(),
+                    "done": self.flight_summary_task is not None and self.flight_summary_task.done(),
+                    "cancelled": self.flight_summary_task is not None and self.flight_summary_task.cancelled(),
+                    "exception": str(self.flight_summary_task.exception()) if self.flight_summary_task and self.flight_summary_task.done() and self.flight_summary_task.exception() else None
+                },
+                "controller_summary_task_status": {
+                    "running": self.controller_summary_task is not None and not self.controller_summary_task.done(),
+                    "done": self.controller_summary_task is not None and self.controller_summary_task.done(),
+                    "cancelled": self.controller_summary_task is not None and self.controller_summary_task.cancelled(),
+                    "exception": str(self.controller_summary_task.exception()) if self.controller_summary_task and self.controller_summary_task.done() and self.controller_summary_task.exception() else None
+                }
             }
             return stats
         except Exception as e:

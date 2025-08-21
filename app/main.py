@@ -70,6 +70,34 @@ data_ingestion_task: Optional[asyncio.Task] = None
 # Application startup time for uptime calculation
 app_startup_time: Optional[datetime] = None
 
+async def monitor_scheduled_tasks():
+    """Monitor and restart failed scheduled processing tasks."""
+    logger.info("🔍 Starting scheduled task monitoring...")
+    
+    while True:
+        try:
+            await asyncio.sleep(300)  # Check every 5 minutes
+            
+            data_service = await get_data_service()
+            
+            # Check if flight summary task is running
+            if (data_service.flight_summary_task and 
+                data_service.flight_summary_task.done() and 
+                data_service.flight_summary_task.exception()):
+                logger.warning("⚠️ Flight summary task failed, restarting...")
+                await data_service.start_scheduled_flight_processing()
+            
+            # Check if controller summary task is running
+            if (data_service.controller_summary_task and 
+                data_service.controller_summary_task.done() and 
+                data_service.controller_summary_task.exception()):
+                logger.warning("⚠️ Controller summary task failed, restarting...")
+                await data_service.start_scheduled_controller_processing()
+                
+        except Exception as e:
+            logger.error(f"❌ Error monitoring scheduled tasks: {e}")
+            await asyncio.sleep(60)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
@@ -198,6 +226,10 @@ async def lifespan(app: FastAPI):
         data_ingestion_task = asyncio.create_task(run_data_ingestion())
         logger.info("✅ Background data ingestion task started")
         
+        # Start scheduled task monitoring
+        monitor_task = asyncio.create_task(monitor_scheduled_tasks())
+        logger.info("✅ Scheduled task monitoring started")
+        
     except Exception as e:
         # Catch critical initialization errors and fail the app
         if "CRITICAL: Sectors file not found" in str(e) or "CRITICAL: No sectors with valid boundaries loaded" in str(e):
@@ -243,6 +275,14 @@ async def lifespan(app: FastAPI):
             except asyncio.CancelledError:
                 pass
             logger.info("Background data ingestion task cancelled")
+        
+        if 'monitor_task' in locals():
+            monitor_task.cancel()
+            try:
+                await monitor_task
+            except asyncio.CancelledError:
+                pass
+            logger.info("Scheduled task monitoring cancelled")
 
 # Create FastAPI application
 app = FastAPI(
