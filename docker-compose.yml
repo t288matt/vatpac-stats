@@ -15,7 +15,7 @@ services:
     restart: unless-stopped
     #check postgres is up before allowing app to connect
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready"]
+      test: ["CMD-SHELL", "pg_isready -U vatsim_user -d vatsim_data"]
       interval: 10s        # Faster checks for CI/CD
       timeout: 5s          # Faster timeouts for CI/CD
       retries: 6           # Fewer retries for CI/CD
