@@ -32,7 +32,7 @@ class ControllerCallsignFilterConfig:
         """Load controller callsign filter configuration from environment variables."""
         return cls(
             enabled=os.getenv("CONTROLLER_CALLSIGN_FILTER_ENABLED", "true").lower() == "true",
-            callsign_list_path=os.getenv("CONTROLLER_CALLSIGN_LIST_PATH", "config/controller_callsigns_list.txt")
+            callsign_list_path=os.getenv("CONTROLLER_CALLSIGN_LIST_PATH", "airspace_sector_data/controller_callsigns_list.txt")
         )
 
 class ControllerCallsignFilter:
@@ -70,7 +70,7 @@ class ControllerCallsignFilter:
     def _get_filter_config(self) -> ControllerCallsignFilterConfig:
         """Get filter configuration from environment variables"""
         enabled = os.getenv("CONTROLLER_CALLSIGN_FILTER_ENABLED", "true").lower() == "true"
-        callsign_list_path = os.getenv("CONTROLLER_CALLSIGN_LIST_PATH", "config/controller_callsigns_list.txt")
+        callsign_list_path = os.getenv("CONTROLLER_CALLSIGN_LIST_PATH", "airspace_sector_data/controller_callsigns_list.txt")
         
         return ControllerCallsignFilterConfig(
             enabled=enabled,
