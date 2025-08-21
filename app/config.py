@@ -151,16 +151,14 @@ class SectorTrackingConfig:
     """Sector tracking configuration"""
     enabled: bool = True
     update_interval: int = 60  # seconds
-    sectors_file_path: str = "config/australian_airspace_sectors.geojson"
+    sectors_file_path: str = "airspace_sector_data/australian_airspace_sectors.geojson"
     
     @classmethod
     def from_env(cls):
         """Load sector tracking configuration from environment variables."""
         return cls(
             enabled=os.getenv("SECTOR_TRACKING_ENABLED", "true").lower() == "true",
-            update_interval=int(os.getenv("SECTOR_UPDATE_INTERVAL", "60")),
-            sectors_file_path=os.getenv("SECTOR_DATA_PATH", "config/australian_airspace_sectors.geojson"),
-
+            update_interval=int(os.getenv("SECTOR_UPDATE_INTERVAL", "60"))
         )
 
 @dataclass
@@ -173,8 +171,7 @@ class ControllerCallsignFilterConfig:
     def from_env(cls):
         """Load controller callsign filter configuration from environment variables."""
         return cls(
-            enabled=os.getenv("CONTROLLER_CALLSIGN_FILTER_ENABLED", "true").lower() == "true",
-            callsign_list_path=os.getenv("CONTROLLER_CALLSIGN_LIST_PATH", "config/controller_callsigns_list.txt")
+            enabled=os.getenv("CONTROLLER_CALLSIGN_FILTER_ENABLED", "true").lower() == "true"
         )
 
 
