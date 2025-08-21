@@ -1,6 +1,48 @@
 # VATSIM Data Collection System
 
-A real-time VATSIM data collection system that processes flight data, ATC positions, and network statistics with focus on Australian airspace. **Recently simplified and optimized for maintainability with geographic boundary filtering and real-time sector tracking.**
+## 📋 **System Overview**
+
+The VATSIM Data Collection System is a **production-ready, real-time air traffic control data collection and analysis platform** designed for VATSIM divisions to understand more about what happens in their airspace. While initially implemented for Australian airspace, the system is **fully configurable** through configuration files and can be deployed for any geographic region.
+
+The system provides comprehensive flight tracking, controller tracking, and sector occupancy analysis through a streamlined, **API-first architecture**. Importantly, it matches ATC and flights through radio frequencies to allow deeper insights into effectiveness of ATC strategies, coverage and the service being provided to pilots. Used with a reporting tool such as Metabase, rich data can be extracted and used to drive insights and decisions.
+
+### **Current Status: Production Ready ✅**
+- **Operational Status**: ✅ **PRODUCTION READY** with active data collection
+- **Geographic Filtering**: ✅ **ACTIVE** - Configurable airspace boundary filtering operational (currently configured for Australian airspace but can be configured for any airspace with JSON files)
+- **Data Pipeline**: ✅ **OPERATIONAL** - Real-time VATSIM data ingestion every 60 seconds (configurable)
+- **Sector Tracking**: ✅ **ACTIVE** - Configurable sector monitoring operational (currently configured for 17 Australian airspace sectors. Configurable to any airspace)
+- **Flight Summaries**: ✅ **OPERATIONAL** - Automatic processing every 60 minutes (configurable)
+
+### **Core Capabilities**
+- **Real-time Data Collection**: Continuous VATSIM API v3 integration with 60-second polling
+- **Geographic Boundary Filtering**: Shapely-based polygon filtering for any configurable airspace
+- **Complete Flight Tracking**: Every position update preserved with unique constraints
+- **Sector Occupancy Monitoring**: Real-time tracking of flights through any configurable airspace sectors
+- **Automatic Data Management**: Flight summarization, archiving, and cleanup processes
+- **Controller Proximity Detection**: Intelligent ATC interaction detection with controller-specific ranges
+
+### **System Focus**
+- **Geographic Scope**: Any airspace worldwide with configurable boundary filtering
+- **Data Preservation**: Complete flight position history maintained for analytics
+- **Performance Optimization**: Memory-optimized processing with <10ms geographic filtering
+- **Production Reliability**: Comprehensive error handling, monitoring, and automatic recovery
+
+### **System Configurability**
+- **Generic Design**: The system is designed as a generic airspace monitoring platform, not limited to any specific region
+- **Configuration-Driven**: All geographic boundaries, sectors, and operational parameters are defined in configuration files
+- **Easy Deployment**: Can be deployed for any airspace by simply updating configuration files in the `config/` directory
+- **Current Implementation**: Currently configured for Australian airspace as the first use case, but fully adaptable to any region
+
+### **Business Objectives**
+The system addresses critical needs in air traffic control operations:
+
+1. **Real-time ATC Monitoring**: Continuous tracking of active controllers and their positions
+2. **Flight Analysis**: Comprehensive analysis of aircraft movements and patterns
+3. **Sector Management**: Real-time monitoring of airspace sector occupancy and transitions
+4. **Data Analytics**: Historical analysis for operational planning and performance assessment
+5. **Operational Intelligence**: Insights into ATC coverage, flight patterns, and sector utilization
+
+---
 
 ## 🚀 Quick Start
 
@@ -25,56 +67,51 @@ A real-time VATSIM data collection system that processes flight data, ATC positi
    ```
 
 3. **Access the services**
-   - **Grafana Dashboard**: http://localhost:3050 (admin/admin)
    - **API Endpoints**: http://localhost:8001
    - **Database**: localhost:5432 (vatsim_user/vatsim_password)
+   - **Metabase**: http://localhost:3030 (business intelligence)
 
 ## 📊 System Architecture
 
-### **Current Status: Complete System ✅**
-- **Geographic boundary filtering implemented** for flights, transceivers, and controllers
-- **Real-time sector tracking fully operational** - tracks flights through 17 Australian airspace sectors
-- **Controller-specific proximity ranges fully implemented** - dynamic ranges based on controller type
-- **Automatic cleanup system operational** - automatically closes stale sector entries with transaction safety
-- **Data ingestion fully functional** - all tables populated with live VATSIM data
-- **Schema mismatches resolved** - Python models match database schema
-- **Performance optimized** - filtering adds <1ms overhead for 100+ entities
-- **Sector tracking operational** - real-time sector occupancy monitoring with automatic transitions
-- **Transaction safety implemented** - proper database commit/rollback handling for reliable persistence
+### **Core Components**
 
-### **Australian Airspace Data Structure**
-The system uses a comprehensive approach for geographic filtering and sector management:
+#### **Data Service** (`app/services/data_service.py`)
+- **Memory-optimized data processing** to reduce SSD wear
+- **Batch database operations** for efficiency
+- **Geographic boundary filtering** for all entity types
+- **Real-time data processing** with 60-second intervals
+- **Flight summary processing** - automatic background processing every 60 minutes
+- **Storage optimization** - ~90% reduction in daily storage growth
 
-#### **`australian_airspace_polygon.json` - External FIR Boundary**
-- **Purpose**: Defines the external boundary of Australian Flight Information Region (FIR)
-- **Content**: Single polygon with coordinates covering all of Australia and surrounding airspace
-- **Usage**: Used by the geographic boundary filter to determine if flights/controllers are within Australian airspace
-- **Status**: **Static file** - does not change and represents the official Australian FIR boundary
-- **Format**: GeoJSON polygon with decimal degree coordinates
+#### **Geographic Boundary Filter** (`app/filters/geographic_boundary_filter.py`)
+- **Multi-entity support**: Flights, transceivers, and controllers
+- **Australian airspace focus**: Uses `australian_airspace_polygon.json`
+- **Performance optimized**: <1ms processing for 100+ entities
+- **Configurable**: Enable/disable via environment variables
+- **Conservative approach**: Missing position data allowed through
 
-#### **`australian_airspace_sectors.geojson` - Processed Sector Boundaries**
-- **Purpose**: Contains processed airspace sector boundaries in standard GeoJSON format
-- **Content**: FeatureCollection with each main sector as a separate Feature containing combined subsector polygons
-- **Usage**: Used for detailed sector analysis, ATC coverage mapping, and **real-time sector tracking**
-- **Status**: **Automatically generated** from VATSYS XML files using the simplified processing script
-- **Format**: Standard GeoJSON FeatureCollection with Polygon geometries
+#### **Sector Tracking System**
+- **Real-time Detection**: Automatically detects when flights enter/exit sectors
+- **Altitude Monitoring**: Records entry and exit altitudes for vertical profile analysis
+- **Duration Calculation**: Automatically calculates time spent in each sector
+- **Sector Transitions**: Tracks movement between sectors with timestamps
+- **Performance Optimized**: Uses Shapely polygons for fast point-in-polygon detection
+- **17 Australian airspace sectors** fully tracked and monitored
 
-#### **`australian_sectors_data.json` - Processing Metadata**
-- **Purpose**: Contains metadata about the processing results for each sector
-- **Content**: Array of sector objects with name, subsectors list, and boundary point counts
-- **Usage**: Reference data showing which subsectors were successfully processed for each main sector
-- **Status**: **Automatically generated** alongside the main GeoJSON output
-- **Format**: Simple JSON structure with processing statistics
+#### **Flight Summary System**
+- **Automatic processing** every 60 minutes
+- **Complete flight history** with sector occupancy data
+- **Data archiving** for long-term storage
+- **API endpoints** for data access and analytics
 
-**Data Processing Workflow**:
-1. **External Boundary**: `australian_airspace_polygon.json` provides the primary filter boundary
-2. **Sector Boundaries**: `australian_airspace_sectors.geojson` provides processed sector boundaries in GeoJSON format
-3. **Processing Metadata**: `australian_sectors_data.json` provides reference information about processing results
-4. **Real-time Filtering**: Geographic boundary filter uses the external polygon for efficient position checking
-5. **Sector Analysis**: Processed sectors used for detailed airspace coverage, ATC position mapping, and **real-time sector tracking**
+#### **Controller Summary System**
+- **Automatic processing** every 60 minutes
+- **Session merging** - handles controller reconnections within 5-minute windows
+- **Aircraft interaction detection** - uses controller-specific proximity ranges
+- **Performance metrics** - tracks aircraft handled, peak counts, hourly breakdowns
 
-### **Controller-Specific Proximity Ranges: ✅ FULLY IMPLEMENTED**
-The system now uses intelligent proximity ranges based on controller type, making ATC operations much more realistic:
+### **Controller-Specific Proximity Ranges**
+The system uses intelligent proximity ranges based on controller type:
 
 - **Ground controllers**: 15nm (local airport operations)
 - **Tower controllers**: 15nm (approach/departure operations)
@@ -82,68 +119,7 @@ The system now uses intelligent proximity ranges based on controller type, makin
 - **Center controllers**: 400nm (enroute operations)
 - **FSS controllers**: 1000nm (flight service operations)
 
-**Features**:
-- **Automatic controller type detection** from callsign patterns
-- **Dynamic proximity configuration** via environment variables
-- **Real-time aircraft interaction detection** using appropriate ranges
-- **Performance optimized** - faster queries for ground/tower controllers
-- **Realistic ATC operations** - matches real-world controller coverage areas
-
-**Status**: Complete and fully operational with comprehensive real outcome testing
-
-### **Comprehensive Real Outcome Testing: ✅ FULLY IMPLEMENTED**
-The system now includes extensive testing that verifies actual outcomes and outputs, not just mocked responses:
-
-**Test Coverage**:
-- **ATCDetectionService Proximity Tests**: 8 comprehensive tests ensuring symmetry with FlightDetectionService
-- **Enhanced E2E Tests**: Real proximity behavior verification in live system
-- **Real Controller Detection**: Tests use actual callsigns (YSSY_TWR, KLAX_TWR, EGLL_APP, etc.)
-- **Live API Testing**: Tests call actual running endpoints to verify real proximity calculations
-- **Service Symmetry Verification**: Both detection services return identical results for same controller callsigns
-
-**Real Outcomes Verified**:
-- **Ground/Tower controllers**: Actually use 15nm proximity range
-- **Approach controllers**: Actually use 60nm proximity range  
-- **Center controllers**: Actually use 400nm proximity range
-- **FSS controllers**: Actually use 1000nm proximity range
-- **Service symmetry**: ATCDetectionService and FlightDetectionService use identical logic
-
-**Status**: Complete with 100% real outcome verification - feature actually working in production
-
-### **Real-Time Sector Tracking System: ✅ FULLY IMPLEMENTED**
-- **Backend logic implemented** in data service with real-time processing
-- **Database tables exist** (flight_sector_occupancy) with optimized schema
-- **Real-time processing active** every 60 seconds for sector position updates
-- **17 Australian airspace sectors** fully tracked and monitored
-- **Altitude tracking** - records entry/exit altitudes for vertical profile analysis
-- **Duration calculation** - automatically calculates time spent in each sector
-- **Sector transitions** - tracks flights moving between sectors in real-time
-- **Status**: Complete and fully operational for real-time sector monitoring
-
-#### **Sector Tracking Features**
-- **Real-time Detection**: Automatically detects when flights enter/exit sectors
-- **Altitude Monitoring**: Records entry and exit altitudes for vertical profile analysis
-- **Duration Calculation**: Automatically calculates time spent in each sector
-- **Sector Transitions**: Tracks movement between sectors with timestamps
-- **Performance Optimized**: Uses Shapely polygons for fast point-in-polygon detection
-- **Memory Efficient**: Caches sector boundaries for optimal performance
-
-#### **Sector Data Structure**
-The system tracks sector occupancy in the `flight_sector_occupancy` table:
-
-| Field | Purpose | Example |
-|-------|---------|---------|
-| `callsign` | Flight identifier | "QFA123", "PHENX88" |
-| `sector_name` | Sector identifier | "SYA", "BLA", "WOL" |
-| `entry_timestamp` | When flight entered sector | 2025-01-08 10:00:00 UTC |
-| `exit_timestamp` | When flight exited sector | 2025-01-08 10:05:00 UTC |
-| `duration_seconds` | Time spent in sector | 300 (5 minutes) |
-| `entry_lat/lon` | Entry coordinates | -33.8688, 151.2093 |
-| `exit_lat/lon` | Exit coordinates | -33.9500, 151.2000 |
-| `entry_altitude` | Entry altitude (feet) | 25000 |
-| `exit_altitude` | Exit altitude (feet) | 25000 |
-
-### **Automatic Cleanup System: ✅ FULLY IMPLEMENTED**
+### **Automatic Cleanup System**
 - **Purpose**: Automatically closes stale sector entries for flights that haven't been updated recently
 - **Execution**: Runs automatically after each successful VATSIM data processing cycle (every 60 seconds)
 - **Detection**: Identifies flights with open sector entries and no recent updates
@@ -151,91 +127,23 @@ The system tracks sector occupancy in the `flight_sector_occupancy` table:
 - **Data Integrity**: Uses last known flight position and timestamp for accurate sector exit data
 - **Transaction Safety**: Proper database commit/rollback handling ensures reliable persistence
 
-#### **Cleanup Process Features**
-- **Automatic Operation**: No manual intervention required - runs automatically
-- **Stale Detection**: Finds flights with open sectors and no recent updates
-- **Position Accuracy**: Uses actual last known position for exit coordinates
-- **Duration Calculation**: Accurate sector duration using last flight record timestamp
-- **Memory Management**: Cleans up stale flight tracking state to prevent memory leaks
-- **Error Isolation**: Cleanup failures don't affect main data processing
-- **Performance Optimized**: Uses efficient SQL queries with `DISTINCT ON` for accurate data processing
-
-#### **Configuration**
-```bash
-CLEANUP_FLIGHT_TIMEOUT=300       # Seconds before considering a flight stale (5 minutes)
-```
-
-#### **API Endpoints**
-- `POST /api/cleanup/stale-sectors` - Manually trigger cleanup process
-- `GET /api/cleanup/status` - Get current cleanup system status
-
-#### **Sector Coverage**
-The system tracks **17 Australian en-route sectors**:
-- **ARL** (Armidale), **WOL** (Wollongong), **HUO** (Huon)
-- **SYA** (Sydney), **BLA** (Blackall), **ROC** (Rockhampton)
-- **BNE** (Brisbane), **TSV** (Townsville), **CAI** (Cairns)
-- **DRW** (Darwin), **ASP** (Alice Springs), **ADL** (Adelaide)
-- **MEL** (Melbourne), **HBA** (Hobart), **PER** (Perth)
-- **KGI** (Kalgoorlie), **BME** (Broome)
-
-#### **Real-Time Processing**
-- **Update Interval**: Every 60 seconds (configurable)
-- **Processing**: Automatic sector boundary detection for all active flights
-- **Database**: Real-time updates to flight_sector_occupancy table
-- **Performance**: <1ms per flight for sector detection
-- **Memory**: Efficient polygon caching for optimal performance
-
-### **Flight Summary System: ✅ FULLY IMPLEMENTED**
-- **Backend logic implemented** in data service with scheduled processing
-- **Database tables exist** (flight_summaries, flights_archive)
-- **Background processing active** every 60 minutes
-- **✅ API endpoints complete** - full public access to flight summaries
-- **✅ Manual processing endpoint** - can trigger processing manually
-- **✅ Status monitoring** - complete processing status and statistics
-- **✅ Analytics and reporting** - comprehensive flight summary analytics
-- **✅ Sector breakdown integration** - includes sector occupancy data in summaries
-- **Status**: Complete and fully functional for end users
-
-### Services
-- **App Service**: Main application (Python/FastAPI) - VATSIM data collection and API
-- **PostgreSQL**: Primary database for flight data with optimized schema
-- **In-Memory Cache**: High-performance caching with TTL and LRU eviction
-- **Grafana**: Data visualization and monitoring dashboards
-
-### Data Flow
-1. **VATSIM API** → Data Service → Geographic Filtering → Memory Cache → Database
-2. **60-second polling** interval for real-time updates
-3. **Geographic filtering** applied to flights, transceivers, and controllers
-
-### **Geographic Boundary Filtering Features**
-- **Multi-entity support**: Flights, transceivers, and controllers
-- **Australian airspace focus**: Uses `australian_airspace_polygon.json`
-- **Performance optimized**: <1ms processing for 100+ entities
-- **Configurable**: Enable/disable via environment variables
-- **Conservative approach**: Missing position data allowed through
-- **Real-time statistics**: Filter counts and performance metrics
-
 ## 🗄️ Database Schema
 
-### Current Tables Status
+### **Core Tables**
 
-| Table | Status | Records | Geographic Filtering |
-|-------|--------|---------|---------------------|
-| **flights** | ✅ Active | Live data | ✅ Enabled |
-| **transceivers** | ✅ Active | Live data | ✅ Enabled |
-| **controllers** | ✅ Active | Live data | ✅ Enabled (conservative) |
-| **flight_summaries** | ✅ Active | Completed flights | ✅ Full API access |
-| **flights_archive** | ✅ Active | Detailed history | ✅ Full API access |
-| **flight_sector_occupancy** | ✅ Active | Sector tracking data | ✅ Real-time updates |
+| Table | Purpose | Description |
+|-------|---------|-------------|
+| **flights** | Live flight data | Real-time position and flight plan information |
+| **transceivers** | Communication data | Radio frequency and communication information |
+| **controllers** | ATC positions | Active controller positions and status |
+| **flight_summaries** | Completed flights | Processed flight summaries with analytics |
+| **flights_archive** | Historical data | Detailed flight position history |
+| **flight_sector_occupancy** | Sector tracking | Real-time sector entry/exit data |
+| **controller_summaries** | Controller sessions | Processed controller session data |
+| **controllers_archive** | Controller history | Historical controller data |
 
-### Flight Table (Current State)
-
+### **Flight Table Structure**
 The flight table stores comprehensive flight data with 32 optimized columns:
-
-**⚠️ Important Note on Field Naming Conventions:**
-- **Flights table**: Uses `latitude`/`longitude` fields (standardized in migration 019)
-- **Transceivers table**: Uses `position_lat`/`position_lon` fields (unchanged)
-- This dual naming convention is intentional and correct for each table's purpose
 
 | Field Category | Fields | Source | Description |
 |----------------|--------|--------|-------------|
@@ -248,253 +156,8 @@ The flight table stores comprehensive flight data with 32 optimized columns:
 | **Status** | `status` | App | Flight status management |
 | **Timestamps** | `last_updated_api`, `created_at`, `updated_at` | Mixed | Data timestamps |
 
-### Flight Tracking System
-
-The system tracks all flights in real-time without status complexity:
-
-**Real-time Data:** All flights are tracked equally without status-based filtering or lifecycle management.
-
-**Simplified Architecture:** The system focuses on core flight data collection without the complexity of status transitions, cleanup processes, or completion detection.
-
-**Data Preservation:** All flight data is preserved for analytics without status-based filtering or automatic cleanup.
-
-### Flight Summary System ✅ **FULLY IMPLEMENTED**
-
-The flight summary system automatically consolidates completed flights to reduce storage requirements:
-
-**✅ What's Working:**
-- **Backend Logic**: Complete flight completion detection and summarization
-- **Database Tables**: flight_summaries and flights_archive tables exist and functional
-- **Background Processing**: Automatic processing every 60 minutes
-- **Data Processing**: Flight completion detection (14-hour threshold)
-- **API Endpoints**: Complete public access to all flight summary data
-- **Manual Processing**: Can trigger processing manually via API
-- **Status Monitoring**: Complete processing status and statistics
-- **Analytics**: Comprehensive flight summary analytics and reporting
-
-**API Endpoints Available:**
-- `GET /api/flights/summaries` - View flight summaries with filtering and pagination
-- `POST /api/flights/summaries/process` - Manual processing trigger
-- `GET /api/flights/summaries/status` - Processing status and statistics
-- `GET /api/flights/summaries/analytics` - Flight summary analytics and insights
-
-**Current Status**: Complete and fully functional for end users
-
-## ⚙️ Configuration
-
-### Config Directory Structure
-The `config/` directory contains essential configuration files that define the system's behavior, data sources, and operational parameters. These files are critical for the system's functionality and should not be modified without understanding their purpose.
-
-#### **`init.sql` - Database Schema Initialization**
-- **Purpose**: Defines the complete database structure including all tables, indexes, and constraints
-- **Content**: SQL DDL statements for creating the database schema from scratch
-- **Format**: Standard SQL with PostgreSQL-specific syntax
-- **Usage**: Automatically executed when the database container starts for the first time
-- **Why Necessary**: Ensures consistent database structure across all deployments and provides a clean slate for new installations
-- **Maintenance**: Update when adding new tables, modifying existing schema, or changing database constraints
-
-#### **`australian_airspace_polygon.json` - Geographic Boundary Definition**
-- **Purpose**: Defines the external boundary of Australian Flight Information Region (FIR) for geographic filtering
-- **Content**: Single polygon with coordinates covering all of Australia and surrounding airspace
-- **Format**: GeoJSON polygon with decimal degree coordinates
-- **Usage**: Used by the geographic boundary filter to determine if flights/controllers are within Australian airspace
-- **Why Necessary**: Essential for the geographic filtering system that focuses data collection on Australian airspace
-- **Maintenance**: **Static file** - does not change and represents the official Australian FIR boundary
-
-**🌍 Worldwide Airspace Support**: While currently configured for Australian airspace, the system architecture supports airspace files from any worldwide location. You can replace the Australian boundary file with any other country's FIR boundary or create multiple boundary files for different regions. The geographic filtering system will automatically work with any properly formatted GeoJSON polygon file.
-
-#### **`australian_airspace_sectors.geojson` - Sector Boundary Definitions**
-- **Purpose**: Contains processed airspace sector boundaries for detailed sector analysis and real-time tracking
-- **Content**: FeatureCollection with each main sector as a separate Feature containing combined subsector polygons
-- **Format**: Standard GeoJSON FeatureCollection with Polygon geometries
-- **Usage**: Used for sector analysis, ATC coverage mapping, and real-time sector tracking
-- **Why Necessary**: Required for the sector tracking system that monitors flights through different airspace sectors
-- **Maintenance**: **Automatically generated** from VATSYS XML files - do not edit manually
-
-**🌍 Worldwide Sector Support**: The sector tracking system works with any properly formatted GeoJSON sector files. While currently configured for Australian sectors, you can replace these files with sector definitions from any worldwide airspace (US, European, Asian, etc.). The system will automatically track flights through whatever sectors are defined in the configuration files.
-
-#### **`controller_callsigns_list.txt` - Controller Callsign Reference**
-- **Purpose**: Provides a reference list of known controller callsigns for validation and analysis
-- **Content**: Plain text file with one callsign per line
-- **Format**: Simple text format with no special formatting
-- **Usage**: Used by controller detection services and for callsign pattern analysis
-- **Why Necessary**: Helps validate controller data and provides reference for callsign pattern matching
-- **Maintenance**: Update when new controller callsigns are identified or patterns change
-
-### Airspace Sector Data Directory
-The `airspace_sector_data/` directory contains the source files and processing scripts for airspace sector definitions. While currently configured for Australian airspace, this directory can be adapted for any worldwide airspace system. This directory works in conjunction with the `config/` directory to provide comprehensive airspace coverage.
-
-#### **`Sectors.xml` & `Volumes.xml` - VATSYS Source Files**
-- **Purpose**: Raw VATSYS XML files containing official airspace sector definitions
-- **Content**: XML format with sector coordinates, altitudes, and hierarchical structure
-- **Format**: VATSYS XML format (proprietary airspace definition standard)
-- **Usage**: Source data for generating processed sector boundaries
-- **Why Necessary**: Official source of truth for airspace sector definitions
-- **Maintenance**: Update when new sector definition files are released by the relevant aviation authority
-
-**🌍 Worldwide Format Support**: While these files are currently Australian VATSYS format, the processing scripts can be adapted to work with other airspace definition formats worldwide (US NASR, European AIP, etc.). The system architecture supports any properly formatted sector definition files.
-
-#### **`SectorHierarchy.txt` - Sector Structure Definition**
-- **Purpose**: Simplified text-based definition of main sectors and their subsectors
-- **Content**: Plain text with hierarchical sector relationships
-- **Format**: Simple text format with indentation showing hierarchy
-- **Usage**: Used by the simplified processing script to generate sector boundaries
-- **Why Necessary**: Provides a maintainable way to define sector relationships without complex XML parsing
-- **Maintenance**: Edit when sector structure changes or new sectors are added
-
-**🌍 Universal Format**: This text-based hierarchy format is universal and can be used to define sectors for any worldwide airspace. Simply edit the file to define the sector structure for your target airspace, and the processing scripts will generate the appropriate GeoJSON files.
-
-#### **Processing Scripts**
-- **`process_australian_sectors.py`**: Main script that converts airspace definition files to GeoJSON
-- **`extract_controller_callsigns_from_sectors.py`**: Extracts controller callsigns from sector definitions
-- **`process_australian_sectors.py`**: Simplified processing using SectorHierarchy.txt approach
-
-**🌍 Worldwide Processing Support**: While currently named for Australian processing, these scripts can be adapted to work with any worldwide airspace definition format. The core processing logic is universal and will work with properly formatted input files from any aviation authority.
-
-**Note**: The airspace_sector_data directory contains both source files and processing tools, while the config directory contains the final processed files used by the system.
-
-### Configuration File Relationships and Importance
-The configuration structure is designed with a clear separation of concerns and data flow:
-
-#### **Data Flow Architecture**
-1. **Source Files** (`airspace_sector_data/`): Raw airspace definition files and processing scripts
-2. **Processing** (`airspace_sector_data/`): Scripts convert raw data to usable formats
-3. **Runtime Files** (`config/`): Processed files used by the running system
-4. **System Operation**: Geographic filters, sector tracking, and data validation use these files
-
-**🌍 Universal Airspace Support**: This architecture supports any worldwide airspace system. Simply replace the source files with your target airspace definitions, run the processing scripts, and the system will automatically work with the new airspace boundaries and sectors.
-
-#### **Why This Structure is Critical**
-- **Separation of Concerns**: Source files and runtime files are kept separate to prevent accidental modification
-- **Data Integrity**: Raw source files remain unchanged while processed files are regenerated as needed
-- **Maintainability**: Changes to sector definitions only require updating source files, not runtime configuration
-- **Version Control**: Source files can be version controlled while runtime files are generated
-- **Deployment Safety**: New deployments automatically generate correct configuration from source files
-- **System Reliability**: Consistent configuration across all environments and deployments
-
-#### **File Modification Guidelines**
-- **Never modify** files in the `config/` directory directly
-- **Update source files** in `airspace_sector_data/` when changes are needed
-- **Run processing scripts** to regenerate runtime configuration files
-- **Test changes** in development before deploying to production
-- **Backup source files** before making modifications
-
-**🌍 Switching Airspace Systems**: To switch from Australian airspace to any other worldwide airspace:
-1. **Replace source files** in `airspace_sector_data/` with your target airspace definitions
-2. **Update SectorHierarchy.txt** to define the new sector structure
-3. **Run processing scripts** to generate new GeoJSON files
-4. **Update config files** with the new processed boundaries
-5. **Restart the system** to use the new airspace configuration
-
-### 🌍 Worldwide Airspace Support
-The VATSIM Data Collection System is designed with universal airspace support, not limited to Australian airspace. The current Australian configuration serves as a working example that can be easily adapted for any worldwide airspace system.
-
-#### **Supported Airspace Formats**
-- **VATSYS XML** (Australian, similar systems)
-- **US NASR** (National Airspace System Resources)
-- **European AIP** (Aeronautical Information Publication)
-- **Any GeoJSON polygon** format for boundaries
-- **Any GeoJSON FeatureCollection** for sector definitions
-
-#### **How to Implement Different Airspace Systems**
-1. **Obtain airspace definition files** from your target aviation authority
-2. **Convert to supported format** or adapt processing scripts
-3. **Update SectorHierarchy.txt** with new sector structure
-4. **Run processing scripts** to generate GeoJSON files
-5. **Update configuration** to use new airspace boundaries
-6. **Test and validate** the new airspace configuration
-
-#### **Benefits of Universal Architecture**
-- **No code changes required** - just configuration file updates
-- **Same filtering and tracking logic** works for any airspace
-- **Consistent API endpoints** regardless of airspace location
-- **Scalable to multiple regions** by adding multiple boundary files
-- **Future-proof** for new airspace systems and formats
-
-### Flight Summary System Configuration
-```bash
-# Flight Summary System (Fully Operational)
-FLIGHT_COMPLETION_HOURS=14        # Hours to wait before processing
-FLIGHT_RETENTION_HOURS=168       # Hours to keep archived data (7 days)
-FLIGHT_SUMMARY_INTERVAL=60       # Minutes between processing runs
-FLIGHT_SUMMARY_ENABLED=true      # Enable/disable the system
-```
-
-### Sector Tracking Configuration
-```bash
-# Sector Tracking System (Fully Operational)
-SECTOR_TRACKING_ENABLED=true     # Enable real-time sector tracking
-SECTOR_UPDATE_INTERVAL=60        # Seconds between sector updates
-SECTOR_DATA_PATH=airspace_sector_data/australian_airspace_sectors.geojson
-```
-
-### Cleanup Process Configuration
-```bash
-# Cleanup Process System (Fully Operational)
-CLEANUP_FLIGHT_TIMEOUT=300       # Seconds (5 minutes) before considering a flight stale for cleanup
-```
-
-### Environment Variables
-
-#### **Core Configuration:**
-```yaml
-# Database Configuration
-DATABASE_URL: postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data
-DATABASE_POOL_SIZE: 10
-DATABASE_MAX_OVERFLOW: 20
-
-# Geographic Boundary Filtering
-ENABLE_BOUNDARY_FILTER: true
-BOUNDARY_DATA_PATH: airspace_sector_data/australian_airspace_polygon.json
-BOUNDARY_FILTER_LOG_LEVEL: INFO
-BOUNDARY_FILTER_PERFORMANCE_THRESHOLD: 10.0
-
-# Flight Plan Validation Filter
-FLIGHT_PLAN_VALIDATION_ENABLED: true
-
-# VATSIM API Configuration
-VATSIM_API_BASE_URL: https://data.vatsim.net/v3
-VATSIM_API_TIMEOUT: 30
-VATSIM_API_RETRY_ATTEMPTS: 3
-
-# Application Configuration
-LOG_LEVEL: INFO
-ENVIRONMENT: production
-```
-
-#### **Geographic Boundary Filter Configuration:**
-```yaml
-# Enable/disable geographic filtering
-ENABLE_BOUNDARY_FILTER: true
-
-# Path to boundary polygon file
-BOUNDARY_DATA_PATH: airspace_sector_data/australian_airspace_polygon.json
-
-# Logging level for filter operations
-BOUNDARY_FILTER_LOG_LEVEL: INFO
-
-# Performance threshold in milliseconds
-BOUNDARY_FILTER_PERFORMANCE_THRESHOLD: 10.0
-```
-
-## 🗺️ Geographic Boundary Filtering
-
-### Overview
-The system now includes comprehensive geographic boundary filtering that processes:
-- **Flights**: Filtered by `latitude`/`longitude` position
-- **Transceivers**: Filtered by `position_lat`/`position_lon` position  
-- **Controllers**: Currently uses conservative approach (all allowed through)
-
-### Filter Behavior
-- **Enabled by default** when `ENABLE_BOUNDARY_FILTER=true`
-
-## ✈️ Flight Plan Validation Filter
-
-### Overview
-The system now includes automatic flight plan validation that ensures only flights with complete, analyzable flight plan data are stored in the database.
-
-### Validation Criteria
-A flight is considered to have a **valid flight plan** if it contains **ALL** of these essential fields:
+### **Flight Plan Validation Filter**
+The system includes automatic flight plan validation that ensures only flights with complete, analyzable flight plan data are stored:
 
 | Field | Requirement | Description |
 |-------|-------------|-------------|
@@ -503,176 +166,199 @@ A flight is considered to have a **valid flight plan** if it contains **ALL** of
 | `flight_rules` | Must be "I" (IFR) or "V" (VFR) | Flight rules classification |
 | `aircraft_faa` | Must be present and non-empty | Aircraft type code (e.g., "B738", "A320") |
 
-### Filter Behavior
-- **Enabled by default** when `FLIGHT_PLAN_VALIDATION_ENABLED=true`
-- **Applied before** geographic boundary filtering
-- **Rejects flights** missing any of the 4 essential fields
-- **Ensures 100% data quality** for all stored flights
+## ⚙️ Configuration
 
-### Configuration
-```bash
+### **Environment Variables**
+
+#### **Core Configuration:**
+```yaml
+# Database Configuration
+DATABASE_URL: postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data
+DATABASE_POOL_SIZE: 20
+DATABASE_MAX_OVERFLOW: 40
+
+# Geographic Boundary Filtering
+ENABLE_BOUNDARY_FILTER: true
+BOUNDARY_DATA_PATH: config/australian_airspace_polygon.json
+BOUNDARY_FILTER_LOG_LEVEL: INFO
+BOUNDARY_FILTER_PERFORMANCE_THRESHOLD: 10.0
+
 # Flight Plan Validation Filter
-FLIGHT_PLAN_VALIDATION_ENABLED=true    # Enable/disable validation (default: true)
+FLIGHT_PLAN_VALIDATION_ENABLED: true
+
+# VATSIM API Configuration
+VATSIM_API_BASE_URL: https://data.vatsim.net/v3
+VATSIM_API_TIMEOUT: 60
+VATSIM_API_RETRY_ATTEMPTS: 20
+
+# Application Configuration
+LOG_LEVEL: INFO
+ENVIRONMENT: production
 ```
 
-### Benefits
-- **Data Quality**: All flights in database have complete flight plan data
-- **Reporting Accuracy**: Flight summary reports are 100% reliable
-- **Analytics**: Route analysis, ATC coverage, and performance metrics are complete
-- **Storage Efficiency**: No wasted space on incomplete flight records
-
-### Testing
-Use the provided test scripts to validate filtering:
-```bash
-# Test filter on/off functionality
-python test_filter_on_off.py
-
-# Test geographic filtering with live data
-python test_geographic_filtering.py
+#### **Flight Summary System Configuration:**
+```yaml
+# Flight Summary System
+FLIGHT_COMPLETION_HOURS: 14        # Hours to wait before processing
+FLIGHT_RETENTION_HOURS: 168       # Hours to keep archived data (7 days)
+FLIGHT_SUMMARY_INTERVAL: 60       # Minutes between processing runs
+FLIGHT_SUMMARY_ENABLED: true      # Enable/disable the system
 ```
 
-## 📈 Monitoring & Analytics
+#### **Sector Tracking Configuration:**
+```yaml
+# Sector Tracking System
+SECTOR_TRACKING_ENABLED: true     # Enable real-time sector tracking
+SECTOR_UPDATE_INTERVAL: 60        # Seconds between sector updates
+SECTOR_DATA_PATH: config/australian_airspace_sectors.geojson
+```
 
-### Grafana Dashboards
-- **Live Flights**: Real-time flight tracking and position data
-- **ATC Coverage**: Controller positions and facility coverage
-- **Performance Metrics**: System health and filtering statistics
-- **Geographic Analysis**: Entity distribution within boundaries
+#### **Cleanup Process Configuration:**
+```yaml
+# Cleanup Process System
+CLEANUP_FLIGHT_TIMEOUT: 300       # Seconds (5 minutes) before considering a flight stale for cleanup
+```
 
-### API Endpoints
-- **Health Checks**: `/api/status` - System status and filter health
-- **Flight Data**: `/api/flights` - Filtered flight information
-- **Transceiver Data**: `/api/transceivers` - Filtered transceiver information
-- **Controller Data**: `/api/controllers` - Controller positions and status
+#### **Controller Summary Configuration:**
+```yaml
+# Controller Summary System
+CONTROLLER_SUMMARY_ENABLED: true
+CONTROLLER_COMPLETION_MINUTES: 30     # 30 minutes - when summaries are made and records archived
+CONTROLLER_RETENTION_HOURS: 168
+CONTROLLER_SUMMARY_INTERVAL: 60
+```
 
-## 🧪 Testing & Validation
+#### **Controller-Specific Proximity Configuration:**
+```yaml
+# Controller-specific proximity configuration (used by both detection services)
+ENABLE_CONTROLLER_SPECIFIC_RANGES: true
+CONTROLLER_PROXIMITY_DEFAULT_NM: 30
+```
 
-### Test Coverage
-- ✅ **Unit Tests**: Geographic utilities and filter logic
-- ✅ **Integration Tests**: API endpoints and data flow
-- ✅ **End-to-End Tests**: Complete workflow validation
-- ✅ **Performance Tests**: Filter performance and overhead measurement
+## 🔌 API Reference
 
-### Test Results
-Recent testing shows:
-- **Filter Accuracy**: 100% for flights and transceivers
-- **Performance**: <1ms overhead for 100+ entities
-- **Configuration**: Proper on/off functionality
-- **Live Data**: Successfully processes real VATSIM data
+### **Core Endpoints**
 
-## 🚀 Recent Updates
+#### **System Status:**
+- `GET /api/status` - System status and health checks
+- `GET /api/database/status` - Database health and table status
 
-### Simplified Australian Sector Processing (Latest)
-- **Simplified sector hierarchy** approach using `SectorHierarchy.txt` instead of complex XML parsing
-- **Standard GeoJSON output** format for better compatibility and visualization
-- **MultiPolygon support** for geographically separate subsectors
-- **Direct file output** in main directory for easier access
-- **Processing metadata** generation for monitoring and debugging
+#### **Flight Data:**
+- `GET /api/flights` - Active flights with filtering and pagination
+- `GET /api/flights/{callsign}` - Specific flight details
+- `GET /api/flights/{callsign}/track` - Complete flight track
+- `GET /api/flights/{callsign}/stats` - Flight statistics
 
-### Geographic Boundary Filtering
-- **Multi-entity support** for flights, transceivers, and controllers
-- **Performance optimization** with minimal processing overhead
-- **Comprehensive testing** with live VATSIM data
-- **Documentation updates** reflecting current implementation
+#### **Flight Summaries:**
+- `GET /api/flights/summaries` - Completed flight summaries with filtering
+- `POST /api/flights/summaries/process` - Manual processing trigger
+- `GET /api/flights/summaries/status` - Processing status and statistics
+- `GET /api/flights/summaries/analytics` - Flight summary analytics
 
-### Data Ingestion Fixes
-- **Schema alignment** between Python models and database
-- **Async database handling** improvements
-- **Error handling** enhancements for robust operation
-- **Configuration management** standardization
+#### **Controller Data:**
+- `GET /api/controllers` - Active ATC positions
+- `GET /api/atc-positions` - Alternative ATC endpoint
+- `GET /api/atc-positions/by-controller-id` - ATC positions grouped by controller ID
 
-## 📚 Documentation
+#### **Controller Summaries:**
+- `GET /api/controller-summaries` - Controller session summaries
+- `GET /api/controller-summaries/{callsign}/stats` - Controller statistics
+- `GET /api/controller-summaries/performance/overview` - Performance overview
+- `POST /api/controller-summaries/process` - Manual processing trigger
 
-### Core Documentation
-- **[API Field Mapping](docs/API_FIELD_MAPPING.md)** - Complete field mapping reference
-- **[Geographic Filter Config](docs/GEOGRAPHIC_BOUNDARY_FILTER_CONFIG.md)** - Filter configuration guide
-- **[Architecture Overview](docs/ARCHITECTURE_OVERVIEW.md)** - System design and components
-- **[Configuration Guide](docs/CONFIGURATION.md)** - Environment setup and tuning
-- **[Flight Summary Status](docs/FLIGHT_SUMMARY_IMPLEMENTATION_STATUS.md)** - Flight summary system implementation status
-- **[Australian Sector Files Guide](airspace_sector_data/PROCESSING_AUSTRALIAN_SECTOR_FILES_README.md)** - Complete guide for processing and maintaining Australian airspace sector data
+#### **Sector & Filter Data:**
+- `GET /api/transceivers` - Radio frequency and position data
+- `GET /api/filter/boundary/status` - Geographic boundary filter status
+- `GET /api/filter/boundary/info` - Boundary polygon information
+- `GET /api/cleanup/status` - Cleanup system status
 
-### Airspace Data Documentation
-- **[Australian Sector Processing](airspace_sector_data/PROCESSING_AUSTRALIAN_SECTOR_FILES_README.md)** - Detailed guide for processing VATSYS sector files
-- **`australian_airspace_polygon.json`** - Static Australian FIR boundary (GeoJSON format)
-- **`australian_airspace_sectors.geojson`** - Automatically generated sector boundaries in GeoJSON format
-- **`australian_sectors_data.json`** - Processing metadata and statistics for each sector
-- **`SectorHierarchy.txt`** - Simplified sector hierarchy definition file
+## 🗺️ Geographic Configuration
 
-### Quick References
-- **[API Reference](docs/API_REFERENCE.md)** - Endpoint documentation
-- **[Production Deployment](docs/PRODUCTION_DEPLOYMENT_GUIDE.md)** - Production setup guide
-- **[Service Template](docs/SERVICE_TEMPLATE.md)** - Service development patterns
+### **Airspace Data Files**
+
+#### **External Boundary** (`config/australian_airspace_polygon.json`)
+- **Purpose**: Defines the external boundary of Australian Flight Information Region (FIR)
+- **Content**: Single polygon with coordinates covering all of Australia and surrounding airspace
+- **Usage**: Used by the geographic boundary filter to determine if flights/controllers are within Australian airspace
+- **Format**: GeoJSON polygon with decimal degree coordinates
+
+#### **Sector Boundaries** (`config/australian_airspace_sectors.geojson`)
+- **Purpose**: Contains processed airspace sector boundaries in standard GeoJSON format
+- **Content**: FeatureCollection with each main sector as a separate Feature containing combined subsector polygons
+- **Usage**: Used for detailed sector analysis, ATC coverage mapping, and real-time sector tracking
+- **Format**: Standard GeoJSON FeatureCollection with Polygon geometries
+
+### **Filter Behavior**
+- **Enabled by default** when `ENABLE_BOUNDARY_FILTER=true`
+- **Applied before** flight plan validation filtering
+- **Performance optimized** with minimal processing overhead
+- **Conservative approach** - missing position data allowed through
 
 ## 🔧 Development
 
-### Local Development
+### **Local Development**
 ```bash
 # Start development environment
 docker-compose up -d
 
-# Run tests
-python -m pytest tests/
-
-# Test filtering functionality
-python test_filter_on_off.py
-python test_geographic_filtering.py
-
 # Monitor logs
 docker-compose logs -f app
+
+# Access database
+docker-compose exec postgres psql -U vatsim_user -d vatsim_data
+
+# Run tests
+docker-compose exec app python -m pytest tests/
 ```
 
-### Code Structure
+### **Code Structure**
 ```
 app/
 ├── filters/           # Geographic boundary filtering
+│   ├── geographic_boundary_filter.py
+│   ├── callsign_pattern_filter.py
+│   └── controller_callsign_filter.py
 ├── services/          # Data processing and API services
+│   ├── data_service.py
+│   ├── vatsim_service.py
+│   ├── atc_detection_service.py
+│   └── flight_detection_service.py
 ├── models.py          # Database models (SQLAlchemy)
 ├── main.py            # FastAPI application
+├── config.py          # Configuration management
+├── database.py        # Database connection management
 └── utils/             # Utility functions and helpers
+    ├── geographic_utils.py
+    ├── sector_loader.py
+    ├── logging.py
+    └── error_handling.py
 ```
 
-### Airspace Data Maintenance
+### **Airspace Data Maintenance**
 
 #### **Updating Sector Definitions**
-The sector boundaries are now processed using a simplified approach with `SectorHierarchy.txt`:
-
-1. **Sector Hierarchy File**: Edit `SectorHierarchy.txt` to define main sectors and their subsectors
-2. **VATSYS Files**: Ensure `Volumes.xml` contains the coordinate data for all subsectors
-3. **Run Processing Script**: Execute the simplified processing script:
+1. **Sector Hierarchy File**: Edit `airspace_sector_data/SectorHierarchy.txt` to define main sectors and their subsectors
+2. **VATSYS Files**: Ensure `airspace_sector_data/Volumes.xml` contains the coordinate data for all subsectors
+3. **Run Processing Script**: Execute the processing script:
    ```bash
    cd airspace_sector_data
    python process_australian_sectors.py
    ```
-4. **Review Output**: Verify the generated GeoJSON files match expectations
-5. **Output Files**: The script generates:
+4. **Output Files**: The script generates:
    - `australian_airspace_sectors.geojson` - Main sector boundaries in GeoJSON format
    - `australian_sectors_data.json` - Processing metadata and statistics
 
-#### **Simplified Processing Approach**
-The new processing system:
-- **Uses `SectorHierarchy.txt`** instead of complex XML parsing
-- **Processes all boundaries** for each volume (not just the first)
-- **Handles MultiPolygons** correctly for geographically separate subsectors
-- **Outputs standard GeoJSON** format for compatibility
-- **Saves files directly** in the main directory
-
-#### **External Boundary (Static)**
-The `australian_airspace_polygon.json` file:
-- **Never changes** - represents official Australian FIR boundary
-- **Used directly** by the geographic boundary filter
-- **No maintenance required** - this is a reference data file
-
-**Note**: All files are located in the `airspace_sector_data/` directory and the processed sector boundaries are automatically generated from the simplified hierarchy approach.
-
 ## 🚨 Troubleshooting
 
-### Common Issues
+### **Common Issues**
+
 1. **Filter not working**: Check `ENABLE_BOUNDARY_FILTER` environment variable
 2. **No data in tables**: Verify VATSIM API connectivity and database connection
 3. **Performance issues**: Monitor filter performance thresholds and system resources
 4. **Sector tracking not working**: Check `SECTOR_TRACKING_ENABLED` and sector file paths
+5. **Flight summaries not processing**: Check `FLIGHT_SUMMARY_ENABLED` and processing intervals
 
-### Health Checks
+### **Health Checks**
 ```bash
 # Check system health
 curl http://localhost:8001/api/status
@@ -680,13 +366,27 @@ curl http://localhost:8001/api/status
 # Check filter status
 curl http://localhost:8001/api/filter/boundary/status
 
-# Check sector tracking status
-curl http://localhost:8001/api/sector/status
-
-# Monitor database
+# Check database
 docker-compose exec postgres psql -U vatsim_user -d vatsim_data -c "SELECT COUNT(*) FROM flights;"
-docker-compose exec postgres psql -U vatsim_user -d vatsim_data -c "SELECT COUNT(*) FROM flight_sector_occupancy;"
 ```
+
+## 📚 Documentation
+
+### **Core Documentation**
+- **[Architecture Overview](docs/VATSIM_ARCHITECTURE_COMPLETE.md)** - System design and components
+- **[API Reference](docs/API_REFERENCE.md)** - Complete API endpoint documentation
+- **[Configuration Guide](docs/CONFIGURATION.md)** - Environment setup and tuning
+- **[Production Deployment](docs/PRODUCTION_DEPLOYMENT_GUIDE.md)** - Production setup guide
+
+### **Feature Documentation**
+- **[Geographic Filter Config](docs/GEOGRAPHIC_BOUNDARY_FILTER_CONFIG.md)** - Filter configuration guide
+- **[Flight Summary Status](docs/FLIGHT_SUMMARY_IMPLEMENTATION_STATUS.md)** - Flight summary system status
+- **[Controller Summary Plan](docs/CONTROLLER_SUMMARY_IMPLEMENTATION_PLAN.md)** - Controller summary system
+- **[Sector Tracking Plan](docs/SECTOR_TRACKING_IMPLEMENTATION_PLAN.md)** - Sector tracking system
+
+### **Airspace Data Documentation**
+- **[Australian Sector Processing](airspace_sector_data/PROCESSING_AUSTRALIAN_SECTOR_FILES_README.md)** - Complete guide for processing VATSYS sector files
+- **[Controller Callsign Extraction](airspace_sector_data/CONTROLLER_CALLSIGN_EXTRACTION_README.md)** - Controller callsign processing guide
 
 ## 📄 License
 
@@ -710,11 +410,7 @@ For issues, questions, or contributions:
 ---
 
 **📅 Last Updated**: 2025-01-16  
-**🚀 Status**: Production Ready with Geographic Filtering, Complete Flight Summary System, Real-Time Sector Tracking & Automatic Cleanup Process  
-**🗺️ Geographic Coverage**: Australian Airspace  
+**🚀 Status**: Production Ready  
+**🗺️ Geographic Coverage**: Australian Airspace (Configurable for any region)  
 **⚡ Performance**: <1ms filtering overhead  
-**🔧 Architecture**: Simplified and optimized  
-**📊 Flight Summary**: Fully operational with complete API access  
-**🎯 Sector Tracking**: Fully operational with real-time monitoring  
-**🧹 Cleanup Process**: Fully operational with automatic stale sector management  
-**✅ System Status**: Complete and fully functional
+**🔧 Architecture**: API-first with real-time data processing
