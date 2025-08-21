@@ -14,7 +14,7 @@ The system provides comprehensive flight tracking, controller tracking, and sect
 - **Flight Summaries**: ✅ **OPERATIONAL** - Automatic processing every 60 minutes (configurable)
 
 ### **Core Capabilities**
-- **Real-time Data Collection**: Continuous VATSIM API v3 integration with 60-second polling
+- **Real-time Data Collection**: Continuous VATSIM API v3 integration with 60-second polling (configurable)
 - **Geographic Boundary Filtering**: Shapely-based polygon filtering for any configurable airspace
 - **Complete Flight Tracking**: Every position update preserved with unique constraints
 - **Sector Occupancy Monitoring**: Real-time tracking of flights through any configurable airspace sectors

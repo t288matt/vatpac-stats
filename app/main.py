@@ -45,7 +45,7 @@ class SimpleConfig:
             'cors_origins': ["*"]
         })()
         self.vatsim = type('obj', (object,), {
-            'polling_interval': 30
+            'polling_interval': int(os.getenv("VATSIM_POLLING_INTERVAL", "60"))
         })()
 
 # Remove cache service import

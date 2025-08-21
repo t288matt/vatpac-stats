@@ -67,7 +67,7 @@ class VATSIMConfig:
     """VATSIM API configuration - simplified"""
     api_url: str
     transceivers_api_url: str
-    timeout: int = 30
+    timeout: int = 60
     polling_interval: int = 60
     
     @classmethod
