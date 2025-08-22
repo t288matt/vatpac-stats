@@ -143,77 +143,8 @@ services:
 
 
 
-  # Metabase for business intelligence and analytics
-  metabase:
-    image: metabase/metabase:latest
-    container_name: vatsim_metabase
-    hostname: metabase
-    volumes:
-      - /dev/urandom:/dev/random:ro
-      - metabase_data:/metabase-data
-    ports:
-      - "3030:3000"
-    environment:
-      MB_DB_TYPE: postgres
-      MB_DB_DBNAME: metabaseappdb
-      MB_DB_PORT: 5432
-      MB_DB_USER: metabase
-      MB_DB_PASS: mysecretpassword
-      MB_DB_HOST: metabase_postgres
-      # Additional Metabase configuration
-      MB_ENCRYPTION_SECRET_KEY: "your-secret-key-here-change-in-production"
-      MB_PASSWORD_COMPLEXITY: "strong"
-      MB_PASSWORD_LENGTH: 10
-      MB_JAVA_TIMEZONE: UTC
-      MB_MAX_MEMORY_PERCENTAGE: 75
-      MB_SESSION_TIMEOUT: 20160  # 14 days in minutes
-      MB_SESSION_TIMEOUT_UNITS: minutes
-      # Logging configuration to reduce verbosity
-      MB_LOGGING_LEVEL: "WARN"
-      JAVA_OPTS: "-Dlog.level=WARN -Dlogback.configurationFile= -Dlog4j.configuration= -Dlogging.level.root=WARN -Dlogging.level.metabase=WARN -Dlogging.level.org.hibernate=WARN -Dlogging.level.org.postgresql=WARN -Dlogging.level.com.zaxxer.hikari=WARN -Dlogging.level.org.eclipse.jetty=WARN"
-    networks:
-      - metanet1
-      - default
-    depends_on:
-      metabase_postgres:
-        condition: service_healthy
-    restart: unless-stopped
-    healthcheck:
-      test: curl --fail -I http://localhost:3000/api/health || exit 1
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
-
-  # PostgreSQL Database for Metabase (separate instance)
-  metabase_postgres:
-    image: postgres:latest
-    container_name: metabase_postgres
-    hostname: metabase_postgres
-    environment:
-      POSTGRES_USER: metabase
-      POSTGRES_DB: metabaseappdb
-      POSTGRES_PASSWORD: mysecretpassword
-    volumes:
-      - ./database/metabase:/var/lib/postgresql/data
-    networks:
-      - metanet1
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U metabase -d metabaseappdb"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
 
 
 
-# Define named volumes
-volumes:
-  metabase_data:
-    driver: local
 
-# Define networks
-networks:
-  metanet1:
-    driver: bridge 
+ 

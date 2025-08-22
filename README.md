@@ -53,6 +53,18 @@ The system addresses critical needs in air traffic control operations:
 - Internet connection for VATSIM API access
 - GEOS library support (included in Docker image)
 
+### Docker Compose Architecture
+The system uses **separated Docker Compose files** for modular service management:
+
+- **`docker-compose.yml`** - Core VATSIM application (PostgreSQL + API)
+- **`docker-compose.metabase.yml`** - Metabase business intelligence platform
+
+This separation provides:
+- **Independent service management** - Start/stop Metabase without affecting the main app
+- **Cleaner infrastructure** - Core app focused solely on VATSIM data processing
+- **Flexible deployment** - Choose which services to run based on needs
+- **Easier maintenance** - Update Metabase without rebuilding the main application
+
 ### Installation & Setup
 
 1. **Clone the repository**
@@ -63,15 +75,77 @@ The system addresses critical needs in air traffic control operations:
 
 2. **Start the system**
    ```bash
+   # Start core VATSIM application
    docker-compose up -d
+   
+   # Start Metabase (optional - for business intelligence)
+   docker-compose -f docker-compose.metabase.yml up -d
    ```
+
+### **Usage Patterns**
+
+#### **VATSIM Only (Recommended for development)**
+```bash
+docker-compose up -d
+```
+- Starts PostgreSQL database and VATSIM API
+- Ports: 8001 (API), 5432 (Database)
+- No Metabase overhead
+
+#### **Metabase Only (For existing VATSIM data analysis)**
+```bash
+docker-compose -f docker-compose.metabase.yml up -d
+```
+- Starts Metabase and its PostgreSQL database
+- Ports: 3030 (Metabase), internal database
+- Requires existing VATSIM database connection
+
+#### **Full Stack (Production)**
+```bash
+# Start core services first
+docker-compose up -d
+
+# Start Metabase after core services are healthy
+docker-compose -f docker-compose.metabase.yml up -d
+```
+
+#### **Service Management**
+```bash
+# Stop only Metabase
+docker-compose -f docker-compose.metabase.yml down
+
+# Stop only VATSIM services
+docker-compose down
+
+# Stop everything
+docker-compose down && docker-compose -f docker-compose.metabase.yml down
+```
 
 3. **Access the services**
    - **API Endpoints**: http://localhost:8001
    - **Database**: localhost:5432 (vatsim_user/vatsim_password)
-   - **Metabase**: http://localhost:3030 (business intelligence)
+   - **Metabase**: http://localhost:3030 (business intelligence) - *requires separate compose file*
 
 ## 📊 System Architecture
+
+### **Infrastructure Design**
+The system uses a **modular Docker Compose architecture** that separates concerns:
+
+- **Core Application Stack** (`docker-compose.yml`)
+  - PostgreSQL database for VATSIM data
+  - FastAPI application for data processing and API endpoints
+  - Optimized for real-time data collection and processing
+
+- **Business Intelligence Stack** (`docker-compose.metabase.yml`)
+  - Metabase application for data visualization and analytics
+  - Separate PostgreSQL instance for Metabase metadata
+  - Independent scaling and maintenance
+
+This separation ensures:
+- **Service isolation** - Core app performance unaffected by Metabase operations
+- **Independent scaling** - Can scale Metabase without impacting data collection
+- **Maintenance flexibility** - Update BI tools without service interruption
+- **Resource optimization** - Run only needed services for specific use cases
 
 ### **Core Components**
 
@@ -357,6 +431,24 @@ app/
 3. **Performance issues**: Monitor filter performance thresholds and system resources
 4. **Sector tracking not working**: Check `SECTOR_TRACKING_ENABLED` and sector file paths
 5. **Flight summaries not processing**: Check `FLIGHT_SUMMARY_ENABLED` and processing intervals
+
+### **Docker Compose Issues**
+
+6. **"Orphan containers" warning**: This is normal when using multiple compose files
+   - **Cause**: Docker sees containers from other compose files as "orphans"
+   - **Solution**: Ignore the warning - it doesn't affect functionality
+   - **Prevention**: Use `--remove-orphans` flag only if you want to stop all services
+
+7. **Metabase can't connect to VATSIM database**: Check network configuration
+   - **Cause**: Metabase needs access to the main PostgreSQL instance
+   - **Solution**: Ensure both compose files are running on the same Docker network
+   - **Verification**: Check `docker network ls` for shared networks
+
+8. **Port conflicts**: Verify port assignments
+   - **VATSIM API**: Port 8001
+   - **VATSIM Database**: Port 5432
+   - **Metabase**: Port 3030
+   - **Metabase Database**: Internal only (no host port mapping)
 
 ### **Health Checks**
 ```bash
