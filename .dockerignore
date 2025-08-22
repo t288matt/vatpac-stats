@@ -73,8 +73,8 @@ grafana/
 # Tools (not needed in container)
 tools/
 
-# Scripts (not needed in container)
-scripts/
+# Scripts (needed for cron service)
+# scripts/
 
 # Analysis files
 *.analysis

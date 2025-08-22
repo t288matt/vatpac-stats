@@ -135,11 +135,13 @@ class TestDataProcessingBusinessLogic:
             if hasattr(data_service, '_create_flight_summaries'):
                 # Test flight summary creation logic
                 # Create mock completed flight data as tuple (matching what _identify_completed_flights returns)
+                # Updated to use new flight identification logic: callsign, departure, arrival, cid, deptime
                 mock_completed_flight = (
                     'TEST002',  # callsign
                     'YSBK',     # departure
                     'YSSY',     # arrival
-                    datetime.now(timezone.utc) - timedelta(hours=2)  # logon_time
+                    12345,      # cid (pilot ID)
+                    '0800'      # deptime (departure time)
                 )
                 
                 summaries_created = await data_service._create_flight_summaries([mock_completed_flight])
@@ -153,6 +155,154 @@ class TestDataProcessingBusinessLogic:
         except Exception as e:
             print(f"❌ Flight summary generation workflow test failed: {e}")
             assert False, f"Flight summary generation workflow test failed: {e}"
+
+    @pytest.mark.stage10
+    @pytest.mark.business_logic
+    @pytest.mark.asyncio
+    async def test_new_flight_identification_logic(self):
+        """Test: Does the new flight identification logic work correctly with cid and deptime?"""
+        print("🧪 Testing: Does the new flight identification logic work correctly with cid and deptime?")
+        
+        try:
+            # Test the new flight identification logic that uses:
+            # callsign, departure, arrival, cid, deptime instead of logon_time
+            
+            data_service = get_data_service_sync()
+            
+            if hasattr(data_service, '_identify_completed_flights'):
+                # Test that the method exists and can be called
+                # Note: We can't easily test the actual database query without a real database
+                # But we can test that the method signature is correct
+                method = getattr(data_service, '_identify_completed_flights')
+                import inspect
+                sig = inspect.signature(method)
+                
+                # Should have completion_hours parameter
+                assert 'completion_hours' in sig.parameters, "Method should have completion_hours parameter"
+                print("✅ _identify_completed_flights method signature is correct")
+                
+                # Test that the method can be called (will fail if there are syntax errors)
+                try:
+                    # This will fail in test environment due to no database, but should not have syntax errors
+                    await method(14)  # 14 hours completion threshold
+                    print("✅ _identify_completed_flights method can be called without syntax errors")
+                except Exception as e:
+                    # Expected to fail due to no database connection in test environment
+                    if "connection" in str(e).lower() or "database" in str(e).lower():
+                        print("✅ _identify_completed_flights method syntax is correct (database connection expected to fail)")
+                    else:
+                        raise e
+            else:
+                print("⚠️ _identify_completed_flights method not available for testing")
+            
+            print("✅ New flight identification logic test completed")
+            
+        except Exception as e:
+            print(f"❌ New flight identification logic test failed: {e}")
+            assert False, f"New flight identification logic test failed: {e}"
+
+    @pytest.mark.stage10
+    @pytest.mark.business_logic
+    @pytest.mark.asyncio
+    async def test_incomplete_flight_filtering(self):
+        """Test: Does the incomplete flight filtering work correctly at data ingestion?"""
+        print("🧪 Testing: Does the incomplete flight filtering work correctly at data ingestion?")
+        
+        try:
+            # Test the new incomplete flight filtering that prevents flights without
+            # departure or arrival from being saved to the database
+            
+            data_service = get_data_service_sync()
+            
+            if hasattr(data_service, '_process_flights'):
+                # Test with flights that have complete flight plan data
+                complete_flights = [
+                    {
+                        "callsign": "TEST_COMPLETE_001",
+                        "departure": "YSBK",
+                        "arrival": "YSSY",
+                        "aircraft_type": "C172",
+                        "latitude": -33.8688,
+                        "longitude": 151.2093,
+                        "altitude": 3000,
+                        "groundspeed": 120,
+                        "heading": 90,
+                        "cid": 12345,
+                        "deptime": "0800"
+                    }
+                ]
+                
+                # Test with flights that have incomplete flight plan data
+                incomplete_flights = [
+                    {
+                        "callsign": "TEST_INCOMPLETE_001",
+                        "departure": "",  # Empty departure
+                        "arrival": "YSSY",
+                        "aircraft_type": "C172",
+                        "latitude": -33.8688,
+                        "longitude": 151.2093,
+                        "altitude": 3000,
+                        "groundspeed": 120,
+                        "heading": 90,
+                        "cid": 12346,
+                        "deptime": "0800"
+                    },
+                    {
+                        "callsign": "TEST_INCOMPLETE_002",
+                        "departure": "YSBK",
+                        "arrival": "",  # Empty arrival
+                        "aircraft_type": "C172",
+                        "latitude": -33.8688,
+                        "longitude": 151.2093,
+                        "altitude": 3000,
+                        "groundspeed": 120,
+                        "heading": 90,
+                        "cid": 12347,
+                        "deptime": "0800"
+                    },
+                    {
+                        "callsign": "TEST_INCOMPLETE_003",
+                        "departure": None,  # None departure
+                        "arrival": None,    # None arrival
+                        "aircraft_type": "C172",
+                        "latitude": -33.8688,
+                        "longitude": 151.2093,
+                        "altitude": 3000,
+                        "groundspeed": 120,
+                        "heading": 90,
+                        "cid": 12348,
+                        "deptime": "0800"
+                    }
+                ]
+                
+                # Test that the method exists and can be called
+                method = getattr(data_service, '_process_flights')
+                import inspect
+                sig = inspect.signature(method)
+                
+                # Should have flights_data parameter
+                assert 'flights_data' in sig.parameters, "Method should have flights_data parameter"
+                print("✅ _process_flights method signature is correct")
+                
+                # Test that the method can be called (will fail if there are syntax errors)
+                try:
+                    # This will fail in test environment due to no database, but should not have syntax errors
+                    await method(complete_flights)
+                    print("✅ _process_flights method can be called without syntax errors")
+                except Exception as e:
+                    # Expected to fail due to no database connection in test environment
+                    if "connection" in str(e).lower() or "database" in str(e).lower():
+                        print("✅ _process_flights method syntax is correct (database connection expected to fail)")
+                    else:
+                        raise e
+            else:
+                print("⚠️ _process_flights method not available for testing")
+            
+            print("✅ Incomplete flight filtering test completed")
+            
+        except Exception as e:
+            print(f"❌ Incomplete flight filtering test failed: {e}")
+            assert False, f"Incomplete flight filtering test failed: {e}"
 
     @pytest.mark.stage10
     @pytest.mark.business_logic

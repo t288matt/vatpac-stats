@@ -51,24 +51,27 @@ jobs:
       - name: Start Docker services
         run: |
           echo "🐳 Starting Docker services..."
+          # Set CI/CD mode for faster startup
+          export CI_CD_MODE=true
+          
           # Try docker-compose first, fallback to docker compose
           if command -v docker-compose &> /dev/null; then
             echo "Using docker-compose"
-            docker-compose up -d postgres
+            CI_CD_MODE=true docker-compose up -d postgres
             echo "⏳ Waiting for PostgreSQL to be ready..."
-            sleep 10
+            sleep 5
             echo "🔍 Checking PostgreSQL health..."
             docker-compose exec -T postgres pg_isready -U postgres || echo "PostgreSQL not ready yet, waiting more..."
-            sleep 20
+            sleep 10
             docker-compose exec -T postgres pg_isready -U postgres || echo "PostgreSQL still not ready, but continuing..."
           else
             echo "Using docker compose (newer syntax)"
-            docker compose up -d postgres
+            CI_CD_MODE=true docker compose up -d postgres
             echo "⏳ Waiting for PostgreSQL to be ready..."
-            sleep 10
+            sleep 5
             echo "🔍 Checking PostgreSQL health..."
             docker compose exec -T postgres pg_isready -U postgres || echo "PostgreSQL not ready yet, waiting more..."
-            sleep 20
+            sleep 10
             docker compose exec -T postgres pg_isready -U postgres || echo "PostgreSQL still not ready, but continuing..."
           fi
           

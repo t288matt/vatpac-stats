@@ -5,6 +5,8 @@
 -- IMPORTANT: This script includes the flight_sector_occupancy table with altitude fields
 -- required for real-time sector tracking functionality.
 -- 
+-- This script also includes controller summary and archive tables for completed controller sessions.
+-- 
 -- VATSIM API Field Mapping - EXACT 1:1 mapping with API field names:
 -- - API "cid" → cid (Controller ID from VATSIM)
 -- - API "name" → name (Controller name from VATSIM)  
@@ -113,13 +115,14 @@ CREATE TABLE IF NOT EXISTS transceivers (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create indexes for performance (matching SQLAlchemy model definitions)
+-- Create indexes for performance (optimized for production queries)
 -- Controllers indexes
 CREATE INDEX IF NOT EXISTS idx_controllers_callsign ON controllers(callsign);
 CREATE INDEX IF NOT EXISTS idx_controllers_cid ON controllers(cid);
 CREATE INDEX IF NOT EXISTS idx_controllers_cid_rating ON controllers(cid, rating);
 CREATE INDEX IF NOT EXISTS idx_controllers_facility_server ON controllers(facility, server);
 CREATE INDEX IF NOT EXISTS idx_controllers_last_updated ON controllers(last_updated);
+CREATE INDEX IF NOT EXISTS idx_controllers_rating_last_updated ON controllers(rating, last_updated);
 
 -- ATC Detection Performance Indexes for controllers
 CREATE INDEX IF NOT EXISTS idx_controllers_callsign_facility ON controllers(callsign, facility);
@@ -140,7 +143,7 @@ CREATE INDEX IF NOT EXISTS idx_flights_revision_id ON flights(revision_id);
 CREATE INDEX IF NOT EXISTS idx_flights_callsign_departure_arrival ON flights(callsign, departure, arrival);
 CREATE INDEX IF NOT EXISTS idx_flights_callsign_logon ON flights(callsign, logon_time);
 
--- Transceivers indexes
+-- Transceivers indexes (optimized for frequency-based queries)
 CREATE INDEX IF NOT EXISTS idx_transceivers_callsign ON transceivers(callsign);
 CREATE INDEX IF NOT EXISTS idx_transceivers_callsign_timestamp ON transceivers(callsign, timestamp);
 CREATE INDEX IF NOT EXISTS idx_transceivers_frequency ON transceivers(frequency);
@@ -150,6 +153,9 @@ CREATE INDEX IF NOT EXISTS idx_transceivers_entity ON transceivers(entity_type, 
 CREATE INDEX IF NOT EXISTS idx_transceivers_entity_type_callsign ON transceivers(entity_type, callsign);
 CREATE INDEX IF NOT EXISTS idx_transceivers_entity_type_timestamp ON transceivers(entity_type, timestamp);
 CREATE INDEX IF NOT EXISTS idx_transceivers_atc_detection ON transceivers(entity_type, callsign, timestamp, frequency, position_lat, position_lon);
+
+-- Performance-optimized indexes for controller flight counting queries
+CREATE INDEX IF NOT EXISTS idx_transceivers_flight_frequency_callsign ON transceivers(entity_type, frequency, callsign) WHERE entity_type = 'flight';
 
 -- Create triggers for updated_at columns
 CREATE TRIGGER update_controllers_updated_at 
@@ -294,6 +300,7 @@ CREATE TABLE IF NOT EXISTS flight_summaries (
     aircraft_type VARCHAR(20),
     departure VARCHAR(10),
     arrival VARCHAR(10),
+    deptime VARCHAR(10),            -- Departure time from flight_plan.deptime
     logon_time TIMESTAMP(0) WITH TIME ZONE,
     route TEXT,
     flight_rules VARCHAR(10),
@@ -324,6 +331,7 @@ CREATE TABLE IF NOT EXISTS flights_archive (
     aircraft_type VARCHAR(20),
     departure VARCHAR(10),
     arrival VARCHAR(10),
+    deptime VARCHAR(10),            -- Departure time from flight plan
     logon_time TIMESTAMP(0) WITH TIME ZONE,
     route TEXT,
     flight_rules VARCHAR(10),
@@ -340,8 +348,17 @@ CREATE TABLE IF NOT EXISTS flights_archive (
     altitude INTEGER,
     groundspeed INTEGER,
     heading INTEGER,
+    controller_callsigns JSONB,  -- JSON array of controller callsigns
+    controller_time_percentage DECIMAL(5,2),  -- Percentage of time with ATC contact
+    time_online_minutes INTEGER,  -- Total time online in minutes
+    primary_enroute_sector VARCHAR(50),  -- Primary sector flown through
+    total_enroute_sectors INTEGER,  -- Total number of sectors flown through
+    total_enroute_time_minutes INTEGER,  -- Total time in enroute sectors
+    sector_breakdown JSONB,  -- Detailed sector breakdown data
+    completion_time TIMESTAMP WITH TIME ZONE,  -- When flight completed
     last_updated TIMESTAMP(0) WITH TIME ZONE,
-    created_at TIMESTAMP(0) WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP(0) WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create indexes for flight_summaries table
@@ -354,11 +371,82 @@ CREATE INDEX IF NOT EXISTS idx_flight_summaries_controller_time ON flight_summar
 CREATE INDEX IF NOT EXISTS idx_flights_archive_callsign ON flights_archive(callsign);
 CREATE INDEX IF NOT EXISTS idx_flights_archive_logon_time ON flights_archive(logon_time);
 CREATE INDEX IF NOT EXISTS idx_flights_archive_last_updated ON flights_archive(last_updated);
+CREATE INDEX IF NOT EXISTS idx_flights_archive_deptime ON flights_archive(deptime);
+CREATE INDEX IF NOT EXISTS idx_flights_archive_controller_callsigns ON flights_archive USING GIN(controller_callsigns);
+CREATE INDEX IF NOT EXISTS idx_flights_archive_controller_time ON flights_archive(controller_time_percentage);
+CREATE INDEX IF NOT EXISTS idx_flights_archive_primary_sector ON flights_archive(primary_enroute_sector);
+CREATE INDEX IF NOT EXISTS idx_flights_archive_sector_breakdown ON flights_archive USING GIN(sector_breakdown);
+CREATE INDEX IF NOT EXISTS idx_flights_archive_completion_time ON flights_archive(completion_time);
 
 -- Create triggers for updated_at columns on new tables
 CREATE TRIGGER update_flight_summaries_updated_at 
     BEFORE UPDATE ON flight_summaries 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_flights_archive_updated_at 
+    BEFORE UPDATE ON flights_archive 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Controller Summaries table for completed controller session data
+CREATE TABLE IF NOT EXISTS controller_summaries (
+    id BIGSERIAL PRIMARY KEY,
+    
+    -- Controller Identity
+    callsign VARCHAR(50) NOT NULL,
+    cid INTEGER,
+    name VARCHAR(100),
+    
+    -- Session Summary
+    session_start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    session_end_time TIMESTAMP WITH TIME ZONE,
+    session_duration_minutes INTEGER DEFAULT 0,
+    
+    -- Controller Details
+    rating INTEGER,
+    facility INTEGER,
+    server VARCHAR(50),
+    
+    -- Aircraft Activity
+    total_aircraft_handled INTEGER DEFAULT 0,
+    peak_aircraft_count INTEGER DEFAULT 0,
+    hourly_aircraft_breakdown JSONB,
+    frequencies_used JSONB,
+    aircraft_details JSONB,
+    
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Constraints
+    CONSTRAINT valid_aircraft_counts CHECK (
+        total_aircraft_handled >= 0 
+        AND peak_aircraft_count >= 0 
+        AND peak_aircraft_count <= total_aircraft_handled
+    ),
+    CONSTRAINT valid_session_times CHECK (
+        session_end_time IS NULL OR session_end_time > session_start_time
+    ),
+    CONSTRAINT valid_rating CHECK (rating >= 1 AND rating <= 11)
+);
+
+-- Controllers Archive table for detailed historical records
+CREATE TABLE IF NOT EXISTS controllers_archive (
+    id INTEGER PRIMARY KEY,
+    callsign VARCHAR(50) NOT NULL,
+    frequency VARCHAR(20),
+    cid INTEGER,
+    name VARCHAR(100),
+    rating INTEGER,
+    facility INTEGER,
+    visual_range INTEGER,
+    text_atis TEXT,
+    server VARCHAR(50),
+    last_updated TIMESTAMP(0) WITH TIME ZONE,
+    logon_time TIMESTAMP(0) WITH TIME ZONE,
+    created_at TIMESTAMP(0) WITH TIME ZONE,
+    updated_at TIMESTAMP(0) WITH TIME ZONE,
+    archived_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
 -- Flight Sector Occupancy table for tracking sector entry/exit
 CREATE TABLE IF NOT EXISTS flight_sector_occupancy (
@@ -382,6 +470,34 @@ CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_callsign ON flight_sector
 CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_sector_name ON flight_sector_occupancy(sector_name);
 CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_entry_timestamp ON flight_sector_occupancy(entry_timestamp);
 
+-- Create indexes for controller_summaries table
+-- Basic lookup indexes
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_callsign ON controller_summaries(callsign);
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_session_time ON controller_summaries(session_start_time, session_end_time);
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_aircraft_count ON controller_summaries(total_aircraft_handled);
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_rating ON controller_summaries(rating);
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_facility ON controller_summaries(facility);
+
+-- JSONB indexes for complex queries
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_frequencies ON controller_summaries USING GIN(frequencies_used);
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_aircraft_details ON controller_summaries USING GIN(aircraft_details);
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_hourly_breakdown ON controller_summaries USING GIN(hourly_aircraft_breakdown);
+
+-- Composite indexes for common query patterns
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_callsign_session ON controller_summaries(callsign, session_start_time);
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_rating_facility ON controller_summaries(rating, facility);
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_duration_aircraft ON controller_summaries(session_duration_minutes, total_aircraft_handled);
+
+-- Create indexes for controllers_archive table
+CREATE INDEX IF NOT EXISTS idx_controllers_archive_callsign ON controllers_archive(callsign);
+CREATE INDEX IF NOT EXISTS idx_controllers_archive_logon_time ON controllers_archive(logon_time);
+CREATE INDEX IF NOT EXISTS idx_controllers_archive_last_updated ON controllers_archive(last_updated);
+
+-- Create triggers for updated_at columns on controller tables
+CREATE TRIGGER update_controller_summaries_updated_at 
+    BEFORE UPDATE ON controller_summaries 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- Verify all tables were created successfully
 SELECT 
     table_name,
@@ -391,5 +507,15 @@ SELECT
     column_default
 FROM information_schema.columns 
 WHERE table_schema = 'public' 
-    AND table_name IN ('controllers', 'flights', 'transceivers', 'flight_summaries', 'flights_archive', 'flight_sector_occupancy')
-ORDER BY table_name, ordinal_position; 
+    AND table_name IN ('controllers', 'flights', 'transceivers', 'flight_summaries', 'flights_archive', 'flight_sector_occupancy', 'controller_summaries', 'controllers_archive')
+ORDER BY table_name, ordinal_position;
+
+-- ============================================================================
+-- MATERIALIZED VIEW OPTIMIZATION REMOVED
+-- ============================================================================
+-- The controller_weekly_stats materialized view and related objects have been
+-- removed to simplify the database schema.
+-- 
+-- If you need to restore this optimization in the future, see:
+-- docs/MATERIALIZED_VIEW_OPTIMIZATION.md
+-- ============================================================================ 

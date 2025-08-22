@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import text
 from app.database import get_database_session
 from app.utils.geographic_utils import is_within_proximity
+from app.services.controller_type_detector import ControllerTypeDetector
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -20,17 +21,23 @@ logger = logging.getLogger(__name__)
 class ATCDetectionService:
     """Service for detecting ATC interactions with flights."""
     
-    def __init__(self, time_window_seconds: int = 180, proximity_threshold_nm: float = 300.0):
+    def __init__(self, time_window_seconds: int = None):
         """
         Initialize ATC detection service.
         
         Args:
-            time_window_seconds: Time window for frequency matching (default: 180s)
-            proximity_threshold_nm: Geographic proximity threshold in nautical miles (default: 300nm)
+            time_window_seconds: Time window for frequency matching (default: from environment or 180s)
         """
-        self.time_window_seconds = time_window_seconds
-        self.proximity_threshold_nm = proximity_threshold_nm
+        import os
+        
+        # Load from environment variables with defaults
+        self.time_window_seconds = time_window_seconds or int(os.getenv("FLIGHT_DETECTION_TIME_WINDOW_SECONDS", "180"))
+        
+        # Initialize controller type detector for dynamic proximity ranges
+        self.controller_type_detector = ControllerTypeDetector()
+        
         self.logger = logging.getLogger(__name__)
+        self.logger.info(f"ATC Detection Service initialized: time_window={self.time_window_seconds}s, dynamic proximity ranges enabled")
         
     async def detect_flight_atc_interactions(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime) -> Dict[str, Any]:
         """
@@ -181,9 +188,47 @@ class ATCDetectionService:
             return []
     
     async def _find_frequency_matches(self, flight_transceivers: List[Dict], atc_transceivers: List[Dict], departure: str, arrival: str, logon_time: datetime) -> List[Dict[str, Any]]:
-        """Find frequency matches between flight and ATC transceivers using the planned CTE query."""
+        """Find frequency matches using controller-specific proximity ranges."""
         try:
-            # Use the exact planned query from the requirements document
+            # 1. Group ATC transceivers by controller callsign
+            atc_by_callsign = self._group_atc_by_callsign(atc_transceivers)
+            
+            # 2. Process each controller with its specific proximity range
+            all_matches = []
+            for controller_callsign, controllers in atc_by_callsign.items():
+                # Get controller type and proximity range
+                controller_info = self.controller_type_detector.get_controller_info(controller_callsign)
+                proximity_range = controller_info["proximity_threshold"]
+                
+                self.logger.debug(f"Processing controller {controller_callsign} as {controller_info['type']} with {proximity_range}nm proximity")
+                
+                # 3. Run proximity query for this specific controller
+                controller_matches = await self._find_matches_for_controller(
+                    flight_transceivers, controllers, proximity_range, departure, arrival, logon_time
+                )
+                all_matches.extend(controller_matches)
+            
+            self.logger.info(f"Controller-specific proximity processing completed: {len(all_matches)} total matches found")
+            return all_matches
+            
+        except Exception as e:
+            self.logger.error(f"Error in controller-specific frequency matching: {e}")
+            return []
+    
+    def _group_atc_by_callsign(self, atc_transceivers: List[Dict]) -> Dict[str, List[Dict]]:
+        """Group ATC transceivers by controller callsign."""
+        grouped = {}
+        for transceiver in atc_transceivers:
+            callsign = transceiver["callsign"]
+            if callsign not in grouped:
+                grouped[callsign] = []
+            grouped[callsign].append(transceiver)
+        return grouped
+    
+    async def _find_matches_for_controller(self, flight_transceivers: List[Dict], controller_transceivers: List[Dict], proximity_threshold_nm: float, departure: str, arrival: str, logon_time: datetime) -> List[Dict[str, Any]]:
+        """Find frequency matches for a specific controller with its proximity range."""
+        try:
+            # Modified CTE query for single controller with dynamic proximity
             query = """
                 WITH flight_transceivers AS (
                     SELECT t.callsign, t.frequency/1000000.0 as frequency_mhz, t.timestamp, t.position_lat, t.position_lon 
@@ -202,12 +247,7 @@ class ATCDetectionService:
                     SELECT t.callsign, t.frequency/1000000.0 as frequency_mhz, t.timestamp, t.position_lat, t.position_lon 
                     FROM transceivers t 
                     WHERE t.entity_type = 'atc' 
-                    AND t.callsign IN (
-                        SELECT DISTINCT c.callsign 
-                        FROM controllers c 
-                        WHERE c.facility != 0 
-                        AND c.callsign NOT LIKE '%OBS%'
-                    )
+                    AND t.callsign = :controller_callsign
                 ),
                 frequency_matches AS (
                     SELECT ft.callsign as flight_callsign, ft.frequency_mhz, ft.timestamp as flight_time,
@@ -218,7 +258,7 @@ class ATCDetectionService:
                     JOIN atc_transceivers at ON ft.frequency_mhz = at.frequency_mhz 
                     AND ABS(EXTRACT(EPOCH FROM (ft.timestamp - at.timestamp))) <= :time_window
                     WHERE (
-                        -- Haversine formula for distance in nautical miles
+                        -- Haversine formula with controller-specific proximity
                         (3440.065 * ACOS(
                             LEAST(1, GREATEST(-1, 
                                 SIN(RADIANS(ft.position_lat)) * SIN(RADIANS(at.position_lat)) +
@@ -243,14 +283,16 @@ class ATCDetectionService:
                 ORDER BY flight_time, atc_time
             """
             
+            # Execute with controller-specific proximity
             async with get_database_session() as session:
                 result = await session.execute(text(query), {
                     "flight_callsign": flight_transceivers[0]["callsign"] if flight_transceivers else "",
                     "departure": departure,
                     "arrival": arrival,
                     "logon_time": logon_time,
+                    "controller_callsign": controller_transceivers[0]["callsign"] if controller_transceivers else "",
                     "time_window": self.time_window_seconds,
-                    "proximity_threshold_nm": self.proximity_threshold_nm
+                    "proximity_threshold_nm": proximity_threshold_nm  # ✅ Dynamic per controller
                 })
                 
                 matches = []
@@ -268,11 +310,11 @@ class ATCDetectionService:
                         "atc_lon": row.atc_lon
                     })
                 
-                self.logger.info(f"Planned CTE query completed: {len(matches)} matches found")
+                self.logger.debug(f"Controller {controller_transceivers[0]['callsign'] if controller_transceivers else 'unknown'} query completed: {len(matches)} matches found with {proximity_threshold_nm}nm proximity")
                 return matches
                 
         except Exception as e:
-            self.logger.error(f"Error in planned CTE query: {e}")
+            self.logger.error(f"Error in controller-specific query: {e}")
             return []
     
     async def _calculate_atc_metrics(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime, frequency_matches: List[Dict]) -> Dict[str, Any]:

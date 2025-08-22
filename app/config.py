@@ -38,9 +38,10 @@ ENVIRONMENT VARIABLES:
 """
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 from pathlib import Path
+# from pydantic import BaseSettings, validator  # Not used in current implementation
 
 
 @dataclass
@@ -66,7 +67,7 @@ class VATSIMConfig:
     """VATSIM API configuration - simplified"""
     api_url: str
     transceivers_api_url: str
-    timeout: int = 30
+    timeout: int = 60
     polling_interval: int = 60
     
     @classmethod
@@ -150,16 +151,27 @@ class SectorTrackingConfig:
     """Sector tracking configuration"""
     enabled: bool = True
     update_interval: int = 60  # seconds
-    sectors_file_path: str = "config/australian_airspace_sectors.geojson"
+    sectors_file_path: str = "airspace_sector_data/australian_airspace_sectors.geojson"
     
     @classmethod
     def from_env(cls):
         """Load sector tracking configuration from environment variables."""
         return cls(
             enabled=os.getenv("SECTOR_TRACKING_ENABLED", "true").lower() == "true",
-            update_interval=int(os.getenv("SECTOR_UPDATE_INTERVAL", "60")),
-            sectors_file_path=os.getenv("SECTOR_DATA_PATH", "config/australian_airspace_sectors.geojson"),
+            update_interval=int(os.getenv("SECTOR_UPDATE_INTERVAL", "60"))
+        )
 
+@dataclass
+class ControllerCallsignFilterConfig:
+    """Controller callsign filter configuration"""
+    enabled: bool = True
+    callsign_list_path: str = "config/controller_callsigns_list.txt"
+    
+    @classmethod
+    def from_env(cls):
+        """Load controller callsign filter configuration from environment variables."""
+        return cls(
+            enabled=os.getenv("CONTROLLER_CALLSIGN_FILTER_ENABLED", "true").lower() == "true"
         )
 
 
@@ -195,6 +207,28 @@ class PilotConfig:
 
 
 @dataclass
+class ControllerSummaryConfig:
+    """Configuration for controller summary processing."""
+    enabled: bool = True
+    completion_minutes: int = 30
+    retention_hours: int = 168
+    summary_interval_minutes: int = 60
+    
+    @classmethod
+    def from_env(cls):
+        """Load controller summary configuration from environment variables."""
+        return cls(
+            enabled=os.getenv("CONTROLLER_SUMMARY_ENABLED", "true").lower() == "true",
+            completion_minutes=int(os.getenv("CONTROLLER_COMPLETION_MINUTES", "30")),
+            retention_hours=int(os.getenv("CONTROLLER_RETENTION_HOURS", "168")),
+            summary_interval_minutes=int(os.getenv("CONTROLLER_SUMMARY_INTERVAL", "60"))
+        )
+
+
+
+
+
+@dataclass
 class AppConfig:
     """Main application configuration with no hardcoding."""
     database: DatabaseConfig
@@ -207,6 +241,8 @@ class AppConfig:
     pilots: PilotConfig
     flight_summary: FlightSummaryConfig
     sector_tracking: SectorTrackingConfig
+    controller_callsign_filter: ControllerCallsignFilterConfig
+    controller_summary: ControllerSummaryConfig = field(default_factory=ControllerSummaryConfig)
     environment: str = "development"
     
     @classmethod
@@ -223,6 +259,8 @@ class AppConfig:
             pilots=PilotConfig.from_env(),
             flight_summary=FlightSummaryConfig.from_env(),
             sector_tracking=SectorTrackingConfig.from_env(),
+            controller_callsign_filter=ControllerCallsignFilterConfig.from_env(),
+            controller_summary=ControllerSummaryConfig.from_env(),
             environment=os.getenv("ENVIRONMENT", "development")
         )
 

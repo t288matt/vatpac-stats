@@ -15,27 +15,25 @@ services:
     restart: unless-stopped
     #check postgres is up before allowing app to connect
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready"]
-      interval: 60s        # Much more lenient for CI/CD
-      timeout: 30s         # Much more lenient for CI/CD
-      retries: 15          # More retries for CI/CD
-      start_period: 120s   # Much longer grace period for CI/CD
+      test: ["CMD-SHELL", "pg_isready -U vatsim_user -d vatsim_data"]
+      interval: 10s        # Faster checks for CI/CD
+      timeout: 5s          # Faster timeouts for CI/CD
+      retries: 6           # Fewer retries for CI/CD
+      start_period: 30s    # Shorter grace period for CI/CD
 
   # Main Application (API-First Architecture)
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build:                                     #dev only - remove for prod  
+      context: .                                #dev only - remove for prod
+      dockerfile: Dockerfile                    #dev only - remove for prod
+  ## image: ghcr.io/t288matt/vatpac-stats:latest   #prod only  remove for dev
     container_name: vatsim_app
     environment:
       # Database Configuration
       DATABASE_URL: postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data
       
-      # Simplified Architecture - Sprint 2 Completed
       LOG_LEVEL: "INFO"
       
-      # Production Settings
-      PRODUCTION_MODE: "true"
       
       # Performance Settings
       MEMORY_LIMIT_MB: 2048
@@ -43,22 +41,13 @@ services:
       
       # VATSIM Data Collection Intervals (seconds)
       VATSIM_POLLING_INTERVAL: 60    # How often to fetch VATSIM data (60 seconds)
-
-      WRITE_TO_DISK_INTERVAL: 30    # How often to write data to disk (2 minutes)
-      VATSIM_API_TIMEOUT: 60         # VATSIM API timeout in seconds
       VATSIM_API_RETRY_ATTEMPTS: 20   # Number of retry attempts for VATSIM API
       
-      # Cache Optimization
-      CACHE_MAX_SIZE: 50000          # Increase cache capacity
-      
-      # Optional: More aggressive caching for static data
-
-      
+            
       # Database Configuration
       DATABASE_POOL_SIZE: 20         # Database connection pool size (optimized)
       DATABASE_MAX_OVERFLOW: 40      # Database max overflow connections (optimized)
-      DATABASE_POOL_TIMEOUT: 10      # Database pool timeout in seconds (optimized)
-      DATABASE_ECHO: "false"         # Enable SQL echo for debugging
+      
       
       # API Configuration
       API_WORKERS: 4                 # Number of API workers
@@ -78,18 +67,19 @@ services:
       
       # Geographic Boundary Filter Configuration (Polygon-based)
       ENABLE_BOUNDARY_FILTER: "true"
-      BOUNDARY_DATA_PATH: "config/australian_airspace_polygon.json"
       BOUNDARY_FILTER_LOG_LEVEL: "INFO"
       BOUNDARY_FILTER_PERFORMANCE_THRESHOLD: "10.0"
       
       # Callsign Pattern Filter Configuration
       EXCLUDED_CALLSIGN_PATTERNS: "ATIS"
       
-      # Flight Summary System Configuration
+      # Flight Summary System Configuration (used by DataService)
       FLIGHT_SUMMARY_ENABLED: "true"          # Enable flight summary processing
       FLIGHT_COMPLETION_HOURS: 14              # Hours after logon to mark flight as complete
       FLIGHT_RETENTION_HOURS: 168             # Hours to keep detailed flight data (7 days)
       FLIGHT_SUMMARY_INTERVAL: 60              # Minutes between summary processing (1 hour)
+      
+      # Sector Tracking Configuration (used by DataService)
       SECTOR_TRACKING_ENABLED: "true"         # Enable real-time sector occupancy tracking
       SECTOR_UPDATE_INTERVAL: 60              # Seconds between sector position updates (1 minute)
       
@@ -99,13 +89,37 @@ services:
       # Default: 300 seconds (5 minutes) - adjust based on VATSIM data update frequency
       CLEANUP_FLIGHT_TIMEOUT: 300
 
-
+      # Controller Summary Configuration (used by DataService)
+      CONTROLLER_SUMMARY_ENABLED: "true"
+      CONTROLLER_COMPLETION_MINUTES: "30"     # 30 minutes - this is when summaries are made and records archived
+      CONTROLLER_RETENTION_HOURS: "168"
+      CONTROLLER_SUMMARY_INTERVAL: "60"
+      CONTROLLER_RECONNECTION_THRESHOLD_MINUTES: "5"  # Minutes to merge controller reconnections into one session
+      
+      # Shared Configuration for Both Detection Services
+      # Used by: FlightDetectionService (ATC → Flight) AND ATCDetectionService (Flight → ATC)
+      FLIGHT_DETECTION_TIME_WINDOW_SECONDS: "180"    # Time window for frequency matching (3 minutes)
+      
+      # Controller-specific proximity configuration (used by both services)
+      # Both services use ControllerTypeDetector to get these ranges based on controller type
+      CONTROLLER_PROXIMITY_GROUND_NM: "15"      # Ground controllers: 15nm (both services)
+      CONTROLLER_PROXIMITY_TOWER_NM: "15"       # Tower controllers: 15nm (both services)
+      CONTROLLER_PROXIMITY_APPROACH_NM: "60"    # Approach controllers: 60nm (both services)
+      CONTROLLER_PROXIMITY_CENTER_NM: "400"     # Center controllers: 400nm (both services)
+      CONTROLLER_PROXIMITY_FSS_NM: "1000"      # FSS controllers: 1000nm (both services)
+      
+      # Enable/disable controller-specific ranges (used by both services)
+      ENABLE_CONTROLLER_SPECIFIC_RANGES: "true"
+      
+      # Fallback proximity for unknown controller types (used by both services)
+      CONTROLLER_PROXIMITY_DEFAULT_NM: "30"
 
 
     volumes:
       - ./logs:/app/logs:rw
       - ./config/australian_airspace_polygon.json:/app/airspace_sector_data/australian_airspace_polygon.json:ro
       - ./config/australian_airspace_sectors.geojson:/app/airspace_sector_data/australian_airspace_sectors.geojson:ro
+      - ./config/controller_callsigns_list.txt:/app/airspace_sector_data/controller_callsigns_list.txt:ro
       - ./config/init.sql:/app/database/init.sql:ro
       # REMOVE FOR PRODUCTION - Test and debug files
       - ./pytest.ini:/app/pytest.ini:ro
@@ -122,72 +136,8 @@ services:
 
 
 
-  # Metabase for business intelligence and analytics
-  metabase:
-    image: metabase/metabase:latest
-    container_name: vatsim_metabase
-    hostname: metabase
-    volumes:
-      - /dev/urandom:/dev/random:ro
-      - metabase_data:/metabase-data
-    ports:
-      - "3030:3000"
-    environment:
-      MB_DB_TYPE: postgres
-      MB_DB_DBNAME: metabaseappdb
-      MB_DB_PORT: 5432
-      MB_DB_USER: metabase
-      MB_DB_PASS: mysecretpassword
-      MB_DB_HOST: metabase_postgres
-      # Additional Metabase configuration
-      MB_ENCRYPTION_SECRET_KEY: "your-secret-key-here-change-in-production"
-      MB_PASSWORD_COMPLEXITY: "strong"
-      MB_PASSWORD_LENGTH: 10
-      MB_JAVA_TIMEZONE: UTC
-      MB_MAX_MEMORY_PERCENTAGE: 75
-      MB_SESSION_TIMEOUT: 20160  # 14 days in minutes
-      MB_SESSION_TIMEOUT_UNITS: minutes
-    networks:
-      - metanet1
-      - default
-    depends_on:
-      metabase_postgres:
-        condition: service_healthy
-    restart: unless-stopped
-    healthcheck:
-      test: curl --fail -I http://localhost:3000/api/health || exit 1
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
 
-  # PostgreSQL Database for Metabase (separate instance)
-  metabase_postgres:
-    image: postgres:latest
-    container_name: metabase_postgres
-    hostname: metabase_postgres
-    environment:
-      POSTGRES_USER: metabase
-      POSTGRES_DB: metabaseappdb
-      POSTGRES_PASSWORD: mysecretpassword
-    volumes:
-      - ./database/metabase:/var/lib/postgresql/data
-    networks:
-      - metanet1
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U metabase -d metabaseappdb"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
 
-# Define named volumes
-volumes:
-  metabase_data:
-    driver: local
 
-# Define networks
-networks:
-  metanet1:
-    driver: bridge 
+
+ 
