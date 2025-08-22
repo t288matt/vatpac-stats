@@ -32,7 +32,6 @@ services:
       # Database Configuration
       DATABASE_URL: postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data
       
-      # Simplified Architecture - Sprint 2 Completed
       LOG_LEVEL: "INFO"
       
       
@@ -42,20 +41,13 @@ services:
       
       # VATSIM Data Collection Intervals (seconds)
       VATSIM_POLLING_INTERVAL: 60    # How often to fetch VATSIM data (60 seconds)
-
       VATSIM_API_RETRY_ATTEMPTS: 20   # Number of retry attempts for VATSIM API
       
-      # Cache Optimization
-      CACHE_MAX_SIZE: 50000          # Increase cache capacity
-      
-      # Optional: More aggressive caching for static data
-
-      
+            
       # Database Configuration
       DATABASE_POOL_SIZE: 20         # Database connection pool size (optimized)
       DATABASE_MAX_OVERFLOW: 40      # Database max overflow connections (optimized)
-      DATABASE_POOL_TIMEOUT: 10      # Database pool timeout in seconds (optimized)
-      DATABASE_ECHO: "false"         # Enable SQL echo for debugging
+      
       
       # API Configuration
       API_WORKERS: 4                 # Number of API workers
