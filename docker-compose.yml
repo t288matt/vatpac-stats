@@ -34,19 +34,14 @@ services:
       
       LOG_LEVEL: "INFO"
       
-      
-      # Performance Settings
-      MEMORY_LIMIT_MB: 2048
-      BATCH_SIZE_THRESHOLD: 10000
-      
+     
       # VATSIM Data Collection Intervals (seconds)
       VATSIM_POLLING_INTERVAL: 60    # How often to fetch VATSIM data (60 seconds)
       VATSIM_API_RETRY_ATTEMPTS: 20   # Number of retry attempts for VATSIM API
       
             
       # Database Configuration
-      DATABASE_POOL_SIZE: 20         # Database connection pool size (optimized)
-      DATABASE_MAX_OVERFLOW: 40      # Database max overflow connections (optimized)
+      # Pool size and max overflow are now hard-coded in the application
       
       
       # API Configuration
@@ -55,23 +50,15 @@ services:
       API_RELOAD: "false"            # Enable API auto-reload
       CORS_ORIGINS: "*"              # CORS allowed origins
       
-      # Simplified Service Architecture
-      # Over-engineered service management removed - direct service initialization
-      
-      # Logging Configuration
-      LOG_FORMAT: "json"
-      LOG_MAX_FILE_SIZE: 10485760    # 10MB in bytes
-      LOG_BACKUP_COUNT: 5
+      # Logging Configuration - Using hardcoded defaults in application
       
 
       
       # Geographic Boundary Filter Configuration (Polygon-based)
       ENABLE_BOUNDARY_FILTER: "true"
-      BOUNDARY_FILTER_LOG_LEVEL: "INFO"
-      BOUNDARY_FILTER_PERFORMANCE_THRESHOLD: "10.0"
       
       # Callsign Pattern Filter Configuration
-      EXCLUDED_CALLSIGN_PATTERNS: "ATIS"
+      EXCLUDED_CALLSIGN_PATTERNS: "ATIS"   #atis filtered out of contrllers data
       
       # Flight Summary System Configuration (used by DataService)
       FLIGHT_SUMMARY_ENABLED: "true"          # Enable flight summary processing

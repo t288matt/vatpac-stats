@@ -57,8 +57,8 @@ class DatabaseConfig:
         url = os.getenv("DATABASE_URL", "postgresql://vatsim_user:vatsim_password@postgres:5432/vatsim_data")
         return cls(
             url=url,
-            pool_size=int(os.getenv("DATABASE_POOL_SIZE", "20")),
-            max_overflow=int(os.getenv("DATABASE_MAX_OVERFLOW", "40"))
+            pool_size=20,  # Hard-coded database pool size
+            max_overflow=40  # Hard-coded database max overflow
         )
 
 
@@ -111,14 +111,12 @@ class APIConfig:
 class LoggingConfig:
     """Logging configuration - simplified"""
     level: str = "INFO"
-    format: str = "json"
     
     @classmethod
     def from_env(cls):
         """Load logging configuration from environment variables."""
         return cls(
-            level=os.getenv("LOG_LEVEL", "INFO"),
-            format=os.getenv("LOG_FORMAT", "json")
+            level=os.getenv("LOG_LEVEL", "INFO")
         )
 
 
