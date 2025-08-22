@@ -23,9 +23,10 @@ services:
 
   # Main Application (API-First Architecture)
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build:                                     #dev only - remove for prod  
+      context: .                                #dev only - remove for prod
+      dockerfile: Dockerfile                    #dev only - remove for prod
+  ## image: ghcr.io/t288matt/vatpac-stats:latest   #prod only  remove for dev
     container_name: vatsim_app
     environment:
       # Database Configuration
