@@ -2,7 +2,7 @@
 
 ## 📋 **System Overview**
 
-The VATSIM Data Collection System is a **production-ready, real-time air traffic control data collection and analysis platform** designed for VATSIM divisions to understand more about what happens in their airspace. While initially implemented for Australian airspace, the system is **fully configurable** through configuration files and can be deployed for any geographic region.
+The VATSIM Data Collection System is an air traffic data collection and analysis platform designed for VATSIM divisions to understand more about what happens in their airspace. While initially implemented for Australian airspace, the system is **fully configurable** through configuration files and can be deployed for any geographic region.
 
 The system provides comprehensive flight tracking, controller tracking, and sector occupancy analysis through a streamlined, **API-first architecture**. Importantly, it matches ATC and flights through radio frequencies to allow deeper insights into effectiveness of ATC strategies, coverage and the service being provided to pilots. Used with a reporting tool such as Metabase, rich data can be extracted and used to drive insights and decisions.
 
