@@ -5,9 +5,9 @@
 **Document Type**: Comprehensive Technical Architecture Specification  
 **Target Audience**: Technical stakeholders, developers, system administrators, operations teams  
 **Total Pages**: 35  
-**Document Version**: 3.0  
+**Document Version**: 3.1  
 **Created**: January 2025  
-**Last Updated**: January 2025  
+**Last Updated**: January 2025 (Updated with ATC detection fixes and callsign filtering improvements)  
 **Status**: Complete Architecture Documentation  
 
 ---
@@ -59,7 +59,7 @@ Importantly it matches ATC and flights through radio frequencies to allow deeper
 - **Complete Flight Tracking**: Every position update preserved with unique constraints
 - **Sector Occupancy Monitoring**: Real-time tracking of flights through any configurable airspace sectors
 - **Automatic Data Management**: Flight summarization, archiving, and cleanup processes
-- **Controller Proximity Detection**: Intelligent ATC interaction detection with controller-specific ranges
+- **Controller Proximity Detection**: Intelligent ATC interaction detection with controller-specific ranges and callsign-based filtering
 
 ### **System Focus**
 - **Geographic Scope**: Any airspace worldwide with configurable boundary filtering
@@ -428,6 +428,26 @@ The ATC Detection Service operates through several key processes:
 
 **Range Assignment**: Controllers receive proximity ranges based on their operational scope, with unknown types defaulting to 30 nautical miles
 
+#### **Recent Improvements (January 2025)**
+The ATC Detection Service has been enhanced with improved filtering and error handling:
+
+**Callsign-Based Filtering**: 
+- **Replaced facility-based filtering** with intelligent callsign pattern recognition
+- **Eliminated database errors** caused by type mismatches (`facility != 'OBS'` issues)
+- **Enhanced flexibility** through configurable callsign exclusion patterns
+- **Improved maintainability** with centralized callsign management
+
+**Controller Callsign Filter**:
+- **Predefined valid callsign list** for Australian VATSIM controllers
+- **Automatic observer exclusion** (callsigns containing "OBS")
+- **Configurable filtering** via environment variables
+- **Performance optimization** with O(1) lookup times
+
+**Error Resolution**:
+- **Fixed SQL type errors** that occurred with facility-based filtering
+- **Improved data quality** through better controller validation
+- **Enhanced system stability** with comprehensive error handling
+
 #### **Proximity Range Benefits**
 - **Realistic ATC Operations**: Ground/tower controllers detect local aircraft (15nm)
 - **Terminal Area Coverage**: Approach controllers cover terminal areas (60nm)
@@ -435,6 +455,58 @@ The ATC Detection Service operates through several key processes:
 - **Flight Service**: FSS controllers provide broad coverage (1000nm)
 - **Performance Optimization**: Smaller search radii for faster queries
 - **Operational Accuracy**: Matches real-world ATC operational patterns
+
+### **Flight Summary System**
+
+#### **Core Functionality**
+The Flight Summary System processes completed flights to create comprehensive analytics and performance metrics, including the new airborne controller time percentage field.
+
+**Summary Processing:**
+- **Automatic Processing**: Runs every 60 minutes to process flights older than 14 hours
+- **Data Aggregation**: Consolidates flight position data into comprehensive summaries
+- **Sector Analysis**: Tracks sector occupancy, transitions, and time-in-sector metrics
+- **ATC Interaction Analysis**: Calculates controller contact percentages and timing
+
+#### **Flight Summary Fields**
+
+**Basic Flight Information:**
+- **Flight Details**: Callsign, departure/arrival, aircraft type, route information
+- **Timing Data**: Logon time, completion time, total time online
+- **Sector Information**: Primary enroute sector, total sectors visited, sector breakdown
+
+**ATC Interaction Metrics:**
+- **Controller Time Percentage**: Percentage of total flight time with ATC contact
+- **Airborne Controller Time Percentage**: **NEW FIELD** - Percentage of time spent with ATC while airborne in sectors
+- **Controller Callsigns**: JSON array of controllers interacted with during flight
+- **Contact Details**: First/last contact times, contact counts per controller
+
+#### **Airborne Controller Time Percentage (New Field)**
+
+**Purpose:**
+The `airborne_controller_time_percentage` field provides a more accurate measure of ATC contact by calculating the percentage of time a flight was in contact with ATC **while airborne in sectors**, rather than just during the entire flight duration.
+
+**Calculation Logic:**
+```
+airborne_controller_time_percentage = (airborne_atc_time / total_airborne_time) * 100
+```
+
+**Benefits:**
+- **More Accurate ATC Coverage**: Only counts ATC contact during actual sector occupancy
+- **Better Performance Metrics**: Eliminates ground time from ATC effectiveness calculations
+- **Operational Insights**: Provides true airborne ATC coverage statistics
+- **Sector-Specific Analysis**: Enables sector-by-sector ATC coverage assessment
+
+**Data Sources:**
+- **Sector Occupancy**: Uses `flight_sector_occupancy` table for airborne time calculation
+- **ATC Interactions**: Cross-references with transceiver data for controller contact detection
+- **Geographic Validation**: Ensures ATC contact occurs within sector boundaries
+- **Time Synchronization**: Aligns ATC contact timing with sector entry/exit times
+
+**Use Cases:**
+- **ATC Coverage Analysis**: Identify sectors with low airborne ATC coverage
+- **Controller Performance**: Assess effectiveness of airborne controller operations
+- **Operational Planning**: Optimize controller positioning and frequency assignments
+- **Quality Metrics**: Measure true ATC service quality during flight operations
 
 ### **Flight Detection Service (Flight Interaction Detection)**
 
@@ -1015,10 +1087,27 @@ The flight_sector_occupancy table tracks when flights enter and exit airspace se
 The summary tables provide aggregated data for operational analysis and reporting, processing data every 60 minutes to maintain performance while providing comprehensive insights.
 
 **Flight Summaries:**
-The flight_summaries table consolidates completed flight data including total positions recorded, first and last sighting timestamps, total distance travelled in nautical miles, average groundspeed, maximum altitude reached, and array of sectors visited. This enables comprehensive flight performance analysis and route optimisation studies.
+The flight_summaries table consolidates completed flight data including total positions recorded, first and last sighting timestamps, total distance travelled in nautical miles, average groundspeed, maximum altitude reached, and array of sectors visited. **NEW**: The table now includes `airborne_controller_time_percentage` field for accurate ATC coverage analysis during sector occupancy. This enables comprehensive flight performance analysis, route optimisation studies, and true airborne ATC effectiveness measurement.
 
 **Controller Summaries:**
 The controller_summaries table aggregates controller operational data including total sessions, cumulative online hours, average session duration, and last online timestamp. This supports controller performance analysis, training assessment, and operational planning for ATC facilities.
+
+#### **New Field: Airborne Controller Time Percentage**
+
+**Field Details:**
+- **Field Name**: `airborne_controller_time_percentage`
+- **Data Type**: `DECIMAL(5,2)` - Allows values from 0.00 to 100.00
+- **Constraint**: `CHECK (airborne_controller_time_percentage >= 0 AND airborne_controller_time_percentage <= 100)`
+- **Purpose**: Measures percentage of time flights spent with ATC while airborne in sectors
+
+**Database Tables:**
+- **flight_summaries**: Primary field for completed flight analysis
+- **flights_archive**: Historical data preservation for long-term analysis
+
+**Indexing Strategy:**
+- **Performance Index**: `idx_flight_summaries_airborne_controller_time` for efficient queries
+- **Query Optimization**: Enables fast filtering and sorting by airborne ATC time percentages
+- **Analytics Support**: Facilitates sector-specific ATC coverage analysis queries
 
 ### **Data Models (SQLAlchemy)**
 

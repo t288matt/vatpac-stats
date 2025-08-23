@@ -160,3 +160,4 @@ ORDER BY callsign, sector_name;
 -- Sector Y: 15 min total, 5 min on ATC = 33.33%
 -- Overall: 35 min total, 15 min on ATC = 42.86%
 
+
