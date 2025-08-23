@@ -436,6 +436,17 @@ async def get_system_status():
                     "status": "fresh" if (datetime.now(timezone.utc) - summaries_freshness).total_seconds() < 7200 else "stale"
                 }
             
+            # Controller summaries - check updated_at (when processed) - 15 hour threshold (less frequent than flight summaries)
+            controller_summaries_freshness = await session.scalar(
+                text("SELECT MAX(updated_at) FROM controller_summaries WHERE updated_at IS NOT NULL")
+            )
+            if controller_summaries_freshness:
+                data_freshness["controller_summaries"] = {
+                    "last_update": controller_summaries_freshness.isoformat(),
+                    "age_seconds": int((datetime.now(timezone.utc) - controller_summaries_freshness).total_seconds()),
+                    "status": "fresh" if (datetime.now(timezone.utc) - controller_summaries_freshness).total_seconds() < 54000 else "stale"
+                }
+            
             # Archive tables are historical data - don't check freshness
             # They contain intentionally old data and should not affect system status
             # Just include them in statistics for completeness
@@ -1935,7 +1946,7 @@ async def trigger_controller_processing():
         data_service = await get_data_service()
         
         # Process completed controllers
-        result = await data_service.controller_summary_service.process_completed_controllers()
+        result = await data_service.trigger_controller_summary_processing()
         
         return {
             "status": "success",

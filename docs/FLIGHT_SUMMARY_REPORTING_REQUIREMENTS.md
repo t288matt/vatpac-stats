@@ -223,4 +223,4 @@
 **Document Version**: 1.0  
 **Created**: January 2025  
 **Status**: Requirements Defined - Ready for Implementation  
-**Next Step**: Create Grafana dashboard with specified panels
+**Next Step**: Create dashboard with specified panels

@@ -154,13 +154,12 @@ class ATCDetectionService:
     async def _get_atc_transceivers(self) -> List[Dict[str, Any]]:
         """Get transceiver data for ATC positions."""
         try:
-            # Optimized query with better filtering and LIMIT to prevent hanging
+            # Optimized query without JOIN to see ALL ATC transceivers
+            # This fixes the issue where ATC positions were being filtered out
             query = """
                 SELECT t.callsign, t.frequency, t.timestamp, t.position_lat, t.position_lon
                 FROM transceivers t
-                INNER JOIN controllers c ON t.callsign = c.callsign
                 WHERE t.entity_type = 'atc' 
-                AND c.facility != 0  -- Exclude observer positions
                 AND t.timestamp >= NOW() - INTERVAL '24 hours'  -- Limit to recent data
                 ORDER BY t.timestamp
                 LIMIT 1000  -- Prevent loading too many records
@@ -180,7 +179,7 @@ class ATCDetectionService:
                         "position_lon": row.position_lon
                     })
                 
-                self.logger.info(f"Loaded {len(transceivers)} ATC transceiver records")
+                self.logger.info(f"Loaded {len(transceivers)} ATC transceiver records (JOIN removed - now sees ALL ATC)")
                 return transceivers
                 
         except Exception as e:
@@ -329,7 +328,7 @@ class ATCDetectionService:
                 return self._create_empty_atc_data()
             
             # Group matches by ATC callsign and calculate timing
-            controller_data = {}
+            controller_data = {}  # Temporary dict for grouping, will convert to list
             for match in frequency_matches:
                 atc_callsign = match["atc_callsign"]
                 
@@ -351,15 +350,18 @@ class ATCDetectionService:
             for controller in controller_data.values():
                 controller["time_minutes"] = controller["contact_count"]
             
+            # Convert dict to list format for consistency with FlightDetectionService
+            controller_list = list(controller_data.values())
+            
             # Calculate total controller time percentage
-            total_controller_time = sum(ctrl["time_minutes"] for ctrl in controller_data.values())
+            total_controller_time = sum(ctrl["time_minutes"] for ctrl in controller_list)
             
             # Cap the percentage at 100% to avoid unrealistic values
             # This represents the percentage of flight records that had ATC contact
             controller_time_percentage = min(100.0, (total_controller_time / total_records) * 100) if total_records > 0 else 0.0
             
             return {
-                "controller_callsigns": controller_data,
+                "controller_callsigns": controller_list,  # Now returns list instead of dict
                 "controller_time_percentage": round(controller_time_percentage, 1),
                 "total_controller_time_minutes": total_controller_time,
                 "total_flight_records": total_records,
@@ -419,7 +421,7 @@ class ATCDetectionService:
     def _create_empty_atc_data(self) -> Dict[str, Any]:
         """Create empty ATC data structure."""
         return {
-            "controller_callsigns": {},
+            "controller_callsigns": [],  # Now returns empty list instead of empty dict
             "controller_time_percentage": 0.0,
             "total_controller_time_minutes": 0,
             "total_flight_records": 0,
