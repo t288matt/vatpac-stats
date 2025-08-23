@@ -437,8 +437,6 @@ class ATCDetectionService:
     async def _get_airborne_atc_contact_count(
         self, 
         flight_callsign: str, 
-        departure: str, 
-        arrival: str, 
         logon_time: datetime
     ) -> int:
         """
@@ -449,8 +447,6 @@ class ATCDetectionService:
         
         Args:
             flight_callsign: Aircraft callsign
-            departure: Departure airport code
-            arrival: Arrival airport code
             logon_time: Flight logon time
             
         Returns:
@@ -496,10 +492,9 @@ class ATCDetectionService:
                     SELECT DISTINCT fm.flight_time
                     FROM frequency_matches fm
                     JOIN flight_sector_occupancy fso ON fm.flight_callsign = fso.callsign
-                    WHERE fso.departure = :departure
-                    AND fso.arrival = :arrival
-                    AND fso.logon_time = :logon_time
-                    AND fm.flight_time BETWEEN fso.entry_timestamp AND COALESCE(fso.exit_timestamp, fso.entry_timestamp + INTERVAL '1 hour')
+                    JOIN flights f ON f.callsign = fso.callsign 
+                        AND f.logon_time = :logon_time
+                    WHERE fm.flight_time BETWEEN fso.entry_timestamp AND COALESCE(fso.exit_timestamp, fso.entry_timestamp + INTERVAL '1 hour')
                     AND fso.duration_seconds > 0
                 )
                 SELECT COUNT(*) as contact_count
@@ -509,8 +504,6 @@ class ATCDetectionService:
             async with get_database_session() as session:
                 result = await session.execute(text(query), {
                     "callsign": flight_callsign,
-                    "departure": departure,
-                    "arrival": arrival,
                     "logon_time": logon_time,
                     "time_window": self.time_window_seconds
                 })
@@ -528,8 +521,6 @@ class ATCDetectionService:
     async def calculate_airborne_controller_time_percentage(
         self, 
         flight_callsign: str, 
-        departure: str, 
-        arrival: str, 
         logon_time: datetime
     ) -> Dict[str, Any]:
         """
@@ -542,8 +533,6 @@ class ATCDetectionService:
         
         Args:
             flight_callsign: Aircraft callsign
-            departure: Departure airport code
-            arrival: Arrival airport code
             logon_time: Flight logon time
             
         Returns:
@@ -558,12 +547,12 @@ class ATCDetectionService:
             
             # Get airborne ATC contact count (now implemented method)
             airborne_atc_contacts = await self._get_airborne_atc_contact_count(
-                flight_callsign, departure, arrival, logon_time
+                flight_callsign, logon_time
             )
             
             # Get total airborne time from sector occupancy
             total_airborne_time = await self._get_total_airborne_time(
-                flight_callsign, departure, arrival, logon_time
+                flight_callsign, logon_time
             )
             
             # CALCULATION LOGIC:
@@ -603,8 +592,6 @@ class ATCDetectionService:
     async def _get_total_airborne_time(
         self, 
         flight_callsign: str, 
-        departure: str, 
-        arrival: str, 
         logon_time: datetime
     ) -> float:
         """
@@ -612,8 +599,6 @@ class ATCDetectionService:
         
         Args:
             flight_callsign: Aircraft callsign
-            departure: Departure airport code
-            arrival: Arrival airport code
             logon_time: Flight logon time
             
         Returns:
@@ -621,20 +606,17 @@ class ATCDetectionService:
         """
         try:
             query = """
-                SELECT COALESCE(SUM(duration_seconds), 0) / 60.0 as total_airborne_minutes
-                FROM flight_sector_occupancy 
-                WHERE callsign = :callsign
-                AND departure = :departure
-                AND arrival = :arrival
-                AND logon_time = :logon_time
-                AND duration_seconds > 0
+                SELECT COALESCE(SUM(fso.duration_seconds), 0) / 60.0 as total_airborne_minutes
+                FROM flight_sector_occupancy fso
+                JOIN flights f ON f.callsign = fso.callsign 
+                    AND f.logon_time = :logon_time
+                WHERE fso.callsign = :callsign
+                    AND fso.duration_seconds > 0
             """
             
             async with get_database_session() as session:
                 result = await session.execute(text(query), {
                     "callsign": flight_callsign,
-                    "departure": departure,
-                    "arrival": arrival,
                     "logon_time": logon_time
                 })
                 

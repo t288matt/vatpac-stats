@@ -769,7 +769,10 @@ async def get_cleanup_status():
             stale_cutoff = datetime.now(timezone.utc) - timedelta(seconds=cleanup_timeout)
             stale_sectors_count = await session.scalar(text("""
                 SELECT COUNT(*) FROM flight_sector_occupancy fso
-                JOIN flights f ON fso.callsign = f.callsign
+                JOIN flights f ON fso.callsign = f.callsign 
+                    AND f.departure = fso.departure 
+                    AND f.arrival = fso.arrival 
+                    AND f.logon_time = fso.logon_time
                 WHERE fso.exit_timestamp IS NULL
                 AND f.last_updated < :stale_cutoff
             """), {"stale_cutoff": stale_cutoff})

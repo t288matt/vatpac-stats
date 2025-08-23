@@ -608,17 +608,17 @@ class DataService:
         # CRITICAL FIX: Close ALL open sectors for this flight before entering a new one
         # This prevents multiple open sectors when memory state gets corrupted
         if current_sector != previous_sector or should_exit:
-            await self._close_all_open_sectors_for_flight(callsign, session)
+            await self._close_all_open_sectors_for_flight(callsign, session, flight_dict)
         
         # Enter new sector (only if different from previous)
         if current_sector and current_sector != previous_sector:
             await self._record_sector_entry(
-                callsign, current_sector, lat, lon, altitude, timestamp, session
+                callsign, current_sector, lat, lon, altitude, timestamp, session, flight_dict
             )
 
     async def _record_sector_entry(
         self, callsign: str, sector_name: str, lat: float, lon: float, 
-        altitude: int, timestamp: datetime, session: AsyncSession
+        altitude: int, timestamp: datetime, session: AsyncSession, flight_dict: Dict[str, Any] = None
     ) -> None:
         """
         Record when a flight enters a sector.
@@ -631,29 +631,49 @@ class DataService:
             altitude: Entry altitude in feet
             timestamp: Entry timestamp
             session: Database session
+            flight_dict: Flight data dictionary containing cid, logon_time, departure, arrival
         """
         try:
             # Check if there's an open entry record for this flight/sector combination
+            # Now using the unique flight identifier (callsign + cid + logon_time + departure + arrival)
             existing_entry = await session.execute(text("""
                 SELECT id FROM flight_sector_occupancy 
                 WHERE callsign = :callsign 
+                AND cid = :cid
+                AND logon_time = :logon_time
+                AND departure = :departure
+                AND arrival = :arrival
                 AND sector_name = :sector_name 
                 AND exit_timestamp IS NULL
-            """), {"callsign": callsign, "sector_name": sector_name})
+            """), {
+                "callsign": callsign, 
+                "cid": flight_dict.get("cid") if flight_dict else None,
+                "logon_time": flight_dict.get("logon_time") if flight_dict else None,
+                "departure": flight_dict.get("departure") if flight_dict else None,
+                "arrival": flight_dict.get("arrival") if flight_dict else None,
+                "sector_name": sector_name
+            })
             
             if not existing_entry.fetchone():
                 # Insert the entry record immediately with exit fields as NULL
                 await session.execute(text("""
                     INSERT INTO flight_sector_occupancy (
-                        callsign, sector_name, entry_timestamp, exit_timestamp,
-                        duration_seconds, entry_lat, entry_lon, exit_lat, exit_lon,
+                        callsign, cid, logon_time, departure, arrival, sector_name, 
+                        entry_timestamp, exit_timestamp, duration_seconds, 
+                        entry_lat, entry_lon, exit_lat, exit_lon,
                         entry_altitude, exit_altitude
                     ) VALUES (
-                        :callsign, :sector_name, :timestamp, NULL, 0,
+                        :callsign, :cid, :logon_time, :departure, :arrival, :sector_name, 
+                        :timestamp, NULL, 0,
                         :lat, :lon, NULL, NULL, :altitude, NULL
                     )
                 """), {
-                    "callsign": callsign, "sector_name": sector_name,
+                    "callsign": callsign,
+                    "cid": flight_dict.get("cid") if flight_dict else None,
+                    "logon_time": flight_dict.get("logon_time") if flight_dict else None,
+                    "departure": flight_dict.get("departure") if flight_dict else None,
+                    "arrival": flight_dict.get("arrival") if flight_dict else None,
+                    "sector_name": sector_name,
                     "timestamp": timestamp, "lat": lat, "lon": lon, "altitude": altitude
                 })
                 
@@ -663,7 +683,7 @@ class DataService:
             self.logger.error(f"Failed to record sector entry for {callsign}: {e}")
 
     async def _close_all_open_sectors_for_flight(
-        self, callsign: str, session: AsyncSession
+        self, callsign: str, session: AsyncSession, flight_dict: Dict[str, Any] = None
     ) -> None:
         """
         Close ALL open sectors for a flight to prevent multiple open sectors.
@@ -674,29 +694,48 @@ class DataService:
         Args:
             callsign: Flight callsign
             session: Database session
+            flight_dict: Flight data dictionary containing cid, logon_time, departure, arrival
         """
         try:
-            # Find all open sectors for this flight
+            # Find all open sectors for this flight using unique flight identifier
             result = await session.execute(text("""
                 SELECT sector_name, entry_timestamp
                 FROM flight_sector_occupancy 
                 WHERE callsign = :callsign 
+                AND cid = :cid
+                AND logon_time = :logon_time
+                AND departure = :departure
+                AND arrival = :arrival
                 AND exit_timestamp IS NULL
-            """), {"callsign": callsign})
+            """), {
+                "callsign": callsign,
+                "cid": flight_dict.get("cid") if flight_dict else None,
+                "logon_time": flight_dict.get("logon_time") if flight_dict else None,
+                "departure": flight_dict.get("departure") if flight_dict else None,
+                "arrival": flight_dict.get("arrival") if flight_dict else None
+            })
             
             open_sectors = result.fetchall()
             
             if not open_sectors:
                 return  # No open sectors to close
             
-            # Get the last known flight record for this callsign
+            # Get the last known flight record for this specific flight instance
             flight_result = await session.execute(text("""
                 SELECT latitude, longitude, altitude, last_updated
                 FROM flights 
                 WHERE callsign = :callsign 
+                AND departure = :departure
+                AND arrival = :arrival
+                AND logon_time = :logon_time
                 ORDER BY last_updated DESC 
                 LIMIT 1
-            """), {"callsign": callsign})
+            """), {
+                "callsign": callsign,
+                "departure": flight_dict.get("departure") if flight_dict else None,
+                "arrival": flight_dict.get("arrival") if flight_dict else None,
+                "logon_time": flight_dict.get("logon_time") if flight_dict else None
+            })
             
             last_flight = flight_result.fetchone()
             if not last_flight:
@@ -722,6 +761,10 @@ class DataService:
                         exit_altitude = :exit_altitude,
                         duration_seconds = :duration_seconds
                     WHERE callsign = :callsign 
+                    AND cid = :cid
+                    AND logon_time = :logon_time
+                    AND departure = :departure
+                    AND arrival = :arrival
                     AND sector_name = :sector_name
                     AND exit_timestamp IS NULL
                 """), {
@@ -731,6 +774,10 @@ class DataService:
                     "exit_altitude": last_flight.altitude,      # Use last known altitude
                     "duration_seconds": duration_seconds,
                     "callsign": callsign,
+                    "cid": flight_dict.get("cid") if flight_dict else None,
+                    "logon_time": flight_dict.get("logon_time") if flight_dict else None,
+                    "departure": flight_dict.get("departure") if flight_dict else None,
+                    "arrival": flight_dict.get("arrival") if flight_dict else None,
                     "sector_name": sector_name
                 })
                 
@@ -744,7 +791,7 @@ class DataService:
 
     async def _record_sector_exit(
         self, callsign: str, sector_name: str, lat: float, lon: float, 
-        altitude: int, timestamp: datetime, session: AsyncSession
+        altitude: int, timestamp: datetime, session: AsyncSession, flight_dict: Dict[str, Any] = None
     ) -> None:
         """
         Record when a flight exits a sector.
@@ -759,7 +806,7 @@ class DataService:
             session: Database session
         """
         try:
-            # Find and update the open entry record
+            # Find and update the open entry record using unique flight identifier
             result = await session.execute(text("""
                 UPDATE flight_sector_occupancy 
                 SET exit_timestamp = :timestamp,
@@ -768,11 +815,20 @@ class DataService:
                     exit_altitude = :altitude,
                     duration_seconds = EXTRACT(EPOCH FROM (:timestamp - entry_timestamp))::INTEGER
                 WHERE callsign = :callsign 
+                AND cid = :cid
+                AND logon_time = :logon_time
+                AND departure = :departure
+                AND arrival = :arrival
                 AND sector_name = :sector_name 
                 AND exit_timestamp IS NULL
                 RETURNING id
             """), {
-                "callsign": callsign, "sector_name": sector_name,
+                "callsign": callsign, 
+                "cid": flight_dict.get("cid") if flight_dict else None,
+                "logon_time": flight_dict.get("logon_time") if flight_dict else None,
+                "departure": flight_dict.get("departure") if flight_dict else None,
+                "arrival": flight_dict.get("arrival") if flight_dict else None,
+                "sector_name": sector_name,
                 "timestamp": timestamp, "lat": lat, "lon": lon, "altitude": altitude
             })
             
@@ -785,7 +841,7 @@ class DataService:
             self.logger.error(f"Failed to record sector exit for {callsign}: {e}")
 
     async def _calculate_sector_breakdown(
-        self, callsign: str, session: AsyncSession
+        self, callsign: str, session: AsyncSession, flight_dict: Dict[str, Any] = None
     ) -> Dict[str, int]:
         """
         Calculate time spent in each sector for a completed flight.
@@ -803,10 +859,20 @@ class DataService:
                        SUM(duration_seconds) / 60 as minutes
                 FROM flight_sector_occupancy 
                 WHERE callsign = :callsign 
+                AND cid = :cid
+                AND logon_time = :logon_time
+                AND departure = :departure
+                AND arrival = :arrival
                 AND exit_timestamp IS NOT NULL
                 GROUP BY sector_name
                 ORDER BY minutes DESC
-            """), {"callsign": callsign})
+            """), {
+                "callsign": callsign,
+                "cid": flight_dict.get("cid") if flight_dict else None,
+                "logon_time": flight_dict.get("logon_time") if flight_dict else None,
+                "departure": flight_dict.get("departure") if flight_dict else None,
+                "arrival": flight_dict.get("arrival") if flight_dict else None
+            })
             
             breakdown = {}
             for row in result.fetchall():
@@ -862,7 +928,7 @@ class DataService:
                     
                     for callsign in inactive_callsigns:
                         # Close any open sector entries
-                        await self._close_open_sector_entries(callsign, session)
+                        await self._close_open_sector_entries(callsign, session, None)  # No flight_dict available in cleanup
                         del self.flight_sector_states[callsign]
                         
                     if inactive_callsigns:
@@ -871,7 +937,7 @@ class DataService:
         except Exception as e:
             self.logger.error(f"Failed to cleanup sector states: {e}")
 
-    async def _close_open_sector_entries(self, callsign: str, session: AsyncSession) -> None:
+    async def _close_open_sector_entries(self, callsign: str, session: AsyncSession, flight_dict: Dict[str, Any] = None) -> None:
         """
         Close any open sector entries for a flight.
         
@@ -883,27 +949,45 @@ class DataService:
             session: Database session
         """
         try:
-            # Get the last known flight record for this callsign
+            # Get the last known flight record for this specific flight instance
             flight_result = await session.execute(text("""
                 SELECT latitude, longitude, altitude, last_updated
                 FROM flights
                 WHERE callsign = :callsign
+                AND departure = :departure
+                AND arrival = :arrival
+                AND logon_time = :logon_time
                 ORDER BY last_updated DESC
                 LIMIT 1
-            """), {"callsign": callsign})
+            """), {
+                "callsign": callsign,
+                "departure": flight_dict.get("departure") if flight_dict else None,
+                "arrival": flight_dict.get("arrival") if flight_dict else None,
+                "logon_time": flight_dict.get("logon_time") if flight_dict else None
+            })
 
             last_flight = flight_result.fetchone()
             if not last_flight:
                 self.logger.warning(f"No flight record found for {callsign}")
                 return
 
-            # Get all open sector entries for this callsign to get their entry timestamps
+            # Get all open sector entries for this specific flight instance
             sector_result = await session.execute(text("""
                 SELECT sector_name, entry_timestamp
                 FROM flight_sector_occupancy
                 WHERE callsign = :callsign
+                AND cid = :cid
+                AND logon_time = :logon_time
+                AND departure = :departure
+                AND arrival = :arrival
                 AND exit_timestamp IS NULL
-            """), {"callsign": callsign})
+            """), {
+                "callsign": callsign,
+                "cid": flight_dict.get("cid") if flight_dict else None,
+                "logon_time": flight_dict.get("logon_time") if flight_dict else None,
+                "departure": flight_dict.get("departure") if flight_dict else None,
+                "arrival": flight_dict.get("arrival") if flight_dict else None
+            })
 
             open_sectors = sector_result.fetchall()
             if not open_sectors:
@@ -925,6 +1009,10 @@ class DataService:
                         exit_altitude = :exit_altitude,
                         duration_seconds = :duration_seconds
                     WHERE callsign = :callsign 
+                    AND cid = :cid
+                    AND logon_time = :logon_time
+                    AND departure = :departure
+                    AND arrival = :arrival
                     AND sector_name = :sector_name
                     AND exit_timestamp IS NULL
                 """), {
@@ -934,6 +1022,10 @@ class DataService:
                     "exit_altitude": last_flight.altitude,      # Use last known altitude
                     "duration_seconds": duration_seconds,
                     "callsign": callsign,
+                    "cid": flight_dict.get("cid") if flight_dict else None,
+                    "logon_time": flight_dict.get("logon_time") if flight_dict else None,
+                    "departure": flight_dict.get("departure") if flight_dict else None,
+                    "arrival": flight_dict.get("arrival") if flight_dict else None,
                     "sector_name": sector_name
                 })
                 
@@ -993,17 +1085,21 @@ class DataService:
             
             async with get_database_session() as session:
                 # Find flights with open sectors that haven't been updated recently
-                # Use subquery to get the most recent flight record for each callsign
+                # Use subquery to get the most recent flight record for each unique flight instance
                 result = await session.execute(text("""
-                    SELECT DISTINCT fso.callsign, fso.sector_name, fso.entry_timestamp,
+                    SELECT DISTINCT fso.callsign, fso.cid, fso.logon_time, fso.departure, fso.arrival, 
+                           fso.sector_name, fso.entry_timestamp,
                            latest_flight.latitude, latest_flight.longitude, latest_flight.altitude, latest_flight.last_updated
                     FROM flight_sector_occupancy fso
                     JOIN (
-                        SELECT DISTINCT ON (callsign) 
-                            callsign, latitude, longitude, altitude, last_updated
+                        SELECT DISTINCT ON (callsign, departure, arrival, logon_time) 
+                            callsign, departure, arrival, logon_time, latitude, longitude, altitude, last_updated
                         FROM flights 
-                        ORDER BY callsign, last_updated DESC
+                        ORDER BY callsign, departure, arrival, logon_time, last_updated DESC
                     ) latest_flight ON fso.callsign = latest_flight.callsign
+                        AND fso.departure = latest_flight.departure
+                        AND fso.arrival = latest_flight.arrival
+                        AND fso.logon_time = latest_flight.logon_time
                     WHERE fso.exit_timestamp IS NULL
                     AND latest_flight.last_updated < :stale_cutoff
                 """), {"stale_cutoff": stale_cutoff})
@@ -1031,6 +1127,10 @@ class DataService:
                             exit_altitude = :exit_altitude,
                             duration_seconds = :duration_seconds
                         WHERE callsign = :callsign 
+                        AND cid = :cid
+                        AND logon_time = :logon_time
+                        AND departure = :departure
+                        AND arrival = :arrival
                         AND sector_name = :sector_name
                         AND exit_timestamp IS NULL
                     """), {
@@ -1040,6 +1140,10 @@ class DataService:
                         "exit_altitude": last_altitude,
                         "duration_seconds": duration_seconds,
                         "callsign": callsign,
+                        "cid": sector.cid,
+                        "logon_time": sector.logon_time,
+                        "departure": sector.departure,
+                        "arrival": sector.arrival,
                         "sector_name": sector_name
                     })
                     
@@ -1139,11 +1243,19 @@ class DataService:
                     
                     # NEW: Calculate airborne ATC time percentage
                     airborne_atc_data = await self.atc_detection_service.calculate_airborne_controller_time_percentage(
-                        callsign, departure, arrival, first_record.logon_time
+                        callsign, first_record.logon_time
                     )
                     
                     # NEW: Calculate sector breakdown for this completed flight
-                    sector_breakdown = await self._calculate_sector_breakdown(callsign, session)
+                    # Construct flight_dict for sector breakdown calculation
+                    flight_dict = {
+                        "callsign": callsign,
+                        "cid": first_record.cid,
+                        "logon_time": first_record.logon_time,
+                        "departure": departure,
+                        "arrival": arrival
+                    }
+                    sector_breakdown = await self._calculate_sector_breakdown(callsign, session, flight_dict)
                     primary_sector = self._get_primary_sector(sector_breakdown)
                     total_sectors = len(sector_breakdown)
                     total_enroute_time = sum(sector_breakdown.values())

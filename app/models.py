@@ -198,6 +198,10 @@ class FlightSectorOccupancy(Base, TimestampMixin):
     
     id = Column(BigInteger, primary_key=True, index=True)
     callsign = Column(String(50), nullable=False, index=True)  # Flight callsign (e.g., QFA123, PHENX88)
+    cid = Column(Integer, nullable=True, index=True)  # Pilot's VATSIM ID for unique flight identification
+    logon_time = Column(TIMESTAMP(timezone=True), nullable=True, index=True)  # Flight start time for unique flight identification
+    departure = Column(String(10), nullable=True, index=True)  # Departure airport code
+    arrival = Column(String(10), nullable=True, index=True)  # Arrival airport code
     sector_name = Column(String(10), nullable=False, index=True)  # Australian airspace sector identifier (e.g., SYA, BLA, WOL)
     entry_timestamp = Column(TIMESTAMP(timezone=True), nullable=False, index=True)  # When flight entered sector
     exit_timestamp = Column(TIMESTAMP(timezone=True), nullable=True)  # When flight exited sector (nullable)
@@ -217,9 +221,13 @@ class FlightSectorOccupancy(Base, TimestampMixin):
         CheckConstraint('exit_lon >= -180 AND exit_lon <= 180', name='valid_exit_longitude'),
         CheckConstraint('duration_seconds >= 0', name='valid_duration'),
         Index('idx_flight_sector_occupancy_callsign', 'callsign'),
+        Index('idx_flight_sector_occupancy_cid', 'cid'),
+        Index('idx_flight_sector_occupancy_logon_time', 'logon_time'),
+        Index('idx_flight_sector_occupancy_departure', 'departure'),
+        Index('idx_flight_sector_occupancy_arrival', 'arrival'),
         Index('idx_flight_sector_occupancy_entry_timestamp', 'entry_timestamp'),
         Index('idx_flight_sector_occupancy_sector_name', 'sector_name'),
-        Index('idx_flight_sector_occupancy_callsign_sector', 'callsign', 'sector_name'),
+        Index('idx_flight_sector_occupancy_flight_identifier', 'callsign', 'cid', 'logon_time', 'departure', 'arrival'),
     )
 
 class FlightSummary(Base, TimestampMixin):
