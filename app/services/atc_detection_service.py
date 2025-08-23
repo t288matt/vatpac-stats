@@ -14,6 +14,7 @@ from sqlalchemy import text
 from app.database import get_database_session
 from app.utils.geographic_utils import is_within_proximity
 from app.services.controller_type_detector import ControllerTypeDetector
+from app.filters.controller_callsign_filter import ControllerCallsignFilter
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -36,8 +37,11 @@ class ATCDetectionService:
         # Initialize controller type detector for dynamic proximity ranges
         self.controller_type_detector = ControllerTypeDetector()
         
+        # Initialize controller callsign filter to exclude observers and invalid callsigns
+        self.callsign_filter = ControllerCallsignFilter()
+        
         self.logger = logging.getLogger(__name__)
-        self.logger.info(f"ATC Detection Service initialized: time_window={self.time_window_seconds}s, dynamic proximity ranges enabled")
+        self.logger.info(f"ATC Detection Service initialized: time_window={self.time_window_seconds}s, dynamic proximity ranges enabled, callsign filtering enabled")
         
     async def detect_flight_atc_interactions(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime) -> Dict[str, Any]:
         """
@@ -152,10 +156,9 @@ class ATCDetectionService:
             return []
     
     async def _get_atc_transceivers(self) -> List[Dict[str, Any]]:
-        """Get transceiver data for ATC positions."""
+        """Get transceiver data for ATC positions, filtered to exclude observers and invalid callsigns."""
         try:
-            # Optimized query without JOIN to see ALL ATC transceivers
-            # This fixes the issue where ATC positions were being filtered out
+            # Get all ATC transceivers first
             query = """
                 SELECT t.callsign, t.frequency, t.timestamp, t.position_lat, t.position_lon
                 FROM transceivers t
@@ -168,9 +171,9 @@ class ATCDetectionService:
             async with get_database_session() as session:
                 result = await session.execute(text(query))
                 
-                transceivers = []
+                all_transceivers = []
                 for row in result.fetchall():
-                    transceivers.append({
+                    all_transceivers.append({
                         "callsign": row.callsign,
                         "frequency": row.frequency,
                         "frequency_mhz": row.frequency / 1000000.0,  # Convert Hz to MHz
@@ -179,8 +182,11 @@ class ATCDetectionService:
                         "position_lon": row.position_lon
                     })
                 
-                self.logger.info(f"Loaded {len(transceivers)} ATC transceiver records (JOIN removed - now sees ALL ATC)")
-                return transceivers
+                # Filter out invalid callsigns (including observers) using the callsign filter
+                valid_transceivers = self.callsign_filter.filter_controllers_list(all_transceivers)
+                
+                self.logger.info(f"Loaded {len(all_transceivers)} ATC transceivers, filtered to {len(valid_transceivers)} valid controllers")
+                return valid_transceivers
                 
         except Exception as e:
             self.logger.error(f"Error getting ATC transceivers: {e}")
