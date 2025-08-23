@@ -454,6 +454,10 @@ CREATE TABLE IF NOT EXISTS controllers_archive (
 CREATE TABLE IF NOT EXISTS flight_sector_occupancy (
     id BIGSERIAL PRIMARY KEY,
     callsign VARCHAR(50) NOT NULL,
+    cid INTEGER,                                 -- Pilot's VATSIM ID for unique flight identification
+    logon_time TIMESTAMP WITH TIME ZONE,         -- Flight start time for unique flight identification
+    departure VARCHAR(10),                       -- Departure airport code
+    arrival VARCHAR(10),                         -- Arrival airport code
     sector_name VARCHAR(10) NOT NULL,
     entry_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
     exit_timestamp TIMESTAMP WITH TIME ZONE,     -- NULL until flight exits sector
@@ -469,8 +473,13 @@ CREATE TABLE IF NOT EXISTS flight_sector_occupancy (
 
 -- Create indexes for flight_sector_occupancy table
 CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_callsign ON flight_sector_occupancy(callsign);
+CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_cid ON flight_sector_occupancy(cid);
+CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_logon_time ON flight_sector_occupancy(logon_time);
+CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_departure ON flight_sector_occupancy(departure);
+CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_arrival ON flight_sector_occupancy(arrival);
 CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_sector_name ON flight_sector_occupancy(sector_name);
 CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_entry_timestamp ON flight_sector_occupancy(entry_timestamp);
+CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_flight_identifier ON flight_sector_occupancy(callsign, cid, logon_time, departure, arrival);
 
 -- Create indexes for controller_summaries table
 -- Basic lookup indexes

@@ -167,3 +167,4 @@ ORDER BY callsign, sector_name;
 -- Overall: 50 min total, 25 min on ATC = 50%
 
 
+

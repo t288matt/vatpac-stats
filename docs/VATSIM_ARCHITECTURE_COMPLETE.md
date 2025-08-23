@@ -490,11 +490,19 @@ The `airborne_controller_time_percentage` field provides a more accurate measure
 airborne_controller_time_percentage = (airborne_atc_time / total_airborne_time) * 100
 ```
 
-**Benefits:**
-- **More Accurate ATC Coverage**: Only counts ATC contact during actual sector occupancy
-- **Better Performance Metrics**: Eliminates ground time from ATC effectiveness calculations
-- **Operational Insights**: Provides true airborne ATC coverage statistics
-- **Sector-Specific Analysis**: Enables sector-by-sector ATC coverage assessment
+**Detailed Implementation:**
+
+The airborne calculation uses the same three criteria as regular ATC detection **PLUS** a fourth sector occupancy filter:
+
+1. **Same Frequency**: Flight and ATC on exact same radio frequency
+2. **Time Window**: Within 180 seconds of each other  
+3. **Proximity**: Within controller-specific range (Ground/Tower: 20nm, Approach: 100nm, Center: 600nm, FSS: 1000nm)
+4. **Sector Occupancy**: Aircraft must be actively occupying an airspace sector (excludes ground operations)
+
+**Calculation Process:**
+- **Numerator**: Count of ATC contacts while airborne × 1 minute per contact = total ATC minutes airborne
+- **Denominator**: Total time spent in sectors (from `flight_sector_occupancy.duration_seconds`)
+- **Percentage**: `(airborne ATC minutes / total airborne time) × 100`
 
 **Data Sources:**
 - **Sector Occupancy**: Uses `flight_sector_occupancy` table for airborne time calculation
@@ -507,6 +515,31 @@ airborne_controller_time_percentage = (airborne_atc_time / total_airborne_time) 
 - **Controller Performance**: Assess effectiveness of airborne controller operations
 - **Operational Planning**: Optimize controller positioning and frequency assignments
 - **Quality Metrics**: Measure true ATC service quality during flight operations
+
+**Technical Implementation:**
+
+The airborne calculation is implemented through three key methods in the `ATCDetectionService`:
+
+1. **`_get_airborne_atc_contact_count()`**: 
+   - Executes complex CTE query with sector occupancy filter
+   - Counts ATC contacts that occur during sector occupancy
+   - Uses same frequency/proximity logic as regular detection
+
+2. **`_get_total_airborne_time()`**:
+   - Queries `flight_sector_occupancy` table
+   - Sums `duration_seconds` for all sectors occupied
+   - Converts to minutes for percentage calculation
+
+3. **`calculate_airborne_controller_time_percentage()`**:
+   - Orchestrates the calculation process
+   - Applies the "1 minute per contact" assumption
+   - Returns structured data with percentage and metrics
+
+**Key Differences from Regular Calculation:**
+- **Regular**: Counts ALL ATC contacts (ground + airborne)
+- **Airborne**: Only counts ATC contacts during sector occupancy
+- **Regular**: Uses total flight records as denominator
+- **Airborne**: Uses actual sector duration as denominator
 
 ### **Flight Detection Service (Flight Interaction Detection)**
 
