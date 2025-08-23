@@ -51,7 +51,7 @@ def run_individual_aircraft_analysis(conn):
         SELECT t.callsign, t.frequency/1000000.0 as frequency_mhz, t.timestamp, t.position_lat, t.position_lon 
         FROM transceivers t 
         WHERE t.entity_type = 'atc' 
-        AND t.callsign IN (SELECT DISTINCT c.callsign FROM controllers c WHERE c.facility != 'OBS')
+        AND t.callsign NOT LIKE '%OBS'
     ),
     frequency_matches AS (
         SELECT ft.callsign as flight_callsign, ft.frequency_mhz, ft.timestamp as flight_time
@@ -106,7 +106,7 @@ def run_overall_statistics(conn):
         SELECT t.callsign, t.frequency/1000000.0 as frequency_mhz, t.timestamp, t.position_lat, t.position_lon 
         FROM transceivers t 
         WHERE t.entity_type = 'atc' 
-        AND t.callsign IN (SELECT DISTINCT c.callsign FROM controllers c WHERE c.facility != 'OBS')
+        AND t.callsign NOT LIKE '%OBS'
     ),
     frequency_matches AS (
         SELECT ft.callsign as flight_callsign, ft.frequency_mhz, ft.timestamp as flight_time

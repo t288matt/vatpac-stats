@@ -62,7 +62,7 @@ services:
       
       # Flight Summary System Configuration (used by DataService)
       FLIGHT_SUMMARY_ENABLED: "true"          # Enable flight summary processing
-      FLIGHT_COMPLETION_HOURS: 14              # Hours after logon to mark flight as complete
+      FLIGHT_COMPLETION_HOURS: 2              # Hours after logon to mark flight as complete
       FLIGHT_RETENTION_HOURS: 168             # Hours to keep detailed flight data (7 days)
       FLIGHT_SUMMARY_INTERVAL: 2              # Minutes between summary processing 
       

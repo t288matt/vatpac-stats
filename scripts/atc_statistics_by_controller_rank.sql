@@ -16,7 +16,7 @@ atc_transceivers AS (
     SELECT t.callsign, t.frequency/1000000.0 as frequency_mhz, t.timestamp, t.position_lat, t.position_lon 
     FROM transceivers t 
     WHERE t.entity_type = 'atc' 
-    AND t.callsign IN (SELECT DISTINCT c.callsign FROM controllers c WHERE c.facility != 'OBS')
+            AND t.callsign NOT LIKE '%OBS'
 ),
 frequency_matches AS (
     SELECT ft.callsign as flight_callsign, ft.frequency_mhz, ft.timestamp as flight_time, at.callsign as controller_callsign
@@ -31,7 +31,7 @@ flight_records_with_atc AS (
     JOIN frequency_matches fm ON fm.flight_callsign = f.callsign 
     AND ABS(EXTRACT(EPOCH FROM (f.last_updated - fm.flight_time))) <= 180
     JOIN controllers c ON fm.controller_callsign = c.callsign
-    WHERE c.facility != 'OBS'
+    WHERE c.callsign NOT LIKE '%OBS'
     GROUP BY f.callsign, c.controller_rating
 ),
 flight_records_total AS (
