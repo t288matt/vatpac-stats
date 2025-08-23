@@ -128,6 +128,6 @@ docker-compose exec postgres psql -U vatsim_user -d vatsim_data -f /tmp/optimize
 
 ## Future Considerations
 
-- Consider materialized views for frequently-run analytics queries
+- Consider query optimization and indexing for frequently-run analytics queries
 - Monitor index usage patterns for further optimization opportunities
 - Evaluate query patterns as data volume grows

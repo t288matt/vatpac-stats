@@ -22,7 +22,7 @@ This architecture leverages your existing **cheap, reliable, live testing data**
 |---------------|----------------|----------------|
 | **Data Flow Validation** | VATSIM → Database → API flow | Real flight/controller data |
 | **Service Communication** | Inter-service data passing | Live service interactions |
-| **Cache Behavior** | Redis caching with real data | Actual cache operations |
+| **Cache Behavior** | In-memory caching with real data | Actual cache operations |
 | **Database Operations** | CRUD operations on live data | Real database transactions |
 
 #### **Stage 7: Infrastructure & Technical Tests**

@@ -91,7 +91,7 @@ The system addresses critical needs in air traffic control operations:
 - **Geographic Scope**: Any airspace worldwide with configurable boundary filtering
 - **Data Types**: Flights, controllers, transceivers, sector occupancy, flight summaries
 - **Processing Scope**: Real-time ingestion, filtering, storage, and summarization
-- **External Integrations**: PostgreSQL database, Grafana monitoring, Docker deployment
+- **External Integrations**: PostgreSQL database, Docker deployment
 
 ### **Current Capabilities**
 
@@ -250,7 +250,7 @@ The VATSIM Data Collection System follows a **simplified, API-first architecture
 
 #### **Database & Storage**
 - **PostgreSQL 16**: Primary relational database with advanced features
-- **Redis**: In-memory caching and session management (optional)
+
 - **SQLAlchemy Async**: Asynchronous database operations
 - **Alembic**: Database migration management
 
@@ -263,7 +263,7 @@ The VATSIM Data Collection System follows a **simplified, API-first architecture
 #### **Deployment & Infrastructure**
 - **Docker**: Containerization for consistent deployment
 - **Docker Compose**: Multi-container orchestration
-- **Grafana**: Monitoring and observability dashboards
+
 
 ### **Dependency Management**
 
@@ -1199,7 +1199,7 @@ This flow ensures efficient data storage while preserving comprehensive historic
 
 #### **Planned Improvements**
 - **Real-time Streaming**: WebSocket-based live data updates
-- **Data Caching**: Redis-based performance optimization
+
 - **Batch Processing**: Apache Kafka for high-volume ingestion
 - **Data Lake Integration**: Long-term data archival and analytics
 
@@ -2435,7 +2435,6 @@ Active Flights → Completion Check → Summary Generation → Archive → Clean
 
 #### **Planned Improvements**
 - **Real-time Streaming**: WebSocket-based live data updates
-- **Data Caching**: Redis-based performance optimization
 - **Batch Processing**: Apache Kafka for high-volume ingestion
 - **Data Lake Integration**: Long-term data archival and analytics
 
@@ -4040,7 +4039,6 @@ Active Flights → Completion Check → Summary Generation → Archive → Clean
 
 #### **Planned Improvements**
 - **Real-time Streaming**: WebSocket-based live data updates
-- **Data Caching**: Redis-based performance optimization
 - **Batch Processing**: Apache Kafka for high-volume ingestion
 - **Data Lake Integration**: Long-term data archival and analytics
 

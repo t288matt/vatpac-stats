@@ -31,7 +31,7 @@ sudo apt update
 sudo apt install certbot
 
 # Generate certificates
-sudo certbot certonly --standalone -d api.yourdomain.com -d grafana.yourdomain.com
+sudo certbot certonly --standalone -d api.yourdomain.com
 
 # Certificates will be at:
 # /etc/letsencrypt/live/yourdomain.com/fullchain.pem
@@ -73,7 +73,7 @@ SSL_KEY_PATH=/certs/privkey.pem
 # === AUTHENTICATION ===
 JWT_SECRET_KEY=your_super_secure_jwt_secret_key_here_64_chars_minimum
 API_MASTER_KEY=your_api_master_key_here
-GRAFANA_ADMIN_PASSWORD=your_secure_grafana_password_here
+
 
 # === DATABASE SECURITY ===
 POSTGRES_PASSWORD=your_secure_database_password_here
@@ -213,39 +213,10 @@ services:
       - "traefik.http.routers.vatsim-api.tls.certresolver=letsencrypt"
       - "traefik.http.services.vatsim-api.loadbalancer.server.port=8001"
 
-  # Grafana Monitoring
-  grafana:
-    image: grafana/grafana:10.2.0
-    container_name: vatsim_grafana
-    env_file:
-      - /opt/vatsim/config/production.env
-    environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_USERS_ALLOW_SIGN_UP: false
-      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
-      GF_SERVER_ROOT_URL: https://grafana.yourdomain.com
-      GF_SERVER_SERVE_FROM_SUB_PATH: true
-    volumes:
-      - /opt/vatsim/grafana/provisioning:/etc/grafana/provisioning:ro
-      - /opt/vatsim/grafana/dashboards:/var/lib/grafana/dashboards:ro
-      - grafana_data:/var/lib/grafana
-    depends_on:
-      app:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - vatsim_network
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.vatsim-grafana.rule=Host(`grafana.yourdomain.com`)"
-      - "traefik.http.routers.vatsim-grafana.entrypoints=websecure"
-      - "traefik.http.routers.vatsim-grafana.tls.certresolver=letsencrypt"
-      - "traefik.http.services.vatsim-grafana.loadbalancer.server.port=3000"
+
 
 volumes:
   postgres_data:
-    driver: local
-  grafana_data:
     driver: local
 
 networks:
@@ -393,7 +364,7 @@ docker-compose -f docker-compose.prod.yml ps
 
 # Test API endpoints
 curl -H "Authorization: Bearer $API_KEY" https://api.yourdomain.com/api/status
-curl https://grafana.yourdomain.com
+
 
 # Check logs
 docker logs vatsim_app --tail 50
@@ -415,7 +386,7 @@ docker logs vatsim_postgres --tail 20
 - [ ] All services healthy and running
 - [ ] API endpoints responding with authentication
 - [ ] VATSIM data ingestion working
-- [ ] Grafana dashboards accessible
+
 - [ ] Backup script tested
 - [ ] System status check script working
 - [ ] SSL certificates valid and auto-renewing

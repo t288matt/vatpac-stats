@@ -64,7 +64,7 @@ services:
       FLIGHT_SUMMARY_ENABLED: "true"          # Enable flight summary processing
       FLIGHT_COMPLETION_HOURS: 14              # Hours after logon to mark flight as complete
       FLIGHT_RETENTION_HOURS: 168             # Hours to keep detailed flight data (7 days)
-      FLIGHT_SUMMARY_INTERVAL: 60              # Minutes between summary processing (1 hour)
+      FLIGHT_SUMMARY_INTERVAL: 2              # Minutes between summary processing 
       
       # Sector Tracking Configuration (used by DataService)
       SECTOR_TRACKING_ENABLED: "true"         # Enable real-time sector occupancy tracking
@@ -89,10 +89,10 @@ services:
       
       # Controller-specific proximity configuration (used by both services)
       # Both services use ControllerTypeDetector to get these ranges based on controller type
-      CONTROLLER_PROXIMITY_GROUND_NM: "15"      # Ground controllers: 15nm (both services)
-      CONTROLLER_PROXIMITY_TOWER_NM: "15"       # Tower controllers: 15nm (both services)
-      CONTROLLER_PROXIMITY_APPROACH_NM: "60"    # Approach controllers: 60nm (both services)
-      CONTROLLER_PROXIMITY_CENTER_NM: "400"     # Center controllers: 400nm (both services)
+      CONTROLLER_PROXIMITY_GROUND_NM: "20"      # Ground controllers: 15nm (both services)
+      CONTROLLER_PROXIMITY_TOWER_NM: "20"       # Tower controllers: 15nm (both services)
+      CONTROLLER_PROXIMITY_APPROACH_NM: "100"    # Approach controllers: 60nm (both services)
+      CONTROLLER_PROXIMITY_CENTER_NM: "600"     # Center controllers: 400nm (both services)
       CONTROLLER_PROXIMITY_FSS_NM: "1000"      # FSS controllers: 1000nm (both services)
       
       # Enable/disable controller-specific ranges (used by both services)
@@ -111,8 +111,8 @@ services:
       # REMOVE FOR PRODUCTION - Test and debug files
       - ./pytest.ini:/app/pytest.ini:ro
       - ./tests:/app/tests:ro
-    ports:
-      - "8001:8001"
+    # ports:
+    #   - "8001:8001"
       #wait for postgres to be ready
     depends_on:
       postgres:

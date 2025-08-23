@@ -510,12 +510,4 @@ WHERE table_schema = 'public'
     AND table_name IN ('controllers', 'flights', 'transceivers', 'flight_summaries', 'flights_archive', 'flight_sector_occupancy', 'controller_summaries', 'controllers_archive')
 ORDER BY table_name, ordinal_position;
 
--- ============================================================================
--- MATERIALIZED VIEW OPTIMIZATION REMOVED
--- ============================================================================
--- The controller_weekly_stats materialized view and related objects have been
--- removed to simplify the database schema.
--- 
--- If you need to restore this optimization in the future, see:
--- docs/MATERIALIZED_VIEW_OPTIMIZATION.md
--- ============================================================================ 
+ 

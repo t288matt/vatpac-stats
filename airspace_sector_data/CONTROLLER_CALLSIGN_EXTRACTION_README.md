@@ -253,7 +253,7 @@ docker logs vatsim_app | grep -i "controller.*callsign"
 
 ## Future Enhancements
 
-1. **Caching**: Redis-based caching for ultra-high performance
+1. **Caching**: In-memory caching for ultra-high performance
 2. **Validation**: API endpoint to validate individual callsigns
 3. **Metrics**: Prometheus metrics integration for monitoring
 4. **Webhook**: Automatic reload when callsign file changes
