@@ -433,3 +433,228 @@ class ATCDetectionService:
             "total_flight_records": 0,
             "atc_contacts_detected": 0
         }
+
+    async def calculate_airborne_controller_time_percentage(
+        self, 
+        flight_callsign: str, 
+        departure: str, 
+        arrival: str, 
+        logon_time: datetime
+    ) -> Dict[str, Any]:
+        """
+        Calculate the percentage of airborne time spent in ATC contact.
+        
+        This function:
+        1. Finds ATC contacts using transceivers table (frequency + proximity + timing)
+        2. Validates aircraft is airborne using flight_sector_occupancy
+        3. Calculates percentage of airborne time with ATC contact
+        
+        Args:
+            flight_callsign: Flight callsign
+            departure: Departure airport
+            arrival: Arrival airport
+            logon_time: Flight logon time
+            
+        Returns:
+            Dict containing:
+            - airborne_controller_time_percentage: float (0-100)
+            - total_airborne_atc_time_minutes: int
+            - total_airborne_time_minutes: int
+            - airborne_atc_contacts_detected: int
+        """
+        try:
+            # Get total airborne time from sectors
+            total_airborne_time = await self._get_total_airborne_time(
+                flight_callsign, departure, arrival, logon_time
+            )
+            
+            if total_airborne_time == 0:
+                return {
+                    "airborne_controller_time_percentage": 0.0,
+                    "total_airborne_atc_time_minutes": 0,
+                    "total_airborne_time_minutes": 0,
+                    "airborne_atc_contacts_detected": 0
+                }
+            
+            # Get airborne ATC contact time
+            airborne_atc_time = await self._get_airborne_atc_contact_time(
+                flight_callsign, departure, arrival, logon_time
+            )
+            
+            # Calculate percentage
+            airborne_controller_time_percentage = min(
+                100.0, 
+                (airborne_atc_time / total_airborne_time) * 100
+            ) if total_airborne_time > 0 else 0.0
+            
+            return {
+                "airborne_controller_time_percentage": round(airborne_controller_time_percentage, 1),
+                "total_airborne_atc_time_minutes": airborne_atc_time,
+                "total_airborne_time_minutes": total_airborne_time,
+                "airborne_atc_contacts_detected": await self._get_airborne_atc_contact_count(
+                    flight_callsign, departure, arrival, logon_time
+                )
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error calculating airborne ATC metrics: {e}")
+            return {
+                "airborne_controller_time_percentage": 0.0,
+                "total_airborne_atc_time_minutes": 0,
+                "total_airborne_time_minutes": 0,
+                "airborne_atc_contacts_detected": 0
+            }
+
+    async def _get_total_airborne_time(
+        self, 
+        flight_callsign: str, 
+        departure: str, 
+        arrival: str, 
+        logon_time: datetime
+    ) -> int:
+        """Get total airborne time in minutes from sector occupancy."""
+        try:
+            # Get total airborne time from sector occupancy for the specific flight
+            # We need to join with flights table to match departure/arrival/logon_time
+            query = """
+                SELECT COALESCE(SUM(fso.duration_seconds), 0) as total_duration_seconds
+                FROM flight_sector_occupancy fso
+                JOIN flights f ON f.callsign = fso.callsign
+                WHERE fso.callsign = :callsign 
+                AND f.departure = :departure 
+                AND f.arrival = :arrival 
+                AND f.logon_time = :logon_time
+                AND fso.duration_seconds > 0
+            """
+            
+            async with get_database_session() as session:
+                result = await session.execute(text(query), {
+                    "callsign": flight_callsign,
+                    "departure": departure,
+                    "arrival": arrival,
+                    "logon_time": logon_time
+                })
+                
+                row = result.fetchone()
+                total_seconds = row.total_duration_seconds if row else 0
+                return int(total_seconds / 60)  # Convert to minutes
+                
+        except Exception as e:
+            self.logger.error(f"Error getting total airborne time: {e}")
+            return 0
+
+    async def _get_airborne_atc_contact_time(
+        self, 
+        flight_callsign: str, 
+        departure: str, 
+        arrival: str, 
+        logon_time: datetime
+    ) -> int:
+        """Get total ATC contact time while airborne in minutes."""
+        try:
+            query = """
+                WITH flight_transceivers AS (
+                    SELECT t.callsign, t.frequency/1000000.0 as frequency_mhz, t.timestamp, t.position_lat, t.position_lon 
+                    FROM transceivers t 
+                    WHERE t.entity_type = 'flight' AND t.callsign = :callsign
+                ),
+                atc_transceivers AS (
+                    SELECT t.callsign, t.frequency/1000000.0 as frequency_mhz, t.timestamp, t.position_lat, t.position_lon 
+                    FROM transceivers t 
+                    WHERE t.entity_type = 'atc' 
+                    AND t.callsign IN (SELECT DISTINCT c.callsign FROM controllers c WHERE c.facility != 'OBS')
+                ),
+                frequency_matches AS (
+                    SELECT ft.callsign as flight_callsign, ft.frequency_mhz, ft.timestamp as flight_time
+                    FROM flight_transceivers ft 
+                    JOIN atc_transceivers at ON ft.frequency_mhz = at.frequency_mhz 
+                    AND ABS(EXTRACT(EPOCH FROM (ft.timestamp - at.timestamp))) <= 180
+                    WHERE (SQRT(POWER(ft.position_lat - at.position_lat, 2) + POWER(ft.position_lon - at.position_lon, 2))) <= 300
+                ),
+                airborne_contacts AS (
+                    SELECT fm.flight_time, fm.flight_callsign
+                    FROM frequency_matches fm
+                    JOIN flight_sector_occupancy fso ON fm.flight_callsign = fso.callsign
+                    JOIN flights f ON f.callsign = fso.callsign
+                    WHERE f.departure = :departure 
+                    AND f.arrival = :arrival 
+                    AND f.logon_time = :logon_time
+                    AND fm.flight_time BETWEEN fso.entry_timestamp AND COALESCE(fso.exit_timestamp, fso.entry_timestamp + INTERVAL '1 hour')
+                    AND fso.duration_seconds > 0
+                )
+                SELECT COUNT(*) as contact_count
+                FROM airborne_contacts
+            """
+            
+            async with get_database_session() as session:
+                result = await session.execute(text(query), {
+                    "callsign": flight_callsign,
+                    "departure": departure,
+                    "arrival": arrival,
+                    "logon_time": logon_time
+                })
+                
+                row = result.fetchone()
+                # Each contact counts as 1 minute (same logic as existing controller_time_percentage)
+                return row.contact_count if row else 0
+                
+        except Exception as e:
+            self.logger.error(f"Error getting airborne ATC contact time: {e}")
+            return 0
+
+    async def _get_airborne_atc_contact_count(
+        self, 
+        flight_callsign: str, 
+        departure: str, 
+        arrival: str, 
+        logon_time: datetime
+    ) -> int:
+        """Get count of airborne ATC contacts."""
+        try:
+            query = """
+                WITH flight_transceivers AS (
+                    SELECT t.callsign, t.frequency/1000000.0 as frequency_mhz, t.timestamp, t.position_lat, t.position_lon 
+                    FROM transceivers t 
+                    WHERE t.entity_type = 'flight' AND t.callsign = :callsign
+                ),
+                atc_transceivers AS (
+                    SELECT t.callsign, t.frequency/1000000.0 as frequency_mhz, t.timestamp, t.position_lon, t.position_lat 
+                    FROM transceivers t 
+                    WHERE t.entity_type = 'atc' 
+                    AND t.callsign IN (SELECT DISTINCT c.callsign FROM controllers c WHERE c.facility != 'OBS')
+                ),
+                frequency_matches AS (
+                    SELECT ft.callsign as flight_callsign, ft.frequency_mhz, ft.timestamp as flight_time
+                    FROM flight_transceivers ft 
+                    JOIN atc_transceivers at ON ft.frequency_mhz = at.frequency_mhz 
+                    AND ABS(EXTRACT(EPOCH FROM (ft.timestamp - at.timestamp))) <= 180
+                    WHERE (SQRT(POWER(ft.position_lat - at.position_lat, 2) + POWER(ft.position_lon - at.position_lon, 2))) <= 300
+                ),
+                airborne_contacts AS (
+                    SELECT DISTINCT fm.flight_time
+                    FROM frequency_matches fm
+                    JOIN flight_sector_occupancy fso ON fm.flight_callsign = fso.callsign
+                    WHERE fso.departure = :departure 
+                    AND fso.arrival = :arrival 
+                    AND fso.logon_time = :logon_time
+                    AND fm.flight_time BETWEEN fso.entry_timestamp AND COALESCE(fso.exit_timestamp, fso.entry_timestamp + INTERVAL '1 hour')
+                    AND fso.duration_seconds > 0
+                )
+                SELECT COUNT(*) as contact_count
+                FROM airborne_contacts
+            """
+            
+            async with get_database_session() as session:
+                result = await session.execute(text(query), {
+                    "callsign": flight_callsign,
+                    "departure": departure,
+                    "arrival": arrival,
+                    "logon_time": logon_time
+                })
+                
+                row = result.fetchone()
+                return row.contact_count if row else 0
+                
+        except Exception as e:
+            self.logger.error(f"Error getting airborne ATC contact count: {e}")
+            return 0
