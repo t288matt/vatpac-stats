@@ -558,7 +558,7 @@ class DataService:
         if current_sector != previous_sector or should_exit:
             await self._handle_sector_transition(
                 callsign, previous_sector, current_sector, 
-                lat, lon, altitude, session, should_exit
+                lat, lon, altitude, session, should_exit, flight_dict
             )
             
             # Update state with combined structure
@@ -588,7 +588,7 @@ class DataService:
     async def _handle_sector_transition(
         self, callsign: str, previous_sector: Optional[str], 
         current_sector: Optional[str], lat: float, lon: float, 
-        altitude: int, session: AsyncSession, should_exit: bool = False
+        altitude: int, session: AsyncSession, should_exit: bool = False, flight_dict: Dict[str, Any] = None
     ) -> None:
         """
         Handle sector entry/exit transitions with speed-based criteria.
@@ -602,6 +602,7 @@ class DataService:
             altitude: Current altitude in feet
             session: Database session
             should_exit: Whether to force exit due to speed criteria
+            flight_dict: Flight data dictionary containing cid, logon_time, departure, arrival
         """
         timestamp = datetime.now(timezone.utc)
         
