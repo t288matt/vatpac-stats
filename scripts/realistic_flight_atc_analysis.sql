@@ -244,3 +244,4 @@ ORDER BY sector_name;
 -- Sector X: 20 min total, 60 flight polls, 30 ATC overlaps = 50%
 -- Sector Y: 15 min total, 45 flight polls, 15 ATC overlaps = 33.33%
 
+

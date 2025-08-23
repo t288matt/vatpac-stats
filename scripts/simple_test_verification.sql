@@ -166,3 +166,4 @@ ORDER BY callsign, sector_name;
 -- Sector B: 20 min total, 10 min on ATC = 50%
 -- Overall: 50 min total, 25 min on ATC = 50%
 
+

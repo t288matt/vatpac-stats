@@ -48,3 +48,4 @@ WHERE table_name IN ('flight_summaries', 'flights_archive')
 AND column_name = 'airborne_controller_time_percentage'
 ORDER BY table_name;
 
+
