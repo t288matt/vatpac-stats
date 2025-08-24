@@ -1,7 +1,7 @@
 services:
   # PostgreSQL Database for VATSIM data
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16
     container_name: vatsim_postgres
     environment:
       POSTGRES_DB: vatsim_data

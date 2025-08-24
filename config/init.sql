@@ -499,6 +499,28 @@ CREATE TRIGGER update_controller_summaries_updated_at
     BEFORE UPDATE ON controller_summaries 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- ============================================================================
+-- COMPRESSION OPTIMIZATION - LARGE TEXT FIELDS ONLY
+-- ============================================================================
+-- Apply LZ4 compression only to TEXT fields that exceed 2KB TOAST threshold
+-- LZ4 provides excellent compression speed and good compression ratio
+-- Perfect for high-frequency writes (60-second polling) and fast analytics reads
+
+-- High-priority TEXT fields (constantly written, frequently exceed 2KB)
+ALTER TABLE flights ALTER COLUMN route SET COMPRESSION lz4;
+ALTER TABLE flights ALTER COLUMN remarks SET COMPRESSION lz4;
+ALTER TABLE controllers ALTER COLUMN text_atis SET COMPRESSION lz4;
+
+-- Archive and summary TEXT fields (historical data, can be very long)
+ALTER TABLE flights_archive ALTER COLUMN route SET COMPRESSION lz4;
+ALTER TABLE flight_summaries ALTER COLUMN route SET COMPRESSION lz4;
+ALTER TABLE controllers_archive ALTER COLUMN text_atis SET COMPRESSION lz4;
+
+-- Note: JSONB fields are already optimally compressed by PostgreSQL
+-- Note: VARCHAR fields ≤100 chars rarely exceed 2KB and are skipped
+-- Note: LZ4 provides fastest compression/decompression for your VATSIM use case
+-- ============================================================================
+
 -- Verify all tables were created successfully
 SELECT 
     table_name,
