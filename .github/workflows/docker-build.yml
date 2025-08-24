@@ -2,10 +2,21 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches: [ main, production ]
+    branches: [ main, production, staging ]
     tags: [ 'v*' ]
   pull_request:
-    branches: [ main, production ]
+    branches: [ main, production, staging ]
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: 'Force build regardless of changes'
+        required: false
+        default: 'false'
+        type: boolean
+      custom_tag:
+        description: 'Custom tag for this build'
+        required: false
+        type: string
 
 env:
   REGISTRY: ghcr.io
@@ -21,6 +32,35 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Generate build version
+      id: version
+      run: |
+        # Get commit info
+        COMMIT_SHA=$(git rev-parse --short HEAD)
+        COMMIT_DATE=$(git log -1 --format=%cd --date=format:%Y%m%d-%H%M%S)
+        BRANCH_NAME=${GITHUB_REF#refs/heads/}
+        
+        # Generate version string
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.custom_tag }}" != "" ]; then
+          VERSION="${{ github.event.inputs.custom_tag }}"
+        else
+          VERSION="${BRANCH_NAME}-${COMMIT_DATE}-${COMMIT_SHA}"
+        fi
+        
+        # Set outputs
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "commit_sha=${COMMIT_SHA}" >> $GITHUB_OUTPUT
+        echo "commit_date=${COMMIT_DATE}" >> $GITHUB_OUTPUT
+        echo "branch_name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+        
+        # Display version info
+        echo "🚀 Building version: ${VERSION}"
+        echo "📍 Branch: ${BRANCH_NAME}"
+        echo "📅 Date: ${COMMIT_DATE}"
+        echo "🔗 Commit: ${COMMIT_SHA}"
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -39,6 +79,7 @@ jobs:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         tags: |
           type=raw,value=latest,enable={{is_default_branch}}
+          type=raw,value=${{ steps.version.outputs.version }}
           type=ref,event=branch
           type=ref,event=pr
           type=semver,pattern={{version}}
@@ -53,4 +94,22 @@ jobs:
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
-        cache-to: type=gha,mode=max 
+        cache-to: type=gha,mode=max
+        build-args: |
+          BUILD_VERSION=${{ steps.version.outputs.version }}
+          BUILD_DATE=${{ steps.version.outputs.commit_date }}
+          BUILD_COMMIT=${{ steps.version.outputs.commit_sha }}
+          BUILD_BRANCH=${{ steps.version.outputs.branch_name }}
+
+    - name: Build Summary
+      run: |
+        echo "🎉 Build completed successfully!"
+        echo "📦 Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+        echo "🏷️  Version: ${{ steps.version.outputs.version }}"
+        echo "🌿 Branch: ${{ steps.version.outputs.branch_name }}"
+        echo "📅 Date: ${{ steps.version.outputs.commit_date }}"
+        echo "🔗 Commit: ${{ steps.version.outputs.commit_sha }}"
+        
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "🚀 Manual build triggered by ${{ github.actor }}"
+        fi 
