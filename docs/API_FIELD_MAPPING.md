@@ -193,6 +193,25 @@ This document provides a comprehensive mapping of fields from the VATSIM API v3 
 | `height_msl` | `altitude` | number | Height MSL in meters |
 | `timestamp` | `last_updated` | string | ISO timestamp |
 
+### **Flight Summary Fields (flight_summaries table)**
+
+| Database Column | API Response Field | Type | Notes |
+|-----------------|-------------------|------|-------|
+| `id` | `id` | integer | Unique identifier |
+| `callsign` | `callsign` | string | Flight callsign |
+| `aircraft_type` | `aircraft_type` | string | Aircraft type |
+| `departure` | `departure` | string | Departure airport |
+| `arrival` | `arrival` | string | Arrival airport |
+| `deptime` | `deptime` | string | Departure time |
+| `route` | `route` | text | Flight plan route |
+| `flight_rules` | `flight_rules` | string | IFR/VFR |
+| `planned_altitude` | `planned_altitude` | string | Planned cruise altitude |
+| `controller_callsigns` | `controller_callsigns` | jsonb | JSON array of ATC callsigns |
+| `controller_time_percentage` | `controller_time_percentage` | number | Percentage of total time on ATC |
+| `airborne_controller_time_percentage` | `airborne_controller_time_percentage` | number | Percentage of airborne time on ATC (>1500ft) |
+| `time_online_minutes` | `time_online_minutes` | integer | Total time online in minutes |
+| `primary_enroute_sector` | `primary_enroute_sector` | string | Primary sector flown through |
+
 ## 🔧 Field Transformations & Processing
 
 ### **Data Type Conversions**

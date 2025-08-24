@@ -245,6 +245,7 @@ class FlightSummary(Base, TimestampMixin):
     military_rating = Column(Integer, nullable=True)  # Military rating
     controller_callsigns = Column(Text, nullable=True)  # JSON array of ATC callsigns
     controller_time_percentage = Column(Float, nullable=True)  # Percentage of time on ATC
+    airborne_controller_time_percentage = Column(Float, nullable=True)  # Percentage of airborne time on ATC
     time_online_minutes = Column(Integer, nullable=True)  # Total time online
     primary_enroute_sector = Column(String(10), nullable=True)  # Primary sector flown
     total_enroute_sectors = Column(Integer, nullable=True)  # Total sectors visited
@@ -257,6 +258,7 @@ class FlightSummary(Base, TimestampMixin):
         CheckConstraint('pilot_rating >= 0 AND pilot_rating <= 63', name='valid_pilot_rating'),
         CheckConstraint('military_rating >= 0 AND military_rating <= 63', name='valid_military_rating'),
         CheckConstraint('controller_time_percentage >= 0 AND controller_time_percentage <= 100', name='valid_controller_time'),
+        CheckConstraint('airborne_controller_time_percentage >= 0 AND airborne_controller_time_percentage <= 100', name='valid_airborne_controller_time'),
         CheckConstraint('time_online_minutes >= 0', name='valid_time_online'),
         CheckConstraint('total_enroute_sectors >= 0', name='valid_total_sectors'),
         CheckConstraint('total_enroute_time_minutes >= 0', name='valid_enroute_time'),

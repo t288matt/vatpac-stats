@@ -314,6 +314,7 @@ CREATE TABLE IF NOT EXISTS flight_summaries (
     military_rating INTEGER,
     controller_callsigns JSONB,  -- JSON array of controller callsigns
     controller_time_percentage DECIMAL(5,2),  -- Percentage of time with ATC contact
+    airborne_controller_time_percentage DECIMAL(5,2),  -- Percentage of airborne time on ATC
     time_online_minutes INTEGER,  -- Total time online in minutes
     primary_enroute_sector VARCHAR(50),  -- Primary sector flown through
     total_enroute_sectors INTEGER,  -- Total number of sectors flown through

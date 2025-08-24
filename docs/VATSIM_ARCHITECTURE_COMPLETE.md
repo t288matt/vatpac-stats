@@ -2225,11 +2225,24 @@ CREATE TABLE flight_sector_occupancy (
 ```sql
 -- Flight Summaries (Processed every 60 minutes)
 CREATE TABLE flight_summaries (
-    id SERIAL PRIMARY KEY,
-    callsign VARCHAR(10) NOT NULL,
-    departure VARCHAR(4),
-    arrival VARCHAR(4),
-    aircraft_type VARCHAR(10),
+    id BIGSERIAL PRIMARY KEY,
+    callsign VARCHAR(50) NOT NULL,
+    departure VARCHAR(10),
+    arrival VARCHAR(10),
+    aircraft_type VARCHAR(20),
+    deptime VARCHAR(10),
+    route TEXT,
+    flight_rules VARCHAR(10),
+    planned_altitude VARCHAR(10),
+    aircraft_faa VARCHAR(20),
+    aircraft_short VARCHAR(20),
+    pilot_rating INTEGER,
+    military_rating INTEGER,
+    controller_callsigns JSONB,
+    controller_time_percentage DECIMAL(5,2),
+    airborne_controller_time_percentage DECIMAL(5,2),
+    time_online_minutes INTEGER,
+    primary_enroute_sector VARCHAR(50),
     total_positions INTEGER,
     first_seen TIMESTAMP WITH TIME ZONE,
     last_seen TIMESTAMP WITH TIME ZONE,
@@ -2237,7 +2250,13 @@ CREATE TABLE flight_summaries (
     average_groundspeed INTEGER,
     max_altitude INTEGER,
     sectors_visited TEXT[],
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Constraints
+    CONSTRAINT valid_controller_time CHECK (controller_time_percentage >= 0 AND controller_time_percentage <= 100),
+    CONSTRAINT valid_airborne_controller_time CHECK (airborne_controller_time_percentage >= 0 AND airborne_controller_time_percentage <= 100),
+    CONSTRAINT valid_time_online CHECK (time_online_minutes >= 0)
 );
 
 -- Controller Summaries

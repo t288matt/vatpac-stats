@@ -74,5 +74,43 @@ This document records the key decisions made during the development of the VATSI
 
 ---
 
+---
+
+## 📊 **ATC Detection Decisions**
+
+### DP-005: Airborne Controller Time Percentage Field
+**Date**: January 2025  
+**Status**: ✅ Implemented  
+**Context**: Need to distinguish between total ATC coverage and airborne ATC coverage for more accurate operational analysis.
+
+**Options Considered**:
+- Modify existing `controller_time_percentage` to only count airborne contacts
+- Add new field for airborne coverage while keeping existing field unchanged
+- Use altitude-based filtering in existing calculations
+- Create separate airborne metrics table
+
+**Decision**: Add new `airborne_controller_time_percentage` field alongside existing `controller_time_percentage`.
+
+**Rationale**:
+- Preserves existing functionality that may be used by other systems
+- Provides more accurate metrics for operational decisions
+- Ground operations (taxi, takeoff, landing) have different ATC requirements than enroute
+- Allows comparison between total and airborne coverage patterns
+
+**Implementation**:
+- New field: `airborne_controller_time_percentage` (DECIMAL(5,2))
+- Only counts ATC contacts when aircraft altitude > 1500ft
+- Denominator is total enroute time (time above 1500ft)
+- Uses same VATSIM polling interval logic for consistency
+- Added to `flight_summaries` table with proper indexing
+
+**Consequences**:
+- More accurate representation of enroute ATC coverage
+- Better data for staffing decisions and capacity planning
+- Maintains backward compatibility with existing metrics
+- Requires altitude data to be available for accurate calculations
+
+---
+
 **Last Updated**: January 2025  
 **Next Review**: February 2025

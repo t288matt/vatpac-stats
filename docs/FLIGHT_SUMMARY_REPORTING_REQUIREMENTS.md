@@ -121,6 +121,11 @@
 - **Layout**: Percentage displays with supporting charts
 - **Refresh**: Hourly updates
 
+#### **ATC Coverage Metrics**
+- **`controller_time_percentage`**: Overall ATC coverage including ground operations
+- **`airborne_controller_time_percentage`**: ATC coverage during airborne operations (>1500ft)
+- **Comparison**: Shows ground vs airborne ATC coverage patterns
+
 ### **Panel 3: Operational Load**
 - **Content**: Hourly traffic patterns (7-day trend), peak load comparison, workload distribution
 - **Layout**: Multi-line graphs with time-based x-axis
@@ -144,6 +149,7 @@
   - `flight_rules` (IFR/VFR identification)
   - `controller_callsigns` (JSONB for ATC interaction details)
   - `controller_time_percentage` (overall ATC coverage)
+  - `airborne_controller_time_percentage` (airborne ATC coverage >1500ft)
   - `time_online_minutes` (flight duration)
   - `route`, `departure`, `arrival` (traffic flow analysis)
   - `aircraft_type` (fleet analysis)

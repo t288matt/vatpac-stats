@@ -177,6 +177,9 @@ This separation ensures:
 - **Complete flight history** with sector occupancy data
 - **Data archiving** for long-term storage
 - **API endpoints** for data access and analytics
+- **Dual ATC coverage metrics**:
+  - `controller_time_percentage`: Total ATC coverage (ground + airborne)
+  - `airborne_controller_time_percentage`: Airborne ATC coverage (>1500ft)
 
 #### **Controller Summary System**
 - **Automatic processing** every 60 minutes

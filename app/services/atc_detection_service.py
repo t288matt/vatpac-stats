@@ -33,11 +33,14 @@ class ATCDetectionService:
         # Load from environment variables with defaults
         self.time_window_seconds = time_window_seconds or int(os.getenv("FLIGHT_DETECTION_TIME_WINDOW_SECONDS", "180"))
         
+        # Load VATSIM polling interval for accurate time calculations
+        self.vatsim_polling_interval_seconds = int(os.getenv("VATSIM_POLLING_INTERVAL", "60"))
+        
         # Initialize controller type detector for dynamic proximity ranges
         self.controller_type_detector = ControllerTypeDetector()
         
         self.logger = logging.getLogger(__name__)
-        self.logger.info(f"ATC Detection Service initialized: time_window={self.time_window_seconds}s, dynamic proximity ranges enabled")
+        self.logger.info(f"ATC Detection Service initialized: time_window={self.time_window_seconds}s, VATSIM_polling={self.vatsim_polling_interval_seconds}s, dynamic proximity ranges enabled")
         
     async def detect_flight_atc_interactions(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime) -> Dict[str, Any]:
         """
@@ -347,20 +350,26 @@ class ATCDetectionService:
                 controller_data[atc_callsign]["last_contact"] = match["flight_time"].isoformat() if hasattr(match["flight_time"], 'isoformat') else str(match["flight_time"])
                 controller_data[atc_callsign]["contact_count"] += 1
             
-            # Calculate time spent with each controller (simplified - assume 1 minute per contact)
+            # Calculate time spent with each controller using actual VATSIM polling interval
             for controller in controller_data.values():
-                controller["time_minutes"] = controller["contact_count"]
+                # Convert polling interval from seconds to minutes for accurate time calculation
+                controller["time_minutes"] = controller["contact_count"] * (self.vatsim_polling_interval_seconds / 60.0)
             
             # Calculate total controller time percentage
             total_controller_time = sum(ctrl["time_minutes"] for ctrl in controller_data.values())
             
-            # Cap the percentage at 100% to avoid unrealistic values
-            # This represents the percentage of flight records that had ATC contact
+            # Calculate percentage based on actual time, not record count
+            # This represents the percentage of flight time that had ATC contact
             controller_time_percentage = min(100.0, (total_controller_time / total_records) * 100) if total_records > 0 else 0.0
+            
+            # Calculate airborne controller time percentage (same as total for now, can be enhanced later)
+            # This represents the percentage of airborne time that had ATC contact
+            airborne_controller_time_percentage = controller_time_percentage
             
             return {
                 "controller_callsigns": controller_data,
                 "controller_time_percentage": round(controller_time_percentage, 1),
+                "airborne_controller_time_percentage": round(airborne_controller_time_percentage, 1),
                 "total_controller_time_minutes": total_controller_time,
                 "total_flight_records": total_records,
                 "atc_contacts_detected": len(frequency_matches)
@@ -421,6 +430,7 @@ class ATCDetectionService:
         return {
             "controller_callsigns": {},
             "controller_time_percentage": 0.0,
+            "airborne_controller_time_percentage": 0.0,
             "total_controller_time_minutes": 0,
             "total_flight_records": 0,
             "atc_contacts_detected": 0
