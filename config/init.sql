@@ -116,46 +116,47 @@ CREATE TABLE IF NOT EXISTS transceivers (
 );
 
 -- Create indexes for performance (optimized for production queries)
--- Controllers indexes
-CREATE INDEX IF NOT EXISTS idx_controllers_callsign ON controllers(callsign);
-CREATE INDEX IF NOT EXISTS idx_controllers_cid ON controllers(cid);
-CREATE INDEX IF NOT EXISTS idx_controllers_cid_rating ON controllers(cid, rating);
-CREATE INDEX IF NOT EXISTS idx_controllers_facility_server ON controllers(facility, server);
-CREATE INDEX IF NOT EXISTS idx_controllers_last_updated ON controllers(last_updated);
-CREATE INDEX IF NOT EXISTS idx_controllers_rating_last_updated ON controllers(rating, last_updated);
+-- Controllers indexes - Using CONCURRENTLY to prevent corruption during high-frequency writes
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_controllers_callsign ON controllers(callsign);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_controllers_cid ON controllers(cid);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_controllers_cid_rating ON controllers(cid, rating);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_controllers_facility_server ON controllers(facility, server);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_controllers_last_updated ON controllers(last_updated);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_controllers_rating_last_updated ON controllers(rating, last_updated);
 
 -- ATC Detection Performance Indexes for controllers
-CREATE INDEX IF NOT EXISTS idx_controllers_callsign_facility ON controllers(callsign, facility);
+-- This index was previously corrupted - now using CONCURRENTLY for safety
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_controllers_callsign_facility ON controllers(callsign, facility);
 
--- Flights indexes
-CREATE INDEX IF NOT EXISTS idx_flights_callsign ON flights(callsign);
-CREATE INDEX IF NOT EXISTS idx_flights_callsign_status ON flights(callsign, last_updated);
-CREATE INDEX IF NOT EXISTS idx_flights_position ON flights(latitude, longitude);
-CREATE INDEX IF NOT EXISTS idx_flights_departure_arrival ON flights(departure, arrival);
-CREATE INDEX IF NOT EXISTS idx_flights_cid_server ON flights(cid, server);
-CREATE INDEX IF NOT EXISTS idx_flights_altitude ON flights(altitude);
-CREATE INDEX IF NOT EXISTS idx_flights_flight_rules ON flights(flight_rules);
-CREATE INDEX IF NOT EXISTS idx_flights_planned_altitude ON flights(planned_altitude);
-CREATE INDEX IF NOT EXISTS idx_flights_aircraft_short ON flights(aircraft_short);
-CREATE INDEX IF NOT EXISTS idx_flights_revision_id ON flights(revision_id);
+-- Flights indexes - Using CONCURRENTLY to prevent corruption during high-frequency writes
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_callsign ON flights(callsign);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_callsign_status ON flights(callsign, last_updated);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_position ON flights(latitude, longitude);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_departure_arrival ON flights(departure, arrival);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_cid_server ON flights(cid, server);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_altitude ON flights(altitude);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_flight_rules ON flights(flight_rules);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_planned_altitude ON flights(planned_altitude);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_aircraft_short ON flights(aircraft_short);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_revision_id ON flights(revision_id);
 
 -- ATC Detection Performance Indexes for flights
-CREATE INDEX IF NOT EXISTS idx_flights_callsign_departure_arrival ON flights(callsign, departure, arrival);
-CREATE INDEX IF NOT EXISTS idx_flights_callsign_logon ON flights(callsign, logon_time);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_callsign_departure_arrival ON flights(callsign, departure, arrival);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_callsign_logon ON flights(callsign, logon_time);
 
--- Transceivers indexes (optimized for frequency-based queries)
-CREATE INDEX IF NOT EXISTS idx_transceivers_callsign ON transceivers(callsign);
-CREATE INDEX IF NOT EXISTS idx_transceivers_callsign_timestamp ON transceivers(callsign, timestamp);
-CREATE INDEX IF NOT EXISTS idx_transceivers_frequency ON transceivers(frequency);
-CREATE INDEX IF NOT EXISTS idx_transceivers_entity ON transceivers(entity_type, entity_id);
+-- Transceivers indexes (optimized for frequency-based queries) - Using CONCURRENTLY
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_callsign ON transceivers(callsign);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_callsign_timestamp ON transceivers(callsign, timestamp);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_frequency ON transceivers(frequency);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_entity ON transceivers(entity_type, entity_id);
 
 -- ATC Detection Performance Indexes for transceivers
-CREATE INDEX IF NOT EXISTS idx_transceivers_entity_type_callsign ON transceivers(entity_type, callsign);
-CREATE INDEX IF NOT EXISTS idx_transceivers_entity_type_timestamp ON transceivers(entity_type, timestamp);
-CREATE INDEX IF NOT EXISTS idx_transceivers_atc_detection ON transceivers(entity_type, callsign, timestamp, frequency, position_lat, position_lon);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_entity_type_callsign ON transceivers(entity_type, callsign);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_entity_type_timestamp ON transceivers(entity_type, timestamp);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_atc_detection ON transceivers(entity_type, callsign, timestamp, frequency, position_lat, position_lon);
 
 -- Performance-optimized indexes for controller flight counting queries
-CREATE INDEX IF NOT EXISTS idx_transceivers_flight_frequency_callsign ON transceivers(entity_type, frequency, callsign) WHERE entity_type = 'flight';
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_flight_frequency_callsign ON transceivers(entity_type, frequency, callsign) WHERE entity_type = 'flight';
 
 -- Create triggers for updated_at columns
 CREATE TRIGGER update_controllers_updated_at 
