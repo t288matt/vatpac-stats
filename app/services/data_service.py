@@ -1163,6 +1163,7 @@ class DataService:
                         "military_rating": first_record.military_rating,
                         "controller_callsigns": json.dumps(self._convert_for_json(atc_data["controller_callsigns"])),
                         "controller_time_percentage": atc_data["controller_time_percentage"],
+                        "airborne_controller_time_percentage": atc_data["airborne_controller_time_percentage"],
                         "time_online_minutes": total_minutes,
                         "primary_enroute_sector": primary_sector,
                         "total_enroute_sectors": total_sectors,
@@ -1177,14 +1178,14 @@ class DataService:
                             callsign, aircraft_type, departure, arrival, deptime, logon_time,
                             route, flight_rules, aircraft_faa, planned_altitude, aircraft_short,
                             cid, name, server, pilot_rating, military_rating,
-                            controller_callsigns, controller_time_percentage, time_online_minutes,
+                            controller_callsigns, controller_time_percentage, airborne_controller_time_percentage, time_online_minutes,
                             primary_enroute_sector, total_enroute_sectors, total_enroute_time_minutes, sector_breakdown,
                             completion_time
                         ) VALUES (
                             :callsign, :aircraft_type, :departure, :arrival, :deptime, :logon_time,
                             :route, :flight_rules, :aircraft_faa, :planned_altitude, :aircraft_short,
                             :cid, :name, :server, :pilot_rating, :military_rating,
-                            :controller_callsigns, :controller_time_percentage, :time_online_minutes,
+                            :controller_callsigns, :controller_time_percentage, :airborne_controller_time_percentage, :time_online_minutes,
                             :primary_enroute_sector, :total_enroute_sectors, :total_enroute_time_minutes, :sector_breakdown,
                             :completion_time
                         )
