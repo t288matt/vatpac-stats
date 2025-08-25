@@ -30,6 +30,9 @@ OPTIMIZATIONS:
 - Relationship mappings for efficient joins
 - Proper constraints and validation
 - Audit fields for data tracking
+- BRIN geo index for better geographic queries
+- Removed low-selectivity indexes (altitude, flight_rules, planned_altitude)
+- Simplified ATC detection index for common query patterns
 """
 
 from sqlalchemy import Column, Integer, String, Float, Text, TIMESTAMP, BigInteger, CheckConstraint, Index, event
@@ -140,12 +143,11 @@ class Flight(Base, TimestampMixin):
         CheckConstraint('pilot_rating >= 0 AND pilot_rating <= 63', name='valid_pilot_rating'),
         Index('idx_flights_callsign', 'callsign'),
         Index('idx_flights_callsign_status', 'callsign', 'last_updated'),
-        Index('idx_flights_position', 'latitude', 'longitude'),
+        # Use BRIN for geographic coordinates - better for range queries and bounding boxes
+        Index('idx_flights_position', 'latitude', 'longitude', postgresql_using='brin'),
         Index('idx_flights_departure_arrival', 'departure', 'arrival'),
         Index('idx_flights_cid_server', 'cid', 'server'),
-        Index('idx_flights_altitude', 'altitude'),
-        Index('idx_flights_flight_rules', 'flight_rules'),
-        Index('idx_flights_planned_altitude', 'planned_altitude'),
+        # Removed low-selectivity indexes: altitude, flight_rules, planned_altitude
         Index('idx_flights_aircraft_short', 'aircraft_short'),
         Index('idx_flights_revision_id', 'revision_id'),
         
@@ -177,6 +179,7 @@ class Transceiver(Base):
     __table_args__ = (
         CheckConstraint('frequency >= 0', name='valid_frequency'),
         CheckConstraint('entity_type IN (\'flight\', \'atc\')', name='valid_entity_type'),
+        Index('idx_transceivers_callsign', 'callsign'),
         Index('idx_transceivers_callsign_timestamp', 'callsign', 'timestamp'),
         Index('idx_transceivers_entity', 'entity_type', 'entity_id'),
         Index('idx_transceivers_frequency', 'frequency'),
@@ -184,9 +187,12 @@ class Transceiver(Base):
         # ATC Detection Performance Indexes
         Index('idx_transceivers_entity_type_callsign', 'entity_type', 'callsign'),
         Index('idx_transceivers_entity_type_timestamp', 'entity_type', 'timestamp'),
-        Index('idx_transceivers_atc_detection', 'entity_type', 'callsign', 'timestamp', 'frequency', 'position_lat', 'position_lon'),
+        # Simplified ATC detection index - focus on most common query patterns
+        Index('idx_transceivers_atc_detection', 'entity_type', 'callsign', 'timestamp'),
         
         # Performance-optimized index for controller flight counting queries
+        # Note: WHERE clause cannot be specified in SQLAlchemy Index definition
+        # This will be created by the database schema (init.sql)
         Index('idx_transceivers_flight_frequency_callsign', 'entity_type', 'frequency', 'callsign'),
     )
     
