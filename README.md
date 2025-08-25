@@ -409,7 +409,52 @@ app/
     ├── sector_loader.py
     ├── logging.py
     └── error_handling.py
+
+maintenance/           # Database maintenance and health monitoring
+├── maintain_database_health.sh    # Main maintenance script
+├── prevent_index_corruption.sql   # PostgreSQL maintenance operations
+└── README.md                      # Maintenance documentation
 ```
+
+### **Database Maintenance**
+
+#### **Automated Health Monitoring**
+The system includes comprehensive database maintenance scripts to prevent index corruption and maintain optimal performance:
+
+**Location**: `maintenance/` directory
+
+**Key Scripts**:
+- **`maintain_database_health.sh`** - Main maintenance script with health checks, index optimization, and log cleanup
+- **`prevent_index_corruption.sql`** - PostgreSQL maintenance operations (ANALYZE, VACUUM, bloat detection)
+
+**Usage**:
+```bash
+# Run all maintenance tasks
+./maintenance/maintain_database_health.sh
+
+# Check database health only
+./maintenance/maintain_database_health.sh check
+
+# Optimize indexes only
+./maintenance/maintain_database_health.sh optimize
+
+# Show help
+./maintenance/maintain_database_health.sh help
+```
+
+**Scheduled Maintenance**:
+- **Recommended**: Weekly maintenance every Wednesday at 16:00 UTC
+- **Post-deployment**: Run after major schema changes
+- **Monitoring**: Continuous health checks for production systems
+
+**Features**:
+- ✅ Real-time bloat detection using PostgreSQL statistics
+- ✅ Safe REINDEX operations with timeout protection
+- ✅ Container health validation and error handling
+- ✅ Comprehensive logging and reporting
+- ✅ Unused index identification and cleanup recommendations
+
+**For complete maintenance documentation**: See [maintenance/README.md](maintenance/README.md)
 
 ### **Airspace Data Maintenance**
 
