@@ -157,29 +157,14 @@ class ATCDetectionService:
     async def _get_atc_transceivers(self) -> List[Dict[str, Any]]:
         """Get transceiver data for ATC positions."""
         try:
-            # Optimized query to ensure we get a good distribution of controllers
+            # Load ALL controllers - no artificial limits
             query = """
-                WITH controller_counts AS (
-                    SELECT t.callsign, COUNT(*) as record_count
-                    FROM transceivers t
-                    INNER JOIN controllers c ON t.callsign = c.callsign
-                    WHERE t.entity_type = 'atc' 
-                    AND c.facility != 0  -- Exclude observer positions
-                    AND t.timestamp >= NOW() - INTERVAL '24 hours'
-                    GROUP BY t.callsign
-                ),
-                top_controllers AS (
-                    SELECT callsign FROM controller_counts 
-                    ORDER BY record_count DESC 
-                    LIMIT 50  -- Get top 50 controllers by volume
-                )
                 SELECT t.callsign, t.frequency, t.timestamp, t.position_lat, t.position_lon
                 FROM transceivers t
                 INNER JOIN controllers c ON t.callsign = c.callsign
                 WHERE t.entity_type = 'atc' 
                 AND c.facility != 0  -- Exclude observer positions
                 AND t.timestamp >= NOW() - INTERVAL '24 hours'
-                AND t.callsign IN (SELECT callsign FROM top_controllers)
                 ORDER BY t.callsign, t.timestamp
             """
             
