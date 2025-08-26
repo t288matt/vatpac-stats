@@ -1424,6 +1424,13 @@ class DataService:
                     # Calculate total session duration including reconnections
                     session_duration_minutes = int((last_record.last_updated - first_record.logon_time).total_seconds() / 60)
                     
+                    # Skip controllers with sessions that are too short to be meaningful
+                    # This prevents constraint violations and filters out noise
+                    min_session_duration_minutes = 5  # Hard-coded minimum 5 minutes
+                    if session_duration_minutes < min_session_duration_minutes:
+                        self.logger.debug(f"⏭️ Skipping controller {callsign} - session too short ({session_duration_minutes} min < {min_session_duration_minutes} min)")
+                        continue
+                    
                     # Get all frequencies used across merged sessions
                     frequencies_used = await self._get_session_frequencies(callsign, logon_time, session)
                     

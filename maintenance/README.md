@@ -106,3 +106,4 @@ If scripts fail:
 2. Verify PostgreSQL connectivity: `docker exec vatsim_postgres pg_isready -U vatsim_user`
 3. Check logs: `tail -f logs/database_maintenance.log`
 4. Ensure proper file permissions on scripts
+
