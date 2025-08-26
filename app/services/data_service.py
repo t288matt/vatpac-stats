@@ -1434,13 +1434,6 @@ class DataService:
                     else:
                         adjusted_end_time = last_record.last_updated
 
-                    # Skip controllers with sessions that are too short to be meaningful
-                    # This filters out noise while allowing adjusted 0-minute sessions through
-                    min_session_duration_minutes = 5  # Hard-coded minimum 5 minutes
-                    if session_duration_minutes < min_session_duration_minutes:
-                        self.logger.debug(f"⏭️ Skipping controller {callsign} - session too short ({session_duration_minutes} min < {min_session_duration_minutes} min)")
-                        continue
-
                     # Get all frequencies used across merged sessions
                     frequencies_used = await self._get_session_frequencies(callsign, logon_time, session)
                     
