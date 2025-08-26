@@ -785,7 +785,8 @@ class DataService:
             self.logger.error(f"Failed to record sector exit for {callsign}: {e}")
 
     async def _calculate_sector_breakdown(
-        self, callsign: str, session: AsyncSession
+        self, callsign: str, session: AsyncSession, 
+        logon_time: datetime = None, completion_time: datetime = None
     ) -> Dict[str, int]:
         """
         Calculate time spent in each sector for a completed flight.
@@ -793,20 +794,36 @@ class DataService:
         Args:
             callsign: Flight callsign
             session: Database session
+            logon_time: Flight logon time to filter sector data
+            completion_time: Flight completion time to filter sector data
             
         Returns:
             Dict mapping sector names to minutes spent in each sector
         """
         try:
-            result = await session.execute(text("""
+            # Build the query with optional flight session boundary filtering
+            query = """
                 SELECT sector_name, 
                        SUM(duration_seconds) / 60 as minutes
                 FROM flight_sector_occupancy 
                 WHERE callsign = :callsign 
                 AND exit_timestamp IS NOT NULL
-                GROUP BY sector_name
-                ORDER BY minutes DESC
-            """), {"callsign": callsign})
+            """
+            
+            params = {"callsign": callsign}
+            
+            # Add flight session boundary filtering if timestamps are provided
+            if logon_time and completion_time:
+                query += " AND entry_timestamp BETWEEN :logon_time AND :completion_time"
+                params["logon_time"] = logon_time
+                params["completion_time"] = completion_time
+                self.logger.debug(f"Filtering sector data for {callsign} between {logon_time} and {completion_time}")
+            else:
+                self.logger.warning(f"No flight session boundaries provided for {callsign} - using all sector data (may cause callsign collision issues)")
+            
+            query += " GROUP BY sector_name ORDER BY minutes DESC"
+            
+            result = await session.execute(text(query), params)
             
             breakdown = {}
             for row in result.fetchall():
@@ -1137,8 +1154,12 @@ class DataService:
                         callsign, departure, arrival, first_record.logon_time, timeout_seconds=30.0
                     )
                     
-                    # NEW: Calculate sector breakdown for this completed flight
-                    sector_breakdown = await self._calculate_sector_breakdown(callsign, session)
+                    # NEW: Calculate sector breakdown for this completed flight with flight session boundaries
+                    sector_breakdown = await self._calculate_sector_breakdown(
+                        callsign, session, 
+                        logon_time=first_record.logon_time, 
+                        completion_time=last_record.last_updated
+                    )
                     primary_sector = self._get_primary_sector(sector_breakdown)
                     total_sectors = len(sector_breakdown)
                     total_enroute_time = sum(sector_breakdown.values())
