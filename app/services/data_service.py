@@ -1849,7 +1849,7 @@ class DataService:
             self._validate_flight_summary_config()
             
             # Get interval from config (convert minutes to seconds)
-            interval_minutes = getattr(self.config, 'flight_summary_interval_minutes', 60)
+            interval_minutes = getattr(self.config.flight_summary, 'summary_interval_minutes', 60)
             interval_seconds = interval_minutes * 60
             
             self.logger.info(f"🚀 Starting scheduled flight summary processing - interval: {interval_minutes} minutes ({interval_seconds} seconds)")
