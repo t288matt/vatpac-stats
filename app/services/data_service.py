@@ -1421,7 +1421,7 @@ class DataService:
                     first_record = records[0]
                     last_record = records[-1]
                     
-                                        # Calculate total session duration including reconnections
+                    # Calculate total session duration including reconnections
                     session_duration_minutes = int((last_record.last_updated - first_record.logon_time).total_seconds() / 60)
 
                     # Handle 0-minute sessions by adjusting them to 1-minute minimum
