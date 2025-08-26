@@ -231,7 +231,7 @@ class ATCDetectionService:
     async def _find_matches_for_controller(self, flight_transceivers: List[Dict], controller_transceivers: List[Dict], proximity_threshold_nm: float, departure: str, arrival: str, logon_time: datetime) -> List[Dict[str, Any]]:
         """Find frequency matches for a specific controller with its proximity range."""
         try:
-            # Modified CTE query for single controller with dynamic proximity
+            # Fixed CTE query: JOIN for frequency matching, WHERE for time and proximity constraints
             query = """
                 WITH flight_transceivers AS (
                     SELECT t.callsign, t.frequency/1000000.0 as frequency_mhz, t.timestamp, t.position_lat, t.position_lon 
@@ -258,9 +258,9 @@ class ATCDetectionService:
                            at.position_lat as atc_lat, at.position_lon as atc_lon,
                            ft.position_lat as flight_lat, ft.position_lon as flight_lon
                     FROM flight_transceivers ft 
-                    JOIN atc_transceivers at ON ft.frequency_mhz = at.frequency_mhz 
-                    AND ABS(EXTRACT(EPOCH FROM (ft.timestamp - at.timestamp))) <= :time_window
-                    WHERE (
+                    JOIN atc_transceivers at ON ft.frequency_mhz = at.frequency_mhz
+                    WHERE ABS(EXTRACT(EPOCH FROM (ft.timestamp - at.timestamp))) <= :time_window
+                    AND (
                         -- Haversine formula with controller-specific proximity
                         (3440.065 * ACOS(
                             LEAST(1, GREATEST(-1, 
