@@ -230,13 +230,15 @@ class ATCDetectionService:
     async def _find_matches_for_controller(self, flight_transceivers: List[Dict], controller_transceivers: List[Dict], proximity_threshold_nm: float, departure: str, arrival: str, logon_time: datetime) -> List[Dict[str, Any]]:
         """Find frequency matches for a specific controller with its proximity range."""
         try:
-            # Fixed CTE query: JOIN for frequency matching, WHERE for time and proximity constraints
+            # OPTIMIZED: Pre-filter by time window before expensive JOINs
             query = """
-                WITH flight_transceivers AS (
+                WITH time_filtered_flights AS (
                     SELECT t.callsign, t.frequency/1000000.0 as frequency_mhz, t.timestamp, t.position_lat, t.position_lon 
                     FROM transceivers t 
                     WHERE t.entity_type = 'flight' 
                     AND t.callsign = :flight_callsign
+                    AND t.timestamp >= :flight_start_time  -- Pre-filter by time
+                    AND t.timestamp <= :flight_end_time
                     AND EXISTS (
                         SELECT 1 FROM flights f 
                         WHERE f.callsign = t.callsign 
@@ -245,19 +247,21 @@ class ATCDetectionService:
                         AND f.logon_time = :logon_time
                     )
                 ),
-                atc_transceivers AS (
+                time_filtered_atc AS (
                     SELECT t.callsign, t.frequency/1000000.0 as frequency_mhz, t.timestamp, t.position_lat, t.position_lon 
                     FROM transceivers t 
                     WHERE t.entity_type = 'atc' 
                     AND t.callsign = :controller_callsign
+                    AND t.timestamp >= :atc_start_time  -- Pre-filter by time
+                    AND t.timestamp <= :atc_end_time
                 ),
                 frequency_matches AS (
                     SELECT ft.callsign as flight_callsign, ft.frequency_mhz, ft.timestamp as flight_time,
                            at.callsign as atc_callsign, at.timestamp as atc_time,
                            at.position_lat as atc_lat, at.position_lon as atc_lon,
                            ft.position_lat as flight_lat, ft.position_lon as flight_lon
-                    FROM flight_transceivers ft 
-                    JOIN atc_transceivers at ON ft.frequency_mhz = at.frequency_mhz
+                    FROM time_filtered_flights ft 
+                    JOIN time_filtered_atc at ON ft.frequency_mhz = at.frequency_mhz
                     WHERE ABS(EXTRACT(EPOCH FROM (ft.timestamp - at.timestamp))) <= :time_window
                     AND (
                         -- Haversine formula with controller-specific proximity
@@ -285,8 +289,14 @@ class ATCDetectionService:
                 ORDER BY flight_time, atc_time
             """
             
-            # Execute with controller-specific proximity
+            # Execute with controller-specific proximity and time window pre-filtering
             async with get_database_session() as session:
+                # Calculate time windows for pre-filtering (much more efficient than JOIN filtering)
+                flight_start_time = logon_time - timedelta(seconds=self.time_window_seconds)
+                flight_end_time = logon_time + timedelta(seconds=self.time_window_seconds)
+                atc_start_time = flight_start_time - timedelta(seconds=self.time_window_seconds)
+                atc_end_time = flight_end_time + timedelta(seconds=self.time_window_seconds)
+                
                 result = await session.execute(text(query), {
                     "flight_callsign": flight_transceivers[0]["callsign"] if flight_transceivers else "",
                     "departure": departure,
@@ -294,7 +304,11 @@ class ATCDetectionService:
                     "logon_time": logon_time,
                     "controller_callsign": controller_transceivers[0]["callsign"] if controller_transceivers else "",
                     "time_window": self.time_window_seconds,
-                    "proximity_threshold_nm": proximity_threshold_nm  # ✅ Dynamic per controller
+                    "proximity_threshold_nm": proximity_threshold_nm,  # ✅ Dynamic per controller
+                    "flight_start_time": flight_start_time,  # ✅ Pre-filter flights
+                    "flight_end_time": flight_end_time,     # ✅ Pre-filter flights
+                    "atc_start_time": atc_start_time,       # ✅ Pre-filter ATC
+                    "atc_end_time": atc_end_time           # ✅ Pre-filter ATC
                 })
                 
                 matches = []
