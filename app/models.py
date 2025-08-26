@@ -78,6 +78,7 @@ class Controller(Base, TimestampMixin):
         
         # ATC Detection Performance Indexes
         Index('idx_controllers_callsign_facility', 'callsign', 'facility'),
+        Index('idx_controllers_simple', 'callsign', 'facility'),
     )
     
     # Validation handled by database constraints - no Python validators needed
@@ -189,6 +190,9 @@ class Transceiver(Base):
         Index('idx_transceivers_entity_type_timestamp', 'entity_type', 'timestamp'),
         # Simplified ATC detection index - focus on most common query patterns
         Index('idx_transceivers_atc_detection', 'entity_type', 'callsign', 'timestamp'),
+        
+        # NEW: High-performance ATC detection index for loading ALL controllers
+        Index('idx_transceivers_atc_simple', 'entity_type', 'timestamp', 'callsign'),
         
         # Performance-optimized index for controller flight counting queries
         # Note: WHERE clause cannot be specified in SQLAlchemy Index definition

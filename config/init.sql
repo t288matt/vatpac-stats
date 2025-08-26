@@ -158,6 +158,9 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_entity_type_timestamp O
 -- Simplified ATC detection index - focus on most common query patterns
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_atc_detection ON transceivers(entity_type, callsign, "timestamp");
 
+-- NEW: High-performance ATC detection indexes for loading ALL controllers
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_atc_simple ON transceivers(entity_type, "timestamp" DESC, callsign) WHERE entity_type = 'atc';
+
 -- Performance-optimized indexes for controller flight counting queries
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_flight_frequency_callsign ON transceivers(entity_type, frequency, callsign) WHERE entity_type = 'flight';
 
