@@ -56,6 +56,24 @@ class ATCDetectionService:
             Dict containing ATC interaction data
         """
         try:
+            import asyncio
+            
+            # Wrap the entire ATC detection process with a timeout
+            return await asyncio.wait_for(
+                self._detect_flight_atc_interactions_internal(flight_callsign, departure, arrival, logon_time),
+                timeout=45.0  # 45 second timeout for entire ATC detection process
+            )
+            
+        except asyncio.TimeoutError:
+            self.logger.error(f"ATC detection process timed out after 45 seconds for flight {flight_callsign}")
+            return self._create_empty_atc_data()
+        except Exception as e:
+            self.logger.error(f"Error detecting ATC interactions for flight {flight_callsign}: {e}")
+            return self._create_empty_atc_data()
+    
+    async def _detect_flight_atc_interactions_internal(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime) -> Dict[str, Any]:
+        """Internal method for ATC detection (called with timeout wrapper)."""
+        try:
             self.logger.debug(f"Detecting ATC interactions for flight {flight_callsign}")
             
             # Get flight transceivers
@@ -80,7 +98,7 @@ class ATCDetectionService:
             return atc_data
             
         except Exception as e:
-            self.logger.error(f"Error detecting ATC interactions for flight {flight_callsign}: {e}")
+            self.logger.error(f"Error in internal ATC detection for flight {flight_callsign}: {e}")
             return self._create_empty_atc_data()
     
     async def detect_flight_atc_interactions_with_timeout(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime, timeout_seconds: float = 30.0) -> Dict[str, Any]:
@@ -155,38 +173,76 @@ class ATCDetectionService:
             return []
     
     async def _get_atc_transceivers(self) -> List[Dict[str, Any]]:
-        """Get transceiver data for ATC positions."""
+        """Get transceiver data for ATC positions using progressive loading to prevent timeouts."""
         try:
-            # Load ALL controllers - no artificial limits
-            query = """
-                SELECT t.callsign, t.frequency, t.timestamp, t.position_lat, t.position_lon
-                FROM transceivers t
-                INNER JOIN controllers c ON t.callsign = c.callsign
-                WHERE t.entity_type = 'atc' 
-                AND c.facility != 0  -- Exclude observer positions
-                AND t.timestamp >= NOW() - INTERVAL '24 hours'
-                ORDER BY t.callsign, t.timestamp
-            """
+            # Progressive loading: Start with small time windows and expand if needed
+            time_windows = [
+                ("2 hours", "Last 2 hours"),
+                ("4 hours", "Last 4 hours"), 
+                ("8 hours", "Last 8 hours"),
+                ("12 hours", "Last 12 hours"),
+                ("24 hours", "Last 24 hours")
+            ]
             
-            async with get_database_session() as session:
-                result = await session.execute(text(query))
-                
-                transceivers = []
-                for row in result.fetchall():
-                    transceivers.append({
-                        "callsign": row.callsign,
-                        "frequency": row.frequency,
-                        "frequency_mhz": row.frequency / 1000000.0,  # Convert Hz to MHz
-                        "timestamp": row.timestamp,
-                        "position_lat": row.position_lat,
-                        "position_lon": row.position_lon
-                    })
-                
-                self.logger.info(f"Loaded {len(transceivers)} ATC transceiver records")
-                return transceivers
+            all_transceivers = []
+            
+            for interval, description in time_windows:
+                try:
+                    self.logger.info(f"Loading ATC transceivers: {description}")
+                    
+                    # Build query with proper interval syntax for PostgreSQL
+                    query = f"""
+                        SELECT t.callsign, t.frequency, t.timestamp, t.position_lat, t.position_lon
+                        FROM transceivers t
+                        INNER JOIN controllers c ON t.callsign = c.callsign
+                        WHERE t.entity_type = 'atc' 
+                        AND c.facility != 0  -- Exclude observer positions
+                        AND t.timestamp >= NOW() - INTERVAL '{interval}'
+                        ORDER BY t.callsign, t.timestamp
+                        LIMIT 5000  -- Prevent memory issues
+                    """
+                    
+                    async with get_database_session() as session:
+                        result = await session.execute(text(query))
+                        
+                        batch_transceivers = []
+                        for row in result.fetchall():
+                            batch_transceivers.append({
+                                "callsign": row.callsign,
+                                "frequency": row.frequency,
+                                "frequency_mhz": row.frequency / 1000000.0,  # Convert Hz to MHz
+                                "timestamp": row.timestamp,
+                                "position_lat": row.position_lat,
+                                "position_lon": row.position_lon
+                            })
+                        
+                        self.logger.info(f"Loaded {len(batch_transceivers)} ATC transceivers from {description}")
+                        
+                        # Add new records (avoid duplicates)
+                        existing_callsigns = {t["callsign"] for t in all_transceivers}
+                        new_records = [t for t in batch_transceivers if t["callsign"] not in existing_callsigns]
+                        all_transceivers.extend(new_records)
+                        
+                        # If we have enough data, stop loading more
+                        if len(all_transceivers) >= 10000:  # Reasonable limit
+                            self.logger.info(f"Reached sufficient ATC data limit ({len(all_transceivers)} records), stopping progressive load")
+                            break
+                            
+                        # If this batch was small, we might have reached the end of available data
+                        if len(batch_transceivers) < 1000:
+                            self.logger.info(f"Small batch size ({len(batch_transceivers)}) suggests limited data available, stopping progressive load")
+                            break
+                            
+                except Exception as e:
+                    self.logger.warning(f"Failed to load ATC transceivers for {description}: {e}")
+                    # Continue with next time window instead of failing completely
+                    continue
+            
+            self.logger.info(f"Progressive loading completed: Total {len(all_transceivers)} ATC transceiver records")
+            return all_transceivers
                 
         except Exception as e:
-            self.logger.error(f"Error getting ATC transceivers: {e}")
+            self.logger.error(f"Error in progressive ATC transceiver loading: {e}")
             return []
     
     async def _find_frequency_matches(self, flight_transceivers: List[Dict], atc_transceivers: List[Dict], departure: str, arrival: str, logon_time: datetime) -> List[Dict[str, Any]]:
