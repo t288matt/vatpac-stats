@@ -1421,16 +1421,26 @@ class DataService:
                     first_record = records[0]
                     last_record = records[-1]
                     
-                    # Calculate total session duration including reconnections
+                                        # Calculate total session duration including reconnections
                     session_duration_minutes = int((last_record.last_updated - first_record.logon_time).total_seconds() / 60)
-                    
+
+                    # Handle 0-minute sessions by adjusting them to 1-minute minimum
+                    # This prevents constraint violations while maintaining data integrity
+                    if session_duration_minutes == 0:
+                        session_duration_minutes = 1
+                        # Adjust the end time slightly to satisfy database constraint
+                        adjusted_end_time = first_record.logon_time + timedelta(minutes=1)
+                        self.logger.debug(f"🔄 Adjusted 0-minute session for {callsign} to 1 minute")
+                    else:
+                        adjusted_end_time = last_record.last_updated
+
                     # Skip controllers with sessions that are too short to be meaningful
-                    # This prevents constraint violations and filters out noise
+                    # This filters out noise while allowing adjusted 0-minute sessions through
                     min_session_duration_minutes = 5  # Hard-coded minimum 5 minutes
                     if session_duration_minutes < min_session_duration_minutes:
                         self.logger.debug(f"⏭️ Skipping controller {callsign} - session too short ({session_duration_minutes} min < {min_session_duration_minutes} min)")
                         continue
-                    
+
                     # Get all frequencies used across merged sessions
                     frequencies_used = await self._get_session_frequencies(callsign, logon_time, session)
                     
@@ -1443,7 +1453,7 @@ class DataService:
                         "cid": first_record.cid,
                         "name": first_record.name,
                         "session_start_time": first_record.logon_time,
-                        "session_end_time": last_record.last_updated,
+                        "session_end_time": adjusted_end_time,
                         "session_duration_minutes": session_duration_minutes,
                         "rating": first_record.rating,
                         "facility": first_record.facility,
