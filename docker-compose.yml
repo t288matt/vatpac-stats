@@ -121,27 +121,29 @@ services:
     restart: unless-stopped
 
   # Monitoring container for database and app health
-  monitor:
-    image: alpine:latest
-    container_name: vatsim_monitor
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+ # monitor:
+ #   image: alpine:latest
+ #   container_name: vatsim_monitor
+ #   volumes:
+ #     - /var/run/docker.sock:/var/run/docker.sock:ro
 
-    command: >
-      sh -c "
-        apk add --no-cache docker-cli curl &&
-        while true; do
-          if (docker logs --since 2m vatsim_postgres 2>&1;
-              docker logs --since 2m vatsim_app 2>&1) |
-              grep -E '(CRITICAL|ERROR|FATAL|PANIC|corrupt|corruption|index.*invalid|table.*invalid)'; then
-            curl -fsS 'http://192.168.1.94:3001/api/push/WGBSjuJITh?status=down&msg=CRITICAL_ISSUE';
-          else
-            curl -fsS 'http://192.168.1.94:3001/api/push/WGBSjuJITh?status=up&msg=OK';
-          fi
-          sleep 60;
-        done
-      "
-    restart: unless-stopped
+ #   command: >
+ #     sh -c "
+ #       apk add --no-cache docker-cli curl &&
+ #       while true; do
+          # Check current logs for errors (last 2 minutes only)
+ #         if docker logs --since 2m vatsim_postgres 2>&1 | grep -q -E '(CRITICAL|ERROR|FATAL|PANIC|corrupt|corruption|index.*invalid|table.*invalid)' ||
+ #            docker logs --since 2m vatsim_app 2>&1 | grep -q -E '(CRITICAL|ERROR|FATAL|PANIC|corrupt|corruption|index.*invalid|table.*invalid)'; then
+ #           echo \"[$(date)] CRITICAL ISSUE DETECTED\"
+ #           curl -fsS 'http://192.168.1.94:3001/api/push/WGBSjuJITh?status=down&msg=CRITICAL_ISSUE'
+ #         else
+ #           echo \"[$(date)] System healthy - no errors detected\"
+ #           curl -fsS 'http://192.168.1.94:3001/api/push/WGBSjuJITh?status=up&msg=OK'
+ #         fi
+ #         sleep 60
+ #       done
+ #     "
+ #   restart: unless-stopped
  
 
 

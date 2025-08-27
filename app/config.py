@@ -227,6 +227,23 @@ class ControllerSummaryConfig:
 
 
 @dataclass
+class DetectionConfig:
+    """Configuration for ATC and flight detection processing."""
+    time_window_seconds: int = int(os.getenv("FLIGHT_DETECTION_TIME_WINDOW_SECONDS", "180"))
+    enabled: bool = True
+    
+    @classmethod
+    def from_env(cls):
+        """Load detection configuration from environment variables."""
+        return cls(
+            time_window_seconds=int(os.getenv("FLIGHT_DETECTION_TIME_WINDOW_SECONDS", "180")),
+            enabled=os.getenv("DETECTION_ENABLED", "true").lower() == "true"
+        )
+
+
+
+
+@dataclass
 class AppConfig:
     """Main application configuration with no hardcoding."""
     database: DatabaseConfig
@@ -241,6 +258,7 @@ class AppConfig:
     sector_tracking: SectorTrackingConfig
     controller_callsign_filter: ControllerCallsignFilterConfig
     controller_summary: ControllerSummaryConfig = field(default_factory=ControllerSummaryConfig)
+    detection: DetectionConfig = field(default_factory=DetectionConfig)
     environment: str = "development"
     
     @classmethod
@@ -259,6 +277,7 @@ class AppConfig:
             sector_tracking=SectorTrackingConfig.from_env(),
             controller_callsign_filter=ControllerCallsignFilterConfig.from_env(),
             controller_summary=ControllerSummaryConfig.from_env(),
+            detection=DetectionConfig.from_env(),
             environment=os.getenv("ENVIRONMENT", "development")
         )
 

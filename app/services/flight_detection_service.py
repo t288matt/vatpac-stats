@@ -337,7 +337,8 @@ class FlightDetectionService:
                 "hourly_breakdown": hourly_breakdown,
                 "details": aircraft_details,
                 "aircraft_callsigns": list(aircraft_data.keys()),
-                "flights_detected": total_aircraft > 0
+                "flights_detected": total_aircraft > 0,
+                "interactions_detected": total_aircraft
             }
             
         except Exception as e:
@@ -387,5 +388,6 @@ class FlightDetectionService:
             "hourly_breakdown": {hour: 0 for hour in range(24)},
             "details": [],
             "aircraft_callsigns": [],
-            "flights_detected": False
+            "flights_detected": False,
+            "interactions_detected": 0
         }

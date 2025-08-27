@@ -106,9 +106,9 @@ async def process_all_atc_data():
                             
                             # Track results
                             total_processed += 1
-                            if atc_data["atc_contacts_detected"] > 0:
+                            if atc_data["interactions_detected"] > 0:
                                 total_with_atc += 1
-                                logger.info(f"  ✅ Found {len(atc_data['controller_callsigns'])} controllers, {atc_data['atc_contacts_detected']} contacts")
+                                logger.info(f"  ✅ Found {len(atc_data['controller_callsigns'])} controllers, {atc_data['interactions_detected']} contacts")
                             else:
                                 total_without_atc += 1
                                 logger.info(f"  ❌ No ATC contacts found")

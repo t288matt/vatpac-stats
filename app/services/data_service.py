@@ -87,6 +87,8 @@ class DataService:
         # Task tracking for scheduled processing
         self.flight_summary_task: Optional[asyncio.Task] = None
         self.controller_summary_task: Optional[asyncio.Task] = None
+        self.atc_detection_task: Optional[asyncio.Task] = None
+        self.flight_detection_task: Optional[asyncio.Task] = None
     
     async def initialize(self) -> bool:
         """Initialize data service with dependencies."""
@@ -122,6 +124,11 @@ class DataService:
             # Start scheduled controller summary processing
             if self.config.controller_summary.enabled:
                 await self.start_scheduled_controller_processing()
+            
+            # Start scheduled ATC detection processing
+            if self.config.detection.enabled:
+                await self.start_scheduled_atc_detection_processing()
+                await self.start_scheduled_flight_detection_processing()
             
             return True
             
@@ -2088,12 +2095,288 @@ class DataService:
                     "done": self.controller_summary_task is not None and self.controller_summary_task.done(),
                     "cancelled": self.controller_summary_task is not None and self.controller_summary_task.cancelled(),
                     "exception": str(self.controller_summary_task.exception()) if self.controller_summary_task and self.controller_summary_task.done() and self.controller_summary_task.exception() else None
+                },
+                "atc_detection_task_status": {
+                    "running": self.atc_detection_task is not None and not self.atc_detection_task.done(),
+                    "done": self.atc_detection_task is not None and self.atc_detection_task.done(),
+                    "cancelled": self.atc_detection_task is not None and self.atc_detection_task.cancelled(),
+                    "exception": str(self.atc_detection_task.exception()) if self.atc_detection_task and self.atc_detection_task.done() and self.atc_detection_task.exception() else None
+                },
+                "flight_detection_task_status": {
+                    "running": self.flight_detection_task is not None and not self.flight_detection_task.done(),
+                    "done": self.flight_detection_task is not None and self.flight_detection_task.done(),
+                    "cancelled": self.flight_detection_task is not None and self.flight_detection_task.cancelled(),
+                    "exception": str(self.flight_detection_task.exception()) if self.flight_detection_task and self.flight_detection_task.done() and self.flight_detection_task.exception() else None
                 }
             }
             return stats
         except Exception as e:
             self.logger.error(f"Failed to get processing stats: {e}")
             return {"error": str(e)}
+
+    async def _restart_flight_detection_task(self):
+        """Restart the flight detection processing task after a failure."""
+        try:
+            await asyncio.sleep(30)  # Wait 30 seconds before restarting
+            self.logger.info("🔄 Restarting flight detection processing task...")
+            await self.start_scheduled_flight_detection_processing()
+        except Exception as e:
+            self.logger.error(f"Failed to restart flight detection task: {e}")
+
+    async def start_scheduled_atc_detection_processing(self):
+        """Start automatic scheduled ATC detection processing."""
+        try:
+            # Validate configuration before starting
+            self._validate_detection_config()
+            
+            # Get interval from config (already in seconds)
+            interval_seconds = self.config.detection.time_window_seconds
+            
+            self.logger.info(f"🚀 Starting scheduled ATC detection processing - interval: {interval_seconds} seconds")
+            
+            # Start background task and store reference
+            self.atc_detection_task = asyncio.create_task(self._scheduled_atc_detection_processing_loop(interval_seconds))
+            
+            # Add callback to handle task completion/failure
+            self.atc_detection_task.add_done_callback(self._on_atc_detection_task_done)
+            
+        except Exception as e:
+            self.logger.error(f"Failed to start scheduled ATC detection processing: {e}")
+
+    async def start_scheduled_flight_detection_processing(self):
+        """Start automatic scheduled flight detection processing."""
+        try:
+            # Validate configuration before starting
+            self._validate_detection_config()
+            
+            # Get interval from config (already in seconds)
+            interval_seconds = self.config.detection.time_window_seconds
+            
+            self.logger.info(f"🚀 Starting scheduled flight detection processing - interval: {interval_seconds} seconds")
+            
+            # Start background task and store reference
+            self.flight_detection_task = asyncio.create_task(self._scheduled_flight_detection_processing_loop(interval_seconds))
+            
+            # Add callback to handle task completion/failure
+            self.flight_detection_task.add_done_callback(self._on_flight_detection_task_done)
+            
+        except Exception as e:
+            self.logger.error(f"Failed to start scheduled flight detection processing: {e}")
+
+    def _validate_detection_config(self):
+        """Validate detection configuration before starting scheduled processing."""
+        try:
+            if not hasattr(self.config, 'detection'):
+                raise ValueError("Detection configuration not found")
+            
+            config = self.config.detection
+            
+            if not config.enabled:
+                self.logger.info("Detection processing is disabled")
+                return
+            
+            if config.time_window_seconds < 30:  # Minimum 30 seconds
+                raise ValueError("FLIGHT_DETECTION_TIME_WINDOW_SECONDS must be at least 30 seconds")
+            
+            self.logger.info(f"✅ Detection configuration validated: time_window={config.time_window_seconds}s, enabled={config.enabled}")
+            
+        except Exception as e:
+            self.logger.error(f"❌ Detection configuration validation failed: {e}")
+            raise
+
+    async def _scheduled_atc_detection_processing_loop(self, interval_seconds: int):
+        """Background loop for scheduled ATC detection processing."""
+        self.logger.info(f"⏰ Scheduled ATC detection processing loop started at {datetime.now(timezone.utc)}")
+        
+        while True:
+            try:
+                # Log the scheduled run
+                self.logger.info(f"⏰ Scheduled ATC detection processing started at {datetime.now(timezone.utc)}")
+                
+                # Process real-time ATC detection
+                result = await self.process_real_time_atc_detection()
+                
+                # Log the results
+                self.logger.info(f"✅ Scheduled ATC detection completed: {result}")
+                
+                # Wait for next interval
+                await asyncio.sleep(interval_seconds)
+                
+            except asyncio.CancelledError:
+                self.logger.info("Scheduled ATC detection processing task was cancelled")
+                break
+            except Exception as e:
+                self.logger.error(f"❌ Error in scheduled ATC detection processing: {e}")
+                # Wait a bit before retrying, but don't wait the full interval
+                await asyncio.sleep(60)  # Wait 1 minute before retry
+
+    async def _scheduled_flight_detection_processing_loop(self, interval_seconds: int):
+        """Background loop for scheduled flight detection processing."""
+        self.logger.info(f"⏰ Scheduled flight detection processing loop started at {datetime.now(timezone.utc)}")
+        
+        while True:
+            try:
+                # Log the scheduled run
+                self.logger.info(f"⏰ Scheduled flight detection processing started at {datetime.now(timezone.utc)}")
+                
+                # Process real-time flight detection
+                result = await self.process_real_time_flight_detection()
+                
+                # Log the results
+                self.logger.info(f"✅ Scheduled flight detection completed: {result}")
+                
+                # Wait for next interval
+                await asyncio.sleep(interval_seconds)
+                
+            except asyncio.CancelledError:
+                self.logger.info("Scheduled flight detection processing task was cancelled")
+                break
+            except Exception as e:
+                self.logger.error(f"❌ Error in scheduled flight detection processing: {e}")
+                # Wait a bit before retrying, but don't wait the full interval
+                await asyncio.sleep(60)  # Wait 1 minute before retry
+
+    def _on_atc_detection_task_done(self, task):
+        """Callback when ATC detection task completes or fails."""
+        try:
+            if task.cancelled():
+                self.logger.info("ATC detection task was cancelled")
+            elif task.exception():
+                self.logger.error(f"ATC detection task failed with exception: {task.exception()}")
+                # Restart the task after a delay
+                asyncio.create_task(self._restart_atc_detection_task())
+            else:
+                self.logger.info("ATC detection task completed normally")
+        except Exception as e:
+            self.logger.error(f"Error in ATC detection task callback: {e}")
+
+    def _on_flight_detection_task_done(self, task):
+        """Callback when flight detection task completes or fails."""
+        try:
+            if task.cancelled():
+                self.logger.info("Flight detection task was cancelled")
+            elif task.exception():
+                self.logger.error(f"Flight detection task failed with exception: {task.exception()}")
+                # Restart the task after a delay
+                asyncio.create_task(self._restart_flight_detection_task())
+            else:
+                self.logger.info("Flight detection task completed normally")
+        except Exception as e:
+            self.logger.error(f"Error in flight detection task callback: {e}")
+
+    async def _restart_atc_detection_task(self):
+        """Restart the ATC detection processing task after a failure."""
+        try:
+            await asyncio.sleep(30)  # Wait 30 seconds before restarting
+            self.logger.info("🔄 Restarting ATC detection processing task...")
+            await self.start_scheduled_atc_detection_processing()
+        except Exception as e:
+            self.logger.error(f"Failed to restart ATC detection task: {e}")
+
+    async def process_real_time_atc_detection(self) -> Dict[str, Any]:
+        """
+        Process real-time ATC detection to identify flight-controller interactions.
+        
+        Returns:
+            Dict[str, Any]: Processing results and statistics
+        """
+        try:
+            self.logger.info("🔄 Processing real-time ATC detection...")
+            
+            # Get current flights and controllers from database
+            async with get_database_session() as session:
+                # Get active flights within the time window
+                time_window = datetime.now(timezone.utc) - timedelta(seconds=self.config.detection.time_window_seconds)
+                
+                # Query for active flights
+                flights_result = await session.execute(text("""
+                    SELECT DISTINCT callsign, departure, arrival, logon_time 
+                    FROM flights 
+                    WHERE last_updated >= :time_window 
+                    AND departure IS NOT NULL 
+                    AND arrival IS NOT NULL
+                """), {"time_window": time_window})
+                
+                flights = flights_result.fetchall()
+                
+                # Query for active controllers
+                controllers_result = await session.execute(text("""
+                    SELECT DISTINCT callsign 
+                    FROM controllers 
+                    WHERE last_updated >= :time_window
+                """), {"time_window": time_window})
+                
+                controllers = controllers_result.fetchall()
+            
+            self.logger.info(f"Processing {len(flights)} active flights and {len(controllers)} active controllers")
+            
+            # Process each flight for ATC interactions
+            total_interactions = 0
+            for flight in flights:
+                try:
+                    result = await self.atc_detection_service.detect_flight_atc_interactions_with_timeout(
+                        flight.callsign, flight.departure, flight.arrival, flight.logon_time, timeout_seconds=10.0
+                    )
+                    if result.get("interactions_detected", 0) > 0:
+                        total_interactions += result["interactions_detected"]
+                except Exception as e:
+                    self.logger.debug(f"Failed to process flight {flight.callsign} for ATC detection: {e}")
+                    continue
+            
+            self.logger.info(f"✅ Real-time ATC detection completed: {total_interactions} interactions detected")
+            return {"interactions_detected": total_interactions, "flights_processed": len(flights)}
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error in real-time ATC detection: {e}")
+            return {"error": str(e), "interactions_detected": 0}
+
+    async def process_real_time_flight_detection(self) -> Dict[str, Any]:
+        """
+        Process real-time flight detection to identify controller-flight interactions.
+        
+        Returns:
+            Dict[str, Any]: Processing results and statistics
+        """
+        try:
+            self.logger.info("🔄 Processing real-time flight detection...")
+            
+            # Get current controllers from database
+            async with get_database_session() as session:
+                # Get active controllers within the time window
+                time_window = datetime.now(timezone.utc) - timedelta(seconds=self.config.detection.time_window_seconds)
+                
+                # Query for active controllers
+                controllers_result = await session.execute(text("""
+                    SELECT DISTINCT callsign, logon_time 
+                    FROM controllers 
+                    WHERE last_updated >= :time_window
+                """), {"time_window": time_window})
+                
+                controllers = controllers_result.fetchall()
+            
+            self.logger.info(f"Processing {len(controllers)} active controllers for flight detection")
+            
+            # Process each controller for flight interactions
+            total_interactions = 0
+            for controller in controllers:
+                try:
+                    # Use current time as session end for real-time processing
+                    session_end = datetime.now(timezone.utc)
+                    result = await self.flight_detection_service.detect_controller_flight_interactions_with_timeout(
+                        controller.callsign, controller.logon_time, session_end, timeout_seconds=10.0
+                    )
+                    if result.get("interactions_detected", 0) > 0:
+                        total_interactions += result["interactions_detected"]
+                except Exception as e:
+                    self.logger.debug(f"Failed to process controller {controller.callsign} for flight detection: {e}")
+                    continue
+            
+            self.logger.info(f"✅ Real-time flight detection completed: {total_interactions} interactions detected")
+            return {"interactions_detected": total_interactions, "controllers_processed": len(controllers)}
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error in real-time flight detection: {e}")
+            return {"error": str(e), "interactions_detected": 0}
 
 
 # Global service instance

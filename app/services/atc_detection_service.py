@@ -441,7 +441,7 @@ class ATCDetectionService:
                 "airborne_controller_time_percentage": round(airborne_controller_time_percentage, 1),
                 "total_controller_time_minutes": total_controller_time,
                 "total_flight_records": total_records,
-                "atc_contacts_detected": len(frequency_matches)
+                "interactions_detected": len(frequency_matches)
             }
             
         except Exception as e:
@@ -502,5 +502,5 @@ class ATCDetectionService:
             "airborne_controller_time_percentage": 0.0,
             "total_controller_time_minutes": 0,
             "total_flight_records": 0,
-            "atc_contacts_detected": 0
+            "interactions_detected": 0
         }
