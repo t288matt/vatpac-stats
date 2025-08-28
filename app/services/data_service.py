@@ -30,6 +30,7 @@ from app.services.vatsim_service import VATSIMService
 from app.filters.geographic_boundary_filter import GeographicBoundaryFilter
 from app.filters.callsign_pattern_filter import CallsignPatternFilter
 from app.filters.controller_callsign_filter import ControllerCallsignFilter
+from app.filters.frequency_pattern_filter import FrequencyPatternFilter
 from app.database import get_database_session
 from app.models import Flight, Controller, Transceiver
 from app.config import get_config, AppConfig
@@ -55,6 +56,7 @@ class DataService:
         self.geographic_boundary_filter = GeographicBoundaryFilter()
         self.callsign_pattern_filter = CallsignPatternFilter()
         self.controller_callsign_filter = ControllerCallsignFilter()
+        self.frequency_pattern_filter = FrequencyPatternFilter()
         
         # Initialize services
         self.vatsim_service = None
@@ -440,6 +442,9 @@ class DataService:
             filtered_transceivers = self.geographic_boundary_filter.filter_transceivers_list(transceivers_data)
         else:
             filtered_transceivers = transceivers_data
+        
+        # Apply frequency filtering (exclude UNICOM frequencies like 122.800 MHz)
+        filtered_transceivers = self.frequency_pattern_filter.filter_transceivers_list(filtered_transceivers)
         
         # Log only summary, not individual transceiver details
         if len(transceivers_data) != len(filtered_transceivers):
@@ -1424,6 +1429,9 @@ class DataService:
                 try:
                     # Get all records for this controller including potential reconnections within 5 minutes
                     # The reconnection logic now properly measures the gap between session end and next session start
+                    # Calculate the reconnection cutoff time in Python to avoid PostgreSQL type casting issues
+                    reconnection_cutoff = session_end_time + timedelta(minutes=reconnection_threshold_minutes)
+                    
                     controller_records = await session.execute(text("""
                         SELECT * FROM controllers 
                         WHERE callsign = :callsign 
@@ -1432,7 +1440,7 @@ class DataService:
                             logon_time = :logon_time  -- Original session
                             OR (
                                 logon_time > :logon_time 
-                                AND logon_time <= :session_end_time + (INTERVAL '1 minute' * :reconnection_threshold)
+                                AND logon_time <= :reconnection_cutoff
                             )
                         )
                         ORDER BY created_at
@@ -1440,8 +1448,7 @@ class DataService:
                         "callsign": callsign,
                         "cid": cid,
                         "logon_time": logon_time,
-                        "session_end_time": session_end_time,
-                        "reconnection_threshold": reconnection_threshold_minutes
+                        "reconnection_cutoff": reconnection_cutoff
                     })
                     
                     records = controller_records.fetchall()
