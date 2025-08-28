@@ -492,6 +492,26 @@ async def get_system_status():
                 overall_system_status = "operational"
                 system_status_message = "All systems operational"
         
+        # Calculate successful updates in the last 10 minutes from actual database activity
+        ten_minutes_ago = datetime.now(timezone.utc) - timedelta(minutes=10)
+        
+        # Count recent updates across all active tables
+        recent_flights_updates = await session.scalar(
+            text("SELECT COUNT(*) FROM flights WHERE last_updated_api >= :cutoff"),
+            {"cutoff": ten_minutes_ago}
+        )
+        recent_controllers_updates = await session.scalar(
+            text("SELECT COUNT(*) FROM controllers WHERE last_updated >= :cutoff"),
+            {"cutoff": ten_minutes_ago}
+        )
+        recent_transceivers_updates = await session.scalar(
+            text("SELECT COUNT(*) FROM transceivers WHERE timestamp >= :cutoff"),
+            {"cutoff": ten_minutes_ago}
+        )
+        
+        # Sum all recent updates to get total successful updates
+        total_successful_updates = (recent_flights_updates or 0) + (recent_controllers_updates or 0) + (recent_transceivers_updates or 0)
+        
         return {
             "status": overall_system_status,
             "status_message": system_status_message,
@@ -521,26 +541,6 @@ async def get_system_status():
                 "memory_usage_mb": 1247,
                 "uptime_seconds": int((datetime.now(timezone.utc) - app_startup_time).total_seconds()) if app_startup_time else 0
             },
-            # Calculate successful updates in the last 10 minutes from actual database activity
-            ten_minutes_ago = datetime.now(timezone.utc) - timedelta(minutes=10)
-            
-            # Count recent updates across all active tables
-            recent_flights_updates = await session.scalar(
-                text("SELECT COUNT(*) FROM flights WHERE last_updated_api >= :cutoff"),
-                {"cutoff": ten_minutes_ago}
-            )
-            recent_controllers_updates = await session.scalar(
-                text("SELECT COUNT(*) FROM controllers WHERE last_updated >= :cutoff"),
-                {"cutoff": ten_minutes_ago}
-            )
-            recent_transceivers_updates = await session.scalar(
-                text("SELECT COUNT(*) FROM transceivers WHERE last_updated >= :cutoff"),
-                {"cutoff": ten_minutes_ago}
-            )
-            
-            # Sum all recent updates to get total successful updates
-            total_successful_updates = (recent_flights_updates or 0) + (recent_controllers_updates or 0) + (recent_transceivers_updates or 0)
-            
             "data_ingestion": {
                 "last_vatsim_update": transceivers_freshness.isoformat() if transceivers_freshness else None,
                 "seconds_since_last_update": int((datetime.now(timezone.utc) - transceivers_freshness).total_seconds()) if transceivers_freshness else None,
