@@ -1468,10 +1468,10 @@ class DataService:
                         adjusted_end_time = last_record.last_updated
 
                     # Get all frequencies used across merged sessions
-                    frequencies_used = await self._get_session_frequencies(callsign, logon_time, session)
+                    frequencies_used = await self._get_session_frequencies(callsign, logon_time, session_end_time, session)
                     
                     # Get aircraft interaction data across merged sessions
-                    aircraft_data = await self._get_aircraft_interactions(callsign, logon_time, last_record.last_updated, session)
+                    aircraft_data = await self._get_aircraft_interactions(callsign, logon_time, session_end_time, session)
                     
                     # Create merged summary data
                     summary_data = {
@@ -1532,19 +1532,21 @@ class DataService:
                 "successful_controllers": successful_controllers
             }
 
-    async def _get_session_frequencies(self, callsign: str, logon_time: datetime, session) -> List[str]:
-        """Get all frequencies used during a controller session."""
+    async def _get_session_frequencies(self, callsign: str, logon_time: datetime, session_end_time: datetime, session) -> List[str]:
+        """Get all frequencies used during a controller session including reconnections."""
         try:
             result = await session.execute(text("""
                 SELECT DISTINCT frequency 
                 FROM controllers 
                 WHERE callsign = :callsign 
-                AND logon_time = :logon_time
+                AND logon_time >= :logon_time
+                AND logon_time <= :session_end_time
                 AND frequency IS NOT NULL
                 ORDER BY frequency
             """), {
                 "callsign": callsign,
-                "logon_time": logon_time
+                "logon_time": logon_time,
+                "session_end_time": session_end_time
             })
             
             frequencies = [str(row.frequency) for row in result.fetchall()]
