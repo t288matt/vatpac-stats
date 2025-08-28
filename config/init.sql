@@ -7,6 +7,9 @@
 -- 
 -- This script also includes controller summary and archive tables for completed controller sessions.
 -- 
+-- UPDATED: Now includes all performance indexes that exist in the production database,
+-- ensuring complete schema synchronization between init.sql and actual database.
+-- 
 -- VATSIM API Field Mapping - EXACT 1:1 mapping with API field names:
 -- - API "cid" → cid (Controller ID from VATSIM)
 -- - API "name" → name (Controller name from VATSIM)  
@@ -128,6 +131,9 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_controllers_rating_last_updated ON c
 -- This index was previously corrupted - now using CONCURRENTLY for safety
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_controllers_callsign_facility ON controllers(callsign, facility);
 
+-- Additional index that exists in database but not in original init.sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_controllers_simple ON controllers(callsign, facility);
+
 -- Flights indexes - Using CONCURRENTLY to prevent corruption during high-frequency writes
 -- Removed low-selectivity indexes: altitude, planned_altitude, flight_rules
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_callsign ON flights(callsign);
@@ -145,6 +151,11 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_revision_id ON flights(revis
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_callsign_departure_arrival ON flights(callsign, departure, arrival);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_callsign_logon ON flights(callsign, logon_time);
 
+-- Additional indexes that exist in database but not in original init.sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_altitude ON flights(altitude);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_flight_rules ON flights(flight_rules);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_planned_altitude ON flights(planned_altitude);
+
 -- Transceivers indexes (optimized for frequency-based queries) - Using CONCURRENTLY
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_callsign ON transceivers(callsign);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_callsign_timestamp ON transceivers(callsign, "timestamp");
@@ -155,14 +166,15 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_entity ON transceivers(
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_entity_type_callsign ON transceivers(entity_type, callsign);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_entity_type_timestamp ON transceivers(entity_type, "timestamp");
 
--- Simplified ATC detection index - focus on most common query patterns
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_atc_detection ON transceivers(entity_type, callsign, "timestamp");
-
--- NEW: High-performance ATC detection indexes for loading ALL controllers
+-- High-performance ATC detection indexes for loading ALL controllers
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_atc_simple ON transceivers(entity_type, "timestamp" DESC, callsign) WHERE entity_type = 'atc';
 
 -- Performance-optimized indexes for controller flight counting queries
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_flight_frequency_callsign ON transceivers(entity_type, frequency, callsign) WHERE entity_type = 'flight';
+
+-- Additional indexes that exist in database but not in original init.sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_atc_join ON transceivers(callsign, entity_type, "timestamp" DESC) WHERE entity_type = 'atc';
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_atc_performance ON transceivers(entity_type, callsign, "timestamp" DESC, frequency, position_lat, position_lon) WHERE entity_type = 'atc';
 
 -- Create triggers for updated_at columns
 CREATE TRIGGER update_controllers_updated_at 
@@ -375,6 +387,9 @@ CREATE INDEX IF NOT EXISTS idx_flight_summaries_completion_time ON flight_summar
 CREATE INDEX IF NOT EXISTS idx_flight_summaries_flight_rules ON flight_summaries(flight_rules);
 CREATE INDEX IF NOT EXISTS idx_flight_summaries_controller_time ON flight_summaries(controller_time_percentage);
 
+-- Additional index that exists in database but not in original init.sql
+CREATE INDEX IF NOT EXISTS idx_flight_summaries_airborne_controller_time ON flight_summaries(airborne_controller_time_percentage);
+
 -- Create indexes for flights_archive table
 CREATE INDEX IF NOT EXISTS idx_flights_archive_callsign ON flights_archive(callsign);
 CREATE INDEX IF NOT EXISTS idx_flights_archive_logon_time ON flights_archive(logon_time);
@@ -505,6 +520,31 @@ CREATE INDEX IF NOT EXISTS idx_controllers_archive_last_updated ON controllers_a
 CREATE TRIGGER update_controller_summaries_updated_at 
     BEFORE UPDATE ON controller_summaries 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================================
+-- ADDITIONAL PERFORMANCE INDEXES - ADDED TO MATCH PRODUCTION DATABASE
+-- ============================================================================
+-- The following indexes exist in the production database and have been added to init.sql
+-- to ensure complete schema synchronization:
+-- 
+-- Controllers:
+-- - idx_controllers_simple: (callsign, facility) - Performance optimization for ATC detection
+-- 
+-- Flights:
+-- - idx_flights_altitude: (altitude) - Altitude-based queries and filtering
+-- - idx_flights_flight_rules: (flight_rules) - IFR/VFR rule filtering
+-- - idx_flights_planned_altitude: (planned_altitude) - Planned altitude queries
+-- 
+-- Flight Summaries:
+-- - idx_flight_summaries_airborne_controller_time: (airborne_controller_time_percentage) - ATC contact analysis
+-- 
+-- Transceivers:
+-- - idx_transceivers_atc_join: (callsign, entity_type, timestamp DESC) WHERE entity_type = 'atc'
+-- - idx_transceivers_atc_performance: (entity_type, callsign, timestamp DESC, frequency, position_lat, position_lon) WHERE entity_type = 'atc'
+-- 
+-- These indexes provide significant performance improvements for ATC detection,
+-- flight analysis, and real-time data processing operations.
+-- ============================================================================
 
 -- ============================================================================
 -- COMPRESSION OPTIMIZATION - LARGE TEXT FIELDS ONLY

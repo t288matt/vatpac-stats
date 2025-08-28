@@ -6,6 +6,12 @@ This module defines all database models and relationships for the VATSIM data
 collection system. It provides optimized data structures for real-time flight
 data, ATC positions, and analytics.
 
+IMPORTANT: This models.py file is now fully aligned with config/init.sql
+- All timestamp fields use TIMESTAMP(0, timezone=True) to match init.sql
+- JSON fields use JSON type (maps to JSONB in PostgreSQL)
+- Compression settings are documented in class docstrings
+- Complex index WHERE clauses are handled by init.sql
+
 INPUTS:
 - VATSIM API data (controllers, flights)
 - Real-time flight tracking data
@@ -31,11 +37,13 @@ OPTIMIZATIONS:
 - Proper constraints and validation
 - Audit fields for data tracking
 - BRIN geo index for better geographic queries
-- Removed low-selectivity indexes (altitude, flight_rules, planned_altitude)
+- Complete index coverage matching init.sql schema
+- All performance indexes from production database included
 - Simplified ATC detection index for common query patterns
+- LZ4 compression on large TEXT fields (documented in class docstrings)
 """
 
-from sqlalchemy import Column, Integer, String, Float, Text, TIMESTAMP, BigInteger, CheckConstraint, Index, event
+from sqlalchemy import Column, Integer, String, Float, Text, TIMESTAMP, BigInteger, CheckConstraint, Index, event, DECIMAL, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import validates, declarative_base
 from datetime import datetime, timezone
@@ -48,7 +56,11 @@ class TimestampMixin:
     updated_at = Column(TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
 
 class Controller(Base, TimestampMixin):
-    """Controller model representing ATC positions - EXACT API mapping"""
+    """Controller model representing ATC positions - EXACT API mapping
+    
+    Note: Large TEXT fields (text_atis) use LZ4 compression in database
+    for optimal storage and performance during high-frequency writes.
+    """
     __tablename__ = "controllers"
     
     id = Column(Integer, primary_key=True, index=True)
@@ -61,8 +73,8 @@ class Controller(Base, TimestampMixin):
     visual_range = Column(Integer, nullable=True, index=True)  # From API "visual_range"
     text_atis = Column(Text, nullable=True)  # From API "text_atis"
     server = Column(String(50), nullable=True, index=True)  # From API "server"
-    last_updated = Column(TIMESTAMP(timezone=True), nullable=True, index=True)  # From API "last_updated"
-    logon_time = Column(TIMESTAMP(timezone=True), nullable=True)  # From API "logon_time"
+    last_updated = Column(TIMESTAMP(0, timezone=True), nullable=True, index=True)  # From API "last_updated"
+    logon_time = Column(TIMESTAMP(0, timezone=True), nullable=True)  # From API "logon_time"
     
     # Constraints
     __table_args__ = (
@@ -78,13 +90,19 @@ class Controller(Base, TimestampMixin):
         
         # ATC Detection Performance Indexes
         Index('idx_controllers_callsign_facility', 'callsign', 'facility'),
+        
+        # Additional index that exists in database but not in original models.py
         Index('idx_controllers_simple', 'callsign', 'facility'),
     )
     
     # Validation handled by database constraints - no Python validators needed
 
 class Flight(Base, TimestampMixin):
-    """Flight model representing active flights - OPTIMIZED FOR STORAGE"""
+    """Flight model representing active flights - OPTIMIZED FOR STORAGE
+    
+    Note: Large TEXT fields (route, remarks) use LZ4 compression in database
+    for optimal storage and performance during high-frequency writes.
+    """
     __tablename__ = "flights"
     
     id = Column(Integer, primary_key=True, index=True)
@@ -120,7 +138,7 @@ class Flight(Base, TimestampMixin):
     assigned_transponder = Column(String(10), nullable=True)  # Assigned transponder from flight_plan.assigned_transponder
     
     # Timestamps
-    last_updated = Column(TIMESTAMP(timezone=True), default=func.now(), index=True)
+    last_updated = Column(TIMESTAMP(0, timezone=True), default=func.now(), index=True)
     
     # VATSIM API fields - 1:1 mapping with API field names (simplified)
     cid = Column(Integer, nullable=True, index=True)  # VATSIM user ID
@@ -131,14 +149,14 @@ class Flight(Base, TimestampMixin):
     transponder = Column(String(10), nullable=True)  # Transponder code
     qnh_i_hg = Column(Float, nullable=True)  # QNH pressure in inches Hg from VATSIM API
     qnh_mb = Column(Integer, nullable=True)  # QNH pressure in millibars from VATSIM API
-    logon_time = Column(TIMESTAMP(timezone=True), nullable=True)  # When pilot connected
-    last_updated_api = Column(TIMESTAMP(timezone=True), nullable=True)  # API last_updated timestamp
+    logon_time = Column(TIMESTAMP(0, timezone=True), nullable=True)  # When pilot connected
+    last_updated_api = Column(TIMESTAMP(0, timezone=True), nullable=True)  # API last_updated timestamp
     
     # Constraints
     __table_args__ = (
         CheckConstraint('latitude >= -90 AND latitude <= 90', name='valid_latitude'),
         CheckConstraint('longitude >= -180 AND longitude <= 180', name='valid_longitude'),
-        CheckConstraint('altitude >= 0', name='valid_altitude'),
+        CheckConstraint('altitude >= -1000 AND altitude <= 100000', name='valid_altitude'),
         CheckConstraint('heading >= 0 AND heading <= 360', name='valid_heading'),
         CheckConstraint('groundspeed >= 0', name='valid_groundspeed'),
         CheckConstraint('pilot_rating >= 0 AND pilot_rating <= 63', name='valid_pilot_rating'),
@@ -155,6 +173,11 @@ class Flight(Base, TimestampMixin):
         # ATC Detection Performance Indexes
         Index('idx_flights_callsign_departure_arrival', 'callsign', 'departure', 'arrival'),
         Index('idx_flights_callsign_logon', 'callsign', 'logon_time'),
+        
+        # Additional indexes that exist in database but not in original models.py
+        Index('idx_flights_altitude', 'altitude'),
+        Index('idx_flights_flight_rules', 'flight_rules'),
+        Index('idx_flights_planned_altitude', 'planned_altitude'),
     )
     
     # Validation handled by database constraints - no Python validators needed
@@ -173,8 +196,8 @@ class Transceiver(Base):
     height_agl = Column(Float, nullable=True)  # Height above ground level in meters from VATSIM API
     entity_type = Column(String(20), nullable=False, index=True)  # 'flight' or 'atc'
     entity_id = Column(Integer, nullable=True, index=True)  # Foreign key to flights.id or controllers.id
-    timestamp = Column(TIMESTAMP(timezone=True), default=func.now(), nullable=False, index=True)
-    updated_at = Column(TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+    timestamp = Column(TIMESTAMP(0, timezone=True), default=func.now(), nullable=False, index=True)
+    updated_at = Column(TIMESTAMP(0, timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
     
     # Constraints
     __table_args__ = (
@@ -197,43 +220,55 @@ class Transceiver(Base):
         # Performance-optimized index for controller flight counting queries
         # Note: WHERE clause cannot be specified in SQLAlchemy Index definition
         # This will be created by the database schema (init.sql)
+        # The database creates this as: WHERE entity_type = 'flight' for optimized flight frequency queries
         Index('idx_transceivers_flight_frequency_callsign', 'entity_type', 'frequency', 'callsign'),
+        
+        # Additional indexes that exist in database but not in original models.py
+        # Note: WHERE clauses and complex index structures are handled by init.sql
+        # These are simplified versions for SQLAlchemy compatibility
+        Index('idx_transceivers_atc_join', 'callsign', 'entity_type', 'timestamp'),
+        Index('idx_transceivers_atc_performance', 'entity_type', 'callsign', 'timestamp', 'frequency', 'position_lat', 'position_lon'),
     )
     
     # Validation handled by database constraints - no Python validators needed
 
-class FlightSectorOccupancy(Base, TimestampMixin):
+class FlightSectorOccupancy(Base):
     """Flight sector occupancy model for tracking aircraft entry/exit from Australian airspace sectors"""
     __tablename__ = "flight_sector_occupancy"
     
     id = Column(BigInteger, primary_key=True, index=True)
     callsign = Column(String(50), nullable=False, index=True)  # Flight callsign (e.g., QFA123, PHENX88)
     sector_name = Column(String(10), nullable=False, index=True)  # Australian airspace sector identifier (e.g., SYA, BLA, WOL)
-    entry_timestamp = Column(TIMESTAMP(timezone=True), nullable=False, index=True)  # When flight entered sector
-    exit_timestamp = Column(TIMESTAMP(timezone=True), nullable=True)  # When flight exited sector (nullable)
+    entry_timestamp = Column(TIMESTAMP(0, timezone=True), nullable=False, index=True)  # When flight entered sector
+    exit_timestamp = Column(TIMESTAMP(0, timezone=True), nullable=True)  # When flight exited sector (nullable)
     duration_seconds = Column(Integer, default=0)  # Time spent in sector (calculated)
-    entry_lat = Column(Float, nullable=False)  # Entry latitude
-    entry_lon = Column(Float, nullable=False)  # Entry longitude
-    exit_lat = Column(Float, nullable=True)  # Exit latitude (nullable)
-    exit_lon = Column(Float, nullable=True)  # Exit longitude (nullable)
+    entry_lat = Column(DECIMAL(10,8), nullable=False)  # Entry latitude - matches database exactly
+    entry_lon = Column(DECIMAL(11,8), nullable=False)  # Entry longitude - matches database exactly
+    exit_lat = Column(DECIMAL(10,8), nullable=True)  # Exit latitude - matches database exactly
+    exit_lon = Column(DECIMAL(11,8), nullable=True)  # Exit longitude - matches database exactly
     entry_altitude = Column(Integer, nullable=True)  # Entry altitude in feet
     exit_altitude = Column(Integer, nullable=True)  # Exit altitude in feet
+    created_at = Column(TIMESTAMP(0, timezone=True), default=func.now())  # Only created_at - matches database exactly
     
-    # Constraints
+    # Constraints - only what exists in database
     __table_args__ = (
         CheckConstraint('entry_lat >= -90 AND entry_lat <= 90', name='valid_entry_latitude'),
         CheckConstraint('entry_lon >= -180 AND entry_lon <= 180', name='valid_entry_longitude'),
         CheckConstraint('exit_lat >= -90 AND exit_lat <= 90', name='valid_exit_latitude'),
         CheckConstraint('exit_lon >= -180 AND exit_lon <= 180', name='valid_exit_longitude'),
         CheckConstraint('duration_seconds >= 0', name='valid_duration'),
+        # Only indexes that actually exist in database
         Index('idx_flight_sector_occupancy_callsign', 'callsign'),
-        Index('idx_flight_sector_occupancy_entry_timestamp', 'entry_timestamp'),
         Index('idx_flight_sector_occupancy_sector_name', 'sector_name'),
-        Index('idx_flight_sector_occupancy_callsign_sector', 'callsign', 'sector_name'),
+        Index('idx_flight_sector_occupancy_entry_timestamp', 'entry_timestamp'),
     )
 
 class FlightSummary(Base, TimestampMixin):
-    """Flight summary model for completed flights with sector breakdown and analytics"""
+    """Flight summary model for completed flights with sector breakdown and analytics
+    
+    Note: Large TEXT fields (route) use LZ4 compression in database
+    for optimal storage and performance during high-frequency writes.
+    """
     __tablename__ = "flight_summaries"
     
     id = Column(BigInteger, primary_key=True, index=True)
@@ -242,7 +277,7 @@ class FlightSummary(Base, TimestampMixin):
     departure = Column(String(10), nullable=True, index=True)  # Departure airport
     arrival = Column(String(10), nullable=True, index=True)  # Arrival airport
     deptime = Column(String(10), nullable=True)  # Departure time from flight plan
-    logon_time = Column(TIMESTAMP(timezone=True), nullable=True)  # When pilot connected
+    logon_time = Column(TIMESTAMP(0, timezone=True), nullable=True)  # When pilot connected
     route = Column(Text, nullable=True)  # Flight plan route
     flight_rules = Column(String(10), nullable=True)  # IFR/VFR
     aircraft_faa = Column(String(20), nullable=True)  # FAA aircraft code
@@ -253,15 +288,15 @@ class FlightSummary(Base, TimestampMixin):
     server = Column(String(50), nullable=True)  # Network server
     pilot_rating = Column(Integer, nullable=True)  # Pilot rating
     military_rating = Column(Integer, nullable=True)  # Military rating
-    controller_callsigns = Column(Text, nullable=True)  # JSON array of ATC callsigns
+    controller_callsigns = Column(JSON, nullable=True)  # JSON array of ATC callsigns
     controller_time_percentage = Column(Float, nullable=True)  # Percentage of time on ATC
     airborne_controller_time_percentage = Column(Float, nullable=True)  # Percentage of airborne time on ATC
     time_online_minutes = Column(Integer, nullable=True)  # Total time online
     primary_enroute_sector = Column(String(10), nullable=True)  # Primary sector flown
     total_enroute_sectors = Column(Integer, nullable=True)  # Total sectors visited
     total_enroute_time_minutes = Column(Integer, nullable=True)  # Total enroute time
-    sector_breakdown = Column(Text, nullable=True)  # JSON sector breakdown
-    completion_time = Column(TIMESTAMP(timezone=True), nullable=True)  # When flight completed
+    sector_breakdown = Column(JSON, nullable=True)  # JSON sector breakdown
+    completion_time = Column(TIMESTAMP(0, timezone=True), nullable=True)  # When flight completed
     
     # Constraints
     __table_args__ = (
@@ -277,6 +312,13 @@ class FlightSummary(Base, TimestampMixin):
         Index('idx_flight_summaries_completion_time', 'completion_time'),
         Index('idx_flight_summaries_primary_sector', 'primary_enroute_sector'),
         Index('idx_flight_summaries_cid', 'cid'),
+        
+        # Additional index that exists in database but not in original models.py
+        Index('idx_flight_summaries_airborne_controller_time', 'airborne_controller_time_percentage'),
+        
+        # Additional indexes that exist in database but not in original models.py
+        Index('idx_flight_summaries_flight_rules', 'flight_rules'),
+        Index('idx_flight_summaries_controller_time', 'controller_time_percentage'),
     )
 
 class ControllerSummary(Base, TimestampMixin):
@@ -287,17 +329,17 @@ class ControllerSummary(Base, TimestampMixin):
     callsign = Column(String(50), nullable=False, index=True)  # Controller callsign
     cid = Column(Integer, nullable=True, index=True)  # Controller ID from VATSIM
     name = Column(String(100), nullable=True)  # Controller name
-    session_start_time = Column(TIMESTAMP(timezone=True), nullable=False, index=True)  # Session start
-    session_end_time = Column(TIMESTAMP(timezone=True), nullable=True, index=True)  # Session end
+    session_start_time = Column(TIMESTAMP(0, timezone=True), nullable=False, index=True)  # Session start
+    session_end_time = Column(TIMESTAMP(0, timezone=True), nullable=True, index=True)  # Session end
     session_duration_minutes = Column(Integer, nullable=True, default=0)  # Session duration
     rating = Column(Integer, nullable=True, index=True)  # Controller rating
     facility = Column(Integer, nullable=True, index=True)  # Facility type
     server = Column(String(50), nullable=True)  # Network server
     total_aircraft_handled = Column(Integer, nullable=True, default=0)  # Total aircraft count
     peak_aircraft_count = Column(Integer, nullable=True, default=0)  # Peak aircraft count
-    hourly_aircraft_breakdown = Column(Text, nullable=True)  # JSON hourly breakdown
-    frequencies_used = Column(Text, nullable=True)  # JSON array of frequencies
-    aircraft_details = Column(Text, nullable=True)  # JSON aircraft interaction details
+    hourly_aircraft_breakdown = Column(JSON, nullable=True)  # JSON hourly breakdown
+    frequencies_used = Column(JSON, nullable=True)  # JSON array of frequencies
+    aircraft_details = Column(JSON, nullable=True)  # JSON aircraft interaction details
     
     # Constraints
     __table_args__ = (
@@ -314,10 +356,20 @@ class ControllerSummary(Base, TimestampMixin):
         Index('idx_controller_summaries_duration_aircraft', 'session_duration_minutes', 'total_aircraft_handled'),
         Index('idx_controller_summaries_rating_facility', 'rating', 'facility'),
         Index('idx_controller_summaries_aircraft_count', 'total_aircraft_handled'),
+        
+        # Additional indexes that exist in database but not in original models.py
+        # Note: JSONB indexes are handled by init.sql with GIN for optimal JSON query performance
+        Index('idx_controller_summaries_frequencies', 'frequencies_used'),
+        Index('idx_controller_summaries_aircraft_details', 'aircraft_details'),
+        Index('idx_controller_summaries_hourly_breakdown', 'hourly_aircraft_breakdown'),
     )
 
 class ControllersArchive(Base, TimestampMixin):
-    """Archive table for old controller records after summarization"""
+    """Archive table for old controller records after summarization
+    
+    Note: Large TEXT fields (text_atis) use LZ4 compression in database
+    for optimal storage and performance during high-frequency writes.
+    """
     __tablename__ = "controllers_archive"
     
     id = Column(Integer, primary_key=True)  # Keep original ID for reference
@@ -330,9 +382,9 @@ class ControllersArchive(Base, TimestampMixin):
     visual_range = Column(Integer, nullable=True)  # Visual range
     text_atis = Column(Text, nullable=True)  # ATIS text
     server = Column(String(50), nullable=True)  # Network server
-    last_updated = Column(TIMESTAMP(timezone=True), nullable=True)  # Last update
-    logon_time = Column(TIMESTAMP(timezone=True), nullable=True)  # Logon time
-    archived_at = Column(TIMESTAMP(timezone=True), default=func.now())  # When archived
+    last_updated = Column(TIMESTAMP(0, timezone=True), nullable=True)  # Last update
+    logon_time = Column(TIMESTAMP(0, timezone=True), nullable=True)  # Logon time
+    archived_at = Column(TIMESTAMP(0, timezone=True), default=func.now())  # When archived
     
     # Constraints
     __table_args__ = (
@@ -342,10 +394,18 @@ class ControllersArchive(Base, TimestampMixin):
         Index('idx_controllers_archive_callsign', 'callsign'),
         Index('idx_controllers_archive_cid', 'cid'),
         Index('idx_controllers_archive_archived_at', 'archived_at'),
+        
+        # Additional indexes that exist in database but not in original models.py
+        Index('idx_controllers_archive_logon_time', 'logon_time'),
+        Index('idx_controllers_archive_last_updated', 'last_updated'),
     )
 
 class FlightsArchive(Base, TimestampMixin):
-    """Archive table for completed flight records after summarization"""
+    """Archive table for completed flight records after summarization
+    
+    Note: Large TEXT fields (route) use LZ4 compression in database
+    for optimal storage and performance during high-frequency writes.
+    """
     __tablename__ = "flights_archive"
     
     id = Column(Integer, primary_key=True)  # Keep original ID for reference
@@ -354,7 +414,7 @@ class FlightsArchive(Base, TimestampMixin):
     departure = Column(String(10), nullable=True)  # Departure airport
     arrival = Column(String(10), nullable=True)  # Arrival airport
     deptime = Column(String(10), nullable=True)  # Departure time from flight plan
-    logon_time = Column(TIMESTAMP(timezone=True), nullable=True)  # When pilot connected
+    logon_time = Column(TIMESTAMP(0, timezone=True), nullable=True)  # When pilot connected
     route = Column(Text, nullable=True)  # Flight plan route
     flight_rules = Column(String(10), nullable=True)  # IFR/VFR
     aircraft_faa = Column(String(20), nullable=True)  # FAA aircraft code
@@ -370,15 +430,15 @@ class FlightsArchive(Base, TimestampMixin):
     altitude = Column(Integer, nullable=True)  # Current altitude
     groundspeed = Column(Integer, nullable=True)  # Ground speed
     heading = Column(Integer, nullable=True)  # Current heading
-    last_updated = Column(TIMESTAMP(timezone=True), nullable=True)  # Last update
-    controller_callsigns = Column(Text, nullable=True)  # JSON array of ATC callsigns
+    last_updated = Column(TIMESTAMP(0, timezone=True), nullable=True)  # Last update
+    controller_callsigns = Column(JSON, nullable=True)  # JSON array of ATC callsigns
     controller_time_percentage = Column(Float, nullable=True)  # Percentage of time on ATC
     time_online_minutes = Column(Integer, nullable=True)  # Total time online
     primary_enroute_sector = Column(String(50), nullable=True)  # Primary sector flown
     total_enroute_sectors = Column(Integer, nullable=True)  # Total sectors visited
     total_enroute_time_minutes = Column(Integer, nullable=True)  # Total enroute time
-    sector_breakdown = Column(Text, nullable=True)  # JSON sector breakdown
-    completion_time = Column(TIMESTAMP(timezone=True), nullable=True)  # When flight completed
+    sector_breakdown = Column(JSON, nullable=True)  # JSON sector breakdown
+    completion_time = Column(TIMESTAMP(0, timezone=True), nullable=True)  # When flight completed
     
     # Constraints
     __table_args__ = (
@@ -394,6 +454,10 @@ class FlightsArchive(Base, TimestampMixin):
         Index('idx_flights_archive_deptime', 'deptime'),
         Index('idx_flights_archive_completion_time', 'completion_time'),
         Index('idx_flights_archive_primary_sector', 'primary_enroute_sector'),
+        
+        # Additional indexes that exist in database but not in original models.py
+        # Note: JSONB indexes are handled by init.sql with GIN for optimal JSON query performance
+        Index('idx_flights_archive_controller_time', 'controller_time_percentage'),
     )
 
 # Event listeners for automatic timestamp updates
