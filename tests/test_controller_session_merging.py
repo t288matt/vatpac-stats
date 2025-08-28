@@ -782,20 +782,20 @@ class TestControllerSessionMerging:
             logon_time = base_time
             last_updated = base_time + timedelta(minutes=45)
             
-                             await db_session.execute(text("""
-                     INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
-                     VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
-                 """), {
-                     "callsign": test_callsign,
-                     "cid": test_cid,
-                     "logon_time": logon_time,
-                     "last_updated": last_updated,
-                     "frequency": "118.1",
-                     "name": "Test Single Session Controller",
-                     "rating": 4,
-                     "facility": 3,
-                     "server": "TEST"
-                 })
+             await db_session.execute(text("""
+                 INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
+                 VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
+             """), {
+                 "callsign": test_callsign,
+                 "cid": test_cid,
+                 "logon_time": logon_time,
+                 "last_updated": last_updated,
+                 "frequency": "118.1",
+                 "name": "Test Single Session Controller",
+                 "rating": 4,
+                 "facility": 3,
+                 "server": "TEST"
+             })
             
             await db_session.commit()
             
@@ -831,7 +831,7 @@ class TestControllerSessionMerging:
             ]
             
             for i, (logon_time, last_updated) in enumerate(test_sessions_2):
-                                 await db_session.execute(text("""
+                 await db_session.execute(text("""
                      INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
                      VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
                  """), {
