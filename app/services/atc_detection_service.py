@@ -82,10 +82,10 @@ class ATCDetectionService:
                 self.logger.debug(f"No transceiver data found for flight {flight_callsign}")
                 return self._create_empty_atc_data()
             
-            # Get ATC transceivers
-            atc_transceivers = await self._get_atc_transceivers()
+            # Get ATC transceivers - ✅ Loads only for this flight's time period
+            atc_transceivers = await self._get_atc_transceivers_for_flight(flight_callsign, departure, arrival, logon_time)
             if not atc_transceivers:
-                self.logger.debug(f"No ATC transceiver data found")
+                self.logger.debug(f"No ATC transceiver data found for flight {flight_callsign}")
                 return self._create_empty_atc_data()
             
             # Find frequency matches with proximity and time constraints using SQL JOIN
@@ -129,30 +129,39 @@ class ATCDetectionService:
             return self._create_empty_atc_data()
     
     async def _get_flight_transceivers(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime) -> List[Dict[str, Any]]:
-        """Get transceiver data for a specific flight."""
+        """Get transceiver data for a specific flight across ALL sessions."""
         try:
-            # Optimized query with better JOIN strategy
+            from datetime import timezone
+            
+            # ✅ FIX: Calculate the full flight time window
+            flight_start = logon_time
+            current_time = datetime.now(timezone.utc)
+            
+            # Get completion time for completed flights
+            completion_time = await self._get_flight_completion_time(flight_callsign, departure, arrival, logon_time)
+            if completion_time:
+                flight_end = completion_time
+            else:
+                flight_end = current_time
+            
+            self.logger.info(f"Loading flight transceivers for {flight_callsign}: {flight_start} to {flight_end}")
+            
+            # ✅ FIX: Query ALL transceivers within the flight's time window
             query = """
                 SELECT t.callsign, t.frequency, t.timestamp, t.position_lat, t.position_lon
                 FROM transceivers t
                 WHERE t.entity_type = 'flight' 
                 AND t.callsign = :flight_callsign
-                AND EXISTS (
-                    SELECT 1 FROM flights f 
-                    WHERE f.callsign = t.callsign 
-                    AND f.departure = :departure 
-                    AND f.arrival = :arrival 
-                    AND f.logon_time = :logon_time
-                )
+                AND t.timestamp >= :flight_start
+                AND t.timestamp <= :flight_end
                 ORDER BY t.timestamp
             """
             
             async with get_database_session() as session:
                 result = await session.execute(text(query), {
                     "flight_callsign": flight_callsign,
-                    "departure": departure,
-                    "arrival": arrival,
-                    "logon_time": logon_time
+                    "flight_start": flight_start,    # ✅ From first logon
+                    "flight_end": flight_end         # ✅ To completion
                 })
                 
                 transceivers = []
@@ -172,78 +181,91 @@ class ATCDetectionService:
             self.logger.error(f"Error getting flight transceivers: {e}")
             return []
     
-    async def _get_atc_transceivers(self) -> List[Dict[str, Any]]:
-        """Get transceiver data for ATC positions using progressive loading to prevent timeouts."""
+    async def _get_atc_transceivers_for_flight(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime) -> List[Dict[str, Any]]:
+        """Get ATC transceiver data for a specific flight's time period only."""
         try:
-            # Progressive loading: Start with small time windows and expand if needed
-            time_windows = [
-                ("2 hours", "Last 2 hours"),
-                ("4 hours", "Last 4 hours"), 
-                ("8 hours", "Last 8 hours"),
-                ("12 hours", "Last 12 hours"),
-                ("24 hours", "Last 24 hours")
-            ]
+            from datetime import timezone
             
-            all_transceivers = []
+            # Calculate time window: from flight start to current time
+            flight_start = logon_time
+            current_time = datetime.now(timezone.utc)
             
-            for interval, description in time_windows:
-                try:
-                    self.logger.info(f"Loading ATC transceivers: {description}")
-                    
-                    # Build query with proper interval syntax for PostgreSQL
-                    query = f"""
-                        SELECT t.callsign, t.frequency, t.timestamp, t.position_lat, t.position_lon
-                        FROM transceivers t
-                        INNER JOIN controllers c ON t.callsign = c.callsign
-                        WHERE t.entity_type = 'atc' 
-                        AND c.facility != 0  -- Exclude observer positions
-                        AND t.timestamp >= NOW() - INTERVAL '{interval}'
-                        ORDER BY t.callsign, t.timestamp
-                        LIMIT 5000  -- Prevent memory issues
-                    """
-                    
-                    async with get_database_session() as session:
-                        result = await session.execute(text(query))
-                        
-                        batch_transceivers = []
-                        for row in result.fetchall():
-                            batch_transceivers.append({
-                                "callsign": row.callsign,
-                                "frequency": row.frequency,
-                                "frequency_mhz": row.frequency / 1000000.0,  # Convert Hz to MHz
-                                "timestamp": row.timestamp,
-                                "position_lat": row.position_lat,
-                                "position_lon": row.position_lon
-                            })
-                        
-                        self.logger.info(f"Loaded {len(batch_transceivers)} ATC transceivers from {description}")
-                        
-                        # Add new records (avoid duplicates)
-                        existing_callsigns = {t["callsign"] for t in all_transceivers}
-                        new_records = [t for t in batch_transceivers if t["callsign"] not in existing_callsigns]
-                        all_transceivers.extend(new_records)
-                        
-                        # If we have enough data, stop loading more
-                        if len(all_transceivers) >= 10000:  # Reasonable limit
-                            self.logger.info(f"Reached sufficient ATC data limit ({len(all_transceivers)} records), stopping progressive load")
-                            break
-                            
-                        # If this batch was small, we might have reached the end of available data
-                        if len(batch_transceivers) < 1000:
-                            self.logger.info(f"Small batch size ({len(batch_transceivers)}) suggests limited data available, stopping progressive load")
-                            break
-                            
-                except Exception as e:
-                    self.logger.warning(f"Failed to load ATC transceivers for {description}: {e}")
-                    # Continue with next time window instead of failing completely
-                    continue
+            # For completed flights, use completion time instead of current time
+            completion_time = await self._get_flight_completion_time(flight_callsign, departure, arrival, logon_time)
+            if completion_time:
+                atc_end = completion_time
+            else:
+                atc_end = current_time
             
-            self.logger.info(f"Progressive loading completed: Total {len(all_transceivers)} ATC transceiver records")
-            return all_transceivers
+            self.logger.info(f"Loading ATC transceivers for flight {flight_callsign}: {flight_start} to {atc_end}")
+            
+            # Single query with flight-specific time window
+            query = """
+                SELECT t.callsign, t.frequency, t.timestamp, t.position_lat, t.position_lon
+                FROM transceivers t
+                INNER JOIN controllers c ON t.callsign = c.callsign
+                WHERE t.entity_type = 'atc' 
+                AND c.facility != 0  -- Exclude observer positions
+                AND t.timestamp >= :atc_start
+                AND t.timestamp <= :atc_end
+                ORDER BY t.callsign, t.timestamp
+            """
+            
+            # Single database session, single query
+            async with get_database_session() as session:
+                result = await session.execute(text(query), {
+                    "atc_start": flight_start,
+                    "atc_end": atc_end
+                })
+                
+                # Process results
+                atc_transceivers = []
+                for row in result.fetchall():
+                    atc_transceivers.append({
+                        "callsign": row.callsign,
+                        "frequency": row.frequency,
+                        "frequency_mhz": row.frequency / 1000000.0,  # Convert Hz to MHz
+                        "timestamp": row.timestamp,
+                        "position_lat": row.position_lat,
+                        "position_lon": row.position_lon
+                    })
+                
+                self.logger.info(f"Loaded {len(atc_transceivers)} ATC transceivers for flight {flight_callsign}")
+                return atc_transceivers
                 
         except Exception as e:
-            self.logger.error(f"Error in progressive ATC transceiver loading: {e}")
+            self.logger.error(f"Error getting ATC transceivers for flight {flight_callsign}: {e}")
             return []
+    
+    async def _get_flight_completion_time(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime) -> Optional[datetime]:
+        """Get completion time for completed flights from flight_summaries table."""
+        try:
+            query = """
+                SELECT completion_time 
+                FROM flight_summaries 
+                WHERE callsign = :callsign 
+                AND departure = :departure 
+                AND arrival = :arrival 
+                AND logon_time = :logon_time
+                AND completion_time IS NOT NULL
+                ORDER BY created_at DESC 
+                LIMIT 1
+            """
+            
+            async with get_database_session() as session:
+                result = await session.execute(text(query), {
+                    "callsign": flight_callsign,
+                    "departure": departure,
+                    "arrival": arrival,
+                    "logon_time": logon_time
+                })
+                
+                row = result.fetchone()
+                return row.completion_time if row else None
+                
+        except Exception as e:
+            self.logger.warning(f"Could not get completion time for flight {flight_callsign}: {e}")
+            return None
     
     async def _find_frequency_matches(self, flight_transceivers: List[Dict], atc_transceivers: List[Dict], departure: str, arrival: str, logon_time: datetime) -> List[Dict[str, Any]]:
         """Find frequency matches using controller-specific proximity ranges."""

@@ -216,7 +216,7 @@ Get comprehensive system status and statistics.
   "data_ingestion": {
     "last_vatsim_update": "2025-08-09T09:15:30Z",
     "update_interval_seconds": 10,
-    "successful_updates": 8640,
+    "successful_updates": 156,
     "failed_updates": 0
   }
 }

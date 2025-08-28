@@ -60,6 +60,9 @@ services:
       # Callsign Pattern Filter Configuration
       EXCLUDED_CALLSIGN_PATTERNS: "ATIS"   #atis filtered out of contrllers data
       
+      # Frequency Pattern Filter Configuration (exclude UNICOM frequencies)
+      EXCLUDED_FREQUENCIES_MHZ: "122.800"  # Exclude 122.8 MHz UNICOM frequency
+      
       # Flight Summary System Configuration (used by DataService)
       FLIGHT_SUMMARY_ENABLED: "true"          # Enable flight summary processing
       FLIGHT_COMPLETION_HOURS: 14              # Hours after logon to mark flight as complete
