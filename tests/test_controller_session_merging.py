@@ -341,20 +341,20 @@ class TestControllerSessionMerging:
             ]
             
             for i, (logon_time, last_updated) in enumerate(test_sessions):
-                await db_session.execute(text("""
-                    INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
-                    VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
-                """), {
-                    "callsign": test_callsign,
-                    "cid": test_cid,
-                    "logon_time": logon_time,
-                    "last_updated": last_updated,
-                    "frequency": "118.1",
-                    "name": "Test Controller",
-                    "rating": "C1",
-                    "facility": "TWR",
-                    "server": "TEST"
-                })
+                                 await db_session.execute(text("""
+                     INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
+                     VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
+                 """), {
+                     "callsign": test_callsign,
+                     "cid": test_cid,
+                     "logon_time": logon_time,
+                     "last_updated": last_updated,
+                     "frequency": "118.1",
+                     "name": "Test Controller",
+                     "rating": 4,
+                     "facility": 3,
+                     "server": "TEST"
+                 })
             
             await db_session.commit()
             
@@ -417,20 +417,20 @@ class TestControllerSessionMerging:
             ]
             
             for i, (logon_time, last_updated) in enumerate(test_sessions):
-                await db_session.execute(text("""
-                    INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
-                    VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
-                """), {
-                    "callsign": test_callsign,
-                    "cid": test_cid,
-                    "logon_time": logon_time,
-                    "last_updated": last_updated,
-                    "frequency": "120.1",
-                    "name": "Test Approach Controller",
-                    "rating": "C1",
-                    "facility": "APP",
-                    "server": "TEST"
-                })
+                                 await db_session.execute(text("""
+                     INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
+                     VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
+                 """), {
+                     "callsign": test_callsign,
+                     "cid": test_cid,
+                     "logon_time": logon_time,
+                     "last_updated": last_updated,
+                     "frequency": "120.1",
+                     "name": "Test Approach Controller",
+                     "rating": 4,
+                     "facility": 4,
+                     "server": "TEST"
+                 })
             
             await db_session.commit()
             
@@ -523,20 +523,20 @@ class TestControllerSessionMerging:
             ]
             
             for i, (logon_time, last_updated, frequency) in enumerate(test_sessions):
-                await db_session.execute(text("""
-                    INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
-                    VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
-                """), {
-                    "callsign": test_callsign,
-                    "cid": test_cid,
-                    "logon_time": logon_time,
-                    "last_updated": last_updated,
-                    "frequency": frequency,
-                    "name": "Test Center Controller",
-                    "rating": "C1",
-                    "facility": "CTR",
-                    "server": "TEST"
-                })
+                                 await db_session.execute(text("""
+                     INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
+                     VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
+                 """), {
+                     "callsign": test_callsign,
+                     "cid": test_cid,
+                     "logon_time": logon_time,
+                     "last_updated": last_updated,
+                     "frequency": frequency,
+                     "name": "Test Center Controller",
+                     "rating": 4,
+                     "facility": 6,
+                     "server": "TEST"
+                 })
             
             await db_session.commit()
             
@@ -616,20 +616,20 @@ class TestControllerSessionMerging:
             ]
             
             for i, (logon_time, last_updated, frequency) in enumerate(test_sessions):
-                await db_session.execute(text("""
-                    INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
-                    VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
-                """), {
-                    "callsign": test_callsign,
-                    "cid": test_cid,
-                    "logon_time": logon_time,
-                    "last_updated": last_updated,
-                    "frequency": frequency,
-                    "name": "Test Integration Controller",
-                    "rating": "C1",
-                    "facility": "TWR",
-                    "server": "TEST"
-                })
+                                 await db_session.execute(text("""
+                     INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
+                     VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
+                 """), {
+                     "callsign": test_callsign,
+                     "cid": test_cid,
+                     "logon_time": logon_time,
+                     "last_updated": last_updated,
+                     "frequency": frequency,
+                     "name": "Test Integration Controller",
+                     "rating": 4,
+                     "facility": 3,
+                     "server": "TEST"
+                 })
             
             await db_session.commit()
             
@@ -782,20 +782,20 @@ class TestControllerSessionMerging:
             logon_time = base_time
             last_updated = base_time + timedelta(minutes=45)
             
-            await db_session.execute(text("""
-                INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
-                VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
-            """), {
-                "callsign": test_callsign,
-                "cid": test_cid,
-                "logon_time": logon_time,
-                "last_updated": last_updated,
-                "frequency": "118.1",
-                "name": "Test Single Session Controller",
-                "rating": "C1",
-                "facility": "TWR",
-                "server": "TEST"
-            })
+                             await db_session.execute(text("""
+                     INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
+                     VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
+                 """), {
+                     "callsign": test_callsign,
+                     "cid": test_cid,
+                     "logon_time": logon_time,
+                     "last_updated": last_updated,
+                     "frequency": "118.1",
+                     "name": "Test Single Session Controller",
+                     "rating": 4,
+                     "facility": 3,
+                     "server": "TEST"
+                 })
             
             await db_session.commit()
             
@@ -831,20 +831,20 @@ class TestControllerSessionMerging:
             ]
             
             for i, (logon_time, last_updated) in enumerate(test_sessions_2):
-                await db_session.execute(text("""
-                    INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
-                    VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
-                """), {
-                    "callsign": test_callsign_2,
-                    "cid": test_cid_2,
-                    "logon_time": logon_time,
-                    "last_updated": last_updated,
-                    "frequency": "118.1",
-                    "name": "Test Large Gap Controller",
-                    "rating": "C1",
-                    "facility": "TWR",
-                    "server": "TEST"
-                })
+                                 await db_session.execute(text("""
+                     INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
+                     VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
+                 """), {
+                     "callsign": test_callsign_2,
+                     "cid": test_cid_2,
+                     "logon_time": logon_time,
+                     "last_updated": last_updated,
+                     "frequency": "118.1",
+                     "name": "Test Large Gap Controller",
+                     "rating": 4,
+                     "facility": 3,
+                     "server": "TEST"
+                 })
             
             await db_session.commit()
             
