@@ -1419,24 +1419,28 @@ class DataService:
         
         async with get_database_session() as session:
             for controller_key in completed_controllers:
-                callsign, logon_time = controller_key
+                callsign, cid, logon_time, session_end_time = controller_key
                 
                 try:
                     # Get all records for this controller including potential reconnections within 5 minutes
+                    # The reconnection logic now properly measures the gap between session end and next session start
                     controller_records = await session.execute(text("""
                         SELECT * FROM controllers 
                         WHERE callsign = :callsign 
+                        AND cid = :cid
                         AND (
                             logon_time = :logon_time  -- Original session
                             OR (
                                 logon_time > :logon_time 
-                                AND logon_time <= :logon_time + (INTERVAL '1 minute' * :reconnection_threshold)
+                                AND logon_time <= :session_end_time + (INTERVAL '1 minute' * :reconnection_threshold)
                             )
                         )
                         ORDER BY created_at
                     """), {
                         "callsign": callsign,
+                        "cid": cid,
                         "logon_time": logon_time,
+                        "session_end_time": session_end_time,
                         "reconnection_threshold": reconnection_threshold_minutes
                     })
                     
