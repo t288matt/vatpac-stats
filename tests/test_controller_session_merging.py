@@ -359,8 +359,8 @@ class TestControllerSessionMerging:
             await db_session.commit()
             
             # Test the fixed _identify_completed_controllers method
-             # Set completion threshold to 1 minute ago (should catch our test sessions)
-             completion_minutes = 1
+            # Set completion threshold to 1 minute ago (should catch our test sessions)
+            completion_minutes = 1
              completed_controllers = await data_service._identify_completed_controllers(completion_minutes)
             
             # Verify the fix: should return controllers grouped by (callsign, cid, logon_time)
