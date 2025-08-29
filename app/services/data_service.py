@@ -1377,9 +1377,9 @@ class DataService:
             query = """
                 SELECT DISTINCT callsign, cid, logon_time, MAX(last_updated) as session_end_time
                 FROM controllers 
-                WHERE (callsign, cid) NOT IN (
-                    SELECT DISTINCT callsign, cid FROM controller_summaries
-                )
+                            WHERE (callsign, cid, logon_time) NOT IN (
+                SELECT DISTINCT callsign, cid, logon_time FROM controller_summaries
+            )
                 GROUP BY callsign, cid, logon_time
                 HAVING MAX(last_updated) < :completion_threshold
             """
