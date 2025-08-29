@@ -1608,7 +1608,7 @@ class DataService:
         archived_count = 0
         async with get_database_session() as session:
             for controller_key in completed_controllers:
-                callsign, logon_time = controller_key
+                callsign, cid, logon_time, session_end_time = controller_key
                 
                 try:
                     # Archive all records for this session
@@ -1643,7 +1643,7 @@ class DataService:
         deleted_count = 0
         async with get_database_session() as session:
             for controller_key in completed_controllers:
-                callsign, logon_time = controller_key
+                callsign, cid, logon_time, session_end_time = controller_key
                 
                 try:
                     result = await session.execute(text("""
