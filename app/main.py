@@ -1955,7 +1955,7 @@ async def trigger_controller_processing():
         data_service = await get_data_service()
         
         # Process completed controllers
-        result = await data_service.controller_summary_service.process_completed_controllers()
+        result = await data_service.process_completed_controllers()
         
         return {
             "status": "success",
