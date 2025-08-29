@@ -1,0 +1,5 @@
+{
+  "test_timestamp": "2025-08-29T11:15:11.647918",
+  "error": "Invalid flight data format: Invalid datetime format: 2025-08-28 06:31:08+00",
+  "success": false
+}
