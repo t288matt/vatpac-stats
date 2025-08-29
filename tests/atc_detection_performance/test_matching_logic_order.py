@@ -357,7 +357,8 @@ class ATCTestingFramework:
                    at.position_lat as atc_lat, at.position_lon as atc_lon,
                    ft.position_lat as flight_lat, ft.position_lon as flight_lon
             FROM flight_transceivers ft 
-            JOIN atc_transceivers at ON ft.frequency_mhz = at.frequency_mhz  -- Criterion 1: Frequency matching
+            JOIN atc_transceivers at
+              ON ABS(ft.frequency_mhz - at.frequency_mhz) <= 0.005  -- ~5 kHz tolerance, Criterion 1: Frequency matching
             WHERE ABS(EXTRACT(EPOCH FROM (ft.timestamp - at.timestamp))) <= :time_window  -- Criterion 2: Time window
             AND (
                 -- Criterion 3: Geographic proximity (simplified for testing)
@@ -415,7 +416,8 @@ class ATCTestingFramework:
                    at.position_lat as atc_lat, at.position_lon as atc_lon,
                    ft.position_lat as flight_lat, ft.position_lon as flight_lon
             FROM flight_transceivers ft 
-            JOIN atc_transceivers at ON ft.frequency_mhz = at.frequency_mhz  -- Criterion 1: Frequency matching
+            JOIN atc_transceivers at
+              ON ABS(ft.frequency_mhz - at.frequency_mhz) <= 0.005  -- ~5 kHz tolerance, Criterion 1: Frequency matching
             WHERE ABS(EXTRACT(EPOCH FROM (ft.timestamp - at.timestamp))) <= :time_window  -- Criterion 2: Time window
             AND (
                 -- Criterion 3: Geographic proximity (simplified for testing)

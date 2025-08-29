@@ -343,7 +343,8 @@ class ATCDetectionService:
                            at.position_lat as atc_lat, at.position_lon as atc_lon,
                            ft.position_lat as flight_lat, ft.position_lon as flight_lon
                     FROM time_filtered_flights ft 
-                    JOIN time_filtered_atc at ON ft.frequency_mhz = at.frequency_mhz
+                    JOIN time_filtered_atc at
+                      ON ABS(ft.frequency_mhz - at.frequency_mhz) <= 0.005  -- ~5 kHz tolerance
                     WHERE ABS(EXTRACT(EPOCH FROM (ft.timestamp - at.timestamp))) <= :time_window
                     AND (
                         -- Haversine formula with controller-specific proximity

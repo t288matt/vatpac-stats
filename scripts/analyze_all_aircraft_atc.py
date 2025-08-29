@@ -56,7 +56,8 @@ def run_individual_aircraft_analysis(conn):
     frequency_matches AS (
         SELECT ft.callsign as flight_callsign, ft.frequency_mhz, ft.timestamp as flight_time
         FROM flight_transceivers ft 
-        JOIN atc_transceivers at ON ft.frequency_mhz = at.frequency_mhz 
+        JOIN atc_transceivers at
+          ON ABS(ft.frequency_mhz - at.frequency_mhz) <= 0.005 
         AND ABS(EXTRACT(EPOCH FROM (ft.timestamp - at.timestamp))) <= 180
         WHERE (SQRT(POWER(ft.position_lat - at.position_lat, 2) + POWER(ft.position_lon - at.position_lon, 2))) <= 300
     ),
@@ -111,7 +112,8 @@ def run_overall_statistics(conn):
     frequency_matches AS (
         SELECT ft.callsign as flight_callsign, ft.frequency_mhz, ft.timestamp as flight_time
         FROM flight_transceivers ft 
-        JOIN atc_transceivers at ON ft.frequency_mhz = at.frequency_mhz 
+        JOIN atc_transceivers at
+          ON ABS(ft.frequency_mhz - at.frequency_mhz) <= 0.005 
         AND ABS(EXTRACT(EPOCH FROM (ft.timestamp - at.timestamp))) <= 180
         WHERE (SQRT(POWER(ft.position_lat - at.position_lat, 2) + POWER(ft.position_lon - at.position_lon, 2))) <= 300
     ),

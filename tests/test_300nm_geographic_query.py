@@ -61,8 +61,9 @@ frequency_matches AS (
            ct.position_lat as controller_lat, ct.position_lon as controller_lon,
            ft.position_lat as flight_lat, ft.position_lon as flight_lon
     FROM controller_transceivers ct 
-    JOIN flight_transceivers ft ON ct.frequency_mhz = ft.frequency_mhz 
-    AND ABS(EXTRACT(EPOCH FROM (ct.timestamp - ft.timestamp))) <= :time_window
+    JOIN flight_transceivers ft
+      ON ABS(ct.frequency_mhz - ft.frequency_mhz) <= 0.005  -- ~5 kHz tolerance
+     AND ABS(EXTRACT(EPOCH FROM (ct.timestamp - ft.timestamp))) <= :time_window
     AND (
         -- Haversine formula for distance in nautical miles
         (3440.065 * ACOS(
