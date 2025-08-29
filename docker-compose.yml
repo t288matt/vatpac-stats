@@ -66,7 +66,7 @@ services:
       # Flight Summary System Configuration (used by DataService)
       FLIGHT_SUMMARY_ENABLED: "true"          # Enable flight summary processing
       FLIGHT_COMPLETION_HOURS: 14              # Hours after logon to mark flight as complete
-      FLIGHT_RETENTION_HOURS: 168             # Hours to keep detailed flight data (7 days)
+      FLIGHT_RETENTION_HOURS: 168000            # Hours to keep detailed flight data (7 days)
       FLIGHT_SUMMARY_INTERVAL: 60              # Minutes between summary processing (1 hour)
       
       # Sector Tracking Configuration (used by DataService)
@@ -82,7 +82,7 @@ services:
       # Controller Summary Configuration (used by DataService)
       CONTROLLER_SUMMARY_ENABLED: "true"
       CONTROLLER_COMPLETION_MINUTES: "30"     # 30 minutes - this is when summaries are made and records archived
-      CONTROLLER_RETENTION_HOURS: "168"
+      CONTROLLER_RETENTION_HOURS: "168000"
       CONTROLLER_SUMMARY_INTERVAL: "60"
       CONTROLLER_RECONNECTION_THRESHOLD_MINUTES: "5"  # Minutes to merge controller reconnections into one session
       

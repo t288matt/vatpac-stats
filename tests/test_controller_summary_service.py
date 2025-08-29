@@ -95,14 +95,18 @@ class TestControllerSummaryFunctionality:
     @pytest.mark.asyncio
     async def test_identify_completed_controllers(self, data_service):
         """Test identification of completed controllers"""
-        # Mock database session and query result
+        # Mock database session and query result (4-tuple shape now)
         mock_session = AsyncMock()
-        mock_result = Mock()
-        mock_result.fetchall.return_value = [
-            ("TEST_CTR", datetime(2025, 8, 18, 10, 0, 0, tzinfo=timezone.utc)),
-            ("TEST_APP", datetime(2025, 8, 18, 11, 0, 0, tzinfo=timezone.utc))
+        class _Result:
+            def __init__(self, rows):
+                self._rows = rows
+            def fetchall(self):
+                return self._rows
+        rows = [
+            ("TEST_CTR", 11111, datetime(2025, 8, 18, 10, 0, 0, tzinfo=timezone.utc), datetime(2025, 8, 18, 12, 0, 0, tzinfo=timezone.utc)),
+            ("TEST_APP", 22222, datetime(2025, 8, 18, 11, 0, 0, tzinfo=timezone.utc), datetime(2025, 8, 18, 13, 0, 0, tzinfo=timezone.utc))
         ]
-        mock_session.execute.return_value = mock_result
+        mock_session.execute.return_value = _Result(rows)
         
         with patch('app.services.data_service.get_database_session') as mock_get_session:
             mock_get_session.return_value.__aenter__.return_value = mock_session
@@ -131,11 +135,9 @@ class TestControllerSummaryFunctionality:
         mock_result.fetchall.return_value = [mock_row1, mock_row2]
         mock_session.execute.return_value = mock_result
         
-        frequencies = await data_service._get_session_frequencies(
-            "TEST_CTR", 
-            datetime(2025, 8, 18, 10, 0, 0, tzinfo=timezone.utc),
-            mock_session
-        )
+        start = datetime(2025, 8, 18, 10, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2025, 8, 18, 12, 0, 0, tzinfo=timezone.utc)
+        frequencies = await data_service._get_session_frequencies("TEST_CTR", start, end, mock_session)
         
         assert len(frequencies) == 2
         assert "122800000" in frequencies
@@ -162,13 +164,14 @@ class TestControllerSummaryFunctionality:
     async def test_archive_completed_controllers(self, data_service):
         """Test archiving of completed controllers"""
         mock_session = AsyncMock()
-        mock_result = Mock()
-        mock_result.rowcount = 5  # 5 records archived
-        mock_session.execute.return_value = mock_result
+        class _ExecResult:
+            def __init__(self, rowcount):
+                self.rowcount = rowcount
+        mock_session.execute.return_value = _ExecResult(5)  # 5 records archived
         
         completed_controllers = [
-            ("TEST_CTR", datetime(2025, 8, 18, 10, 0, 0, tzinfo=timezone.utc)),
-            ("TEST_APP", datetime(2025, 8, 18, 11, 0, 0, tzinfo=timezone.utc))
+            ("TEST_CTR", 11111, datetime(2025, 8, 18, 10, 0, 0, tzinfo=timezone.utc), datetime(2025, 8, 18, 12, 0, 0, tzinfo=timezone.utc)),
+            ("TEST_APP", 22222, datetime(2025, 8, 18, 11, 0, 0, tzinfo=timezone.utc), datetime(2025, 8, 18, 13, 0, 0, tzinfo=timezone.utc))
         ]
         
         with patch('app.services.data_service.get_database_session') as mock_get_session:
@@ -183,8 +186,8 @@ class TestControllerSummaryFunctionality:
     async def test_delete_completed_controllers(self, data_service):
         """Test deletion of completed controller records"""
         completed_controllers = [
-            ("TEST_CTR", datetime(2025, 8, 18, 10, 0, 0, tzinfo=timezone.utc)),
-            ("TEST_APP", datetime(2025, 8, 18, 11, 0, 0, tzinfo=timezone.utc))
+            ("TEST_CTR", 11111, datetime(2025, 8, 18, 10, 0, 0, tzinfo=timezone.utc), datetime(2025, 8, 18, 12, 0, 0, tzinfo=timezone.utc)),
+            ("TEST_APP", 22222, datetime(2025, 8, 18, 11, 0, 0, tzinfo=timezone.utc), datetime(2025, 8, 18, 13, 0, 0, tzinfo=timezone.utc))
         ]
         
         # Mock database session
@@ -205,7 +208,7 @@ class TestControllerSummaryFunctionality:
     async def test_delete_completed_controllers_retention_not_met(self, data_service):
         """Test deletion with retention period not met"""
         completed_controllers = [
-            ("TEST_CTR", datetime(2025, 8, 18, 10, 0, 0, tzinfo=timezone.utc))
+            ("TEST_CTR", 11111, datetime(2025, 8, 18, 10, 0, 0, tzinfo=timezone.utc), datetime(2025, 8, 18, 12, 0, 0, tzinfo=timezone.utc))
         ]
         
         # Mock database session

@@ -1298,14 +1298,16 @@ class DataService:
     async def process_completed_controllers(self) -> Dict[str, Any]:
         """Main entry point for controller summary processing."""
         try:
-            self.logger.info("🚀 Starting controller summary processing")
+            self.logger.debug("Starting controller summary processing")
             
             # Get configuration
             completion_minutes = getattr(self.config.controller_summary, 'completion_minutes', 30)
             retention_hours = getattr(self.config.controller_summary, 'retention_hours', 168)
+            self.logger.debug(f"Config: completion_minutes={completion_minutes}, retention_hours={retention_hours}")
             
             # Step 1: Identify completed controllers
             completed_controllers = await self._identify_completed_controllers(completion_minutes)
+            self.logger.info(f"Identify completed controllers -> {len(completed_controllers)} candidates")
             
             if not completed_controllers:
                 self.logger.info("✅ No completed controllers found for processing")
@@ -1319,7 +1321,9 @@ class DataService:
             self.logger.info(f"📊 Found {len(completed_controllers)} completed controllers to process")
             
             # Step 2: Create summaries
+            self.logger.info("Creating controller summaries...")
             summaries_created_result = await self._create_controller_summaries(completed_controllers)
+            self.logger.info(f"Create summaries result: {summaries_created_result}")
             summaries_created = summaries_created_result["processed_count"]
             failed_count = summaries_created_result["failed_count"]
             successful_controllers = summaries_created_result["successful_controllers"]
@@ -1344,11 +1348,11 @@ class DataService:
             records_deleted = await self._delete_completed_controllers(successful_controllers)
             
             # Log the results clearly
-            self.logger.info(f"📊 Summary Processing Results:")
-            self.logger.info(f"   ✅ Successfully processed: {summaries_created} controllers")
-            self.logger.info(f"   ❌ Failed to process: {failed_count} controllers")
-            self.logger.info(f"   📦 Archived: {records_archived} controller records")
-            self.logger.info(f"   🗑️ Deleted: {records_deleted} controller records")
+            self.logger.debug("Summary Processing Results")
+            self.logger.debug(f"Successfully processed: {summaries_created} controllers")
+            self.logger.debug(f"Failed to process: {failed_count} controllers")
+            self.logger.debug(f"Archived: {records_archived} controller records")
+            self.logger.debug(f"Deleted: {records_deleted} controller records")
             
             if failed_count > 0:
                 self.logger.warning(f"⚠️ {failed_count} controllers were NOT archived due to summary creation failures")
@@ -1362,7 +1366,7 @@ class DataService:
                 "status": "completed"
             }
             
-            self.logger.info(f"✅ Controller summary processing completed: {result}")
+            self.logger.debug(f"Controller summary processing completed: {result}")
             return result
             
         except Exception as e:
@@ -1373,6 +1377,7 @@ class DataService:
         """Identify controllers that have been inactive for the specified time."""
         try:
             completion_threshold = datetime.now(timezone.utc) - timedelta(minutes=completion_minutes)
+            self.logger.debug(f"Identify completed controllers: completion_minutes={completion_minutes}, threshold_utc={completion_threshold}")
             
             query = """
                 SELECT DISTINCT c.callsign, c.cid, c.logon_time, MAX(c.last_updated) as session_end_time
@@ -1389,10 +1394,23 @@ class DataService:
             """
             
             async with get_database_session() as session:
+                self.logger.debug("Executing completed controllers query...")
                 result = await session.execute(text(query), {"completion_threshold": completion_threshold})
                 completed_controllers = result.fetchall()
-                
-                self.logger.debug(f"Identified {len(completed_controllers)} completed controllers older than {completion_minutes} minutes")
+                count = len(completed_controllers)
+                self.logger.debug(f"Query completed: {count} candidates found")
+                if count:
+                    for idx, row in enumerate(completed_controllers[:3], 1):
+                        try:
+                            callsign, cid, logon_time, session_end_time = row
+                        except Exception:
+                            callsign = getattr(row, 'callsign', None)
+                            cid = getattr(row, 'cid', None)
+                            logon_time = getattr(row, 'logon_time', None)
+                            session_end_time = getattr(row, 'session_end_time', None)
+                        self.logger.debug(
+                            f"Candidate[{idx}]: callsign={callsign}, cid={cid}, logon_time={logon_time}, session_end_time={session_end_time}"
+                        )
                 return completed_controllers
             
         except Exception as e:
@@ -1426,11 +1444,15 @@ class DataService:
         # Configuration for session merging - configurable threshold for reconnections
         reconnection_threshold_minutes = int(os.getenv("CONTROLLER_RECONNECTION_THRESHOLD_MINUTES", "5"))
         
+        self.logger.debug(f"_create_controller_summaries: received {len(completed_controllers)} completed controllers")
         async with get_database_session() as session:
             for controller_key in completed_controllers:
                 callsign, cid, logon_time, session_end_time = controller_key
                 
                 try:
+                    self.logger.debug(
+                        f"Processing controller candidate callsign={callsign}, cid={cid}, logon_time={logon_time}, session_end_time={session_end_time}"
+                    )
                     # Get all records for this controller including potential reconnections within 5 minutes
                     # The reconnection logic now properly measures the gap between session end and next session start
                     # Calculate the reconnection window in Python to avoid SQL interval arithmetic issues
@@ -1456,6 +1478,7 @@ class DataService:
                     })
                     
                     records = controller_records.fetchall()
+                    self.logger.debug(f"Fetched {len(records)} controller records for {callsign} in merged window")
                     if not records:
                         self.logger.warning(f"No records found for controller {callsign} with logon_time {logon_time}")
                         failed_count += 1
@@ -1467,6 +1490,9 @@ class DataService:
                     
                     # Calculate total session duration including reconnections
                     session_duration_minutes = int((last_record.last_updated - first_record.logon_time).total_seconds() / 60)
+                    self.logger.debug(
+                        f"{callsign} session window: start={first_record.logon_time}, end={last_record.last_updated}, duration_min={session_duration_minutes}"
+                    )
 
                     # Handle 0-minute sessions by adjusting them to 1-minute minimum
                     # This prevents constraint violations while maintaining data integrity
@@ -1480,9 +1506,13 @@ class DataService:
 
                     # Get all frequencies used across merged sessions
                     frequencies_used = await self._get_session_frequencies(callsign, logon_time, session_end_time, session)
+                    self.logger.debug(f"{callsign} frequencies_used count={len(frequencies_used) if frequencies_used else 0}")
                     
                     # Get aircraft interaction data across merged sessions
                     aircraft_data = await self._get_aircraft_interactions(callsign, logon_time, session_end_time, session)
+                    self.logger.debug(
+                        f"{callsign} aircraft_interactions total={aircraft_data.get('total_aircraft', 0)}, peak={aircraft_data.get('peak_count', 0)}"
+                    )
                     
                     # Create merged summary data
                     summary_data = {
@@ -1527,7 +1557,7 @@ class DataService:
                         self.logger.debug(f"✅ Created summary for controller {callsign} (duration: {session_duration_minutes} min)")
                     
                 except Exception as e:
-                    self.logger.error(f"❌ Failed to process controller {callsign}: {e}")
+                    self.logger.error(f"❌ Failed to process controller {callsign} (cid={cid}, logon_time={logon_time}): {e}")
                     failed_count += 1
                     continue
             

@@ -341,27 +341,27 @@ class TestControllerSessionMerging:
             ]
             
             for i, (logon_time, last_updated) in enumerate(test_sessions):
-                                 await db_session.execute(text("""
-                     INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
-                     VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
-                 """), {
-                     "callsign": test_callsign,
-                     "cid": test_cid,
-                     "logon_time": logon_time,
-                     "last_updated": last_updated,
-                     "frequency": "118.1",
-                     "name": "Test Controller",
-                     "rating": 4,
-                     "facility": 3,
-                     "server": "TEST"
-                 })
+                await db_session.execute(text("""
+                    INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
+                    VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
+                """), {
+                    "callsign": test_callsign,
+                    "cid": test_cid,
+                    "logon_time": logon_time,
+                    "last_updated": last_updated,
+                    "frequency": "118.1",
+                    "name": "Test Controller",
+                    "rating": 4,
+                    "facility": 3,
+                    "server": "TEST"
+                })
             
             await db_session.commit()
             
             # Test the fixed _identify_completed_controllers method
             # Set completion threshold to 1 minute ago (should catch our test sessions)
             completion_minutes = 1
-             completed_controllers = await data_service._identify_completed_controllers(completion_minutes)
+            completed_controllers = await data_service._identify_completed_controllers(completion_minutes)
             
             # Verify the fix: should return controllers grouped by (callsign, cid, logon_time)
             assert len(completed_controllers) > 0, "Should identify completed controllers"
@@ -417,20 +417,20 @@ class TestControllerSessionMerging:
             ]
             
             for i, (logon_time, last_updated) in enumerate(test_sessions):
-                                 await db_session.execute(text("""
-                     INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
-                     VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
-                 """), {
-                     "callsign": test_callsign,
-                     "cid": test_cid,
-                     "logon_time": logon_time,
-                     "last_updated": last_updated,
-                     "frequency": "120.1",
-                     "name": "Test Approach Controller",
-                     "rating": 4,
-                     "facility": 4,
-                     "server": "TEST"
-                 })
+                await db_session.execute(text("""
+                    INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
+                    VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
+                """), {
+                    "callsign": test_callsign,
+                    "cid": test_cid,
+                    "logon_time": logon_time,
+                    "last_updated": last_updated,
+                    "frequency": "120.1",
+                    "name": "Test Approach Controller",
+                    "rating": 4,
+                    "facility": 4,
+                    "server": "TEST"
+                })
             
             await db_session.commit()
             
@@ -451,28 +451,28 @@ class TestControllerSessionMerging:
             # Test the reconnection logic by manually calling the reconnection query
             callsign, cid, logon_time, session_end_time = test_controller
             
-                         # This simulates the reconnection query from _create_controller_summaries
-                         # Calculate the reconnection window in Python to avoid SQL interval arithmetic issues
-                         reconnection_window = session_end_time + timedelta(minutes=5)
-                         
-             result = await db_session.execute(text("""
-                 SELECT * FROM controllers 
-                 WHERE callsign = :callsign 
-                 AND cid = :cid
-                 AND (
-                     logon_time = :logon_time  -- Original session
-                     OR (
-                         logon_time > :logon_time 
-                         AND logon_time <= :reconnection_window
-                     )
-                 )
-                 ORDER BY created_at
-             """), {
-                 "callsign": callsign,
-                 "cid": cid,
-                 "logon_time": logon_time,
-                 "reconnection_window": reconnection_window
-             })
+            # This simulates the reconnection query from _create_controller_summaries
+            # Calculate the reconnection window in Python to avoid SQL interval arithmetic issues
+            reconnection_window = session_end_time + timedelta(minutes=5)
+            
+            result = await db_session.execute(text("""
+                SELECT * FROM controllers 
+                WHERE callsign = :callsign 
+                AND cid = :cid
+                AND (
+                    logon_time = :logon_time  -- Original session
+                    OR (
+                        logon_time > :logon_time 
+                        AND logon_time <= :reconnection_window
+                    )
+                )
+                ORDER BY created_at
+            """), {
+                "callsign": callsign,
+                "cid": cid,
+                "logon_time": logon_time,
+                "reconnection_window": reconnection_window
+            })
             
             merged_records = result.fetchall()
             
@@ -525,20 +525,20 @@ class TestControllerSessionMerging:
             ]
             
             for i, (logon_time, last_updated, frequency) in enumerate(test_sessions):
-                                 await db_session.execute(text("""
-                     INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
-                     VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
-                 """), {
-                     "callsign": test_callsign,
-                     "cid": test_cid,
-                     "logon_time": logon_time,
-                     "last_updated": last_updated,
-                     "frequency": frequency,
-                     "name": "Test Center Controller",
-                     "rating": 4,
-                     "facility": 6,
-                     "server": "TEST"
-                 })
+                await db_session.execute(text("""
+                    INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
+                    VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
+                """), {
+                    "callsign": test_callsign,
+                    "cid": test_cid,
+                    "logon_time": logon_time,
+                    "last_updated": last_updated,
+                    "frequency": frequency,
+                    "name": "Test Center Controller",
+                    "rating": 4,
+                    "facility": 6,
+                    "server": "TEST"
+                })
             
             await db_session.commit()
             
@@ -618,20 +618,20 @@ class TestControllerSessionMerging:
             ]
             
             for i, (logon_time, last_updated, frequency) in enumerate(test_sessions):
-                                 await db_session.execute(text("""
-                     INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
-                     VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
-                 """), {
-                     "callsign": test_callsign,
-                     "cid": test_cid,
-                     "logon_time": logon_time,
-                     "last_updated": last_updated,
-                     "frequency": frequency,
-                     "name": "Test Integration Controller",
-                     "rating": 4,
-                     "facility": 3,
-                     "server": "TEST"
-                 })
+                await db_session.execute(text("""
+                    INSERT INTO controllers (callsign, cid, logon_time, last_updated, frequency, name, rating, facility, server)
+                    VALUES (:callsign, :cid, :logon_time, :last_updated, :frequency, :name, :rating, :facility, :server)
+                """), {
+                    "callsign": test_callsign,
+                    "cid": test_cid,
+                    "logon_time": logon_time,
+                    "last_updated": last_updated,
+                    "frequency": frequency,
+                    "name": "Test Integration Controller",
+                    "rating": 4,
+                    "facility": 3,
+                    "server": "TEST"
+                })
             
             await db_session.commit()
             
