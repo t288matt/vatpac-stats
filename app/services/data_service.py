@@ -1439,7 +1439,7 @@ class DataService:
                         AND (
                             logon_time = :logon_time  -- Original session
                             OR (
-                                logon_time > :logon_time /
+                                logon_time > :logon_time
                                 AND logon_time <= :reconnection_window
                             )
                         )
