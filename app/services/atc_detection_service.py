@@ -199,13 +199,16 @@ class ATCDetectionService:
             
             self.logger.info(f"Loading ATC transceivers for flight {flight_callsign}: {flight_start} to {atc_end}")
             
-            # Single query with flight-specific time window
+            # Single query with flight-specific time window and geographic pre-filtering
             query = """
                 SELECT t.callsign, t.frequency, t.timestamp, t.position_lat, t.position_lon
                 FROM transceivers t
-                INNER JOIN controllers c ON t.callsign = c.callsign
-                WHERE t.entity_type = 'atc' 
-                AND c.facility != 0  -- Exclude observer positions
+                WHERE t.entity_type = 'atc'
+                AND t.callsign IN (  -- 🚀 Pre-filter controllers first
+                    SELECT DISTINCT callsign FROM controllers 
+                    WHERE facility != 0
+                    AND last_updated >= :flight_logon_time  -- Only controllers active since flight came online
+                )
                 AND t.timestamp >= :atc_start
                 AND t.timestamp <= :atc_end
                 ORDER BY t.callsign, t.timestamp
@@ -214,6 +217,7 @@ class ATCDetectionService:
             # Single database session, single query
             async with get_database_session() as session:
                 result = await session.execute(text(query), {
+                    "flight_logon_time": logon_time,
                     "atc_start": flight_start,
                     "atc_end": atc_end
                 })
