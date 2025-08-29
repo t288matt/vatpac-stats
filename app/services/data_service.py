@@ -1375,13 +1375,17 @@ class DataService:
             completion_threshold = datetime.now(timezone.utc) - timedelta(minutes=completion_minutes)
             
             query = """
-                SELECT DISTINCT callsign, cid, logon_time, MAX(last_updated) as session_end_time
-                FROM controllers 
-                            WHERE (callsign, cid, logon_time) NOT IN (
-                SELECT DISTINCT callsign, cid, logon_time FROM controller_summaries
-            )
-                GROUP BY callsign, cid, logon_time
-                HAVING MAX(last_updated) < :completion_threshold
+                SELECT DISTINCT c.callsign, c.cid, c.logon_time, MAX(c.last_updated) as session_end_time
+                FROM controllers c
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM controller_summaries cs
+                    WHERE cs.callsign = c.callsign
+                      AND cs.cid IS NOT DISTINCT FROM c.cid
+                      AND cs.session_start_time = c.logon_time
+                )
+                GROUP BY c.callsign, c.cid, c.logon_time
+                HAVING MAX(c.last_updated) < :completion_threshold
             """
             
             async with get_database_session() as session:
