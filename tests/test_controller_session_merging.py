@@ -451,26 +451,28 @@ class TestControllerSessionMerging:
             # Test the reconnection logic by manually calling the reconnection query
             callsign, cid, logon_time, session_end_time = test_controller
             
-            # This simulates the reconnection query from _create_controller_summaries
-            result = await db_session.execute(text("""
-                SELECT * FROM controllers 
-                WHERE callsign = :callsign 
-                AND cid = :cid
-                AND (
-                    logon_time = :logon_time  -- Original session
-                    OR (
-                        logon_time > :logon_time 
-                        AND logon_time <= :session_end_time + (INTERVAL '1 minute' * :reconnection_threshold)
-                    )
-                )
-                ORDER BY created_at
-            """), {
-                "callsign": callsign,
-                "cid": cid,
-                "logon_time": logon_time,
-                "session_end_time": session_end_time,
-                "reconnection_threshold": 5
-            })
+                         # This simulates the reconnection query from _create_controller_summaries
+                         # Calculate the reconnection window in Python to avoid SQL interval arithmetic issues
+                         reconnection_window = session_end_time + timedelta(minutes=5)
+                         
+             result = await db_session.execute(text("""
+                 SELECT * FROM controllers 
+                 WHERE callsign = :callsign 
+                 AND cid = :cid
+                 AND (
+                     logon_time = :logon_time  -- Original session
+                     OR (
+                         logon_time > :logon_time 
+                         AND logon_time <= :reconnection_window
+                     )
+                 )
+                 ORDER BY created_at
+             """), {
+                 "callsign": callsign,
+                 "cid": cid,
+                 "logon_time": logon_time,
+                 "reconnection_window": reconnection_window
+             })
             
             merged_records = result.fetchall()
             
@@ -656,6 +658,9 @@ class TestControllerSessionMerging:
             
             # Test 2: Flaw 2 Fix - Reconnection logic should find all sessions within 5-minute gaps
             # Simulate the reconnection query from _create_controller_summaries
+            # Calculate the reconnection window in Python to avoid SQL interval arithmetic issues
+            reconnection_window = session_end_time + timedelta(minutes=5)
+            
             result = await db_session.execute(text("""
                 SELECT * FROM controllers 
                 WHERE callsign = :callsign 
@@ -664,7 +669,7 @@ class TestControllerSessionMerging:
                     logon_time = :logon_time  -- Original session
                     OR (
                         logon_time > :logon_time 
-                        AND logon_time <= :session_end_time + (INTERVAL '1 minute' * :reconnection_threshold)
+                        AND logon_time <= :reconnection_window
                     )
                 )
                 ORDER BY created_at
@@ -672,8 +677,7 @@ class TestControllerSessionMerging:
                 "callsign": callsign,
                 "cid": cid,
                 "logon_time": logon_time,
-                "session_end_time": session_end_time,
-                "reconnection_threshold": 5
+                "reconnection_window": reconnection_window
             })
             
             merged_records = result.fetchall()

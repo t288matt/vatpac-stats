@@ -46,41 +46,398 @@ The system addresses critical needs in air traffic control operations:
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Docker and Docker Compose
-- At least 4GB RAM available (8GB+ recommended for production)
-- 10GB+ free disk space
-- Internet connection for VATSIM API access
-- GEOS library support (included in Docker image)
+### **Prerequisites**
+Before installing, ensure your machine meets these requirements:
 
-### Docker Compose Architecture
-The system uses **separated Docker Compose files** for modular service management:
+#### **System Requirements**
+- **Operating System**: Linux (Ubuntu 20.04+ recommended), macOS 10.15+, or Windows 10/11 with WSL2
+- **RAM**: Minimum 4GB, recommended 8GB+ for production
+- **Storage**: Minimum 10GB free space, recommended 50GB+ for production data
+- **CPU**: 2+ cores recommended for production workloads
+- **Network**: Internet connection for VATSIM API access
 
-- **`docker-compose.yml`** - Core VATSIM application (PostgreSQL + API)
-- **`docker-compose.metabase.yml`** - Metabase business intelligence platform
+#### **Software Dependencies**
+- **Docker**: Version 20.10+ with Docker Compose V2
+- **Git**: For cloning the repository
+- **Make** (optional): For simplified commands on Linux/macOS
 
-This separation provides:
-- **Independent service management** - Start/stop Metabase without affecting the main app
-- **Cleaner infrastructure** - Core app focused solely on VATSIM data processing
-- **Flexible deployment** - Choose which services to run based on needs
-- **Easier maintenance** - Update Metabase without rebuilding the main application
+### **Installation Steps**
 
-### Installation & Setup
+#### **Step 1: Install Docker and Docker Compose**
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd vatsim-data
-   ```
+**Ubuntu/Debian:**
+```bash
+# Update package list
+sudo apt update
 
-2. **Start the system**
-   ```bash
-   # Start core VATSIM application
-   docker-compose up -d
-   
-   # Start Metabase (optional - for business intelligence)
-   docker-compose -f docker-compose.metabase.yml up -d
-   ```
+# Install required packages
+sudo apt install -y apt-transport-https ca-certificates curl gnupg lsb-release
+
+# Add Docker's official GPG key
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+
+# Add Docker repository
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker Engine
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# Add user to docker group (requires logout/login)
+sudo usermod -aG docker $USER
+
+# Start and enable Docker
+sudo systemctl start docker
+sudo systemctl enable docker
+```
+
+**macOS:**
+```bash
+# Install Docker Desktop
+brew install --cask docker
+
+# Or download from: https://www.docker.com/products/docker-desktop
+```
+
+**Windows:**
+- Download Docker Desktop from: https://www.docker.com/products/docker-desktop
+- Install and enable WSL2 if prompted
+- Ensure virtualization is enabled in BIOS
+
+**Verify Docker Installation:**
+```bash
+docker --version
+docker compose version
+```
+
+#### **Step 2: Get the System Files**
+
+**Option A: Clone Repository (Development)**
+```bash
+# Clone the repository
+git clone <repository-url>
+cd vatsim-data
+```
+
+**Option B: Minimal Deployment (Production)**
+```bash
+# Create deployment directory
+mkdir vatsim-deployment
+cd vatsim-deployment
+
+# Download only essential files
+curl -O https://raw.githubusercontent.com/yourusername/vatsim-data/main/docker-compose.yml
+
+# Create required directories
+mkdir -p database/vatsim logs config
+
+# Download config files
+curl -O https://raw.githubusercontent.com/yourusername/vatsim-data/main/config/init.sql
+curl -O https://raw.githubusercontent.com/yourusername/vatsim-data/main/config/australian_airspace_polygon.json
+curl -O https://raw.githubusercontent.com/yourusername/vatsim-data/main/config/australian_airspace_sectors.geojson
+
+# Move config files to config directory
+mv init.sql australian_airspace_polygon.json australian_airspace_sectors.geojson config/
+```
+
+**Option C: Single Script Deployment**
+```bash
+# Download and run deployment script
+curl -s https://raw.githubusercontent.com/yourusername/vatsim-data/main/scripts/deploy-vatsim.sh | bash
+```
+
+**Expected Directory Structure:**
+
+**For Development (Full Clone):**
+```
+vatsim-data/
+├── app/                    # Application code
+├── config/                 # Configuration files
+├── database/              # Database storage
+│   └── vatsim/           # PostgreSQL data files
+├── logs/                  # Application logs
+├── docker-compose.yml     # Core services
+├── docker-compose.metabase.yml  # Business intelligence
+├── Dockerfile             # Application container
+├── requirements.txt       # Python dependencies
+└── README.md             # This file
+```
+
+**For Minimal Deployment:**
+```
+vatsim-deployment/
+├── config/                 # Configuration files
+│   ├── init.sql           # Database schema
+│   ├── australian_airspace_polygon.json
+│   └── australian_airspace_sectors.geojson
+├── database/              # Database storage
+│   └── vatsim/           # PostgreSQL data files
+├── logs/                  # Application logs
+└── docker-compose.yml     # Core services
+```
+
+#### **Step 3: Configure the System**
+
+**Create Required Directories:**
+```bash
+# Create database storage directory (required for PostgreSQL)
+mkdir -p database/vatsim
+
+# Create logs directory (required for application logging)
+mkdir -p logs
+
+# Set proper permissions
+chmod 755 database/vatsim logs
+```
+
+**Verify Configuration Files:**
+```bash
+# Check that required config files exist
+ls -la config/
+# Should show: init.sql, australian_airspace_polygon.json, australian_airspace_sectors.geojson
+```
+
+**Important**: The `config/` directory contains essential files that must be present for the system to work:
+- **`init.sql`** - Database schema and initialization (required for PostgreSQL)
+- **`australian_airspace_polygon.json`** - Geographic boundary filter (required for airspace filtering)
+- **`australian_airspace_sectors.geojson`** - Sector definitions (required for sector tracking)
+
+**If any of these files are missing, the system will fail to start or function properly.**
+
+#### **Step 4: Start the System**
+
+**Start Core Services:**
+```bash
+# Start PostgreSQL and VATSIM application
+docker compose up -d
+
+# Verify services are running
+docker compose ps
+```
+
+**Expected Output:**
+```
+NAME                COMMAND                  SERVICE             STATUS              PORTS
+vatsim_app         "python -m uvicorn …"    app                 running             0.0.0.0:8001->8001/tcp
+vatsim_postgres    "docker-entrypoint.s…"   postgres            running             0.0.0.0:5432->5432/tcp
+```
+
+**Start Metabase (Optional):**
+```bash
+# Start business intelligence platform
+docker compose -f docker-compose.metabase.yml up -d
+
+# Verify Metabase is running
+docker compose -f docker-compose.metabase.yml ps
+```
+
+#### **Step 5: Verify Installation**
+
+**Check System Health:**
+```bash
+# Wait for services to fully start (2-3 minutes)
+sleep 180
+
+# Check API status
+curl http://localhost:8001/api/status
+
+# Check database status
+curl http://localhost:8001/api/database/status
+
+# Check filter status
+curl http://localhost:8001/api/filter/boundary/status
+```
+
+**Expected API Response:**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2025-01-16T10:00:00Z",
+  "version": "1.0.0",
+  "services": {
+    "database": "connected",
+    "vatsim_api": "operational",
+    "geographic_filter": "active"
+  }
+}
+```
+
+**Check Database Connection:**
+```bash
+# Connect to database
+docker compose exec postgres psql -U vatsim_user -d vatsim_data -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';"
+
+# Expected output: Should show 8 tables
+```
+
+**Check Logs:**
+```bash
+# View application logs
+docker compose logs app
+
+# View database logs
+docker compose logs postgres
+
+# View Metabase logs (if running)
+docker compose -f docker-compose.metabase.yml logs metabase
+```
+
+### **Post-Installation Configuration**
+
+#### **Environment Variables (Optional)**
+The system works with default settings, but you can customize:
+
+**Create `.env` file (optional):**
+```bash
+# Copy example environment file
+cp .env.example .env
+
+# Edit configuration
+nano .env
+```
+
+**Key Configuration Options:**
+```bash
+# Geographic filtering
+ENABLE_BOUNDARY_FILTER=true
+BOUNDARY_DATA_PATH=config/australian_airspace_polygon.json
+
+# Data collection intervals
+VATSIM_POLLING_INTERVAL=60
+FLIGHT_SUMMARY_INTERVAL=60
+
+# Database settings
+DATABASE_POOL_SIZE=20
+DATABASE_MAX_OVERFLOW=40
+```
+
+#### **Access Points**
+Once running, access the system at:
+
+- **VATSIM API**: http://localhost:8001
+- **API Documentation**: http://localhost:8001/docs
+- **Database**: localhost:5432 (vatsim_user/vatsim_password)
+- **Metabase**: http://localhost:3030 (if enabled)
+
+### **Troubleshooting Installation**
+
+#### **Common Issues**
+
+**1. Port Already in Use:**
+```bash
+# Check what's using the ports
+sudo netstat -tulpn | grep :8001
+sudo netstat -tulpn | grep :5432
+
+# Stop conflicting services or change ports in docker-compose.yml
+```
+
+**2. Docker Permission Issues:**
+```bash
+# Fix Docker permissions
+sudo chown $USER:$USER ~/.docker
+sudo chmod 666 /var/run/docker.sock
+
+# Or restart Docker service
+sudo systemctl restart docker
+```
+
+**3. Insufficient Memory:**
+```bash
+# Check available memory
+free -h
+
+# If less than 4GB, increase swap or reduce Docker memory limits
+```
+
+**4. Database Connection Failures:**
+```bash
+# Check if PostgreSQL is running
+docker compose exec postgres pg_isready -U vatsim_user -d vatsim_data
+
+# Check database logs
+docker compose logs postgres
+```
+
+**5. Geographic Filter Not Working:**
+```bash
+# Verify config files exist
+ls -la config/australian_airspace_polygon.json
+ls -la config/australian_airspace_sectors.geojson
+
+# Check filter status
+curl http://localhost:8001/api/filter/boundary/status
+```
+
+**6. Missing Configuration Files:**
+```bash
+# Check if config directory exists and has required files
+ls -la config/
+
+# Required files:
+# - init.sql (database schema)
+# - australian_airspace_polygon.json (geographic boundary)
+# - australian_airspace_sectors.geojson (sector definitions)
+
+# If files are missing, the system cannot start properly
+```
+
+#### **Reset Installation (if needed)**
+```bash
+# Stop all services
+docker compose down
+docker compose -f docker-compose.metabase.yml down
+
+# Remove all data (WARNING: This deletes all collected data)
+sudo rm -rf database/vatsim logs data cache
+
+# Recreate directories
+mkdir -p database/vatsim logs data cache
+chmod 755 database/vatsim logs data cache
+
+# Restart services
+docker compose up -d
+```
+
+### **Next Steps**
+
+After successful installation:
+
+1. **Monitor Data Collection**: Check that VATSIM data is being collected
+2. **Configure Geographic Boundaries**: Update airspace files for your region
+3. **Set Up Monitoring**: Configure log rotation and health monitoring
+4. **Production Deployment**: Review production deployment guide for scaling
+5. **Customization**: Modify sector definitions and filtering rules
+
+### **Configuration Files Explained**
+
+The `config/` directory contains essential files that the system requires to function:
+
+#### **`init.sql`** - Database Schema
+- **Purpose**: Creates all database tables, indexes, and constraints
+- **Why Essential**: Without this, PostgreSQL starts with an empty database
+- **What Happens If Missing**: System starts but has no tables, all API calls fail
+
+#### **`australian_airspace_polygon.json`** - Geographic Boundary
+- **Purpose**: Defines the Australian airspace boundary for filtering
+- **Why Essential**: Geographic filtering won't work without this file
+- **What Happens If Missing**: All flights/controllers pass through unfiltered
+
+#### **`australian_airspace_sectors.geojson`** - Sector Definitions
+- **Purpose**: Defines individual airspace sectors for tracking
+- **Why Essential**: Sector occupancy tracking won't work without this file
+- **What Happens If Missing**: No sector data is recorded
+
+**⚠️ Critical**: These files must be present before starting the system. If any are missing, the system will fail to function properly.
+
+### **Support**
+
+If you encounter issues:
+1. Check the logs: `docker compose logs app`
+2. Verify system requirements are met
+3. Check the troubleshooting section above
+4. Review existing GitHub issues
+5. Create a new issue with detailed error information
 
 ### **Usage Patterns**
 
