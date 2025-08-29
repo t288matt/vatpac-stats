@@ -1429,6 +1429,9 @@ class DataService:
                 try:
                     # Get all records for this controller including potential reconnections within 5 minutes
                     # The reconnection logic now properly measures the gap between session end and next session start
+                    # Calculate the reconnection window in Python to avoid SQL interval arithmetic issues
+                    reconnection_window = session_end_time + timedelta(minutes=reconnection_threshold_minutes)
+                    
                     controller_records = await session.execute(text("""
                         SELECT * FROM controllers 
                         WHERE callsign = :callsign 
@@ -1436,8 +1439,8 @@ class DataService:
                         AND (
                             logon_time = :logon_time  -- Original session
                             OR (
-                                logon_time > :logon_time 
-                                AND logon_time <= :session_end_time + (INTERVAL '1 minute' * :reconnection_threshold)
+                                logon_time > :logon_time /
+                                AND logon_time <= :reconnection_window
                             )
                         )
                         ORDER BY created_at
@@ -1445,8 +1448,7 @@ class DataService:
                         "callsign": callsign,
                         "cid": cid,
                         "logon_time": logon_time,
-                        "session_end_time": session_end_time,
-                        "reconnection_threshold": reconnection_threshold_minutes
+                        "reconnection_window": reconnection_window
                     })
                     
                     records = controller_records.fetchall()
