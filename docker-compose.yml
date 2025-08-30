@@ -10,6 +10,7 @@ services:
     volumes:
       - ./database/vatsim:/var/lib/postgresql/data
       - ./config/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./scripts:/scripts:ro
     ports:
       - "5432:5432"
     restart: unless-stopped
@@ -65,8 +66,8 @@ services:
       
       # Flight Summary System Configuration (used by DataService)
       FLIGHT_SUMMARY_ENABLED: "true"          # Enable flight summary processing
-      FLIGHT_COMPLETION_HOURS: 14              # Hours after logon to mark flight as complete
-      FLIGHT_RETENTION_HOURS: 168000            # Hours to keep detailed flight data (7 days)
+      FLIGHT_COMPLETION_HOURS: 8             # Hours after logon to mark flight as complete
+      FLIGHT_RETENTION_HOURS: 168000000            # Hours to keep detailed flight data (7 days)
       FLIGHT_SUMMARY_INTERVAL: 60              # Minutes between summary processing (1 hour)
       
       # Sector Tracking Configuration (used by DataService)
@@ -81,9 +82,9 @@ services:
 
       # Controller Summary Configuration (used by DataService)
       CONTROLLER_SUMMARY_ENABLED: "true"
-      CONTROLLER_COMPLETION_MINUTES: "30"     # 30 minutes - this is when summaries are made and records archived
-      CONTROLLER_RETENTION_HOURS: "168000"
-      CONTROLLER_SUMMARY_INTERVAL: "60"
+      CONTROLLER_COMPLETION_MINUTES: "15"     # Inactivity threshold. After a controller has no updates for this many minutes, their session is considered “complete” and becomes eligible for summarization on the next run.
+      CONTROLLER_RETENTION_HOURS: "1680000000"  # Max retention time for completed controller sessions. Once eligible for summarization, sessions will be archived and deleted after this time period.
+      CONTROLLER_SUMMARY_INTERVAL: "30"   # Scheduler cadence. How often the background task runs to process/archive any sessions that have become eligible.
       CONTROLLER_RECONNECTION_THRESHOLD_MINUTES: "5"  # Minutes to merge controller reconnections into one session
       
       # Shared Configuration for Both Detection Services
@@ -121,6 +122,29 @@ services:
       postgres:
         condition: service_healthy
 
+    restart: unless-stopped
+
+  # Daily integrity checker (SQL-only)
+  integrity:
+    image: postgres:16
+    container_name: vatsim_integrity
+    environment:
+      PGHOST: postgres
+      PGDATABASE: vatsim_data
+      PGUSER: vatsim_user
+      PGPASSWORD: vatsim_password
+      TZ: UTC
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./logs:/logs:rw
+    command: >
+      sh -c "echo $(date -u '+%Y-%m-%dT%H:%M:%SZ') Running integrity checks && 
+      psql -v ON_ERROR_STOP=1 -f /scripts/flight_to_controller_integrity.sql && 
+      psql -v ON_ERROR_STOP=1 -f /scripts/controller_to_flight_integrity.sql && 
+      echo $(date -u '+%Y-%m-%dT%H:%M:%SZ') Integrity checks complete; echo Sleeping 24h && sleep 86400"
     restart: unless-stopped
 
   # Monitoring container for database and app health

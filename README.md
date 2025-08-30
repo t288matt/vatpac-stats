@@ -568,7 +568,7 @@ The system uses intelligent proximity ranges based on controller type:
 | Table | Purpose | Description |
 |-------|---------|-------------|
 | **flights** | Live flight data | Real-time position and flight plan information |
-| **transceivers** | Communication data | Radio frequency and communication information |
+| **transceivers** | Communication data | Radio frequency and communication information (excludes 122.8 MHz range) |
 | **controllers** | ATC positions | Active controller positions and status |
 | **flight_summaries** | Completed flights | Processed flight summaries with analytics |
 | **flights_archive** | Historical data | Detailed flight position history |
@@ -589,6 +589,20 @@ The flight table stores comprehensive flight data with 32 optimized columns:
 | **Pilot Info** | `cid`, `name`, `server`, `pilot_rating` | API | Pilot and network information |
 | **Status** | `status` | App | Flight status management |
 | **Timestamps** | `last_updated_api`, `created_at`, `updated_at` | Mixed | Data timestamps |
+
+### **Transceivers Table & Data Quality**
+The transceivers table stores radio frequency and position data with built-in data quality constraints:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `frequency` | BIGINT | Frequency in Hz (excludes 122.8 MHz range) |
+| `position_lat/lon` | DOUBLE | Position coordinates |
+| `entity_type` | VARCHAR | 'flight' or 'atc' |
+| `entity_id` | INTEGER | Reference to flights or controllers table |
+
+**Data Quality Constraint:**
+- **122.8 MHz Exclusion**: CHECK constraint prevents insertion of frequencies in the 122800000-122800999 Hz range
+- **Reason**: 122.8 MHz is commonly misused in VATSIM and doesn't represent valid operational frequencies
 
 ### **Flight Plan Validation Filter**
 The system includes automatic flight plan validation that ensures only flights with complete, analyzable flight plan data are stored:

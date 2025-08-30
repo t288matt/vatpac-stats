@@ -1175,6 +1175,7 @@ This flow ensures efficient data storage while preserving comprehensive historic
 - **Flight Plans**: Complete departure/arrival information (both fields must be populated)
 - **Callsigns**: Valid pattern, not excluded types
 - **Flight Plan Completeness**: Flights without departure or arrival are filtered out at ingestion
+- **Frequency Validation**: 122.8 MHz range (122800000-122800999 Hz) excluded as commonly misused
 
 #### **Storage Validation**
 - **Database Constraints**: Foreign keys, unique constraints
@@ -2430,6 +2431,7 @@ Active Flights → Completion Check → Summary Generation → Archive → Clean
 - **Flight Plans**: Complete departure/arrival information (both fields must be populated)
 - **Callsigns**: Valid pattern, not excluded types
 - **Flight Plan Completeness**: Flights without departure or arrival are filtered out at ingestion
+- **Frequency Validation**: 122.8 MHz range (122800000-122800999 Hz) excluded as commonly misused
 
 #### **Storage Validation**
 - **Database Constraints**: Foreign keys, unique constraints
@@ -4035,6 +4037,7 @@ Active Flights → Completion Check → Summary Generation → Archive → Clean
 - **Flight Plans**: Complete departure/arrival information (both fields must be populated)
 - **Callsigns**: Valid pattern, not excluded types
 - **Flight Plan Completeness**: Flights without departure or arrival are filtered out at ingestion
+- **Frequency Validation**: 122.8 MHz range (122800000-122800999 Hz) excluded as commonly misused
 
 #### **Storage Validation**
 - **Database Constraints**: Foreign keys, unique constraints
