@@ -1102,12 +1102,19 @@ class DataService:
             completion_threshold = datetime.now(timezone.utc) - timedelta(hours=completion_hours)
             
             query = """
-                SELECT DISTINCT callsign, departure, arrival, cid, deptime
-                FROM flights 
-                WHERE last_updated < :completion_threshold
-                AND callsign NOT IN (
-                    SELECT DISTINCT callsign FROM flight_summaries
-                )
+                SELECT DISTINCT f.callsign, f.departure, f.arrival, f.cid, f.deptime
+                FROM flights f
+                WHERE f.last_updated < :completion_threshold
+                  AND f.logon_time IS NOT NULL
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM flight_summaries fs
+                      WHERE fs.callsign   = f.callsign
+                        AND fs.cid        IS NOT DISTINCT FROM f.cid
+                        AND fs.departure  IS NOT DISTINCT FROM f.departure
+                        AND fs.arrival    IS NOT DISTINCT FROM f.arrival
+                        AND fs.logon_time IS NOT DISTINCT FROM f.logon_time
+                  )
             """
             
             async with get_database_session() as session:
@@ -1205,26 +1212,55 @@ class DataService:
                         "completion_time": last_record.last_updated
                     }
                     
-                    # Insert summary
-                    await session.execute(text("""
-                        INSERT INTO flight_summaries (
-                            callsign, aircraft_type, departure, arrival, deptime, logon_time,
-                            route, flight_rules, aircraft_faa, planned_altitude, aircraft_short,
-                            cid, name, server, pilot_rating, military_rating,
-                            controller_callsigns, controller_time_percentage, airborne_controller_time_percentage, time_online_minutes,
-                            primary_enroute_sector, total_enroute_sectors, total_enroute_time_minutes, sector_breakdown,
-                            completion_time
-                        ) VALUES (
-                            :callsign, :aircraft_type, :departure, :arrival, :deptime, :logon_time,
-                            :route, :flight_rules, :aircraft_faa, :planned_altitude, :aircraft_short,
-                            :cid, :name, :server, :pilot_rating, :military_rating,
-                            :controller_callsigns, :controller_time_percentage, :airborne_controller_time_percentage, :time_online_minutes,
-                            :primary_enroute_sector, :total_enroute_sectors, :total_enroute_time_minutes, :sector_breakdown,
-                            :completion_time
+                    # Attempt to update existing session by signature (callsign, cid, departure, arrival, logon_time)
+                    update_result = await session.execute(text("""
+                        UPDATE flight_summaries
+                        SET
+                            completion_time = GREATEST(completion_time, :completion_time),
+                            deptime = :deptime,
+                            updated_at = NOW()
+                        WHERE callsign = :callsign
+                          AND cid = :cid
+                          AND departure = :departure
+                          AND arrival = :arrival
+                          AND logon_time = :logon_time
+                    """), {
+                        "callsign": summary_data["callsign"],
+                        "cid": summary_data["cid"],
+                        "departure": summary_data["departure"],
+                        "arrival": summary_data["arrival"],
+                        "logon_time": summary_data["logon_time"],
+                        "completion_time": summary_data["completion_time"],
+                        "deptime": summary_data["deptime"],
+                    })
+
+                    if update_result.rowcount and update_result.rowcount > 0:
+                        # Existing session updated - skip insert
+                        processed_count += 1
+                        self.logger.debug(
+                            f"✅ Updated existing flight summary for {callsign} (cid={cid}) at logon {first_record.logon_time}"
                         )
-                    """), summary_data)
-                    
-                    processed_count += 1
+                    else:
+                        # Insert new summary
+                        await session.execute(text("""
+                            INSERT INTO flight_summaries (
+                                callsign, aircraft_type, departure, arrival, deptime, logon_time,
+                                route, flight_rules, aircraft_faa, planned_altitude, aircraft_short,
+                                cid, name, server, pilot_rating, military_rating,
+                                controller_callsigns, controller_time_percentage, airborne_controller_time_percentage, time_online_minutes,
+                                primary_enroute_sector, total_enroute_sectors, total_enroute_time_minutes, sector_breakdown,
+                                completion_time
+                            ) VALUES (
+                                :callsign, :aircraft_type, :departure, :arrival, :deptime, :logon_time,
+                                :route, :flight_rules, :aircraft_faa, :planned_altitude, :aircraft_short,
+                                :cid, :name, :server, :pilot_rating, :military_rating,
+                                :controller_callsigns, :controller_time_percentage, :airborne_controller_time_percentage, :time_online_minutes,
+                                :primary_enroute_sector, :total_enroute_sectors, :total_enroute_time_minutes, :sector_breakdown,
+                                :completion_time
+                            )
+                        """), summary_data)
+                        
+                        processed_count += 1
                     
                 except Exception as e:
                     self.logger.error(f"Failed to process flight {callsign}: {e}")
