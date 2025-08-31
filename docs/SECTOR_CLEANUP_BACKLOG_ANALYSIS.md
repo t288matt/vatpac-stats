@@ -64,3 +64,5 @@ WHERE s.exit_timestamp IS NULL
 - We already fixed flight-summary selection to use the session signature and added monitoring SQL views. This document focuses on sector cleanup only.
 
 
+
+

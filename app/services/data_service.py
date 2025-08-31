@@ -32,6 +32,7 @@ from app.filters.callsign_pattern_filter import CallsignPatternFilter
 from app.filters.controller_callsign_filter import ControllerCallsignFilter
 from app.filters.frequency_pattern_filter import FrequencyPatternFilter
 from app.database import get_database_session
+from app.services.session_selector import select_canonical_sessions
 from app.models import Flight, Controller, Transceiver
 from app.config import get_config, AppConfig
 from app.services.atc_detection_service import ATCDetectionService
@@ -1286,7 +1287,10 @@ class DataService:
         """
         try:
             self.logger.info("🔄 Starting flight summary processing...")
-            
+            # Canonical session pipeline is the default path
+            self.logger.info("🧭 Canonical session pipeline (default) - using selector")
+            return await self._process_completed_flights_canonical()
+
             # Get configuration values
             completion_hours = getattr(self.config.flight_summary, 'completion_hours', 14)
             retention_hours = getattr(self.config.flight_summary, 'retention_hours', 168)
@@ -1825,6 +1829,250 @@ class DataService:
             await session.commit()
             
             return processed_count
+
+    async def _process_completed_flights_canonical(self) -> Dict[str, Any]:
+        """Process completed flights using the canonical session selector (feature-flagged).
+        
+        Stage 2: transactional upsert → archive (≤ HWM) → delete per session under advisory xact lock.
+        """
+        try:
+            import os
+            # Use same horizon as FLIGHT_COMPLETION_HOURS
+            completion_hours_env = os.getenv("FLIGHT_COMPLETION_HOURS", "8")
+            completion_hours = int(completion_hours_env)
+            # Gap and span from decided configuration
+            gap_minutes = 120  # 2 hours
+            max_span_hours = completion_hours  # align with FLIGHT_COMPLETION_HOURS
+
+            self.logger.info(
+                f"🧭 Selecting canonical sessions: horizon={completion_hours}h, gap={gap_minutes}m, max_span={max_span_hours}h"
+            )
+            sessions = await select_canonical_sessions(
+                completion_hours=completion_hours,
+                gap_minutes=gap_minutes,
+                max_span_hours=max_span_hours,
+            )
+            self.logger.info(f"🧭 Canonical selector produced {len(sessions)} sessions")
+
+            processed = 0
+            archived = 0
+            deleted = 0
+
+            for s in sessions:
+                callsign = s["callsign"]
+                cid = s["cid"]
+                departure = s["departure"]
+                arrival = s["arrival"]
+                session_start = s["session_start"]
+                session_end = s["session_end"]
+                latest_deptime = s.get("latest_deptime")
+                latest_route = s.get("latest_route")
+
+                # Per-session transaction
+                async with get_database_session() as session:
+                    # Acquire transaction-level advisory lock (pg_try variant)
+                    key_concat = f"{callsign}|{cid}|{departure}|{arrival}"
+                    lock_sql = text("""
+                        SELECT pg_try_advisory_xact_lock(hashtextextended(:key, 0)) AS acquired
+                    """)
+                    res = await session.execute(lock_sql, {"key": key_concat})
+                    acquired = res.scalar()
+                    if not acquired:
+                        self.logger.debug(f"🔒 Skipping {callsign} {departure}->{arrival} (cid={cid}) due to lock contention")
+                        continue
+
+                    # High-water mark for safe archive/delete
+                    hwm_sql = text("""
+                        SELECT MAX(last_updated) AS hwm
+                        FROM flights
+                        WHERE callsign = :callsign
+                          AND cid = :cid
+                          AND departure = :departure
+                          AND arrival = :arrival
+                          AND last_updated BETWEEN :start AND :end
+                    """)
+                    hwm_res = await session.execute(
+                        hwm_sql,
+                        {
+                            "callsign": callsign,
+                            "cid": cid,
+                            "departure": departure,
+                            "arrival": arrival,
+                            "start": session_start,
+                            "end": session_end,
+                        },
+                    )
+                    hwm_row = hwm_res.fetchone()
+                    hwm = hwm_row.hwm if hwm_row and hwm_row.hwm else session_end
+
+                    # Upsert summary: update-first by signature
+                    upd_sql = text("""
+                        UPDATE flight_summaries
+                        SET
+                            completion_time = GREATEST(completion_time, :session_end),
+                            deptime = :latest_deptime,
+                            route = COALESCE(:latest_route, route),
+                            updated_at = NOW()
+                        WHERE callsign = :callsign
+                          AND cid = :cid
+                          AND departure = :departure
+                          AND arrival = :arrival
+                          AND logon_time = :session_start
+                    """)
+                    upd_res = await session.execute(
+                        upd_sql,
+                        {
+                            "callsign": callsign,
+                            "cid": cid,
+                            "departure": departure,
+                            "arrival": arrival,
+                            "session_start": session_start,
+                            "session_end": session_end,
+                            "latest_deptime": latest_deptime,
+                            "latest_route": latest_route,
+                        },
+                    )
+
+                    if upd_res.rowcount and upd_res.rowcount > 0:
+                        processed += 1
+                    else:
+                        # Insert minimal summary row; optional fields left NULL or basic
+                        ins_sql = text("""
+                            INSERT INTO flight_summaries (
+                                callsign, departure, arrival, deptime, logon_time,
+                                route, cid, completion_time
+                            ) VALUES (
+                                :callsign, :departure, :arrival, :latest_deptime, :session_start,
+                                :latest_route, :cid, :session_end
+                            )
+                        """)
+                        await session.execute(
+                            ins_sql,
+                            {
+                                "callsign": callsign,
+                                "departure": departure,
+                                "arrival": arrival,
+                                "latest_deptime": latest_deptime,
+                                "session_start": session_start,
+                                "latest_route": latest_route,
+                                "cid": cid,
+                                "session_end": session_end,
+                            },
+                        )
+                        processed += 1
+
+                    # Enrich summary with ATC interactions BEFORE archiving/deleting flights
+                    try:
+                        atc_data = await self.atc_detection_service.detect_flight_atc_interactions_with_timeout(
+                            callsign, departure, arrival, session_start, timeout_seconds=30.0
+                        )
+                        # Update summary with controller_callsigns and percentages
+                        update_atc_sql = text("""
+                            UPDATE flight_summaries
+                            SET
+                                controller_callsigns = :controller_callsigns,
+                                controller_time_percentage = :controller_time_percentage,
+                                airborne_controller_time_percentage = :airborne_controller_time_percentage,
+                                updated_at = NOW()
+                            WHERE callsign = :callsign
+                              AND cid = :cid
+                              AND departure = :departure
+                              AND arrival = :arrival
+                              AND logon_time = :session_start
+                        """)
+                        await session.execute(
+                            update_atc_sql,
+                            {
+                                "controller_callsigns": json.dumps(self._convert_for_json(atc_data.get("controller_callsigns", {}))),
+                                "controller_time_percentage": atc_data.get("controller_time_percentage"),
+                                "airborne_controller_time_percentage": atc_data.get("airborne_controller_time_percentage"),
+                                "callsign": callsign,
+                                "cid": cid,
+                                "departure": departure,
+                                "arrival": arrival,
+                                "session_start": session_start,
+                            },
+                        )
+                    except Exception as e:
+                        self.logger.warning(
+                            f"ATC enrichment failed for {callsign} {departure}->{arrival} (cid={cid}) @ {session_start}: {e}"
+                        )
+
+                    # Archive rows ≤ HWM within window
+                    arch_sql = text("""
+                        INSERT INTO flights_archive (
+                            callsign, aircraft_type, departure, arrival, logon_time,
+                            route, flight_rules, aircraft_faa, planned_altitude, aircraft_short,
+                            cid, name, server, pilot_rating, military_rating,
+                            latitude, longitude, altitude, groundspeed, heading,
+                            last_updated, deptime, controller_callsigns, controller_time_percentage,
+                            time_online_minutes, primary_enroute_sector, total_enroute_sectors,
+                            total_enroute_time_minutes, sector_breakdown, completion_time
+                        )
+                        SELECT 
+                            f.callsign, f.aircraft_type, f.departure, f.arrival, f.logon_time,
+                            f.route, f.flight_rules, f.aircraft_faa, f.planned_altitude, f.aircraft_short,
+                            f.cid, f.name, f.server, f.pilot_rating, f.military_rating,
+                            f.latitude, f.longitude, f.altitude, f.groundspeed, f.heading,
+                            f.last_updated, f.deptime,
+                            NULL::jsonb AS controller_callsigns,
+                            NULL::float AS controller_time_percentage,
+                            NULL::integer AS time_online_minutes,
+                            NULL::varchar(50) AS primary_enroute_sector,
+                            NULL::integer AS total_enroute_sectors,
+                            NULL::integer AS total_enroute_time_minutes,
+                            NULL::jsonb AS sector_breakdown,
+                            NULL::timestamptz AS completion_time
+                        FROM flights f
+                        WHERE f.callsign = :callsign
+                          AND f.cid = :cid
+                          AND f.departure = :departure
+                          AND f.arrival = :arrival
+                          AND f.last_updated BETWEEN :start AND :hwm
+                    """)
+                    arch_res = await session.execute(
+                        arch_sql,
+                        {
+                            "callsign": callsign,
+                            "cid": cid,
+                            "departure": departure,
+                            "arrival": arrival,
+                            "start": session_start,
+                            "hwm": hwm,
+                        },
+                    )
+                    # SQLAlchemy rowcount may be None for INSERT..SELECT; compute deleted rowcount next
+
+                    del_sql = text("""
+                        DELETE FROM flights f
+                        WHERE f.callsign = :callsign
+                          AND f.cid = :cid
+                          AND f.departure = :departure
+                          AND f.arrival = :arrival
+                          AND f.last_updated BETWEEN :start AND :hwm
+                    """)
+                    del_res = await session.execute(
+                        del_sql,
+                        {
+                            "callsign": callsign,
+                            "cid": cid,
+                            "departure": departure,
+                            "arrival": arrival,
+                            "start": session_start,
+                            "hwm": hwm,
+                        },
+                    )
+                    deleted += del_res.rowcount or 0
+
+            return {
+                "status": "success",
+                "sessions_detected": len(sessions),
+                "summaries_processed": processed,
+                "records_deleted": deleted,
+            }
+        except Exception as e:
+            self.logger.error(f"❌ Canonical session processing failed: {e}")
+            return {"status": "error", "error": str(e)}
 
     async def _delete_completed_flights(self, completed_flights: List[dict]) -> int:
         """Delete completed flights from the main flights table."""
