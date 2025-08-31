@@ -2064,11 +2064,15 @@ class DataService:
                     )
                     deleted += del_res.rowcount or 0
 
+            # Backward-compatible result keys so scheduled logger and callers don't KeyError
             return {
                 "status": "success",
                 "sessions_detected": len(sessions),
                 "summaries_processed": processed,
                 "records_deleted": deleted,
+                # Compatibility with legacy callers/loggers:
+                "summaries_created": processed,
+                "records_archived": deleted,
             }
         except Exception as e:
             self.logger.error(f"❌ Canonical session processing failed: {e}")
