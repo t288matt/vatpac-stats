@@ -529,7 +529,7 @@ This separation ensures:
 - **Performance Optimized**: Uses Shapely polygons for fast point-in-polygon detection
 - **17 Australian airspace sectors** fully tracked and monitored
 
-#### **Flight Summary System**
+#### **Flight Summary System (Canonical Session Pipeline - Default)**
 - **Automatic processing** every 60 minutes
 - **Complete flight history** with sector occupancy data
 - **Data archiving** for long-term storage
@@ -537,6 +537,9 @@ This separation ensures:
 - **Dual ATC coverage metrics**:
   - `controller_time_percentage`: Total ATC coverage (ground + airborne)
   - `airborne_controller_time_percentage`: Airborne ATC coverage (>1500ft)
+ - **Canonical sessions**: One flight “session” per (callsign, cid, departure, arrival), merging gaps ≤ 2 hours and capping span at 8 hours
+ - **Upsert behavior**: Update-first on (callsign, cid, departure, arrival, session_start); insert only if missing
+ - **Atomic processing**: Per-session advisory lock; upsert → archive (≤ high‑water mark) → delete
 
 #### **Controller Summary System**
 - **Automatic processing** every 60 minutes
@@ -880,6 +883,14 @@ curl http://localhost:8001/api/filter/boundary/status
 # Check database
 docker-compose exec postgres psql -U vatsim_user -d vatsim_data -c "SELECT COUNT(*) FROM flights;"
 ```
+
+### **Daily Integrity Runbook**
+- Two checks must be zero: flight→controller and controller→flight
+- Manual check inside app container:
+```bash
+python scripts/report_integrity.py
+```
+- The script prints counts and exits non‑zero if any mismatches are found
 
 ## 📚 Documentation
 

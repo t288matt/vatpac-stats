@@ -110,7 +110,10 @@ The system addresses critical needs in air traffic control operations:
 - **Performance Optimization**: Efficient polygon calculations with Shapely
 
 #### **Data Management & Optimization**
-- **Flight Summarization**: Automatic processing every 60 minutes with 90% storage reduction
+- **Flight Summarization (Canonical Session Pipeline - Default)**: Automatic processing every 60 minutes with 90% storage reduction
+  - Canonical sessions by (callsign, cid, departure, arrival), merge ≤ 2h gaps, cap at 8h span
+  - Update-first upsert on (callsign, cid, departure, arrival, session_start), then insert if missing
+  - Per-session advisory transaction lock; upsert → archive (≤ high‑water mark) → delete
 - **Data Archiving**: Complete flight position history preserved in archive tables
 - **Automatic Cleanup**: Stale sector management and memory state cleanup
 - **Storage Optimization**: Intelligent data lifecycle management
