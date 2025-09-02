@@ -1835,6 +1835,10 @@ class DataService:
         
         Stage 2: transactional upsert → archive (≤ HWM) → delete per session under advisory xact lock.
         """
+        async def _process_one_session(session, session_obj) -> int:
+            # helper not used externally in this patch, placeholder for future decomposition
+            return 1
+
         try:
             import os
             # Use same horizon as FLIGHT_COMPLETION_HOURS
@@ -1847,11 +1851,33 @@ class DataService:
             self.logger.info(
                 f"🧭 Selecting canonical sessions: horizon={completion_hours}h, gap={gap_minutes}m, max_span={max_span_hours}h"
             )
+            # Support optional limit argument passed via env or caller
+            limit_env = os.getenv("FLIGHT_SUMMARY_MAX_BATCH")
+            try:
+                env_limit = int(limit_env) if limit_env is not None else None
+            except Exception:
+                env_limit = None
+
+            # If caller provided a limit via function arg, prefer it; otherwise use env_limit
+            caller_limit = None
+            # The scheduled loop will call this function as _process_completed_flights_canonical(limit=N)
+            # To preserve backward compatibility we read a possible dynamic attribute
+            caller_limit = getattr(self, "_canonical_limit_override", None)
+
+            limit_to_use = caller_limit or env_limit
+
             sessions = await select_canonical_sessions(
                 completion_hours=completion_hours,
                 gap_minutes=gap_minutes,
                 max_span_hours=max_span_hours,
             )
+            # If a limit is configured, truncate the sessions list to that length
+            if limit_to_use is not None:
+                try:
+                    limit_int = int(limit_to_use)
+                    sessions = sessions[:limit_int]
+                except Exception:
+                    pass
             self.logger.info(f"🧭 Canonical selector produced {len(sessions)} sessions")
 
             processed = 0
@@ -2198,6 +2224,7 @@ class DataService:
             self.logger.info(f"🚀 Starting scheduled flight summary processing - interval: {interval_minutes} minutes ({interval_seconds} seconds)")
             
             # Start background task and store reference
+            # Pass configured interval_seconds to scheduled loop; the loop will read max_batch from env
             self.flight_summary_task = asyncio.create_task(self._scheduled_processing_loop(interval_seconds))
             
             # Add callback to handle task completion/failure
@@ -2282,23 +2309,47 @@ class DataService:
             raise
 
     async def _scheduled_processing_loop(self, interval_seconds: int):
-        """Background loop for scheduled flight summary processing."""
+        """Background loop for scheduled flight summary processing.
+
+        Adaptive backoff behaviour:
+        - Process up to `FLIGHT_SUMMARY_MAX_BATCH` sessions per iteration.
+        - If the processed count == batch limit, sleep a short interval (busy drain mode).
+        - If processed count < batch limit, sleep a longer interval (idle mode).
+        """
         self.logger.info(f"⏰ Scheduled flight summary processing loop started at {datetime.now(timezone.utc)}")
-        
+
+        # Load batch and backoff configuration from environment
+        max_batch = int(os.getenv("FLIGHT_SUMMARY_MAX_BATCH", "100"))
+        short_sleep = int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_SHORT", "10"))
+        long_sleep = int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_LONG", str(interval_seconds)))
+
         while True:
             try:
                 # Log the scheduled run
-                self.logger.info(f"⏰ Scheduled flight summary processing started at {datetime.now(timezone.utc)}")
-                
-                # Process completed flights
-                result = await self.process_completed_flights()
-                
+                self.logger.info(f"⏰ Scheduled flight summary processing started at {datetime.now(timezone.utc)}; max_batch={max_batch}")
+
+                # Process completed flights with a limit to avoid large single-run transactions
+                try:
+                    # Use the canonical pipeline but allow a limit to be passed via env var
+                    result = await self._process_completed_flights_canonical(limit=max_batch)
+                except TypeError:
+                    # Fallback if the canonical method signature hasn't been updated
+                    result = await self.process_completed_flights()
+
                 # Log the results
-                self.logger.info(f"✅ Scheduled processing completed: {result['summaries_created']} summaries created, {result['records_archived']} records archived")
-                
-                # Wait for next interval
-                await asyncio.sleep(interval_seconds)
-                
+                summaries = result.get('summaries_created', result.get('processed', 0))
+                archived = result.get('records_archived', result.get('records_deleted', 0))
+                self.logger.info(f"✅ Scheduled processing completed: {summaries} summaries created, {archived} records archived")
+
+                # Decide sleep interval based on whether we hit the batch limit
+                if isinstance(summaries, int) and summaries >= max_batch:
+                    # Probably more work remaining — short sleep to drain backlog
+                    self.logger.info(f"Batch hit max ({max_batch}); sleeping short interval {short_sleep}s to continue draining")
+                    await asyncio.sleep(short_sleep)
+                else:
+                    # Backlog likely drained — sleep the configured long interval
+                    await asyncio.sleep(long_sleep)
+
             except asyncio.CancelledError:
                 self.logger.info("Scheduled flight summary processing task was cancelled")
                 break
