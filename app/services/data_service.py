@@ -2337,10 +2337,10 @@ class DataService:
         """
         self.logger.info(f"⏰ Scheduled flight summary processing loop started at {datetime.now(timezone.utc)}")
 
-        # Load batch and backoff configuration from environment
-        max_batch = int(os.getenv("FLIGHT_SUMMARY_MAX_BATCH", "100"))
-        short_sleep = int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_SHORT", "10"))
-        long_sleep = int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_LONG", str(interval_seconds)))
+        # Load batch and backoff configuration from config (fallback to env)
+        max_batch = int(getattr(self.config.flight_summary, 'max_batch', int(os.getenv("FLIGHT_SUMMARY_MAX_BATCH", "100"))))
+        short_sleep = int(getattr(self.config.flight_summary, 'poll_interval_short', int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_SHORT", "10"))))
+        long_sleep = int(getattr(self.config.flight_summary, 'poll_interval_long', int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_LONG", str(interval_seconds)))))
 
         while True:
             try:
