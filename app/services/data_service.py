@@ -1289,7 +1289,17 @@ class DataService:
             self.logger.info("🔄 Starting flight summary processing...")
             # Canonical session pipeline is the default path
             self.logger.info("🧭 Canonical session pipeline (default) - using selector")
-            return await self._process_completed_flights_canonical()
+            result = await self._process_completed_flights_canonical()
+            # Emit a clear info-level summary for monitoring with number of flights processed
+            num_processed = (
+                result.get("summaries_created")
+                if isinstance(result, dict) and result.get("summaries_created") is not None
+                else result.get("summaries_processed") if isinstance(result, dict) and result.get("summaries_processed") is not None
+                else result.get("sessions_detected") if isinstance(result, dict) and result.get("sessions_detected") is not None
+                else 0
+            )
+            self.logger.info(f"Flight summary processing finished: {num_processed} flights processed")
+            return result
 
             # Get configuration values
             completion_hours = getattr(self.config.flight_summary, 'completion_hours', 14)
@@ -1327,6 +1337,15 @@ class DataService:
             }
             
             self.logger.info(f"✅ Flight summary processing completed: {result}")
+            # Also emit a concise info message with the number of flights processed
+            num_processed = (
+                result.get("summaries_created")
+                if isinstance(result, dict) and result.get("summaries_created") is not None
+                else result.get("summaries_processed") if isinstance(result, dict) and result.get("summaries_processed") is not None
+                else result.get("sessions_detected") if isinstance(result, dict) and result.get("sessions_detected") is not None
+                else 0
+            )
+            self.logger.info(f"Flight summary processing finished: {num_processed} flights processed")
             return result
             
         except Exception as e:
