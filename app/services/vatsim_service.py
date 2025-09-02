@@ -7,6 +7,7 @@ Handles flights, controllers, and transceivers data.
 """
 
 import httpx
+import os
 import asyncio
 import logging
 from typing import Dict, Any, Optional, List
@@ -39,6 +40,11 @@ class VATSIMService:
         self._initialized = False
         
         self.client: Optional[httpx.AsyncClient] = None
+        # Cached transceivers snapshot (parsed, unlinked). Protected by _transceivers_lock.
+        self._transceivers_cache: List[Dict[str, Any]] = []
+        self._transceivers_last_fetch: Optional[datetime] = None
+        self._transceivers_lock: asyncio.Lock = asyncio.Lock()
+        self._transceivers_task: Optional[asyncio.Task] = None
     
     async def __aenter__(self):
         """Async context manager entry."""
@@ -55,6 +61,12 @@ class VATSIMService:
             await self._create_client()
             self.logger.info("VATSIM service initialized successfully")
             self._initialized = True
+            # Start background refresher for transceivers snapshot
+            try:
+                # create background task but don't await it here
+                self._transceivers_task = asyncio.create_task(self._transceivers_refresher_loop())
+            except Exception:
+                self.logger.exception("Failed to start transceivers refresher task")
             return True
         except Exception as e:
             self.logger.error(f"Failed to initialize VATSIM service: {e}")
@@ -86,6 +98,17 @@ class VATSIMService:
             await self.client.aclose()
             self.client = None
             self.logger.debug("Closed HTTP client")
+        # Cancel background transceivers refresher task
+        if self._transceivers_task:
+            try:
+                self._transceivers_task.cancel()
+                await self._transceivers_task
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                self.logger.exception("Error while cancelling transceivers refresher task")
+            finally:
+                self._transceivers_task = None
     
     @handle_service_errors
     @log_operation("fetch_vatsim_data")
@@ -130,12 +153,21 @@ class VATSIMService:
             # Parse all flights - no filtering applied here
             flights = self._parse_flights(parsed_data.get("pilots", []))
             
-            # Fetch transceivers data
+            # Fetch transceivers data - prefer cached snapshot populated by background refresher
             try:
-                transceivers_raw = await self._fetch_transceivers_data()
-                transceivers = self._parse_transceivers(transceivers_raw)
-                # Link transceivers to flights and controllers
-                transceivers = self._link_transceivers_to_entities(transceivers, flights, controllers)
+                cached_snapshot: Optional[List[Dict[str, Any]]] = None
+                async with self._transceivers_lock:
+                    if self._transceivers_cache:
+                        # shallow-copy each dict to avoid mutating the cached objects during linking
+                        cached_snapshot = [dict(t) for t in self._transceivers_cache]
+
+                if cached_snapshot is not None:
+                    transceivers = self._link_transceivers_to_entities(cached_snapshot, flights, controllers)
+                else:
+                    # Fallback to on-demand fetch if cache is empty
+                    transceivers_raw = await self._fetch_transceivers_data()
+                    parsed = self._parse_transceivers(transceivers_raw)
+                    transceivers = self._link_transceivers_to_entities(parsed, flights, controllers)
             except Exception as e:
                 self.logger.warning(f"Failed to fetch transceivers: {e}")
                 transceivers = []
@@ -374,6 +406,23 @@ class VATSIMService:
                 "api_url": self.config.vatsim.transceivers_api_url
             })
             raise VATSIMAPIError(f"Failed to fetch transceivers data: {e}")
+
+    async def _transceivers_refresher_loop(self) -> None:
+        """Background loop that periodically refreshes the transceivers snapshot."""
+        interval = int(os.getenv("VATSIM_TRANSCEIVERS_POLLING_INTERVAL", "120"))
+        while True:
+            try:
+                self.logger.debug("Transceivers refresher: fetching snapshot")
+                raw = await self._fetch_transceivers_data()
+                parsed = self._parse_transceivers(raw)
+                async with self._transceivers_lock:
+                    self._transceivers_cache = parsed
+                    self._transceivers_last_fetch = datetime.now(timezone.utc)
+                self.logger.info(f"Transceivers refresher: updated snapshot ({len(parsed)} records)")
+            except Exception:
+                self.logger.exception("Transceivers refresher failed")
+            finally:
+                await asyncio.sleep(interval)
     
     def _parse_transceivers(self, transceivers_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
