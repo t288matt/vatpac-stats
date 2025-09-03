@@ -11,6 +11,7 @@ services:
     volumes:
       - ./database/vatsim_test:/var/lib/postgresql/data
       - ./scripts:/scripts:ro
+      - ./config/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     ports:
       - "57000:5432" # different host port chosen outside excluded ranges
     healthcheck:
@@ -55,7 +56,10 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: vatsim_worker_test
-    command: ["python", "-u", "app/services/summary_enrichment_worker.py"]
+    working_dir: /app
+    environment:
+      PYTHONPATH: "/app"
+    command: ["python", "-u", "-c", "import asyncio; from app.services.summary_enrichment_worker import SummaryEnrichmentWorker; asyncio.run(SummaryEnrichmentWorker().run_once())"]
     environment:
       DATABASE_URL: postgresql://vatsim_user:vatsim_password@postgres_test:5432/vatsim_data_test
       LOG_LEVEL: "DEBUG"
