@@ -33,6 +33,7 @@ class FlightDetectionService:
             time_window_seconds: Time window for frequency matching (default: from environment or 180s)
         """
         import os
+        from app.services.detection_common import compute_detection_window
         
         # Load from environment variables with defaults
         self.time_window_seconds = time_window_seconds or int(os.getenv("FLIGHT_DETECTION_TIME_WINDOW_SECONDS", "180"))

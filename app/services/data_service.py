@@ -2006,18 +2006,15 @@ class DataService:
                         )
                         processed += 1
 
-                    # Enrich summary with ATC interactions BEFORE archiving/deleting flights
+                    # Enqueue enrichment work for this summary instead of running inline.
+                    # Mark enrichment as pending in the same transaction that created/updated the summary.
                     try:
-                        atc_data = await self.atc_detection_service.detect_flight_atc_interactions_with_timeout(
-                            callsign, departure, arrival, session_start, timeout_seconds=30.0
-                        )
-                        # Update summary with controller_callsigns and percentages
-                        update_atc_sql = text("""
+                        enqueue_sql = text("""
                             UPDATE flight_summaries
                             SET
-                                controller_callsigns = :controller_callsigns,
-                                controller_time_percentage = :controller_time_percentage,
-                                airborne_controller_time_percentage = :airborne_controller_time_percentage,
+                                enrichment_status = 'pending',
+                                enrichment_attempts = COALESCE(enrichment_attempts, 0),
+                                enrichment_run_after = NOW(),
                                 updated_at = NOW()
                             WHERE callsign = :callsign
                               AND cid = :cid
@@ -2026,11 +2023,8 @@ class DataService:
                               AND logon_time = :session_start
                         """)
                         await session.execute(
-                            update_atc_sql,
+                            enqueue_sql,
                             {
-                                "controller_callsigns": json.dumps(self._convert_for_json(atc_data.get("controller_callsigns", {}))),
-                                "controller_time_percentage": atc_data.get("controller_time_percentage"),
-                                "airborne_controller_time_percentage": atc_data.get("airborne_controller_time_percentage"),
                                 "callsign": callsign,
                                 "cid": cid,
                                 "departure": departure,
@@ -2039,9 +2033,8 @@ class DataService:
                             },
                         )
                     except Exception as e:
-                        self.logger.warning(
-                            f"ATC enrichment failed for {callsign} {departure}->{arrival} (cid={cid}) @ {session_start}: {e}"
-                        )
+                        # Non-fatal: log and continue; the summary was created/updated but enqueue marking failed.
+                        self.logger.warning(f"Failed to mark enrichment pending for {callsign} {departure}->{arrival} (cid={cid}) @ {session_start}: {e}")
 
                     # Archive rows ≤ HWM within window
                     arch_sql = text("""
