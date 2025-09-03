@@ -59,10 +59,9 @@ services:
     working_dir: /app
     environment:
       PYTHONPATH: "/app"
-    command: ["python", "-u", "-c", "import asyncio; from app.services.summary_enrichment_worker import SummaryEnrichmentWorker; asyncio.run(SummaryEnrichmentWorker().run_once())"]
-    environment:
       DATABASE_URL: postgresql://vatsim_user:vatsim_password@postgres_test:5432/vatsim_data_test
       LOG_LEVEL: "DEBUG"
+    command: ["python", "-u", "-c", "import asyncio; from app.services.summary_enrichment_worker import SummaryEnrichmentWorker; print('running worker'); print(asyncio.run(SummaryEnrichmentWorker().run_once()))"]
     depends_on:
       postgres_test:
         condition: service_healthy
