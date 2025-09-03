@@ -12,7 +12,7 @@ services:
       - ./database/vatsim_test:/var/lib/postgresql/data
       - ./scripts:/scripts:ro
     ports:
-      - "55432:5432" # different host port to avoid collisions
+      - "55435:5432" # different host port to avoid collisions; changed to 55435
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U vatsim_user -d vatsim_data_test"]
       interval: 10s
