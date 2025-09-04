@@ -36,6 +36,7 @@ from app.utils.error_handling import handle_service_errors, log_operation
 
 from app.services.vatsim_service import get_vatsim_service
 from app.services.data_service import get_data_service
+from app.services.summary_enrichment_worker import SummaryEnrichmentWorker
 from app.database import get_database_session
 from app.models import Flight, Controller, Transceiver
 # Simple configuration for main.py
@@ -66,6 +67,9 @@ def exit_application(reason: str, exit_code: int = 1):
 
 # Background task for data ingestion
 data_ingestion_task: Optional[asyncio.Task] = None
+
+# Background task for summary enrichment
+summary_enrichment_task: Optional[asyncio.Task] = None
 
 # Application startup time for uptime calculation
 app_startup_time: Optional[datetime] = None
@@ -101,7 +105,7 @@ async def monitor_scheduled_tasks():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
-    global data_ingestion_task, app_startup_time
+    global data_ingestion_task, app_startup_time, summary_enrichment_task
     
     # Startup
     logger.info("Starting VATSIM Data Collection System...")
@@ -229,6 +233,14 @@ async def lifespan(app: FastAPI):
         # Start scheduled task monitoring
         monitor_task = asyncio.create_task(monitor_scheduled_tasks())
         logger.info("✅ Scheduled task monitoring started")
+
+        # Start summary enrichment worker (auto-start)
+        try:
+            enrichment_worker = SummaryEnrichmentWorker()
+            summary_enrichment_task = asyncio.create_task(enrichment_worker.run_loop())
+            logger.info("✅ Summary enrichment worker started")
+        except Exception as e:
+            logger.error(f"Failed to start summary enrichment worker: {e}")
         
     except Exception as e:
         # Catch critical initialization errors and fail the app
@@ -284,6 +296,14 @@ async def lifespan(app: FastAPI):
                 pass
             logger.info("Scheduled task monitoring cancelled")
 
+        if summary_enrichment_task:
+            summary_enrichment_task.cancel()
+            try:
+                await summary_enrichment_task
+            except asyncio.CancelledError:
+                pass
+            logger.info("Summary enrichment worker cancelled")
+
 # Create FastAPI application
 app = FastAPI(
     title="VATSIM Data Collection System",
@@ -300,6 +320,35 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/api/enrichment_status")
+async def enrichment_status():
+    """Return enrichment queue metrics for flights and controllers."""
+    async with get_database_session() as session:
+        q = text("""
+            SELECT
+              (SELECT count(*) FROM flight_summaries WHERE enrichment_status='pending') AS flight_pending,
+              (SELECT count(*) FROM flight_summaries WHERE enrichment_status='in_progress') AS flight_in_progress,
+              (SELECT count(*) FROM flight_summaries WHERE enrichment_status='completed') AS flight_completed,
+              (SELECT COALESCE(AVG(EXTRACT(epoch FROM (enrichment_completed_at - enrichment_run_after))),0) FROM flight_summaries WHERE enrichment_status='completed' AND enrichment_completed_at IS NOT NULL AND enrichment_run_after IS NOT NULL) AS flight_avg_latency,
+              (SELECT count(*) FROM controller_summaries WHERE enrichment_status='pending') AS controller_pending,
+              (SELECT count(*) FROM controller_summaries WHERE enrichment_status='in_progress') AS controller_in_progress,
+              (SELECT count(*) FROM controller_summaries WHERE enrichment_status='completed') AS controller_completed,
+              (SELECT COALESCE(AVG(EXTRACT(epoch FROM (enrichment_completed_at - enrichment_run_after))),0) FROM controller_summaries WHERE enrichment_status='completed' AND enrichment_completed_at IS NOT NULL AND enrichment_run_after IS NOT NULL) AS controller_avg_latency
+        """)
+        res = await session.execute(q)
+        row = res.fetchone()
+        return {
+            "flight_pending": int(row.flight_pending),
+            "flight_in_progress": int(row.flight_in_progress),
+            "flight_completed": int(row.flight_completed),
+            "flight_avg_latency_s": float(row.flight_avg_latency),
+            "controller_pending": int(row.controller_pending),
+            "controller_in_progress": int(row.controller_in_progress),
+            "controller_completed": int(row.controller_completed),
+            "controller_avg_latency_s": float(row.controller_avg_latency),
+        }
 
 # Background task for continuous data ingestion
 async def run_data_ingestion():
