@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from sqlalchemy import text
 from app.database import get_database_session
 from app.services.atc_detection_service import ATCDetectionService
+from app.services.flight_detection_service import FlightDetectionService
 
 logger = logging.getLogger(__name__)
 
@@ -19,66 +20,133 @@ class SummaryEnrichmentWorker:
     def __init__(self, poll_interval: int = 5):
         self.poll_interval = poll_interval
         self.atc_service = ATCDetectionService()
+        self.flight_service = FlightDetectionService()
 
     async def run_once(self):
-        # Claim one pending flight summary
+        # Attempt to claim a pending flight summary; if none, claim a pending controller summary.
+        fs_id = None
+        controller_job = None
+
         async with get_database_session() as session:
-            claim_sql = text("""
+            # Try flight summary
+            claim_flight_sql = text("""
                 SELECT id, callsign, departure, arrival, logon_time
                 FROM flight_summaries
                 WHERE enrichment_status = 'pending' AND enrichment_run_after <= now()
                 LIMIT 1
                 FOR UPDATE SKIP LOCKED
             """)
-            res = await session.execute(claim_sql)
+            res = await session.execute(claim_flight_sql)
             row = res.fetchone()
-            if not row:
-                return False
+            if row:
+                fs_id = row.id
+                callsign = row.callsign
+                departure = row.departure
+                arrival = row.arrival
+                logon_time = row.logon_time
 
-            fs_id = row.id
-            callsign = row.callsign
-            departure = row.departure
-            arrival = row.arrival
-            logon_time = row.logon_time
-
-            # mark in_progress
-            await session.execute(text("""
-                UPDATE flight_summaries
-                SET enrichment_status = 'in_progress', enrichment_attempts = COALESCE(enrichment_attempts, 0) + 1, updated_at = now()
-                WHERE id = :id
-            """), {"id": fs_id})
-            await session.commit()
-
-        # Run enrichment outside the claim transaction
-        try:
-            logger.info(f"Enriching flight summary id={fs_id} callsign={callsign}")
-            atc_data = await self.atc_service.detect_flight_atc_interactions_with_timeout(callsign, departure, arrival, logon_time, timeout_seconds=30.0)
-
-            # Write back results
-            async with get_database_session() as session:
                 await session.execute(text("""
                     UPDATE flight_summaries
-                    SET controller_callsigns = :controller_callsigns, controller_time_percentage = :ctp, enrichment_status = 'completed', enrichment_completed_at = now(), updated_at = now()
+                    SET enrichment_status = 'in_progress', enrichment_attempts = COALESCE(enrichment_attempts, 0) + 1, updated_at = now()
                     WHERE id = :id
-                """), {
-                    "controller_callsigns": atc_data.get("controller_callsigns", {}),
-                    "ctp": atc_data.get("controller_time_percentage", None),
-                    "id": fs_id
-                })
+                """), {"id": fs_id})
+                await session.commit()
+            else:
+                # Try controller summary
+                claim_controller_sql = text("""
+                    SELECT id, callsign, session_start_time, session_end_time
+                    FROM controller_summaries
+                    WHERE enrichment_status = 'pending' AND enrichment_run_after <= now()
+                    LIMIT 1
+                    FOR UPDATE SKIP LOCKED
+                """)
+                cres = await session.execute(claim_controller_sql)
+                crow = cres.fetchone()
+                if not crow:
+                    return False
+                controller_job = {
+                    "id": crow.id,
+                    "callsign": crow.callsign,
+                    "session_start": crow.session_start_time,
+                    "session_end": crow.session_end_time,
+                }
+
+                await session.execute(text("""
+                    UPDATE controller_summaries
+                    SET enrichment_status = 'in_progress', enrichment_attempts = COALESCE(enrichment_attempts, 0) + 1, updated_at = now()
+                    WHERE id = :id
+                """), {"id": controller_job["id"]})
                 await session.commit()
 
-            logger.info(f"Enrichment completed id={fs_id} callsign={callsign}")
-            return True
+        # Run enrichment outside the claim transaction
+        import json
+
+        try:
+            if fs_id:
+                logger.info(f"Enriching flight summary id={fs_id} callsign={callsign}")
+                atc_data = await self.atc_service.detect_flight_atc_interactions_with_timeout(callsign, departure, arrival, logon_time, timeout_seconds=30.0)
+
+                async with get_database_session() as session:
+                    controller_callsigns_json = json.dumps(atc_data.get("controller_callsigns", {}))
+                    await session.execute(text("""
+                        UPDATE flight_summaries
+                        SET controller_callsigns = :controller_callsigns, controller_time_percentage = :ctp, enrichment_status = 'completed', enrichment_completed_at = now(), updated_at = now()
+                        WHERE id = :id
+                    """), {
+                        "controller_callsigns": controller_callsigns_json,
+                        "ctp": atc_data.get("controller_time_percentage", None),
+                        "id": fs_id
+                    })
+                    await session.commit()
+
+                logger.info(f"Enrichment completed id={fs_id} callsign={callsign}")
+                return True
+
+            if controller_job:
+                cid = controller_job["id"]
+                callsign = controller_job["callsign"]
+                start = controller_job["session_start"]
+                end = controller_job["session_end"]
+
+                logger.info(f"Enriching controller summary id={cid} callsign={callsign}")
+                flight_data = await self.flight_service.detect_controller_flight_interactions_with_timeout(callsign, start, end, timeout_seconds=30.0)
+
+                async with get_database_session() as session:
+                    aircraft_details_json = json.dumps(flight_data.get("details", []))
+                    hourly_json = json.dumps(flight_data.get("hourly_breakdown", {}))
+                    await session.execute(text("""
+                        UPDATE controller_summaries
+                        SET aircraft_details = :aircraft_details, total_aircraft_handled = :total, peak_aircraft_count = :peak, hourly_aircraft_breakdown = :hourly, enrichment_status = 'completed', enrichment_completed_at = now(), updated_at = now()
+                        WHERE id = :id
+                    """), {
+                        "aircraft_details": aircraft_details_json,
+                        "total": flight_data.get("total_aircraft", 0),
+                        "peak": flight_data.get("peak_count", 0),
+                        "hourly": hourly_json,
+                        "id": cid
+                    })
+                    await session.commit()
+
+                logger.info(f"Controller enrichment completed id={cid} callsign={callsign}")
+                return True
+
+            return False
 
         except Exception as e:
-            logger.exception(f"Enrichment failed for id={fs_id} callsign={callsign}: {e}")
-            # mark pending again with backoff
+            logger.exception(f"Enrichment failed: {e}")
             async with get_database_session() as session:
-                await session.execute(text("""
-                    UPDATE flight_summaries
-                    SET enrichment_status = 'pending', enrichment_run_after = now() + interval '60 seconds', enrichment_last_error = :err, updated_at = now()
-                    WHERE id = :id
-                """), {"err": str(e), "id": fs_id})
+                if fs_id:
+                    await session.execute(text("""
+                        UPDATE flight_summaries
+                        SET enrichment_status = 'pending', enrichment_run_after = now() + interval '60 seconds', enrichment_last_error = :err, updated_at = now()
+                        WHERE id = :id
+                    """), {"err": str(e), "id": fs_id})
+                if controller_job:
+                    await session.execute(text("""
+                        UPDATE controller_summaries
+                        SET enrichment_status = 'pending', enrichment_run_after = now() + interval '60 seconds', enrichment_last_error = :err, updated_at = now()
+                        WHERE id = :id
+                    """), {"err": str(e), "id": controller_job["id"]})
                 await session.commit()
             return False
 
