@@ -21,6 +21,7 @@ DECLARE
 
   fk record;
   col_names text[];
+  tbl_col text;
   seq_name text;
   seq_parts text[];
   constraint_def text;
@@ -43,9 +44,10 @@ BEGIN
         AND c.confrelid = format('%I.%I','public', tbl)::regclass
     LOOP
       -- Build array of column names in the referencing table for this constraint
-      SELECT array_agg(att.attname ORDER BY ord) INTO col_names
+      SELECT array_agg(att.attname ORDER BY u.idx) INTO col_names
       FROM (
-        SELECT unnest(fk.referencing_col_nums) WITH ORDINALITY AS (attnum, ord)
+        SELECT fk.referencing_col_nums[i] AS attnum, i AS idx
+        FROM generate_series(1, COALESCE(array_length(fk.referencing_col_nums,1),0)) AS s(i)
       ) AS u
       JOIN pg_attribute att ON att.attrelid = fk.referencing_table::regclass AND att.attnum = u.attnum;
 
