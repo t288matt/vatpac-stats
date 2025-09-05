@@ -1706,23 +1706,51 @@ class DataService:
                 callsign, cid, logon_time, session_end_time = controller_key
                 
                 try:
+                    # Respect archive delay configuration to avoid archiving very recent sessions
+                    import os
+                    from datetime import datetime, timezone, timedelta
+                    days_str = os.getenv("CONTROLLER_DAYS_BEFORE_ARCHIVE", "0")
+                    try:
+                        days_before = int(days_str)
+                    except Exception:
+                        days_before = 0
+                    archive_cutoff = datetime.now(timezone.utc) - timedelta(days=days_before) if days_before > 0 else None
                     # Archive all records for this session
-                    result = await session.execute(text("""
-                        INSERT INTO controllers_archive (
-                            id, callsign, frequency, cid, name, rating, facility,
-                            visual_range, text_atis, server, last_updated, logon_time,
-                            created_at, updated_at
-                        )
-                        SELECT 
-                            id, callsign, frequency, cid, name, rating, facility,
-                            visual_range, text_atis, server, last_updated, logon_time,
-                            created_at, updated_at
-                        FROM controllers
-                        WHERE callsign = :callsign AND logon_time = :logon_time
-                    """), {
-                        "callsign": callsign,
-                        "logon_time": logon_time
-                    })
+                    if archive_cutoff:
+                        result = await session.execute(text("""
+                            INSERT INTO controllers_archive (
+                                id, callsign, frequency, cid, name, rating, facility,
+                                visual_range, text_atis, server, last_updated, logon_time,
+                                created_at, updated_at
+                            )
+                            SELECT 
+                                id, callsign, frequency, cid, name, rating, facility,
+                                visual_range, text_atis, server, last_updated, logon_time,
+                                created_at, updated_at
+                            FROM controllers
+                            WHERE callsign = :callsign AND logon_time = :logon_time AND last_updated <= :archive_cutoff
+                        """), {
+                            "callsign": callsign,
+                            "logon_time": logon_time,
+                            "archive_cutoff": archive_cutoff,
+                        })
+                    else:
+                        result = await session.execute(text("""
+                            INSERT INTO controllers_archive (
+                                id, callsign, frequency, cid, name, rating, facility,
+                                visual_range, text_atis, server, last_updated, logon_time,
+                                created_at, updated_at
+                            )
+                            SELECT 
+                                id, callsign, frequency, cid, name, rating, facility,
+                                visual_range, text_atis, server, last_updated, logon_time,
+                                created_at, updated_at
+                            FROM controllers
+                            WHERE callsign = :callsign AND logon_time = :logon_time
+                        """), {
+                            "callsign": callsign,
+                            "logon_time": logon_time
+                        })
                     
                     archived_count += result.rowcount
                     
@@ -1741,13 +1769,32 @@ class DataService:
                 callsign, cid, logon_time, session_end_time = controller_key
                 
                 try:
-                    result = await session.execute(text("""
-                        DELETE FROM controllers
-                        WHERE callsign = :callsign AND logon_time = :logon_time
-                    """), {
-                        "callsign": callsign,
-                        "logon_time": logon_time
-                    })
+                    # Only delete if rows are older than configured archive delay
+                    import os
+                    from datetime import datetime, timezone, timedelta
+                    days_str = os.getenv("CONTROLLER_DAYS_BEFORE_ARCHIVE", "0")
+                    try:
+                        days_before = int(days_str)
+                    except Exception:
+                        days_before = 0
+                    if days_before > 0:
+                        archive_cutoff = datetime.now(timezone.utc) - timedelta(days=days_before)
+                        result = await session.execute(text("""
+                            DELETE FROM controllers
+                            WHERE callsign = :callsign AND logon_time = :logon_time AND last_updated <= :archive_cutoff
+                        """), {
+                            "callsign": callsign,
+                            "logon_time": logon_time,
+                            "archive_cutoff": archive_cutoff
+                        })
+                    else:
+                        result = await session.execute(text("""
+                            DELETE FROM controllers
+                            WHERE callsign = :callsign AND logon_time = :logon_time
+                        """), {
+                            "callsign": callsign,
+                            "logon_time": logon_time
+                        })
                     
                     deleted_count += result.rowcount
                     
