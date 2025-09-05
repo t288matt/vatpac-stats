@@ -572,7 +572,7 @@ class VATSIMService:
 
         return results
 
-    async def get_transceivers_in_window(self, start: datetime, end: datetime, entity_type: Optional[str] = None, ttl_seconds: int = 120, page_size_default: int = 10000) -> List[Dict[str, Any]]:
+    async def get_transceivers_in_window(self, start: datetime, end: datetime, entity_type: Optional[str] = None, ttl_seconds: int = 120, page_size_default: int = 10000, page_size: Optional[int] = None) -> List[Dict[str, Any]]:
         """Decide whether to use cached snapshot or force deterministic DB pagination and return transceivers for the window."""
         # Decide using cache freshness
         strategy = transceiver_load_strategy(start, end, self._transceivers_last_fetch, ttl_seconds, page_size_default)
@@ -590,7 +590,9 @@ class VATSIMService:
             return filtered
 
         # Force on-demand deterministic DB pagination
-        return await self.load_transceivers_window(start, end, entity_type=entity_type, page_size=strategy.get("page_size", page_size_default))
+        # Choose page_size from explicit caller arg, then strategy, then default
+        use_page_size = page_size if page_size is not None else strategy.get("page_size", page_size_default)
+        return await self.load_transceivers_window(start, end, entity_type=entity_type, page_size=use_page_size)
     
     async def get_api_status(self) -> Dict[str, Any]:
         """Get VATSIM API status information."""
