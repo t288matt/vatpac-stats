@@ -1834,8 +1834,23 @@ class DataService:
                     if not records:
                         continue
                     
+                    # Respect archive delay configuration to avoid archiving very recent flights
+                    import os
+                    from datetime import datetime, timezone, timedelta
+                    days_str = os.getenv("FLIGHT_DAYS_BEFORE_ARCHIVE", "0")
+                    try:
+                        days_before = int(days_str)
+                    except Exception:
+                        days_before = 0
+                    archive_cutoff = datetime.now(timezone.utc) - timedelta(days=days_before) if days_before > 0 else None
+
                     # Archive each record
                     for record in records:
+                        # If archive_cutoff is set, only archive records older than cutoff
+                        if archive_cutoff and record.last_updated and record.last_updated > archive_cutoff:
+                            # Skip archiving this recent record
+                            continue
+
                         await session.execute(text("""
                             INSERT INTO flights_archive (
                                 callsign, aircraft_type, departure, arrival, logon_time,
@@ -2173,21 +2188,49 @@ class DataService:
                 callsign, departure, arrival, cid, deptime = flight_key
                 
                 try:
-                    # Delete all records for this flight
-                    result = await session.execute(text("""
-                        DELETE FROM flights 
-                        WHERE callsign = :callsign 
-                        AND departure = :departure 
-                        AND arrival = :arrival 
-                        AND cid = :cid
-                        AND deptime = :deptime
-                    """), {
-                        "callsign": callsign,
-                        "departure": departure,
-                        "arrival": arrival,
-                        "cid": cid,
-                        "deptime": deptime
-                    })
+                    # Respect archive delay configuration: only delete rows older than cutoff
+                    import os
+                    from datetime import datetime, timezone, timedelta
+                    days_str = os.getenv("FLIGHT_DAYS_BEFORE_ARCHIVE", "0")
+                    try:
+                        days_before = int(days_str)
+                    except Exception:
+                        days_before = 0
+
+                    if days_before > 0:
+                        archive_cutoff = datetime.now(timezone.utc) - timedelta(days=days_before)
+                        result = await session.execute(text("""
+                            DELETE FROM flights
+                            WHERE callsign = :callsign
+                            AND departure = :departure
+                            AND arrival = :arrival
+                            AND cid = :cid
+                            AND deptime = :deptime
+                            AND last_updated <= :archive_cutoff
+                        """), {
+                            "callsign": callsign,
+                            "departure": departure,
+                            "arrival": arrival,
+                            "cid": cid,
+                            "deptime": deptime,
+                            "archive_cutoff": archive_cutoff
+                        })
+                    else:
+                        # Delete all records for this flight
+                        result = await session.execute(text("""
+                            DELETE FROM flights
+                            WHERE callsign = :callsign
+                            AND departure = :departure
+                            AND arrival = :arrival
+                            AND cid = :cid
+                            AND deptime = :deptime
+                        """), {
+                            "callsign": callsign,
+                            "departure": departure,
+                            "arrival": arrival,
+                            "cid": cid,
+                            "deptime": deptime
+                        })
                     
                     processed_count += result.rowcount
                     self.logger.debug(f"Deleted {processed_count} completed flights from main table")
