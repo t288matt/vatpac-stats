@@ -249,10 +249,19 @@ class FlightDetectionService:
                 ORDER BY flight_time, controller_time
             """
             
-            # Use canonical prefilter windows for query bounds (centered on session midpoint)
+            # Use canonical prefilter windows for query bounds. Use the full controller
+            # session window for ATC/fight prefiltering to avoid midpoint drift.
             from app.services.detection_common import build_prefilter_and_loader
+            # Build a default prefilter based on the session midpoint then override
+            # to ensure we cover the entire controller session [session_start, session_end].
             mid = session_start + (session_end - session_start) / 2
             pre = build_prefilter_and_loader(mid, self.time_window_seconds)
+            # Override to use full session bounds so controller-side detection
+            # considers all transceivers during the session.
+            pre["atc_start_time"] = session_start
+            pre["atc_end_time"] = session_end
+            pre["flight_start_time"] = session_start
+            pre["flight_end_time"] = session_end
             async with get_database_session() as session:
                 result = await session.execute(text(query), {
                     "controller_callsign": controller_callsign,
