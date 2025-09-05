@@ -408,7 +408,7 @@ class FlightsArchive(Base, TimestampMixin):
     """
     __tablename__ = "flights_archive"
     
-    id = Column(Integer, primary_key=True)  # Keep original ID for reference
+    id = Column(BigInteger, primary_key=True)  # Keep original ID for reference
     callsign = Column(String(50), nullable=False, index=True)  # Flight callsign
     aircraft_type = Column(String(20), nullable=True)  # Aircraft type
     departure = Column(String(10), nullable=True)  # Departure airport

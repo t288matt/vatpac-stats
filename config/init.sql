@@ -454,7 +454,7 @@ CREATE TABLE IF NOT EXISTS controller_summaries (
 
 -- Controllers Archive table for detailed historical records
 CREATE TABLE IF NOT EXISTS controllers_archive (
-    id INTEGER PRIMARY KEY,
+    id BIGINT PRIMARY KEY,
     callsign VARCHAR(50) NOT NULL,
     frequency VARCHAR(20),
     cid INTEGER,
