@@ -19,3 +19,4 @@ ALTER TABLE controller_summaries
 CREATE INDEX IF NOT EXISTS idx_controller_enrichment_status_run_after ON controller_summaries (enrichment_status, enrichment_run_after);
 
 
+

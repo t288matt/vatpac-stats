@@ -71,8 +71,14 @@ class FlightDetectionService:
                 self.logger.debug(f"No transceiver data found for controller {controller_callsign}")
                 return self._create_empty_flight_data()
             
-            # Get flight transceivers
-            flight_transceivers = await self._get_flight_transceivers(session_start, session_end)
+            # Get flight transceivers using deterministic pagination / load strategy
+            from app.services.vatsim_service import get_vatsim_service
+            from app.services.detection_common import build_prefilter_and_loader
+            vatsim = get_vatsim_service()
+            # compute canonical prefilter windows around the session midpoint
+            midpoint = session_start + (session_end - session_start) / 2
+            pre = build_prefilter_and_loader(midpoint, self.time_window_seconds)
+            flight_transceivers = await vatsim.get_transceivers_in_window(pre["flight_start_time"], pre["flight_end_time"], entity_type='flight', page_size=pre["loader"]["page_size"])
             if not flight_transceivers:
                 self.logger.debug(f"No flight transceiver data found")
                 return self._create_empty_flight_data()
@@ -243,11 +249,15 @@ class FlightDetectionService:
                 ORDER BY flight_time, controller_time
             """
             
+            # Use canonical prefilter windows for query bounds (centered on session midpoint)
+            from app.services.detection_common import build_prefilter_and_loader
+            mid = session_start + (session_end - session_start) / 2
+            pre = build_prefilter_and_loader(mid, self.time_window_seconds)
             async with get_database_session() as session:
                 result = await session.execute(text(query), {
                     "controller_callsign": controller_callsign,
-                    "session_start": session_start,
-                    "session_end": session_end,
+                    "session_start": pre["atc_start_time"],
+                    "session_end": pre["atc_end_time"],
                     "time_window": self.time_window_seconds,
                     "proximity_threshold_nm": proximity_threshold_nm
                 })

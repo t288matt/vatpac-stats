@@ -13,6 +13,10 @@ import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone, timedelta
 
+from app.database import get_database_session
+from sqlalchemy import text
+from app.services.detection_common import transceiver_load_strategy
+
 from app.config import get_config
 from app.utils.logging import get_logger_for_module
 from app.utils.error_handling import handle_service_errors, log_operation
@@ -507,6 +511,86 @@ class VATSIMService:
             # If no match, keep as "flight" (default)
         
         return transceivers
+
+    async def load_transceivers_window(self, start: datetime, end: datetime, entity_type: Optional[str] = None, page_size: int = 10000) -> List[Dict[str, Any]]:
+        """Load transceivers deterministically using keyset-style pagination.
+
+        Returns a list of transceiver dicts covering [start, end].
+        """
+        results: List[Dict[str, Any]] = []
+
+        last_ts = start.replace(microsecond=0) if start is not None else datetime.min.replace(tzinfo=timezone.utc)
+        last_id = 0
+
+        while True:
+            query = text("""
+                SELECT id as transceiver_id, callsign, frequency, position_lat, position_lon, timestamp, entity_type
+                FROM transceivers
+                WHERE timestamp >= :start AND timestamp <= :end
+                """)
+            if entity_type:
+                query = text(str(query) + " AND entity_type = :entity_type")
+
+            # Keyset condition to page deterministically
+            query = text(str(query) + " AND (timestamp > :last_ts OR (timestamp = :last_ts AND id > :last_id)) ORDER BY timestamp, id LIMIT :limit")
+
+            async with get_database_session() as session:
+                params = {
+                    "start": start,
+                    "end": end,
+                    "last_ts": last_ts,
+                    "last_id": last_id,
+                    "limit": page_size,
+                }
+                if entity_type:
+                    params["entity_type"] = entity_type
+
+                res = await session.execute(query, params)
+                rows = res.fetchall()
+
+            if not rows:
+                break
+
+            for row in rows:
+                results.append({
+                    "transceiver_id": row.transceiver_id,
+                    "callsign": row.callsign,
+                    "frequency": row.frequency,
+                    "position_lat": row.position_lat,
+                    "position_lon": row.position_lon,
+                    "timestamp": row.timestamp,
+                    "entity_type": row.entity_type,
+                })
+
+            # Advance keyset markers using last row
+            last_row = rows[-1]
+            last_ts = last_row.timestamp
+            last_id = last_row.transceiver_id
+
+            if len(rows) < page_size:
+                break
+
+        return results
+
+    async def get_transceivers_in_window(self, start: datetime, end: datetime, entity_type: Optional[str] = None, ttl_seconds: int = 120, page_size_default: int = 10000) -> List[Dict[str, Any]]:
+        """Decide whether to use cached snapshot or force deterministic DB pagination and return transceivers for the window."""
+        # Decide using cache freshness
+        strategy = transceiver_load_strategy(start, end, self._transceivers_last_fetch, ttl_seconds, page_size_default)
+
+        # Prefer cache if available and not forcing on-demand
+        if not strategy.get("force_on_demand", False) and self._transceivers_cache:
+            # Filter cached snapshot deterministically
+            filtered = []
+            for t in self._transceivers_cache:
+                ts = t.get("timestamp")
+                if ts is None:
+                    continue
+                if ts >= start and ts <= end and (entity_type is None or t.get("entity_type") == entity_type):
+                    filtered.append(t)
+            return filtered
+
+        # Force on-demand deterministic DB pagination
+        return await self.load_transceivers_window(start, end, entity_type=entity_type, page_size=strategy.get("page_size", page_size_default))
     
     async def get_api_status(self) -> Dict[str, Any]:
         """Get VATSIM API status information."""

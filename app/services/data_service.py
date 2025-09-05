@@ -1597,12 +1597,14 @@ class DataService:
                             callsign, cid, name, session_start_time, session_end_time,
                             session_duration_minutes, rating, facility, server,
                             total_aircraft_handled, peak_aircraft_count,
-                            hourly_aircraft_breakdown, frequencies_used, aircraft_details
+                            hourly_aircraft_breakdown, frequencies_used, aircraft_details,
+                            enrichment_status, enrichment_run_after
                         ) VALUES (
                             :callsign, :cid, :name, :session_start_time, :session_end_time,
                             :session_duration_minutes, :rating, :facility, :server,
                             :total_aircraft_handled, :peak_aircraft_count,
-                            :hourly_aircraft_breakdown, :frequencies_used, :aircraft_details
+                            :hourly_aircraft_breakdown, :frequencies_used, :aircraft_details,
+                            'pending', NOW()
                         )
                     """), summary_data)
                     

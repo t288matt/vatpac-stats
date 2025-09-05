@@ -14,6 +14,7 @@ from sqlalchemy import text
 from app.database import get_database_session
 from app.utils.geographic_utils import is_within_proximity
 from app.services.controller_type_detector import ControllerTypeDetector
+from app.services.detection_common import compute_detection_window
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -83,8 +84,13 @@ class ATCDetectionService:
                 self.logger.debug(f"No transceiver data found for flight {flight_callsign}")
                 return self._create_empty_atc_data()
             
-            # Get ATC transceivers - ✅ Loads only for this flight's time period
-            atc_transceivers = await self._get_atc_transceivers_for_flight(flight_callsign, departure, arrival, logon_time)
+            # Get ATC transceivers using deterministic pagination / load strategy
+            from app.services.vatsim_service import get_vatsim_service
+            vatsim = get_vatsim_service()
+            # compute canonical prefilter windows and loader strategy
+            from app.services.detection_common import build_prefilter_and_loader
+            pre = build_prefilter_and_loader(logon_time, self.time_window_seconds, polling_interval_seconds=self.vatsim_polling_interval_seconds)
+            atc_transceivers = await vatsim.get_transceivers_in_window(pre["atc_start_time"], pre["atc_end_time"], entity_type='atc', page_size=pre["loader"]["page_size"])
             if not atc_transceivers:
                 self.logger.debug(f"No ATC transceiver data found for flight {flight_callsign}")
                 return self._create_empty_atc_data()
@@ -375,11 +381,13 @@ class ATCDetectionService:
             
             # Execute with controller-specific proximity and time window pre-filtering
             async with get_database_session() as session:
-                # Calculate time windows for pre-filtering (much more efficient than JOIN filtering)
-                flight_start_time = logon_time - timedelta(seconds=self.time_window_seconds)
-                flight_end_time = logon_time + timedelta(seconds=self.time_window_seconds)
-                atc_start_time = flight_start_time - timedelta(seconds=self.time_window_seconds)
-                atc_end_time = flight_end_time + timedelta(seconds=self.time_window_seconds)
+                # Calculate time windows for pre-filtering using canonical helper
+                from app.services.detection_common import build_prefilter_and_loader
+                pre = build_prefilter_and_loader(logon_time, self.time_window_seconds, polling_interval_seconds=self.vatsim_polling_interval_seconds)
+                flight_start_time = pre["flight_start_time"]
+                flight_end_time = pre["flight_end_time"]
+                atc_start_time = pre["atc_start_time"]
+                atc_end_time = pre["atc_end_time"]
                 
                 result = await session.execute(text(query), {
                     "flight_callsign": flight_transceivers[0]["callsign"] if flight_transceivers else "",

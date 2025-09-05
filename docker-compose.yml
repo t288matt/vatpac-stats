@@ -69,7 +69,8 @@ services:
       FLIGHT_SUMMARY_ENABLED: "true"          # Enable flight summary processing
       FLIGHT_COMPLETION_HOURS: 8             # Hours after logon to mark flight as complete. effectively the long fligth time that can happen
       FLIGHT_RETENTION_HOURS: 168000000            # Hours to keep detailed flight data (7 days)
-      FLIGHT_SUMMARY_INTERVAL: 60              # Minutes between summary processing (1 hour)
+
+
       # Adaptive flight summary batching configuration
       # Maximum number of canonical summaries to process in a single scheduled batch.
       # Lower values reduce DB/transaction risk during spikes but increase overall latency.
