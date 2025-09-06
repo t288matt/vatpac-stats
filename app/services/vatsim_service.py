@@ -51,8 +51,8 @@ class VATSIMService:
         self._transceivers_task: Optional[asyncio.Task] = None
         # Track consecutive API failures to control log severity
         self._consecutive_api_failures: int = 0
-        # Number of failures before escalating to ERROR level (default 5)
-        self._api_failure_threshold: int = int(os.getenv("VATSIM_API_FAILURE_THRESHOLD", "5"))
+        # Number of failures before escalating to ERROR level (hardcoded to 5)
+        self._api_failure_threshold: int = 5
     
     async def __aenter__(self):
         """Async context manager entry."""
