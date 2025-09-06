@@ -33,7 +33,7 @@ $$ language 'plpgsql';
 
 -- Controllers table with EXACT VATSIM API field mapping
 CREATE TABLE IF NOT EXISTS controllers (
-    id SERIAL PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     callsign VARCHAR(50) NOT NULL,
     frequency VARCHAR(20),
     cid INTEGER,                    -- From API "cid" - Controller ID
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS controllers (
 
 -- Flights table with optimized VATSIM API field mapping
 CREATE TABLE IF NOT EXISTS flights (
-    id SERIAL PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     callsign VARCHAR(50) NOT NULL,
     aircraft_type VARCHAR(20),
     
@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS flights (
 
 -- Transceivers table for radio frequency and position data
 CREATE TABLE IF NOT EXISTS transceivers (
-    id SERIAL PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     callsign VARCHAR(50) NOT NULL,
     transceiver_id INTEGER NOT NULL,  -- ID from VATSIM API
     frequency BIGINT NOT NULL,        -- Frequency in Hz
@@ -314,7 +314,7 @@ COMMENT ON COLUMN flights.qnh_mb IS 'QNH pressure in millibars from VATSIM API q
 
 -- Flight Summaries table for completed flight data
 CREATE TABLE IF NOT EXISTS flight_summaries (
-    id SERIAL PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     callsign VARCHAR(50) NOT NULL,
     aircraft_type VARCHAR(20),
     departure VARCHAR(10),
@@ -346,7 +346,7 @@ CREATE TABLE IF NOT EXISTS flight_summaries (
 
 -- Flights Archive table for detailed historical records
 CREATE TABLE IF NOT EXISTS flights_archive (
-    id SERIAL PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     callsign VARCHAR(50) NOT NULL,
     aircraft_type VARCHAR(20),
     departure VARCHAR(10),
@@ -454,7 +454,7 @@ CREATE TABLE IF NOT EXISTS controller_summaries (
 
 -- Controllers Archive table for detailed historical records
 CREATE TABLE IF NOT EXISTS controllers_archive (
-    id INTEGER PRIMARY KEY,
+    id BIGINT PRIMARY KEY,
     callsign VARCHAR(50) NOT NULL,
     frequency VARCHAR(20),
     cid INTEGER,

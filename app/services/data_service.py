@@ -58,6 +58,8 @@ class DataService:
         self.callsign_pattern_filter = CallsignPatternFilter()
         self.controller_callsign_filter = ControllerCallsignFilter()
         self.frequency_pattern_filter = FrequencyPatternFilter()
+
+        # (no temporary ingest-only bypass flag required)
         
         # Initialize services
         self.vatsim_service = None
@@ -1173,6 +1175,22 @@ class DataService:
                     atc_data = await self.atc_detection_service.detect_flight_atc_interactions_with_timeout(
                         callsign, departure, arrival, first_record.logon_time, timeout_seconds=30.0
                     )
+                    # DEBUG: log ATC detection raw for this flight (keep concise)
+                    try:
+                        self.logger.debug(f"ATC detection result for {callsign}: interactions={atc_data.get('interactions_detected')} controllers={len(atc_data.get('controller_callsigns', {}))}")
+                        # If this is the flight we are tracing, persist full payload for inspection
+                        if callsign == 'FJI917':
+                            import json, os
+                            debug_path = f"/tmp/flight_enrich_{callsign}_{first_record.logon_time.isoformat()}.json"
+                            with open(debug_path, 'w') as df:
+                                json.dump({
+                                    'callsign': callsign,
+                                    'logon_time': str(first_record.logon_time),
+                                    'atc_data': atc_data
+                                }, df, default=str, indent=2)
+                            self.logger.debug(f"Wrote flight enrichment debug file: {debug_path}")
+                    except Exception:
+                        self.logger.exception(f"Failed to log ATC detection for {callsign}")
                     
                     # NEW: Calculate sector breakdown for this completed flight with flight session boundaries
                     sector_breakdown = await self._calculate_sector_breakdown(
@@ -1241,6 +1259,23 @@ class DataService:
                         self.logger.debug(
                             f"✅ Updated existing flight summary for {callsign} (cid={cid}) at logon {first_record.logon_time}"
                         )
+                        # DEBUG: if tracing FJI917, dump DB update context
+                        try:
+                            if callsign == 'FJI917':
+                                import json
+                                dbg = {
+                                    'action': 'update',
+                                    'callsign': callsign,
+                                    'cid': cid,
+                                    'logon_time': str(first_record.logon_time),
+                                    'update_rowcount': update_result.rowcount,
+                                    'summary_controller_callsigns': atc_data.get('controller_callsigns')
+                                }
+                                with open(f"/tmp/flight_summary_update_{callsign}.json", 'w') as df:
+                                    json.dump(dbg, df, default=str, indent=2)
+                                self.logger.debug(f"Wrote flight update debug file for {callsign}")
+                        except Exception:
+                            self.logger.exception("Failed to write flight update debug file")
                     else:
                         # Insert new summary
                         await session.execute(text("""
@@ -1262,6 +1297,16 @@ class DataService:
                         """), summary_data)
                         
                         processed_count += 1
+                        # DEBUG: persisted summary insert - write debug artifact for FJI917
+                        try:
+                            if callsign == 'FJI917':
+                                import json
+                                dbg = {'action': 'insert', 'callsign': callsign, 'summary_data': summary_data}
+                                with open(f"/tmp/flight_summary_insert_{callsign}.json", 'w') as df:
+                                    json.dump(dbg, df, default=str, indent=2)
+                                self.logger.debug(f"Wrote flight insert debug file for {callsign}")
+                        except Exception:
+                            self.logger.exception("Failed to write flight insert debug file")
                     
                 except Exception as e:
                     self.logger.error(f"Failed to process flight {callsign}: {e}")
@@ -1289,7 +1334,17 @@ class DataService:
             self.logger.info("🔄 Starting flight summary processing...")
             # Canonical session pipeline is the default path
             self.logger.info("🧭 Canonical session pipeline (default) - using selector")
-            return await self._process_completed_flights_canonical()
+            result = await self._process_completed_flights_canonical()
+            # Emit a clear info-level summary for monitoring with number of flights processed
+            num_processed = (
+                result.get("summaries_created")
+                if isinstance(result, dict) and result.get("summaries_created") is not None
+                else result.get("summaries_processed") if isinstance(result, dict) and result.get("summaries_processed") is not None
+                else result.get("sessions_detected") if isinstance(result, dict) and result.get("sessions_detected") is not None
+                else 0
+            )
+            self.logger.info(f"Flight summary processing finished: {num_processed} flights processed")
+            return result
 
             # Get configuration values
             completion_hours = getattr(self.config.flight_summary, 'completion_hours', 14)
@@ -1327,6 +1382,15 @@ class DataService:
             }
             
             self.logger.info(f"✅ Flight summary processing completed: {result}")
+            # Also emit a concise info message with the number of flights processed
+            num_processed = (
+                result.get("summaries_created")
+                if isinstance(result, dict) and result.get("summaries_created") is not None
+                else result.get("summaries_processed") if isinstance(result, dict) and result.get("summaries_processed") is not None
+                else result.get("sessions_detected") if isinstance(result, dict) and result.get("sessions_detected") is not None
+                else 0
+            )
+            self.logger.info(f"Flight summary processing finished: {num_processed} flights processed")
             return result
             
         except Exception as e:
@@ -1578,12 +1642,14 @@ class DataService:
                             callsign, cid, name, session_start_time, session_end_time,
                             session_duration_minutes, rating, facility, server,
                             total_aircraft_handled, peak_aircraft_count,
-                            hourly_aircraft_breakdown, frequencies_used, aircraft_details
+                            hourly_aircraft_breakdown, frequencies_used, aircraft_details,
+                            enrichment_status, enrichment_run_after
                         ) VALUES (
                             :callsign, :cid, :name, :session_start_time, :session_end_time,
                             :session_duration_minutes, :rating, :facility, :server,
                             :total_aircraft_handled, :peak_aircraft_count,
-                            :hourly_aircraft_breakdown, :frequencies_used, :aircraft_details
+                            :hourly_aircraft_breakdown, :frequencies_used, :aircraft_details,
+                            'pending', NOW()
                         )
                     """), summary_data)
                     
@@ -1651,6 +1717,33 @@ class DataService:
             flight_data = await self.flight_detection_service.detect_controller_flight_interactions_with_timeout(
                 callsign, session_start, session_end, timeout_seconds=30.0
             )
+
+            # DEBUG: persist the returned flight_data to logs for diagnostics
+            try:
+                # Keep payload size reasonable in logs
+                import json
+                short = json.dumps({
+                    "flights_detected": flight_data.get("flights_detected"),
+                    "total_aircraft": flight_data.get("total_aircraft"),
+                    "interactions_detected": flight_data.get("interactions_detected"),
+                    "aircraft_callsigns_count": len(flight_data.get("aircraft_callsigns") or []),
+                    "details_preview": (flight_data.get("details") or [])[:3]
+                }, default=str)
+                self.logger.debug(f"Flight detection raw for {callsign}: {short}")
+            except Exception:
+                self.logger.exception(f"Flight detection raw (error serializing) for {callsign}")
+
+            # EXTRA DEBUG: show full details size and sample (non-serializing-safe guard)
+            try:
+                details = flight_data.get("details")
+                if details is None:
+                    self.logger.debug(f"Flight detection details for {callsign}: None")
+                elif isinstance(details, list):
+                    self.logger.debug(f"Flight detection details for {callsign}: len={len(details)}; sample_callsigns={[d.get('callsign') for d in details[:5]]}")
+                else:
+                    self.logger.debug(f"Flight detection details for {callsign}: type={type(details)}")
+            except Exception:
+                self.logger.exception(f"Flight detection details logging failed for {callsign}")
             
             if not flight_data.get("flights_detected", False):
                 self.logger.debug(f"No flight interactions detected for controller {callsign}")
@@ -1685,23 +1778,51 @@ class DataService:
                 callsign, cid, logon_time, session_end_time = controller_key
                 
                 try:
+                    # Respect archive delay configuration to avoid archiving very recent sessions
+                    import os
+                    from datetime import datetime, timezone, timedelta
+                    days_str = os.getenv("CONTROLLER_DAYS_BEFORE_ARCHIVE", "0")
+                    try:
+                        days_before = int(days_str)
+                    except Exception:
+                        days_before = 0
+                    archive_cutoff = datetime.now(timezone.utc) - timedelta(days=days_before) if days_before > 0 else None
                     # Archive all records for this session
-                    result = await session.execute(text("""
-                        INSERT INTO controllers_archive (
-                            id, callsign, frequency, cid, name, rating, facility,
-                            visual_range, text_atis, server, last_updated, logon_time,
-                            created_at, updated_at
-                        )
-                        SELECT 
-                            id, callsign, frequency, cid, name, rating, facility,
-                            visual_range, text_atis, server, last_updated, logon_time,
-                            created_at, updated_at
-                        FROM controllers
-                        WHERE callsign = :callsign AND logon_time = :logon_time
-                    """), {
-                        "callsign": callsign,
-                        "logon_time": logon_time
-                    })
+                    if archive_cutoff:
+                        result = await session.execute(text("""
+                            INSERT INTO controllers_archive (
+                                id, callsign, frequency, cid, name, rating, facility,
+                                visual_range, text_atis, server, last_updated, logon_time,
+                                created_at, updated_at
+                            )
+                            SELECT 
+                                id, callsign, frequency, cid, name, rating, facility,
+                                visual_range, text_atis, server, last_updated, logon_time,
+                                created_at, updated_at
+                            FROM controllers
+                            WHERE callsign = :callsign AND logon_time = :logon_time AND last_updated <= :archive_cutoff
+                        """), {
+                            "callsign": callsign,
+                            "logon_time": logon_time,
+                            "archive_cutoff": archive_cutoff,
+                        })
+                    else:
+                        result = await session.execute(text("""
+                            INSERT INTO controllers_archive (
+                                id, callsign, frequency, cid, name, rating, facility,
+                                visual_range, text_atis, server, last_updated, logon_time,
+                                created_at, updated_at
+                            )
+                            SELECT 
+                                id, callsign, frequency, cid, name, rating, facility,
+                                visual_range, text_atis, server, last_updated, logon_time,
+                                created_at, updated_at
+                            FROM controllers
+                            WHERE callsign = :callsign AND logon_time = :logon_time
+                        """), {
+                            "callsign": callsign,
+                            "logon_time": logon_time
+                        })
                     
                     archived_count += result.rowcount
                     
@@ -1720,13 +1841,32 @@ class DataService:
                 callsign, cid, logon_time, session_end_time = controller_key
                 
                 try:
-                    result = await session.execute(text("""
-                        DELETE FROM controllers
-                        WHERE callsign = :callsign AND logon_time = :logon_time
-                    """), {
-                        "callsign": callsign,
-                        "logon_time": logon_time
-                    })
+                    # Only delete if rows are older than configured archive delay
+                    import os
+                    from datetime import datetime, timezone, timedelta
+                    days_str = os.getenv("CONTROLLER_DAYS_BEFORE_ARCHIVE", "0")
+                    try:
+                        days_before = int(days_str)
+                    except Exception:
+                        days_before = 0
+                    if days_before > 0:
+                        archive_cutoff = datetime.now(timezone.utc) - timedelta(days=days_before)
+                        result = await session.execute(text("""
+                            DELETE FROM controllers
+                            WHERE callsign = :callsign AND logon_time = :logon_time AND last_updated <= :archive_cutoff
+                        """), {
+                            "callsign": callsign,
+                            "logon_time": logon_time,
+                            "archive_cutoff": archive_cutoff
+                        })
+                    else:
+                        result = await session.execute(text("""
+                            DELETE FROM controllers
+                            WHERE callsign = :callsign AND logon_time = :logon_time
+                        """), {
+                            "callsign": callsign,
+                            "logon_time": logon_time
+                        })
                     
                     deleted_count += result.rowcount
                     
@@ -1766,8 +1906,23 @@ class DataService:
                     if not records:
                         continue
                     
+                    # Respect archive delay configuration to avoid archiving very recent flights
+                    import os
+                    from datetime import datetime, timezone, timedelta
+                    days_str = os.getenv("FLIGHT_DAYS_BEFORE_ARCHIVE", "0")
+                    try:
+                        days_before = int(days_str)
+                    except Exception:
+                        days_before = 0
+                    archive_cutoff = datetime.now(timezone.utc) - timedelta(days=days_before) if days_before > 0 else None
+
                     # Archive each record
                     for record in records:
+                        # If archive_cutoff is set, only archive records older than cutoff
+                        if archive_cutoff and record.last_updated and record.last_updated > archive_cutoff:
+                            # Skip archiving this recent record
+                            continue
+
                         await session.execute(text("""
                             INSERT INTO flights_archive (
                                 callsign, aircraft_type, departure, arrival, logon_time,
@@ -1835,6 +1990,10 @@ class DataService:
         
         Stage 2: transactional upsert → archive (≤ HWM) → delete per session under advisory xact lock.
         """
+        async def _process_one_session(session, session_obj) -> int:
+            # helper not used externally in this patch, placeholder for future decomposition
+            return 1
+
         try:
             import os
             # Use same horizon as FLIGHT_COMPLETION_HOURS
@@ -1847,11 +2006,33 @@ class DataService:
             self.logger.info(
                 f"🧭 Selecting canonical sessions: horizon={completion_hours}h, gap={gap_minutes}m, max_span={max_span_hours}h"
             )
+            # Support optional limit argument passed via env or caller
+            limit_env = os.getenv("FLIGHT_SUMMARY_MAX_BATCH")
+            try:
+                env_limit = int(limit_env) if limit_env is not None else None
+            except Exception:
+                env_limit = None
+
+            # If caller provided a limit via function arg, prefer it; otherwise use env_limit
+            caller_limit = None
+            # The scheduled loop will call this function as _process_completed_flights_canonical(limit=N)
+            # To preserve backward compatibility we read a possible dynamic attribute
+            caller_limit = getattr(self, "_canonical_limit_override", None)
+
+            limit_to_use = caller_limit or env_limit
+
             sessions = await select_canonical_sessions(
                 completion_hours=completion_hours,
                 gap_minutes=gap_minutes,
                 max_span_hours=max_span_hours,
             )
+            # If a limit is configured, truncate the sessions list to that length
+            if limit_to_use is not None:
+                try:
+                    limit_int = int(limit_to_use)
+                    sessions = sessions[:limit_int]
+                except Exception:
+                    pass
             self.logger.info(f"🧭 Canonical selector produced {len(sessions)} sessions")
 
             processed = 0
@@ -1961,18 +2142,15 @@ class DataService:
                         )
                         processed += 1
 
-                    # Enrich summary with ATC interactions BEFORE archiving/deleting flights
+                    # Enqueue enrichment work for this summary instead of running inline.
+                    # Mark enrichment as pending in the same transaction that created/updated the summary.
                     try:
-                        atc_data = await self.atc_detection_service.detect_flight_atc_interactions_with_timeout(
-                            callsign, departure, arrival, session_start, timeout_seconds=30.0
-                        )
-                        # Update summary with controller_callsigns and percentages
-                        update_atc_sql = text("""
+                        enqueue_sql = text("""
                             UPDATE flight_summaries
                             SET
-                                controller_callsigns = :controller_callsigns,
-                                controller_time_percentage = :controller_time_percentage,
-                                airborne_controller_time_percentage = :airborne_controller_time_percentage,
+                                enrichment_status = 'pending',
+                                enrichment_attempts = COALESCE(enrichment_attempts, 0),
+                                enrichment_run_after = NOW(),
                                 updated_at = NOW()
                             WHERE callsign = :callsign
                               AND cid = :cid
@@ -1981,11 +2159,8 @@ class DataService:
                               AND logon_time = :session_start
                         """)
                         await session.execute(
-                            update_atc_sql,
+                            enqueue_sql,
                             {
-                                "controller_callsigns": json.dumps(self._convert_for_json(atc_data.get("controller_callsigns", {}))),
-                                "controller_time_percentage": atc_data.get("controller_time_percentage"),
-                                "airborne_controller_time_percentage": atc_data.get("airborne_controller_time_percentage"),
                                 "callsign": callsign,
                                 "cid": cid,
                                 "departure": departure,
@@ -1994,9 +2169,8 @@ class DataService:
                             },
                         )
                     except Exception as e:
-                        self.logger.warning(
-                            f"ATC enrichment failed for {callsign} {departure}->{arrival} (cid={cid}) @ {session_start}: {e}"
-                        )
+                        # Non-fatal: log and continue; the summary was created/updated but enqueue marking failed.
+                        self.logger.warning(f"Failed to mark enrichment pending for {callsign} {departure}->{arrival} (cid={cid}) @ {session_start}: {e}")
 
                     # Archive rows ≤ HWM within window
                     arch_sql = text("""
@@ -2086,21 +2260,49 @@ class DataService:
                 callsign, departure, arrival, cid, deptime = flight_key
                 
                 try:
-                    # Delete all records for this flight
-                    result = await session.execute(text("""
-                        DELETE FROM flights 
-                        WHERE callsign = :callsign 
-                        AND departure = :departure 
-                        AND arrival = :arrival 
-                        AND cid = :cid
-                        AND deptime = :deptime
-                    """), {
-                        "callsign": callsign,
-                        "departure": departure,
-                        "arrival": arrival,
-                        "cid": cid,
-                        "deptime": deptime
-                    })
+                    # Respect archive delay configuration: only delete rows older than cutoff
+                    import os
+                    from datetime import datetime, timezone, timedelta
+                    days_str = os.getenv("FLIGHT_DAYS_BEFORE_ARCHIVE", "0")
+                    try:
+                        days_before = int(days_str)
+                    except Exception:
+                        days_before = 0
+
+                    if days_before > 0:
+                        archive_cutoff = datetime.now(timezone.utc) - timedelta(days=days_before)
+                        result = await session.execute(text("""
+                            DELETE FROM flights
+                            WHERE callsign = :callsign
+                            AND departure = :departure
+                            AND arrival = :arrival
+                            AND cid = :cid
+                            AND deptime = :deptime
+                            AND last_updated <= :archive_cutoff
+                        """), {
+                            "callsign": callsign,
+                            "departure": departure,
+                            "arrival": arrival,
+                            "cid": cid,
+                            "deptime": deptime,
+                            "archive_cutoff": archive_cutoff
+                        })
+                    else:
+                        # Delete all records for this flight
+                        result = await session.execute(text("""
+                            DELETE FROM flights
+                            WHERE callsign = :callsign
+                            AND departure = :departure
+                            AND arrival = :arrival
+                            AND cid = :cid
+                            AND deptime = :deptime
+                        """), {
+                            "callsign": callsign,
+                            "departure": departure,
+                            "arrival": arrival,
+                            "cid": cid,
+                            "deptime": deptime
+                        })
                     
                     processed_count += result.rowcount
                     self.logger.debug(f"Deleted {processed_count} completed flights from main table")
@@ -2198,6 +2400,7 @@ class DataService:
             self.logger.info(f"🚀 Starting scheduled flight summary processing - interval: {interval_minutes} minutes ({interval_seconds} seconds)")
             
             # Start background task and store reference
+            # Pass configured interval_seconds to scheduled loop; the loop will read max_batch from env
             self.flight_summary_task = asyncio.create_task(self._scheduled_processing_loop(interval_seconds))
             
             # Add callback to handle task completion/failure
@@ -2282,23 +2485,47 @@ class DataService:
             raise
 
     async def _scheduled_processing_loop(self, interval_seconds: int):
-        """Background loop for scheduled flight summary processing."""
+        """Background loop for scheduled flight summary processing.
+
+        Adaptive backoff behaviour:
+        - Process up to `FLIGHT_SUMMARY_MAX_BATCH` sessions per iteration.
+        - If the processed count == batch limit, sleep a short interval (busy drain mode).
+        - If processed count < batch limit, sleep a longer interval (idle mode).
+        """
         self.logger.info(f"⏰ Scheduled flight summary processing loop started at {datetime.now(timezone.utc)}")
-        
+
+        # Load batch and backoff configuration from config (fallback to env)
+        max_batch = int(getattr(self.config.flight_summary, 'max_batch', int(os.getenv("FLIGHT_SUMMARY_MAX_BATCH", "100"))))
+        short_sleep = int(getattr(self.config.flight_summary, 'poll_interval_short', int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_SHORT", "10"))))
+        long_sleep = int(getattr(self.config.flight_summary, 'poll_interval_long', int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_LONG", str(interval_seconds)))))
+
         while True:
             try:
                 # Log the scheduled run
-                self.logger.info(f"⏰ Scheduled flight summary processing started at {datetime.now(timezone.utc)}")
-                
-                # Process completed flights
-                result = await self.process_completed_flights()
-                
+                self.logger.info(f"⏰ Scheduled flight summary processing started at {datetime.now(timezone.utc)}; max_batch={max_batch}")
+
+                # Process completed flights with a limit to avoid large single-run transactions
+                try:
+                    # Use the canonical pipeline but allow a limit to be passed via env var
+                    result = await self._process_completed_flights_canonical(limit=max_batch)
+                except TypeError:
+                    # Fallback if the canonical method signature hasn't been updated
+                    result = await self.process_completed_flights()
+
                 # Log the results
-                self.logger.info(f"✅ Scheduled processing completed: {result['summaries_created']} summaries created, {result['records_archived']} records archived")
-                
-                # Wait for next interval
-                await asyncio.sleep(interval_seconds)
-                
+                summaries = result.get('summaries_created', result.get('processed', 0))
+                archived = result.get('records_archived', result.get('records_deleted', 0))
+                self.logger.info(f"✅ Scheduled processing completed: {summaries} summaries created, {archived} records archived")
+
+                # Decide sleep interval based on whether we hit the batch limit
+                if isinstance(summaries, int) and summaries >= max_batch:
+                    # Probably more work remaining — short sleep to drain backlog
+                    self.logger.info(f"Batch hit max ({max_batch}); sleeping short interval {short_sleep}s to continue draining")
+                    await asyncio.sleep(short_sleep)
+                else:
+                    # Backlog likely drained — sleep the configured long interval
+                    await asyncio.sleep(long_sleep)
+
             except asyncio.CancelledError:
                 self.logger.info("Scheduled flight summary processing task was cancelled")
                 break
