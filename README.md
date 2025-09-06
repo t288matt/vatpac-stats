@@ -896,6 +896,7 @@ python scripts/report_integrity.py
 
 ### **Core Documentation**
 - **[Architecture Overview](docs/VATSIM_ARCHITECTURE_COMPLETE.md)** - System design and components
+- **[Enrichment Architecture](docs/ENRICHMENT_ARCHITECTURE.md)** - Updated enrichment flow, explicit-bounds detection, worker lifecycle
 - **[API Reference](docs/API_REFERENCE.md)** - Complete API endpoint documentation
 - **[Configuration Guide](docs/CONFIGURATION.md)** - Environment setup and tuning
 - **[Production Deployment](docs/PRODUCTION_DEPLOYMENT_GUIDE.md)** - Production setup guide
