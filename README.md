@@ -895,7 +895,7 @@ python scripts/report_integrity.py
 ## 📚 Documentation
 
 ### **Core Documentation**
-- **[Architecture Overview](docs/VATSIM_ARCHITECTURE_COMPLETE.md)** - System design and components
+- **[Architecture Overview](docs/VATSIM_ARCHITECTURE_COMPLETE.md)** - System design and components (includes Enrichment Architecture)
 - **[API Reference](docs/API_REFERENCE.md)** - Complete API endpoint documentation
 - **[Configuration Guide](docs/CONFIGURATION.md)** - Environment setup and tuning
 - **[Production Deployment](docs/PRODUCTION_DEPLOYMENT_GUIDE.md)** - Production setup guide

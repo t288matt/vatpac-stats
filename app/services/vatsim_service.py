@@ -49,6 +49,10 @@ class VATSIMService:
         self._transceivers_last_fetch: Optional[datetime] = None
         self._transceivers_lock: asyncio.Lock = asyncio.Lock()
         self._transceivers_task: Optional[asyncio.Task] = None
+        # Track consecutive API failures to control log severity
+        self._consecutive_api_failures: int = 0
+        # Number of failures before escalating to ERROR level (hardcoded to 5)
+        self._api_failure_threshold: int = 5
     
     async def __aenter__(self):
         """Async context manager entry."""
@@ -196,19 +200,45 @@ class VATSIMService:
             else:
                 self.logger.warning("No VATSIM data received from API")
             
+            # Successful fetch - reset failure counter
+            self._consecutive_api_failures = 0
             return vatsim_data
-            
-        except httpx.TimeoutException as e:
-            self.logger.error(f"VATSIM API timeout: {e}")
-            raise VATSIMAPIError(f"VATSIM API request timed out: {e}")
-            
-        except httpx.RequestError as e:
-            self.logger.error(f"VATSIM API request failed: {e}")
-            raise VATSIMAPIError(f"VATSIM API request failed: {e}")
-            
+        except (httpx.TimeoutException, httpx.RequestError) as e:
+            # Increment failure counter and log as warning until threshold reached
+            self._consecutive_api_failures += 1
+            if self._consecutive_api_failures <= self._api_failure_threshold:
+                self.logger.warning(f"VATSIM API transient failure (attempt {self._consecutive_api_failures}): {e}")
+            else:
+                self.logger.error(f"VATSIM API repeated failures (count={self._consecutive_api_failures}): {e}")
+            # Return an empty data structure so upstream processing can continue gracefully
+            return {
+                "controllers": [],
+                "flights": [],
+                "sectors": [],
+                "transceivers": [],
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "total_controllers": 0,
+                "total_flights": 0,
+                "total_sectors": 0,
+                "total_transceivers": 0
+            }
         except Exception as e:
-            self.logger.error(f"Unexpected error: {e}")
-            raise VATSIMAPIError(f"Unexpected error: {e}")
+            self._consecutive_api_failures += 1
+            if self._consecutive_api_failures <= self._api_failure_threshold:
+                self.logger.warning(f"Unexpected VATSIM API error (attempt {self._consecutive_api_failures}): {e}")
+            else:
+                self.logger.error(f"Unexpected VATSIM API repeated error (count={self._consecutive_api_failures}): {e}")
+            return {
+                "controllers": [],
+                "flights": [],
+                "sectors": [],
+                "transceivers": [],
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "total_controllers": 0,
+                "total_flights": 0,
+                "total_sectors": 0,
+                "total_transceivers": 0
+            }
     
     def _parse_controllers(self, controllers_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -402,14 +432,27 @@ class VATSIMService:
             if not isinstance(raw_data, list) or raw_data is None:
                 return []
             
+            # Successful fetch - reset failure counter
+            self._consecutive_api_failures = 0
             return raw_data
             
         except Exception as e:
-            self.logger.error("Failed to fetch transceivers data", extra={
-                "error": str(e),
-                "api_url": self.config.vatsim.transceivers_api_url
-            })
-            raise VATSIMAPIError(f"Failed to fetch transceivers data: {e}")
+            # Increment failure counter and log appropriately
+            self._consecutive_api_failures += 1
+            if self._consecutive_api_failures <= self._api_failure_threshold:
+                self.logger.warning("Failed to fetch transceivers data", extra={
+                    "error": str(e),
+                    "api_url": self.config.vatsim.transceivers_api_url,
+                    "attempt": self._consecutive_api_failures
+                })
+            else:
+                self.logger.error("Repeated failure fetching transceivers data", extra={
+                    "error": str(e),
+                    "api_url": self.config.vatsim.transceivers_api_url,
+                    "consecutive_failures": self._consecutive_api_failures
+                })
+            # Return empty list so callers can continue gracefully
+            return []
 
     async def _transceivers_refresher_loop(self) -> None:
         """Background loop that periodically refreshes the transceivers snapshot."""

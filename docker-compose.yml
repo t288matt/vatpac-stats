@@ -39,7 +39,7 @@ services:
       # VATSIM Data Collection Intervals (seconds)
       VATSIM_POLLING_INTERVAL: 60    # How often to fetch VATSIM data (60 seconds)
       VATSIM_TRANSCEIVERS_POLLING_INTERVAL: 120  # How often to fetch transceivers-data.json (seconds)
-      VATSIM_API_RETRY_ATTEMPTS: 20   # Number of retry attempts for VATSIM API
+      # VATSIM API retry attempts removed; service now logs and handles failures gracefully
       
             
       # Database Configuration
