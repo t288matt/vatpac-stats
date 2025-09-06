@@ -7,15 +7,10 @@ Handles flights, controllers, and transceivers data.
 """
 
 import httpx
-import os
 import asyncio
 import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone, timedelta
-
-from app.database import get_database_session
-from sqlalchemy import text
-from app.services.detection_common import transceiver_load_strategy
 
 from app.config import get_config
 from app.utils.logging import get_logger_for_module
@@ -44,11 +39,6 @@ class VATSIMService:
         self._initialized = False
         
         self.client: Optional[httpx.AsyncClient] = None
-        # Cached transceivers snapshot (parsed, unlinked). Protected by _transceivers_lock.
-        self._transceivers_cache: List[Dict[str, Any]] = []
-        self._transceivers_last_fetch: Optional[datetime] = None
-        self._transceivers_lock: asyncio.Lock = asyncio.Lock()
-        self._transceivers_task: Optional[asyncio.Task] = None
     
     async def __aenter__(self):
         """Async context manager entry."""
@@ -65,12 +55,6 @@ class VATSIMService:
             await self._create_client()
             self.logger.info("VATSIM service initialized successfully")
             self._initialized = True
-            # Start background refresher for transceivers snapshot
-            try:
-                # create background task but don't await it here
-                self._transceivers_task = asyncio.create_task(self._transceivers_refresher_loop())
-            except Exception:
-                self.logger.exception("Failed to start transceivers refresher task")
             return True
         except Exception as e:
             self.logger.error(f"Failed to initialize VATSIM service: {e}")
@@ -102,17 +86,6 @@ class VATSIMService:
             await self.client.aclose()
             self.client = None
             self.logger.debug("Closed HTTP client")
-        # Cancel background transceivers refresher task
-        if self._transceivers_task:
-            try:
-                self._transceivers_task.cancel()
-                await self._transceivers_task
-            except asyncio.CancelledError:
-                pass
-            except Exception:
-                self.logger.exception("Error while cancelling transceivers refresher task")
-            finally:
-                self._transceivers_task = None
     
     @handle_service_errors
     @log_operation("fetch_vatsim_data")
@@ -157,21 +130,12 @@ class VATSIMService:
             # Parse all flights - no filtering applied here
             flights = self._parse_flights(parsed_data.get("pilots", []))
             
-            # Fetch transceivers data - prefer cached snapshot populated by background refresher
+            # Fetch transceivers data
             try:
-                cached_snapshot: Optional[List[Dict[str, Any]]] = None
-                async with self._transceivers_lock:
-                    if self._transceivers_cache:
-                        # shallow-copy each dict to avoid mutating the cached objects during linking
-                        cached_snapshot = [dict(t) for t in self._transceivers_cache]
-
-                if cached_snapshot is not None:
-                    transceivers = self._link_transceivers_to_entities(cached_snapshot, flights, controllers)
-                else:
-                    # Fallback to on-demand fetch if cache is empty
-                    transceivers_raw = await self._fetch_transceivers_data()
-                    parsed = self._parse_transceivers(transceivers_raw)
-                    transceivers = self._link_transceivers_to_entities(parsed, flights, controllers)
+                transceivers_raw = await self._fetch_transceivers_data()
+                transceivers = self._parse_transceivers(transceivers_raw)
+                # Link transceivers to flights and controllers
+                transceivers = self._link_transceivers_to_entities(transceivers, flights, controllers)
             except Exception as e:
                 self.logger.warning(f"Failed to fetch transceivers: {e}")
                 transceivers = []
@@ -410,23 +374,6 @@ class VATSIMService:
                 "api_url": self.config.vatsim.transceivers_api_url
             })
             raise VATSIMAPIError(f"Failed to fetch transceivers data: {e}")
-
-    async def _transceivers_refresher_loop(self) -> None:
-        """Background loop that periodically refreshes the transceivers snapshot."""
-        interval = int(os.getenv("VATSIM_TRANSCEIVERS_POLLING_INTERVAL", "120"))
-        while True:
-            try:
-                self.logger.debug("Transceivers refresher: fetching snapshot")
-                raw = await self._fetch_transceivers_data()
-                parsed = self._parse_transceivers(raw)
-                async with self._transceivers_lock:
-                    self._transceivers_cache = parsed
-                    self._transceivers_last_fetch = datetime.now(timezone.utc)
-                self.logger.info(f"Transceivers refresher: updated snapshot ({len(parsed)} records)")
-            except Exception:
-                self.logger.exception("Transceivers refresher failed")
-            finally:
-                await asyncio.sleep(interval)
     
     def _parse_transceivers(self, transceivers_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -511,88 +458,6 @@ class VATSIMService:
             # If no match, keep as "flight" (default)
         
         return transceivers
-
-    async def load_transceivers_window(self, start: datetime, end: datetime, entity_type: Optional[str] = None, page_size: int = 10000) -> List[Dict[str, Any]]:
-        """Load transceivers deterministically using keyset-style pagination.
-
-        Returns a list of transceiver dicts covering [start, end].
-        """
-        results: List[Dict[str, Any]] = []
-
-        last_ts = start.replace(microsecond=0) if start is not None else datetime.min.replace(tzinfo=timezone.utc)
-        last_id = 0
-
-        while True:
-            query = text("""
-                SELECT id as transceiver_id, callsign, frequency, position_lat, position_lon, timestamp, entity_type
-                FROM transceivers
-                WHERE timestamp >= :start AND timestamp <= :end
-                """)
-            if entity_type:
-                query = text(str(query) + " AND entity_type = :entity_type")
-
-            # Keyset condition to page deterministically
-            query = text(str(query) + " AND (timestamp > :last_ts OR (timestamp = :last_ts AND id > :last_id)) ORDER BY timestamp, id LIMIT :limit")
-
-            async with get_database_session() as session:
-                params = {
-                    "start": start,
-                    "end": end,
-                    "last_ts": last_ts,
-                    "last_id": last_id,
-                    "limit": page_size,
-                }
-                if entity_type:
-                    params["entity_type"] = entity_type
-
-                res = await session.execute(query, params)
-                rows = res.fetchall()
-
-            if not rows:
-                break
-
-            for row in rows:
-                results.append({
-                    "transceiver_id": row.transceiver_id,
-                    "callsign": row.callsign,
-                    "frequency": row.frequency,
-                    "position_lat": row.position_lat,
-                    "position_lon": row.position_lon,
-                    "timestamp": row.timestamp,
-                    "entity_type": row.entity_type,
-                })
-
-            # Advance keyset markers using last row
-            last_row = rows[-1]
-            last_ts = last_row.timestamp
-            last_id = last_row.transceiver_id
-
-            if len(rows) < page_size:
-                break
-
-        return results
-
-    async def get_transceivers_in_window(self, start: datetime, end: datetime, entity_type: Optional[str] = None, ttl_seconds: int = 120, page_size_default: int = 10000, page_size: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Decide whether to use cached snapshot or force deterministic DB pagination and return transceivers for the window."""
-        # Decide using cache freshness
-        strategy = transceiver_load_strategy(start, end, self._transceivers_last_fetch, ttl_seconds, page_size_default)
-
-        # Prefer cache if available and not forcing on-demand
-        if not strategy.get("force_on_demand", False) and self._transceivers_cache:
-            # Filter cached snapshot deterministically
-            filtered = []
-            for t in self._transceivers_cache:
-                ts = t.get("timestamp")
-                if ts is None:
-                    continue
-                if ts >= start and ts <= end and (entity_type is None or t.get("entity_type") == entity_type):
-                    filtered.append(t)
-            return filtered
-
-        # Force on-demand deterministic DB pagination
-        # Choose page_size from explicit caller arg, then strategy, then default
-        use_page_size = page_size if page_size is not None else strategy.get("page_size", page_size_default)
-        return await self.load_transceivers_window(start, end, entity_type=entity_type, page_size=use_page_size)
     
     async def get_api_status(self) -> Dict[str, Any]:
         """Get VATSIM API status information."""

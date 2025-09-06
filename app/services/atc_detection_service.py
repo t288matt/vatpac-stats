@@ -14,7 +14,6 @@ from sqlalchemy import text
 from app.database import get_database_session
 from app.utils.geographic_utils import is_within_proximity
 from app.services.controller_type_detector import ControllerTypeDetector
-from app.services.detection_common import compute_detection_window
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -30,9 +29,8 @@ class ATCDetectionService:
             time_window_seconds: Time window for frequency matching (default: from environment or 180s)
         """
         import os
-        from app.services.detection_common import compute_detection_window
         
-        # Load from environment variables with defaults and prefer centralized config
+        # Load from environment variables with defaults
         self.time_window_seconds = time_window_seconds or int(os.getenv("FLIGHT_DETECTION_TIME_WINDOW_SECONDS", "180"))
         
         # Load VATSIM polling interval for accurate time calculations
@@ -80,82 +78,23 @@ class ATCDetectionService:
             
             # Get flight transceivers
             flight_transceivers = await self._get_flight_transceivers(flight_callsign, departure, arrival, logon_time)
-            self.logger.debug(f"Flight {flight_callsign} transceivers loaded: {len(flight_transceivers)} records")
-            if flight_transceivers:
-                try:
-                    self.logger.debug(f"Flight sample for {flight_callsign}: {flight_transceivers[0:3]}")
-                except Exception:
-                    self.logger.exception("Failed to log flight transceiver sample")
-            else:
+            if not flight_transceivers:
                 self.logger.debug(f"No transceiver data found for flight {flight_callsign}")
                 return self._create_empty_atc_data()
             
-            # Get ATC transceivers. Prefer loading ATC transceivers over the full
-            # flight time window we just loaded so we don't miss controllers that
-            # only appear later in the flight. Fall back to canonical prefilter
-            # window when flight transceivers are unavailable.
-            from app.services.vatsim_service import get_vatsim_service
-            vatsim = get_vatsim_service()
-            from app.services.detection_common import build_prefilter_and_loader
-            # Use explicit bounds: prefer flight transceiver bounds when available
-            pre = None
-            if flight_transceivers:
-                flight_start = flight_transceivers[0]["timestamp"]
-                flight_end = flight_transceivers[-1]["timestamp"]
-                pre = build_prefilter_and_loader(flight_start, flight_end, flight_start, flight_end, last_cache_fetch=None, ttl_seconds=120, default_page_size=10000)
-            else:
-                # Fallback to caller-provided logon_time expanded by canonical window
-                from app.services.detection_common import compute_prefilter_windows
-                win = compute_prefilter_windows(logon_time, self.time_window_seconds)
-                pre = build_prefilter_and_loader(win["flight_start_time"], win["flight_end_time"], win["atc_start_time"], win["atc_end_time"], last_cache_fetch=None, ttl_seconds=120, default_page_size=10000)
-
-            if flight_transceivers:
-                atc_start = flight_transceivers[0]["timestamp"]
-                atc_end = flight_transceivers[-1]["timestamp"]
-            else:
-                atc_start = pre["atc_start_time"]
-                atc_end = pre["atc_end_time"]
-
-            atc_transceivers = await vatsim.get_transceivers_in_window(atc_start, atc_end, entity_type='atc', page_size=pre["loader"]["page_size"])
-            self.logger.debug(f"VATSIM loader returned {len(atc_transceivers)} ATC transceivers for {flight_callsign} in window {atc_start} - {atc_end}")
-            # If the VATSIM loader returns nothing (cache or API gap), fall back
-            # to loading ATC transceivers directly from our local transceivers DB
-            # to ensure detection still works against historical data.
+            # Get ATC transceivers - ✅ Loads only for this flight's time period
+            atc_transceivers = await self._get_atc_transceivers_for_flight(flight_callsign, departure, arrival, logon_time)
             if not atc_transceivers:
-                self.logger.debug(f"VATSIM loader returned no ATC transceivers for {flight_callsign}; falling back to DB query")
-                atc_transceivers = await self._get_atc_transceivers_for_flight(flight_callsign, departure, arrival, logon_time)
-                self.logger.debug(f"DB fallback returned {len(atc_transceivers)} ATC transceivers for {flight_callsign}")
-            if not atc_transceivers:
-                self.logger.debug(f"No ATC transceiver data found for flight {flight_callsign} after DB fallback")
+                self.logger.debug(f"No ATC transceiver data found for flight {flight_callsign}")
                 return self._create_empty_atc_data()
             
             # Find frequency matches with proximity and time constraints using SQL JOIN
             frequency_matches = await self._find_frequency_matches(flight_transceivers, atc_transceivers, departure, arrival, logon_time)
-            self.logger.debug(f"Frequency matching for {flight_callsign} returned {len(frequency_matches)} matches")
-            try:
-                self.logger.debug(f"Frequency matches sample: {frequency_matches[:5]}")
-            except Exception:
-                self.logger.exception("Failed to log frequency matches sample")
             
             # Calculate ATC interaction metrics
             atc_data = await self._calculate_atc_metrics(flight_callsign, departure, arrival, logon_time, frequency_matches)
             
             self.logger.debug(f"ATC detection completed for {flight_callsign}: {len(atc_data.get('controller_callsigns', {}))} controllers")
-            # persist a debug artifact to disk for in-depth analysis
-            try:
-                import json
-                debug_path = f"/tmp/atc_debug_{flight_callsign}.json"
-                with open(debug_path, 'w') as df:
-                    json.dump({
-                        'flight_callsign': flight_callsign,
-                        'flight_transceivers_count': len(flight_transceivers),
-                        'atc_transceivers_count': len(atc_transceivers),
-                        'frequency_matches_count': len(frequency_matches),
-                        'atc_data_summary': atc_data.get('controller_callsigns')
-                    }, df, default=str, indent=2)
-                self.logger.debug(f"Wrote ATC debug file: {debug_path}")
-            except Exception:
-                self.logger.exception("Failed to write ATC debug file")
             return atc_data
             
         except Exception as e:
@@ -435,32 +374,11 @@ class ATCDetectionService:
             
             # Execute with controller-specific proximity and time window pre-filtering
             async with get_database_session() as session:
-                # Calculate time windows for pre-filtering.
-                # Use the actual loaded transceivers bounds when available so we don't
-                # accidentally limit matching to a narrow window around the flight
-                # logon time (which previously caused matches later in the flight to be
-                # missed). Fall back to the canonical prefilter window if transceiver
-                # lists are empty.
-                if flight_transceivers:
-                    flight_start_time = flight_transceivers[0]["timestamp"]
-                    flight_end_time = flight_transceivers[-1]["timestamp"]
-                else:
-                    from app.services.detection_common import build_prefilter_and_loader, compute_prefilter_windows
-                    win = compute_prefilter_windows(logon_time, self.time_window_seconds)
-                    pre = build_prefilter_and_loader(win["flight_start_time"], win["flight_end_time"], win["atc_start_time"], win["atc_end_time"], last_cache_fetch=None, ttl_seconds=120, default_page_size=10000)
-                    flight_start_time = pre["flight_start_time"]
-                    flight_end_time = pre["flight_end_time"]
-
-                if controller_transceivers:
-                    atc_start_time = controller_transceivers[0]["timestamp"]
-                    atc_end_time = controller_transceivers[-1]["timestamp"]
-                else:
-                    # If we don't have controller transceivers (unlikely), use same prefilter
-                    from app.services.detection_common import build_prefilter_and_loader, compute_prefilter_windows
-                    win = compute_prefilter_windows(logon_time, self.time_window_seconds)
-                    pre = build_prefilter_and_loader(win["flight_start_time"], win["flight_end_time"], win["atc_start_time"], win["atc_end_time"], last_cache_fetch=None, ttl_seconds=120, default_page_size=10000)
-                    atc_start_time = pre["atc_start_time"]
-                    atc_end_time = pre["atc_end_time"]
+                # Calculate time windows for pre-filtering (much more efficient than JOIN filtering)
+                flight_start_time = logon_time - timedelta(seconds=self.time_window_seconds)
+                flight_end_time = logon_time + timedelta(seconds=self.time_window_seconds)
+                atc_start_time = flight_start_time - timedelta(seconds=self.time_window_seconds)
+                atc_end_time = flight_end_time + timedelta(seconds=self.time_window_seconds)
                 
                 result = await session.execute(text(query), {
                     "flight_callsign": flight_transceivers[0]["callsign"] if flight_transceivers else "",

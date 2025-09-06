@@ -63,7 +63,7 @@ class Controller(Base, TimestampMixin):
     """
     __tablename__ = "controllers"
     
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True)
     callsign = Column(String(50), index=True, nullable=False)
     frequency = Column(String(20), nullable=True)
     cid = Column(Integer, nullable=True, index=True)  # From API "cid"
@@ -105,7 +105,7 @@ class Flight(Base, TimestampMixin):
     """
     __tablename__ = "flights"
     
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True)
     callsign = Column(String(50), nullable=False, index=True)
     aircraft_type = Column(String(20), nullable=True)
     
@@ -186,7 +186,7 @@ class Transceiver(Base):
     """Transceiver model for storing radio frequency and position data from VATSIM transceivers API"""
     __tablename__ = "transceivers"
     
-    id = Column(BigInteger, primary_key=True)
+    id = Column(Integer, primary_key=True)
     callsign = Column(String(50), nullable=False, index=True)
     transceiver_id = Column(Integer, nullable=False)  # ID from VATSIM API
     frequency = Column(BigInteger, nullable=False, index=True)  # Frequency in Hz
@@ -372,7 +372,7 @@ class ControllersArchive(Base, TimestampMixin):
     """
     __tablename__ = "controllers_archive"
     
-    id = Column(BigInteger, primary_key=True)  # Keep original ID for reference
+    id = Column(Integer, primary_key=True)  # Keep original ID for reference
     callsign = Column(String(50), nullable=False)  # Controller callsign
     frequency = Column(String(20), nullable=True)  # Frequency used
     cid = Column(Integer, nullable=True)  # Controller ID
@@ -408,7 +408,7 @@ class FlightsArchive(Base, TimestampMixin):
     """
     __tablename__ = "flights_archive"
     
-    id = Column(BigInteger, primary_key=True)  # Keep original ID for reference
+    id = Column(Integer, primary_key=True)  # Keep original ID for reference
     callsign = Column(String(50), nullable=False, index=True)  # Flight callsign
     aircraft_type = Column(String(20), nullable=True)  # Aircraft type
     departure = Column(String(10), nullable=True)  # Departure airport

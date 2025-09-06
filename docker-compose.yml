@@ -38,7 +38,6 @@ services:
      
       # VATSIM Data Collection Intervals (seconds)
       VATSIM_POLLING_INTERVAL: 60    # How often to fetch VATSIM data (60 seconds)
-      VATSIM_TRANSCEIVERS_POLLING_INTERVAL: 120  # How often to fetch transceivers-data.json (seconds)
       VATSIM_API_RETRY_ATTEMPTS: 20   # Number of retry attempts for VATSIM API
       
             
@@ -67,21 +66,9 @@ services:
       
       # Flight Summary System Configuration (used by DataService)
       FLIGHT_SUMMARY_ENABLED: "true"          # Enable flight summary processing
-      FLIGHT_COMPLETION_HOURS: 8             # Hours after first logon to mark flight as complete. effectively the long fligth time that can happen
-      FLIGHT_RETENTION_HOURS: 168000000            # Hours to keep detailed flight data in the archive tables (approx)
-      FLIGHT_DAYS_BEFORE_ARCHIVE: "7"              # Days before flight data is archived in the archive tables
-
-      # Adaptive flight summary batching configuration
-      # Maximum number of canonical summaries to process in a single scheduled batch.
-      # Lower values reduce DB/transaction risk during spikes but increase overall latency.
-      FLIGHT_SUMMARY_MAX_BATCH: 10
-      # When a scheduled run processes the full batch (i.e. hit FLIGHT_SUMMARY_MAX_BATCH),
-      # the scheduler will sleep this short interval (in seconds) before attempting another batch
-      # to continue draining backlog without waiting the full interval. Set to 5 minutes (300s).
-      FLIGHT_SUMMARY_POLL_INTERVAL_SHORT: 300
-      # When a scheduled run processes less than the batch size (backlog likely drained),
-      # the scheduler will sleep this longer interval (in seconds) between runs. Set to 15 minutes (900s).
-      FLIGHT_SUMMARY_POLL_INTERVAL_LONG: 900
+      FLIGHT_COMPLETION_HOURS: 8             # Hours after logon to mark flight as complete. effectively the long fligth time that can happen
+      FLIGHT_RETENTION_HOURS: 168000000            # Hours to keep detailed flight data (7 days)
+      FLIGHT_SUMMARY_INTERVAL: 60              # Minutes between summary processing (1 hour)
       
       # Sector Tracking Configuration (used by DataService)
       SECTOR_TRACKING_ENABLED: "true"         # Enable real-time sector occupancy tracking
@@ -99,7 +86,6 @@ services:
       CONTROLLER_RETENTION_HOURS: "1680000000"  # Max retention time for completed controller sessions. Once eligible for summarization, sessions will be archived and deleted after this time period.
       CONTROLLER_SUMMARY_INTERVAL: "30"   # Scheduler cadence. How often the background task runs to process/archive any sessions that have become eligible.
       CONTROLLER_RECONNECTION_THRESHOLD_MINUTES: "5"  # Minutes to merge controller reconnections into one session
-      CONTROLLER_DAYS_BEFORE_ARCHIVE: "7"            # Days before controller data is archived in the archive tables
       
       # Shared Configuration for Both Detection Services
       # Used by: FlightDetectionService (ATC → Flight) AND ATCDetectionService (Flight → ATC)

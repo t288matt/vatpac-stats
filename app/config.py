@@ -133,9 +133,6 @@ class FlightSummaryConfig:
     retention_hours: int = 24
     summary_interval_minutes: int = 60  # Minutes between summary processing (default: 1 hour)
     enabled: bool = True
-    max_batch: int = 100
-    poll_interval_short: int = 10
-    poll_interval_long: int = 60
     
     @classmethod
     def from_env(cls):
@@ -144,10 +141,7 @@ class FlightSummaryConfig:
             completion_hours=int(os.getenv("FLIGHT_COMPLETION_HOURS", "14")),
             retention_hours=int(os.getenv("FLIGHT_RETENTION_HOURS", "24")),
             summary_interval_minutes=int(os.getenv("FLIGHT_SUMMARY_INTERVAL", "60")),  # Now in minutes
-            enabled=os.getenv("FLIGHT_SUMMARY_ENABLED", "true").lower() == "true",
-            max_batch=int(os.getenv("FLIGHT_SUMMARY_MAX_BATCH", "100")),
-            poll_interval_short=int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_SHORT", "10")),
-            poll_interval_long=int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_LONG", "60")),
+            enabled=os.getenv("FLIGHT_SUMMARY_ENABLED", "true").lower() == "true"
         )
 
 @dataclass
