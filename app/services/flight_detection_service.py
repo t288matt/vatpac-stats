@@ -33,6 +33,7 @@ class FlightDetectionService:
             time_window_seconds: Time window for frequency matching (default: from environment or 180s)
         """
         import os
+        from app.services.detection_common import compute_detection_window
         
         # Load from environment variables with defaults
         self.time_window_seconds = time_window_seconds or int(os.getenv("FLIGHT_DETECTION_TIME_WINDOW_SECONDS", "180"))
@@ -65,24 +66,40 @@ class FlightDetectionService:
             self.logger.debug(f"Controller {controller_callsign} detected as {controller_info['type']} with {proximity_threshold_nm}nm proximity range")
             
             # Get controller transceivers
+            self.logger.debug(f"Loading controller transceivers for {controller_callsign} between {session_start} and {session_end}")
             controller_transceivers = await self._get_controller_transceivers(controller_callsign, session_start, session_end)
+            self.logger.debug(f"Loaded {len(controller_transceivers)} controller transceivers for {controller_callsign}")
             if not controller_transceivers:
                 self.logger.debug(f"No transceiver data found for controller {controller_callsign}")
                 return self._create_empty_flight_data()
             
-            # Get flight transceivers
-            flight_transceivers = await self._get_flight_transceivers(session_start, session_end)
-            if not flight_transceivers:
-                self.logger.debug(f"No flight transceiver data found")
-                return self._create_empty_flight_data()
+            # Get flight transceivers covering the full controller session.
+            # Removing the midpoint prefilter ensures we don't miss valid matches
+            # that occur outside a narrow window.
+            from app.services.vatsim_service import get_vatsim_service
+            vatsim = get_vatsim_service()
+            flight_transceivers = await vatsim.get_transceivers_in_window(session_start, session_end, entity_type='flight')
+            self.logger.debug(f"VATSIM loader returned {len(flight_transceivers)} flight transceivers for session {session_start} - {session_end}")
+            # Proceed even if the VATSIM loader returns an empty list; the DB CTE
+            # query below will still run against the full session bounds.
             
             # Find frequency matches with proximity and time constraints using SQL JOIN
+            self.logger.debug(f"Running frequency matching CTE for {controller_callsign} with time window {session_start} - {session_end}")
             frequency_matches = await self._find_frequency_matches(controller_transceivers, flight_transceivers, controller_callsign, session_start, session_end, proximity_threshold_nm)
+            self.logger.debug(f"Frequency matching returned {len(frequency_matches)} rows for {controller_callsign}")
             
             # Calculate flight interaction metrics
             flight_data = await self._calculate_flight_metrics(controller_callsign, session_start, session_end, frequency_matches)
-            
-            self.logger.debug(f"Flight detection completed for {controller_callsign}: {len(flight_data.get('aircraft_callsigns', {}))} aircraft")
+            # DEBUG: log returned flight_data summary for diagnostics
+            try:
+                self.logger.debug(
+                    f"Flight detection completed for {controller_callsign}: flights_detected={flight_data.get('flights_detected')} total_aircraft={flight_data.get('total_aircraft')} interactions_detected={flight_data.get('interactions_detected')}"
+                )
+                # log sample of aircraft_callsigns if present
+                ac = flight_data.get('aircraft_callsigns') or []
+                self.logger.debug(f"Flight detection aircraft_callsigns sample for {controller_callsign}: {ac[:10]}")
+            except Exception:
+                self.logger.exception(f"Error logging flight_data summary for {controller_callsign}")
             return flight_data
             
         except Exception as e:
@@ -242,11 +259,16 @@ class FlightDetectionService:
                 ORDER BY flight_time, controller_time
             """
             
+            # Use canonical prefilter windows for query bounds. Use the full controller
+            # session window for ATC/fight prefiltering to avoid midpoint drift.
+            from app.services.detection_common import build_prefilter_and_loader
+            # Use explicit session bounds for prefilter windows (no midpoint anchor)
+            pre = build_prefilter_and_loader(session_start, session_end, session_start, session_end, last_cache_fetch=None, ttl_seconds=120, default_page_size=10000)
             async with get_database_session() as session:
                 result = await session.execute(text(query), {
                     "controller_callsign": controller_callsign,
-                    "session_start": session_start,
-                    "session_end": session_end,
+                    "session_start": pre["atc_start_time"],
+                    "session_end": pre["atc_end_time"],
                     "time_window": self.time_window_seconds,
                     "proximity_threshold_nm": proximity_threshold_nm
                 })
