@@ -41,6 +41,7 @@ services:
       VATSIM_TRANSCEIVERS_POLLING_INTERVAL: 120  # How often to fetch transceivers-data.json (seconds)
       # VATSIM API retry attempts removed; service now logs and handles failures gracefully
       
+      
             
       # Database Configuration
       # Pool size and max overflow are now hard-coded in the application
