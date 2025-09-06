@@ -1,6 +1,6 @@
 import pytest
 from datetime import datetime, timezone, timedelta
-from app.services.detection_common import compute_detection_window, build_prefilter_and_loader, transceiver_load_strategy
+from app.services.detection_common import compute_detection_window, build_prefilter_and_loader, transceiver_load_strategy, compute_prefilter_windows
 
 
 def test_compute_detection_window_truncation():
@@ -13,7 +13,9 @@ def test_compute_detection_window_truncation():
 
 def test_build_prefilter_and_loader_defaults():
     ref = datetime(2025, 9, 4, 12, 0, tzinfo=timezone.utc)
-    pre = build_prefilter_and_loader(ref, 180, 60, page_size=5000)
+    # Build explicit windows from a reference anchor and pass them in
+    windows = compute_prefilter_windows(ref, 180)
+    pre = build_prefilter_and_loader(windows["flight_start_time"], windows["flight_end_time"], windows["atc_start_time"], windows["atc_end_time"], last_cache_fetch=None, ttl_seconds=120, default_page_size=5000)
     assert "flight_start_time" in pre and "atc_start_time" in pre
     assert pre["loader"]["page_size"] == 5000
 
@@ -36,8 +38,8 @@ from app.services.detection_common import build_prefilter_and_loader, compute_pr
 
 def test_build_prefilter_and_loader_consistency():
     anchor = datetime(2025, 9, 4, 12, 0, 0, tzinfo=timezone.utc)
-    pre = build_prefilter_and_loader(anchor, 180, polling_interval_seconds=60)
     windows = compute_prefilter_windows(anchor, 180)
+    pre = build_prefilter_and_loader(windows["flight_start_time"], windows["flight_end_time"], windows["atc_start_time"], windows["atc_end_time"], last_cache_fetch=None, ttl_seconds=120, default_page_size=10000)
 
     assert pre["flight_start_time"] == windows["flight_start_time"]
     assert pre["flight_end_time"] == windows["flight_end_time"]

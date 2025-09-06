@@ -7,6 +7,20 @@ single-threaded to keep behaviour deterministic for initial rollout.
 import asyncio
 import logging
 from datetime import datetime, timezone
+from decimal import Decimal
+
+def _json_default(obj):
+    """JSON serializer helper for non-serializable types used in enrichment results.
+
+    - Decimal -> float
+    - datetime -> ISO string
+    - fallback -> str(obj)
+    """
+    if isinstance(obj, Decimal):
+        return float(obj)
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    return str(obj)
 
 from sqlalchemy import text
 from app.database import get_database_session
@@ -85,9 +99,23 @@ class SummaryEnrichmentWorker:
             if fs_id:
                 logger.info(f"Enriching flight summary id={fs_id} callsign={callsign}")
                 atc_data = await self.atc_service.detect_flight_atc_interactions_with_timeout(callsign, departure, arrival, logon_time, timeout_seconds=30.0)
+                # DEBUG: write ATC detection result to a debug file for traceability
+                try:
+                    import json
+                    debug_path = f"/tmp/enrich_flight_{fs_id}_{callsign}.json"
+                    with open(debug_path, 'w') as df:
+                        json.dump({
+                            'fs_id': fs_id,
+                            'callsign': callsign,
+                            'atc_data': atc_data
+                        }, df, default=str, indent=2)
+                    logger.debug(f"Wrote flight enrichment debug file: {debug_path}")
+                except Exception:
+                    logger.exception("Failed to write flight enrichment debug file")
 
                 async with get_database_session() as session:
-                    controller_callsigns_json = json.dumps(atc_data.get("controller_callsigns", {}))
+                    # Use custom default serializer to handle Decimal, datetime, etc.
+                    controller_callsigns_json = json.dumps(atc_data.get("controller_callsigns", {}), default=_json_default)
                     await session.execute(text("""
                         UPDATE flight_summaries
                         SET controller_callsigns = :controller_callsigns, controller_time_percentage = :ctp, enrichment_status = 'completed', enrichment_completed_at = now(), updated_at = now()
@@ -111,9 +139,19 @@ class SummaryEnrichmentWorker:
                 logger.info(f"Enriching controller summary id={cid} callsign={callsign}")
                 flight_data = await self.flight_service.detect_controller_flight_interactions_with_timeout(callsign, start, end, timeout_seconds=30.0)
 
+                # Log concise detection summary immediately before writing to DB
+                try:
+                    sample_callsigns = [d.get('callsign') for d in (flight_data.get('details') or [])[:10]]
+                    logger.debug(
+                        f"Controller enrichment write summary id={cid} callsign={callsign}: flights_detected={flight_data.get('flights_detected')}, total_aircraft={flight_data.get('total_aircraft')}, details_len={len(flight_data.get('details') or [])}, sample_callsigns={sample_callsigns}"
+                    )
+                except Exception:
+                    logger.exception("Failed to log controller enrichment write summary")
+
                 async with get_database_session() as session:
-                    aircraft_details_json = json.dumps(flight_data.get("details", []))
-                    hourly_json = json.dumps(flight_data.get("hourly_breakdown", {}))
+                    # Use custom default serializer to handle Decimal, datetime, etc.
+                    aircraft_details_json = json.dumps(flight_data.get("details", []), default=_json_default)
+                    hourly_json = json.dumps(flight_data.get("hourly_breakdown", {}), default=_json_default)
                     await session.execute(text("""
                         UPDATE controller_summaries
                         SET aircraft_details = :aircraft_details, total_aircraft_handled = :total, peak_aircraft_count = :peak, hourly_aircraft_breakdown = :hourly, enrichment_status = 'completed', enrichment_completed_at = now(), updated_at = now()

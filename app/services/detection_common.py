@@ -30,20 +30,8 @@ def build_prefilter_and_loader(reference_time: datetime, time_window_seconds: in
     - atc_start_time / atc_end_time: window used when loading ATC transceivers
     - loader: {'page_size': int, 'force_on_demand': bool}
     """
-    # Use symmetric windows centered on reference_time
-    win = compute_detection_window(reference_time, time_window_seconds, polling_interval_seconds)
-
-    # For controller sessions we may want to expand to the full session later; caller may override
-    return {
-        "flight_start_time": win["start"],
-        "flight_end_time": win["end"],
-        "atc_start_time": win["start"],
-        "atc_end_time": win["end"],
-        "loader": {
-            "page_size": page_size,
-            "force_on_demand": False
-        }
-    }
+    # Deprecated simple helper removed. See the cache-aware implementation below.
+    raise RuntimeError("old build_prefilter_and_loader removed; use the cache-aware implementation instead")
 
 
 def transceiver_load_strategy(window_start: datetime, window_end: datetime, last_cache_fetch: datetime = None, ttl_seconds: int = 120, page_size_default: int = 10000) -> Dict[str, Any]:
@@ -137,28 +125,27 @@ def transceiver_load_strategy(window_start: datetime | None, window_end: datetim
     return {"force_on_demand": False, "page_size": default_page_size}
 
 
-def build_prefilter_and_loader(anchor_time: datetime, time_window_seconds: int, polling_interval_seconds: int = 0, last_cache_fetch: datetime | None = None, ttl_seconds: int = 120, default_page_size: int = 10000) -> Dict[str, Any]:
-    """Build canonical prefilter windows and a transceiver load strategy.
+def build_prefilter_and_loader(flight_start_time: datetime | None, flight_end_time: datetime | None, atc_start_time: datetime | None, atc_end_time: datetime | None, last_cache_fetch: datetime | None = None, ttl_seconds: int = 120, default_page_size: int = 10000) -> Dict[str, Any]:
+    """Build prefilter windows container and a transceiver load strategy using explicit bounds.
+
+    This function no longer accepts an "anchor" timestamp. Callers must pass explicit
+    flight and ATC start/end bounds (the controller session or flight bounds used by
+    the summary generation). Any of the four bounds may be None; the loader decision
+    will be made using the flight window when available.
 
     Returns a dict with keys:
       - flight_start_time, flight_end_time
       - atc_start_time, atc_end_time
       - loader: {force_on_demand, page_size}
-
-    Both detection services should use this to ensure identical prefilter
-    windows and loader decisions.
     """
-    # canonical windows
-    windows = compute_prefilter_windows(anchor_time, time_window_seconds)
-
-    # decide loader strategy based on windows and cache age
-    loader = transceiver_load_strategy(windows.get("flight_start_time"), windows.get("flight_end_time"), last_cache_fetch, ttl_seconds=ttl_seconds, default_page_size=default_page_size)
+    # Use provided explicit windows verbatim (caller is responsible for providing session bounds)
+    loader = transceiver_load_strategy(flight_start_time, flight_end_time, last_cache_fetch, ttl_seconds=ttl_seconds, default_page_size=default_page_size)
 
     return {
-        "flight_start_time": windows["flight_start_time"],
-        "flight_end_time": windows["flight_end_time"],
-        "atc_start_time": windows["atc_start_time"],
-        "atc_end_time": windows["atc_end_time"],
+        "flight_start_time": flight_start_time,
+        "flight_end_time": flight_end_time,
+        "atc_start_time": atc_start_time,
+        "atc_end_time": atc_end_time,
         "loader": loader,
     }
 

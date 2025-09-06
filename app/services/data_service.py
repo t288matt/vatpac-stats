@@ -58,6 +58,8 @@ class DataService:
         self.callsign_pattern_filter = CallsignPatternFilter()
         self.controller_callsign_filter = ControllerCallsignFilter()
         self.frequency_pattern_filter = FrequencyPatternFilter()
+
+        # (no temporary ingest-only bypass flag required)
         
         # Initialize services
         self.vatsim_service = None
@@ -1173,6 +1175,22 @@ class DataService:
                     atc_data = await self.atc_detection_service.detect_flight_atc_interactions_with_timeout(
                         callsign, departure, arrival, first_record.logon_time, timeout_seconds=30.0
                     )
+                    # DEBUG: log ATC detection raw for this flight (keep concise)
+                    try:
+                        self.logger.debug(f"ATC detection result for {callsign}: interactions={atc_data.get('interactions_detected')} controllers={len(atc_data.get('controller_callsigns', {}))}")
+                        # If this is the flight we are tracing, persist full payload for inspection
+                        if callsign == 'FJI917':
+                            import json, os
+                            debug_path = f"/tmp/flight_enrich_{callsign}_{first_record.logon_time.isoformat()}.json"
+                            with open(debug_path, 'w') as df:
+                                json.dump({
+                                    'callsign': callsign,
+                                    'logon_time': str(first_record.logon_time),
+                                    'atc_data': atc_data
+                                }, df, default=str, indent=2)
+                            self.logger.debug(f"Wrote flight enrichment debug file: {debug_path}")
+                    except Exception:
+                        self.logger.exception(f"Failed to log ATC detection for {callsign}")
                     
                     # NEW: Calculate sector breakdown for this completed flight with flight session boundaries
                     sector_breakdown = await self._calculate_sector_breakdown(
@@ -1241,6 +1259,23 @@ class DataService:
                         self.logger.debug(
                             f"✅ Updated existing flight summary for {callsign} (cid={cid}) at logon {first_record.logon_time}"
                         )
+                        # DEBUG: if tracing FJI917, dump DB update context
+                        try:
+                            if callsign == 'FJI917':
+                                import json
+                                dbg = {
+                                    'action': 'update',
+                                    'callsign': callsign,
+                                    'cid': cid,
+                                    'logon_time': str(first_record.logon_time),
+                                    'update_rowcount': update_result.rowcount,
+                                    'summary_controller_callsigns': atc_data.get('controller_callsigns')
+                                }
+                                with open(f"/tmp/flight_summary_update_{callsign}.json", 'w') as df:
+                                    json.dump(dbg, df, default=str, indent=2)
+                                self.logger.debug(f"Wrote flight update debug file for {callsign}")
+                        except Exception:
+                            self.logger.exception("Failed to write flight update debug file")
                     else:
                         # Insert new summary
                         await session.execute(text("""
@@ -1262,6 +1297,16 @@ class DataService:
                         """), summary_data)
                         
                         processed_count += 1
+                        # DEBUG: persisted summary insert - write debug artifact for FJI917
+                        try:
+                            if callsign == 'FJI917':
+                                import json
+                                dbg = {'action': 'insert', 'callsign': callsign, 'summary_data': summary_data}
+                                with open(f"/tmp/flight_summary_insert_{callsign}.json", 'w') as df:
+                                    json.dump(dbg, df, default=str, indent=2)
+                                self.logger.debug(f"Wrote flight insert debug file for {callsign}")
+                        except Exception:
+                            self.logger.exception("Failed to write flight insert debug file")
                     
                 except Exception as e:
                     self.logger.error(f"Failed to process flight {callsign}: {e}")
@@ -1672,6 +1717,33 @@ class DataService:
             flight_data = await self.flight_detection_service.detect_controller_flight_interactions_with_timeout(
                 callsign, session_start, session_end, timeout_seconds=30.0
             )
+
+            # DEBUG: persist the returned flight_data to logs for diagnostics
+            try:
+                # Keep payload size reasonable in logs
+                import json
+                short = json.dumps({
+                    "flights_detected": flight_data.get("flights_detected"),
+                    "total_aircraft": flight_data.get("total_aircraft"),
+                    "interactions_detected": flight_data.get("interactions_detected"),
+                    "aircraft_callsigns_count": len(flight_data.get("aircraft_callsigns") or []),
+                    "details_preview": (flight_data.get("details") or [])[:3]
+                }, default=str)
+                self.logger.debug(f"Flight detection raw for {callsign}: {short}")
+            except Exception:
+                self.logger.exception(f"Flight detection raw (error serializing) for {callsign}")
+
+            # EXTRA DEBUG: show full details size and sample (non-serializing-safe guard)
+            try:
+                details = flight_data.get("details")
+                if details is None:
+                    self.logger.debug(f"Flight detection details for {callsign}: None")
+                elif isinstance(details, list):
+                    self.logger.debug(f"Flight detection details for {callsign}: len={len(details)}; sample_callsigns={[d.get('callsign') for d in details[:5]]}")
+                else:
+                    self.logger.debug(f"Flight detection details for {callsign}: type={type(details)}")
+            except Exception:
+                self.logger.exception(f"Flight detection details logging failed for {callsign}")
             
             if not flight_data.get("flights_detected", False):
                 self.logger.debug(f"No flight interactions detected for controller {callsign}")
