@@ -390,6 +390,9 @@ CREATE INDEX IF NOT EXISTS idx_flight_summaries_controller_time ON flight_summar
 -- Additional index that exists in database but not in original init.sql
 CREATE INDEX IF NOT EXISTS idx_flight_summaries_airborne_controller_time ON flight_summaries(airborne_controller_time_percentage);
 
+-- Enrichment queue indexes (keep in sync with migrations)
+CREATE INDEX IF NOT EXISTS idx_flight_enrichment_status_run_after ON flight_summaries (enrichment_status, enrichment_run_after);
+
 -- Create indexes for flights_archive table
 CREATE INDEX IF NOT EXISTS idx_flights_archive_callsign ON flights_archive(callsign);
 CREATE INDEX IF NOT EXISTS idx_flights_archive_logon_time ON flights_archive(logon_time);
@@ -500,6 +503,9 @@ CREATE INDEX IF NOT EXISTS idx_controller_summaries_session_time ON controller_s
 CREATE INDEX IF NOT EXISTS idx_controller_summaries_aircraft_count ON controller_summaries(total_aircraft_handled);
 CREATE INDEX IF NOT EXISTS idx_controller_summaries_rating ON controller_summaries(rating);
 CREATE INDEX IF NOT EXISTS idx_controller_summaries_facility ON controller_summaries(facility);
+
+-- Enrichment queue indexes (keep in sync with migrations)
+CREATE INDEX IF NOT EXISTS idx_controller_enrichment_status_run_after ON controller_summaries (enrichment_status, enrichment_run_after);
 
 -- JSONB indexes for complex queries
 CREATE INDEX IF NOT EXISTS idx_controller_summaries_frequencies ON controller_summaries USING GIN(frequencies_used);
