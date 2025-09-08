@@ -2148,6 +2148,60 @@ class DataService:
                             "pilot_rating": latest_row.pilot_rating,
                             "military_rating": latest_row.military_rating,
                         })
+
+                    # Calculate session time and sector metrics from `flights` table (no archive fallback)
+                    time_online_minutes = None
+                    sector_breakdown = None
+                    primary_sector = None
+                    total_sectors = None
+                    total_enroute_time = None
+                    try:
+                        first_last_sql = text("""
+                            SELECT MIN(last_updated) AS first_updated, MAX(last_updated) AS last_updated
+                            FROM flights
+                            WHERE callsign = :callsign
+                              AND cid = :cid
+                              AND departure = :departure
+                              AND arrival = :arrival
+                              AND last_updated BETWEEN :start AND :end
+                        """)
+                        fl_res = await session.execute(
+                            first_last_sql,
+                            {
+                                "callsign": callsign,
+                                "cid": cid,
+                                "departure": departure,
+                                "arrival": arrival,
+                                "start": session_start,
+                                "end": session_end,
+                            },
+                        )
+                        fl_row = fl_res.fetchone()
+                        if fl_row and fl_row.first_updated and fl_row.last_updated:
+                            delta = fl_row.last_updated - fl_row.first_updated
+                            time_online_minutes = int(delta.total_seconds() / 60)
+
+                            # Sector breakdown uses the same helper as original implementation
+                            try:
+                                sector_breakdown = await self._calculate_sector_breakdown(
+                                    callsign, session,
+                                    logon_time=fl_row.first_updated,
+                                    completion_time=fl_row.last_updated,
+                                )
+                                primary_sector = self._get_primary_sector(sector_breakdown)
+                                total_sectors = len(sector_breakdown)
+                                total_enroute_time = sum(sector_breakdown.values())
+                            except Exception:
+                                sector_breakdown = None
+                                primary_sector = None
+                                total_sectors = None
+                                total_enroute_time = None
+                    except Exception:
+                        time_online_minutes = None
+                        sector_breakdown = None
+                        primary_sector = None
+                        total_sectors = None
+                        total_enroute_time = None
                     upd_sql = text("""
                         UPDATE flight_summaries
                         SET
@@ -2164,6 +2218,11 @@ class DataService:
                             aircraft_faa = COALESCE(aircraft_faa, :aircraft_faa),
                             planned_altitude = COALESCE(planned_altitude, :planned_altitude),
                             aircraft_short = COALESCE(aircraft_short, :aircraft_short),
+                            time_online_minutes = COALESCE(time_online_minutes, :time_online_minutes),
+                            primary_enroute_sector = COALESCE(primary_enroute_sector, :primary_enroute_sector),
+                            total_enroute_sectors = COALESCE(total_enroute_sectors, :total_enroute_sectors),
+                            total_enroute_time_minutes = COALESCE(total_enroute_time_minutes, :total_enroute_time_minutes),
+                            sector_breakdown = COALESCE(sector_breakdown, :sector_breakdown),
                             updated_at = NOW()
                         WHERE callsign = :callsign
                           AND cid = :cid
@@ -2192,6 +2251,12 @@ class DataService:
                             "aircraft_faa": latest_vals["aircraft_faa"],
                             "planned_altitude": latest_vals["planned_altitude"],
                             "aircraft_short": latest_vals["aircraft_short"],
+                            # Calculated metrics
+                            "time_online_minutes": time_online_minutes,
+                            "primary_enroute_sector": primary_sector,
+                            "total_enroute_sectors": total_sectors,
+                            "total_enroute_time_minutes": total_enroute_time,
+                            "sector_breakdown": json.dumps(sector_breakdown) if sector_breakdown is not None else None,
                         },
                     )
 
@@ -2204,12 +2269,14 @@ class DataService:
                                 callsign, departure, arrival, deptime, logon_time,
                                 route, cid, completion_time,
                                 aircraft_type, name, server, pilot_rating, military_rating,
-                                flight_rules, aircraft_faa, planned_altitude, aircraft_short
+                                flight_rules, aircraft_faa, planned_altitude, aircraft_short,
+                                time_online_minutes, primary_enroute_sector, total_enroute_sectors, total_enroute_time_minutes, sector_breakdown
                             ) VALUES (
                                 :callsign, :departure, :arrival, :latest_deptime, :session_start,
                                 :latest_route, :cid, :session_end,
                                 :aircraft_type, :name, :server, :pilot_rating, :military_rating,
-                                :flight_rules, :aircraft_faa, :planned_altitude, :aircraft_short
+                                :flight_rules, :aircraft_faa, :planned_altitude, :aircraft_short,
+                                :time_online_minutes, :primary_enroute_sector, :total_enroute_sectors, :total_enroute_time_minutes, :sector_breakdown
                             )
                         """)
                         await session.execute(
@@ -2233,6 +2300,11 @@ class DataService:
                                 "aircraft_faa": latest_vals["aircraft_faa"],
                                 "planned_altitude": latest_vals["planned_altitude"],
                                 "aircraft_short": latest_vals["aircraft_short"],
+                                "time_online_minutes": time_online_minutes,
+                                "primary_enroute_sector": primary_sector,
+                                "total_enroute_sectors": total_sectors,
+                                "total_enroute_time_minutes": total_enroute_time,
+                                "sector_breakdown": json.dumps(self._convert_for_json(sector_breakdown)) if sector_breakdown is not None else None,
                             },
                         )
                         processed += 1
