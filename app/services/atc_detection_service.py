@@ -192,19 +192,13 @@ class ATCDetectionService:
     async def _get_flight_transceivers(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime) -> List[Dict[str, Any]]:
         """Get transceiver data for a specific flight across ALL sessions."""
         try:
-            from datetime import timezone
-            
-            # ✅ FIX: Calculate the full flight time window
+            # Use exact window from flight_summaries only (no fallback to current time)
             flight_start = logon_time
-            current_time = datetime.now(timezone.utc)
-            
-            # Get completion time for completed flights
             completion_time = await self._get_flight_completion_time(flight_callsign, departure, arrival, logon_time)
-            if completion_time:
-                flight_end = completion_time
-            else:
-                flight_end = current_time
-            
+            if not completion_time:
+                self.logger.info(f"Completion time not found for {flight_callsign}; skipping flight transceiver load")
+                return []
+            flight_end = completion_time
             self.logger.info(f"Loading flight transceivers for {flight_callsign}: {flight_start} to {flight_end}")
             
             # ✅ FIX: Query ALL transceivers within the flight's time window
@@ -221,8 +215,8 @@ class ATCDetectionService:
             async with get_database_session() as session:
                 result = await session.execute(text(query), {
                     "flight_callsign": flight_callsign,
-                    "flight_start": flight_start,    # ✅ From first logon
-                    "flight_end": flight_end         # ✅ To completion
+                    "flight_start": flight_start,
+                    "flight_end": flight_end
                 })
                 
                 transceivers = []
@@ -245,19 +239,13 @@ class ATCDetectionService:
     async def _get_atc_transceivers_for_flight(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime) -> List[Dict[str, Any]]:
         """Get ATC transceiver data for a specific flight's time period only."""
         try:
-            from datetime import timezone
-            
-            # Calculate time window: from flight start to current time
+            # Use exact window from flight_summaries only (no fallback to current time)
             flight_start = logon_time
-            current_time = datetime.now(timezone.utc)
-            
-            # For completed flights, use completion time instead of current time
             completion_time = await self._get_flight_completion_time(flight_callsign, departure, arrival, logon_time)
-            if completion_time:
-                atc_end = completion_time
-            else:
-                atc_end = current_time
-            
+            if not completion_time:
+                self.logger.info(f"Completion time not found for {flight_callsign}; skipping ATC transceiver load")
+                return []
+            atc_end = completion_time
             self.logger.info(f"Loading ATC transceivers for flight {flight_callsign}: {flight_start} to {atc_end}")
             
             # Single query with flight-specific time window and geographic pre-filtering
@@ -382,13 +370,6 @@ class ATCDetectionService:
                     AND t.callsign = :flight_callsign
                     AND t.timestamp >= :flight_start_time  -- Pre-filter by time
                     AND t.timestamp <= :flight_end_time
-                    AND EXISTS (
-                        SELECT 1 FROM flights f 
-                        WHERE f.callsign = t.callsign 
-                        AND f.departure = :departure 
-                        AND f.arrival = :arrival 
-                        AND f.logon_time = :logon_time
-                    )
                 ),
                 time_filtered_atc AS (
                     SELECT t.callsign, t.frequency/1000000.0 as frequency_mhz, t.timestamp, t.position_lat, t.position_lon 
@@ -464,16 +445,13 @@ class ATCDetectionService:
                 
                 result = await session.execute(text(query), {
                     "flight_callsign": flight_transceivers[0]["callsign"] if flight_transceivers else "",
-                    "departure": departure,
-                    "arrival": arrival,
-                    "logon_time": logon_time,
                     "controller_callsign": controller_transceivers[0]["callsign"] if controller_transceivers else "",
                     "time_window": self.time_window_seconds,
-                    "proximity_threshold_nm": proximity_threshold_nm,  # ✅ Dynamic per controller
-                    "flight_start_time": flight_start_time,  # ✅ Pre-filter flights
-                    "flight_end_time": flight_end_time,     # ✅ Pre-filter flights
-                    "atc_start_time": atc_start_time,       # ✅ Pre-filter ATC
-                    "atc_end_time": atc_end_time           # ✅ Pre-filter ATC
+                    "proximity_threshold_nm": proximity_threshold_nm,
+                    "flight_start_time": flight_start_time,
+                    "flight_end_time": flight_end_time,
+                    "atc_start_time": atc_start_time,
+                    "atc_end_time": atc_end_time
                 })
                 
                 matches = []
@@ -558,25 +536,29 @@ class ATCDetectionService:
             return self._create_empty_atc_data()
     
     async def _get_flight_record_count(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime) -> int:
-        """Get total record count for a flight."""
+        """Get total flight transceiver record count within the exact flight window."""
         try:
+            # Determine the exact end time from flight_summaries; if absent, no records (ongoing not supported here)
+            completion_time = await self._get_flight_completion_time(flight_callsign, departure, arrival, logon_time)
+            if not completion_time:
+                return 0
+
             query = """
                 SELECT COUNT(*) as record_count
-                FROM flights 
-                WHERE callsign = :callsign 
-                AND departure = :departure 
-                AND arrival = :arrival 
-                AND logon_time = :logon_time
+                FROM transceivers 
+                WHERE entity_type = 'flight'
+                AND callsign = :callsign 
+                AND timestamp >= :flight_start
+                AND timestamp <= :flight_end
             """
-            
+
             async with get_database_session() as session:
                 result = await session.execute(text(query), {
                     "callsign": flight_callsign,
-                    "departure": departure,
-                    "arrival": arrival,
-                    "logon_time": logon_time
+                    "flight_start": logon_time,
+                    "flight_end": completion_time
                 })
-                
+
                 row = result.fetchone()
                 return row.record_count if row else 0
                 

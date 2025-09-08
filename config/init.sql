@@ -340,6 +340,12 @@ CREATE TABLE IF NOT EXISTS flight_summaries (
     total_enroute_time_minutes INTEGER,  -- Total time in enroute sectors
     sector_breakdown JSONB,  -- Detailed sector breakdown data
     completion_time TIMESTAMP(0) WITH TIME ZONE,  -- When flight completed
+    -- Enrichment workflow columns (inline to avoid post-init dependency)
+    enrichment_status TEXT DEFAULT 'pending',
+    enrichment_attempts INT DEFAULT 0,
+    enrichment_run_after TIMESTAMPTZ DEFAULT now(),
+    enrichment_last_error TEXT,
+    enrichment_completed_at TIMESTAMPTZ,
     created_at TIMESTAMP(0) WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP(0) WITH TIME ZONE DEFAULT NOW()
 );
@@ -440,6 +446,12 @@ CREATE TABLE IF NOT EXISTS controller_summaries (
     aircraft_details JSONB,
     
     -- Timestamps
+    -- Enrichment workflow columns (inline to avoid post-init dependency)
+    enrichment_status TEXT DEFAULT 'pending',
+    enrichment_attempts INT DEFAULT 0,
+    enrichment_run_after TIMESTAMPTZ DEFAULT now(),
+    enrichment_last_error TEXT,
+    enrichment_completed_at TIMESTAMPTZ,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     
