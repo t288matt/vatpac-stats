@@ -2087,12 +2087,83 @@ class DataService:
                     hwm = hwm_row.hwm if hwm_row and hwm_row.hwm else session_end
 
                     # Upsert summary: update-first by signature
+                    # Load latest-in-session flight fields to populate/backfill summary columns
+                    latest_sql = text("""
+                        SELECT
+                            f.aircraft_type,
+                            f.flight_rules,
+                            f.aircraft_faa,
+                            f.planned_altitude,
+                            f.aircraft_short,
+                            f.cid,
+                            f.name,
+                            f.server,
+                            f.pilot_rating,
+                            f.military_rating
+                        FROM flights f
+                        WHERE f.callsign = :callsign
+                          AND f.cid = :cid
+                          AND f.departure = :departure
+                          AND f.arrival = :arrival
+                          AND f.last_updated BETWEEN :start AND :end
+                        ORDER BY f.last_updated DESC
+                        LIMIT 1
+                    """)
+
+                    latest_row = await session.execute(
+                        latest_sql,
+                        {
+                            "callsign": callsign,
+                            "cid": cid,
+                            "departure": departure,
+                            "arrival": arrival,
+                            "start": session_start,
+                            "end": session_end,
+                        },
+                    )
+                    latest_row = latest_row.fetchone()
+
+                    latest_vals = {
+                        "aircraft_type": None,
+                        "flight_rules": None,
+                        "aircraft_faa": None,
+                        "planned_altitude": None,
+                        "aircraft_short": None,
+                        "cid": cid,
+                        "name": None,
+                        "server": None,
+                        "pilot_rating": None,
+                        "military_rating": None,
+                    }
+                    if latest_row:
+                        latest_vals.update({
+                            "aircraft_type": latest_row.aircraft_type,
+                            "flight_rules": latest_row.flight_rules,
+                            "aircraft_faa": latest_row.aircraft_faa,
+                            "planned_altitude": latest_row.planned_altitude,
+                            "aircraft_short": latest_row.aircraft_short,
+                            "cid": latest_row.cid,
+                            "name": latest_row.name,
+                            "server": latest_row.server,
+                            "pilot_rating": latest_row.pilot_rating,
+                            "military_rating": latest_row.military_rating,
+                        })
                     upd_sql = text("""
                         UPDATE flight_summaries
                         SET
                             completion_time = GREATEST(completion_time, :session_end),
                             deptime = :latest_deptime,
                             route = COALESCE(:latest_route, route),
+                            aircraft_type = COALESCE(aircraft_type, :aircraft_type),
+                            name = COALESCE(name, :name),
+                            cid = COALESCE(cid, :cid),
+                            server = COALESCE(server, :server),
+                            pilot_rating = COALESCE(pilot_rating, :pilot_rating),
+                            military_rating = COALESCE(military_rating, :military_rating),
+                            flight_rules = COALESCE(flight_rules, :flight_rules),
+                            aircraft_faa = COALESCE(aircraft_faa, :aircraft_faa),
+                            planned_altitude = COALESCE(planned_altitude, :planned_altitude),
+                            aircraft_short = COALESCE(aircraft_short, :aircraft_short),
                             updated_at = NOW()
                         WHERE callsign = :callsign
                           AND cid = :cid
@@ -2111,6 +2182,16 @@ class DataService:
                             "session_end": session_end,
                             "latest_deptime": latest_deptime,
                             "latest_route": latest_route,
+                            # Backfill fields
+                            "aircraft_type": latest_vals["aircraft_type"],
+                            "name": latest_vals["name"],
+                            "server": latest_vals["server"],
+                            "pilot_rating": latest_vals["pilot_rating"],
+                            "military_rating": latest_vals["military_rating"],
+                            "flight_rules": latest_vals["flight_rules"],
+                            "aircraft_faa": latest_vals["aircraft_faa"],
+                            "planned_altitude": latest_vals["planned_altitude"],
+                            "aircraft_short": latest_vals["aircraft_short"],
                         },
                     )
 
@@ -2121,10 +2202,14 @@ class DataService:
                         ins_sql = text("""
                             INSERT INTO flight_summaries (
                                 callsign, departure, arrival, deptime, logon_time,
-                                route, cid, completion_time
+                                route, cid, completion_time,
+                                aircraft_type, name, server, pilot_rating, military_rating,
+                                flight_rules, aircraft_faa, planned_altitude, aircraft_short
                             ) VALUES (
                                 :callsign, :departure, :arrival, :latest_deptime, :session_start,
-                                :latest_route, :cid, :session_end
+                                :latest_route, :cid, :session_end,
+                                :aircraft_type, :name, :server, :pilot_rating, :military_rating,
+                                :flight_rules, :aircraft_faa, :planned_altitude, :aircraft_short
                             )
                         """)
                         await session.execute(
@@ -2138,6 +2223,16 @@ class DataService:
                                 "latest_route": latest_route,
                                 "cid": cid,
                                 "session_end": session_end,
+                                # Insert fields (may be NULL if not present)
+                                "aircraft_type": latest_vals["aircraft_type"],
+                                "name": latest_vals["name"],
+                                "server": latest_vals["server"],
+                                "pilot_rating": latest_vals["pilot_rating"],
+                                "military_rating": latest_vals["military_rating"],
+                                "flight_rules": latest_vals["flight_rules"],
+                                "aircraft_faa": latest_vals["aircraft_faa"],
+                                "planned_altitude": latest_vals["planned_altitude"],
+                                "aircraft_short": latest_vals["aircraft_short"],
                             },
                         )
                         processed += 1
