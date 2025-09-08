@@ -46,7 +46,7 @@ class SummaryEnrichmentWorker:
             claim_flight_sql = text("""
                 SELECT id, callsign, departure, arrival, logon_time
                 FROM flight_summaries
-                WHERE enrichment_status = 'pending' AND enrichment_run_after <= now()
+                WHERE enrichment_status = 'pending' AND enrichment_run_after <= now() AND completion_time IS NOT NULL
                 LIMIT 1
                 FOR UPDATE SKIP LOCKED
             """)
@@ -114,6 +114,27 @@ class SummaryEnrichmentWorker:
                     logger.exception("Failed to write flight enrichment debug file")
 
                 async with get_database_session() as session:
+                    # Guard: ensure completion_time is still present before writing completion
+                    try:
+                        ct_res = await session.execute(text("""
+                            SELECT completion_time FROM flight_summaries WHERE id = :id
+                        """), {"id": fs_id})
+                        ct_val = ct_res.scalar()
+                    except Exception:
+                        ct_val = None
+                    if not ct_val:
+                        # Requeue with backoff instead of writing an empty/incorrect enrichment
+                        await session.execute(text("""
+                            UPDATE flight_summaries
+                            SET enrichment_status = 'pending',
+                                enrichment_run_after = now() + interval '300 seconds',
+                                enrichment_last_error = COALESCE(enrichment_last_error, '') || ' | deferred: missing completion_time',
+                                updated_at = now()
+                            WHERE id = :id
+                        """), {"id": fs_id})
+                        await session.commit()
+                        logger.info(f"Deferring flight enrichment id={fs_id} callsign={callsign}: completion_time missing")
+                        return False
                     # Use custom default serializer to handle Decimal, datetime, etc.
                     controller_callsigns_json = json.dumps(atc_data.get("controller_callsigns", {}), default=_json_default)
                     await session.execute(text("""
