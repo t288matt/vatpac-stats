@@ -61,7 +61,7 @@ services:
       ENABLE_BOUNDARY_FILTER: "true"
       
       # Callsign Pattern Filter Configuration
-      EXCLUDED_CALLSIGN_PATTERNS: "ATIS"   #atis filtered out of contrllers data
+      EXCLUDED_CALLSIGN_PATTERNS: "ATIS,_OBS"  #atis filtered out of contrllers data
       
       # Frequency Pattern Filter Configuration (exclude UNICOM frequencies)
       EXCLUDED_FREQUENCIES_MHZ: "122.800"  # Exclude 122.8 MHz UNICOM frequency

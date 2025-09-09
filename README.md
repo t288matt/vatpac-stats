@@ -10,6 +10,7 @@ The system provides comprehensive flight tracking, controller tracking, and sect
 - **Operational Status**: ✅ **PRODUCTION READY** with active data collection
 - **Geographic Filtering**: ✅ **ACTIVE** - Configurable airspace boundary filtering operational (currently configured for Australian airspace but can be configured for any airspace with JSON files)
 - **Data Pipeline**: ✅ **OPERATIONAL** - Real-time VATSIM data ingestion every 60 seconds (configurable)
+- **Note (known issue)**: Controller summaries may show `frequencies_used` derived from the `controllers` table that differs from per-interaction frequencies in `aircraft_details` (which are derived from `transceivers`). This occurs when controllers report or rotate between multiple frequencies; use `transceivers` as authoritative for frequency matches or enable summary changes that include both reported and observed frequencies.
 - **Sector Tracking**: ✅ **ACTIVE** - Configurable sector monitoring operational (currently configured for 17 Australian airspace sectors. Configurable to any airspace)
 - **Flight Summaries**: ✅ **OPERATIONAL** - Automatic processing every 60 minutes (configurable)
 

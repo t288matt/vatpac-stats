@@ -1,6 +1,9 @@
 -- Comprehensive Database Initialization Script
 -- This script creates all tables with all required fields for the VATSIM data collection system
 -- Run automatically when PostgreSQL container starts for the first time
+
+-- Enable required extensions
+CREATE EXTENSION IF NOT EXISTS tablefunc;
 -- 
 -- IMPORTANT: This script includes the flight_sector_occupancy table with altitude fields
 -- required for real-time sector tracking functionality.
