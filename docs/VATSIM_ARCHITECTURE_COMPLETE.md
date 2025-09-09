@@ -1669,6 +1669,12 @@ These commands enable operational staff to monitor system health, troubleshoot i
 - **Data Retention**: Historical data limited by storage constraints
 - **Real-time Processing**: Limited by VATSIM API update frequency
 
+#### **Known Issue: Controller summary frequency mismatch**
+- **Description**: `controller_summaries` contains `frequencies_used` (derived from the `controllers` table) while aircraft interaction detection uses `transceivers` records to match flights to controllers. Because controllers can report or rotate between multiple frequencies, `frequencies_used` may differ from the specific frequency observed in `transceivers` at the time of a detected interaction. This can lead to summaries that show an interaction in `aircraft_details` at one frequency while `frequencies_used` lists a different frequency.
+- **Impact**: Visual/analytical confusion for consumers of controller summaries; detection logic itself uses `transceivers` and remains authoritative.
+- **Recommended Action**: Consider including both `reported_frequencies` (from `controllers`) and `observed_frequencies` (from `transceivers`) in summaries, or compute `frequencies_used` from `transceivers` for the session window.
+- **Status**: Documented; follow-up change recommended but not required immediately.
+
 ---
 
 ## 📈 **5. Next Steps for Phase 1**

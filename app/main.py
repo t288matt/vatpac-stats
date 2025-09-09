@@ -357,6 +357,18 @@ async def run_data_ingestion():
     config = SimpleConfig()
     data_service = await get_data_service()
     
+    # Start a periodic background cleanup task (runs independently of ingestion success)
+    async def _periodic_cleanup_task():
+        interval_seconds = int(os.getenv('SECTOR_CLEANUP_INTERVAL', '60'))
+        while True:
+            try:
+                await data_service.cleanup_stale_sectors()
+            except Exception:
+                logger.exception("Periodic cleanup task failed")
+            await asyncio.sleep(interval_seconds)
+
+    asyncio.create_task(_periodic_cleanup_task())
+
     while True:
         try:
             # Process VATSIM data without verbose logging
