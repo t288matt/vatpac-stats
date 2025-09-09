@@ -369,6 +369,22 @@ async def run_data_ingestion():
 
     asyncio.create_task(_periodic_cleanup_task())
 
+    # Start periodic backfill task (safe, idempotent)
+    async def _periodic_backfill_task():
+        interval_seconds = int(os.getenv('BACKFILL_INTERVAL', '3600'))  # default 60 minutes
+        batch_size = int(os.getenv('BACKFILL_BATCH_SIZE', '500'))
+        while True:
+            try:
+                logger.info("Running periodic backfill of flight_sector_occupancy exit fields...")
+                ds = await get_data_service()
+                updated = await ds.backfill_fso_exit_fields(batch_size=batch_size)
+                logger.info(f"Periodic backfill updated {updated} rows")
+            except Exception:
+                logger.exception("Periodic backfill failed")
+            await asyncio.sleep(interval_seconds)
+
+    asyncio.create_task(_periodic_backfill_task())
+
     while True:
         try:
             # Process VATSIM data without verbose logging

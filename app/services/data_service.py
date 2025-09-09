@@ -1113,6 +1113,74 @@ class DataService:
         except Exception as e:
             self.logger.error(f"Failed to close open sector entries for {callsign}: {e}")
 
+    async def backfill_fso_exit_fields(self, batch_size: int = 500) -> int:
+        """Backfill exit fields for flight_sector_occupancy in batches.
+
+        Tries flights -> flights_archive -> flight_summaries for a timestamp/altitude.
+        Returns number of rows updated in this run.
+        """
+        updated = 0
+        try:
+            async with get_database_session() as session:
+                # Build candidate CTE and update in a single statement, limited by batch_size
+                update_sql = text(f"""
+WITH candidates AS (
+  SELECT fso.id,
+         COALESCE(f.last_updated, fa.last_updated, fs.completion_time) AS chosen_last_updated,
+         COALESCE(f.altitude, fa.altitude) AS chosen_altitude,
+         COALESCE(f.latitude, fa.latitude) AS chosen_lat,
+         COALESCE(f.longitude, fa.longitude) AS chosen_lon
+  FROM flight_sector_occupancy fso
+  LEFT JOIN LATERAL (
+    SELECT altitude, latitude, longitude, last_updated
+    FROM flights f
+    WHERE f.callsign = fso.callsign
+    ORDER BY last_updated DESC
+    LIMIT 1
+  ) f ON true
+  LEFT JOIN LATERAL (
+    SELECT altitude, latitude, longitude, last_updated
+    FROM flights_archive fa
+    WHERE fa.callsign = fso.callsign
+    ORDER BY last_updated DESC
+    LIMIT 1
+  ) fa ON true
+  LEFT JOIN LATERAL (
+    SELECT completion_time
+    FROM flight_summaries fs
+    WHERE fs.callsign = fso.callsign
+    ORDER BY completion_time DESC
+    LIMIT 1
+  ) fs ON true
+  WHERE fso.exit_timestamp IS NULL
+    AND (f.last_updated IS NOT NULL OR fa.last_updated IS NOT NULL OR fs.completion_time IS NOT NULL)
+  ORDER BY fso.entry_timestamp
+  LIMIT :limit
+)
+UPDATE flight_sector_occupancy fso
+SET exit_timestamp = c.chosen_last_updated,
+    exit_altitude  = c.chosen_altitude,
+    exit_lat       = COALESCE(fso.exit_lat, c.chosen_lat),
+    exit_lon       = COALESCE(fso.exit_lon, c.chosen_lon),
+    duration_seconds = EXTRACT(EPOCH FROM (c.chosen_last_updated - fso.entry_timestamp))::INTEGER
+FROM candidates c
+WHERE fso.id = c.id
+  AND c.chosen_last_updated IS NOT NULL
+RETURNING fso.id;
+""")
+
+                result = await session.execute(update_sql, {"limit": batch_size})
+                rows = result.fetchall()
+                updated = len(rows)
+                if updated > 0:
+                    await session.commit()
+                    self.logger.info(f"backfill_fso_exit_fields: updated {updated} rows")
+
+        except Exception as e:
+            self.logger.error(f"backfill_fso_exit_fields failed: {e}")
+
+        return updated
+
     def get_sector_tracking_status(self) -> Dict[str, Any]:
         """
         Get current sector tracking status.
