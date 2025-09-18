@@ -94,37 +94,19 @@ class ATCDetectionService:
             # flight time window we just loaded so we don't miss controllers that
             # only appear later in the flight. Fall back to canonical prefilter
             # window when flight transceivers are unavailable.
-            from app.services.vatsim_service import get_vatsim_service
-            vatsim = get_vatsim_service()
-            from app.services.detection_common import build_prefilter_and_loader
-            # Use explicit bounds: prefer flight transceiver bounds when available
-            pre = None
-            if flight_transceivers:
-                flight_start = flight_transceivers[0]["timestamp"]
-                flight_end = flight_transceivers[-1]["timestamp"]
-                pre = build_prefilter_and_loader(flight_start, flight_end, flight_start, flight_end, last_cache_fetch=None, ttl_seconds=120, default_page_size=10000)
-            else:
-                # Fallback to caller-provided logon_time expanded by canonical window
-                from app.services.detection_common import compute_prefilter_windows
-                win = compute_prefilter_windows(logon_time, self.time_window_seconds)
-                pre = build_prefilter_and_loader(win["flight_start_time"], win["flight_end_time"], win["atc_start_time"], win["atc_end_time"], last_cache_fetch=None, ttl_seconds=120, default_page_size=10000)
-
+            # Unified DB-only loader for ATC transceivers within the window
+            from app.services.transceiver_loader import load_transceivers_window
             if flight_transceivers:
                 atc_start = flight_transceivers[0]["timestamp"]
                 atc_end = flight_transceivers[-1]["timestamp"]
             else:
-                atc_start = pre["atc_start_time"]
-                atc_end = pre["atc_end_time"]
+                from app.services.detection_common import compute_prefilter_windows
+                win = compute_prefilter_windows(logon_time, self.time_window_seconds)
+                atc_start = win["atc_start_time"]
+                atc_end = win["atc_end_time"]
 
-            atc_transceivers = await vatsim.get_transceivers_in_window(atc_start, atc_end, entity_type='atc', page_size=pre["loader"]["page_size"])
-            self.logger.debug(f"VATSIM loader returned {len(atc_transceivers)} ATC transceivers for {flight_callsign} in window {atc_start} - {atc_end}")
-            # If the VATSIM loader returns nothing (cache or API gap), fall back
-            # to loading ATC transceivers directly from our local transceivers DB
-            # to ensure detection still works against historical data.
-            if not atc_transceivers:
-                self.logger.debug(f"VATSIM loader returned no ATC transceivers for {flight_callsign}; falling back to DB query")
-                atc_transceivers = await self._get_atc_transceivers_for_flight(flight_callsign, departure, arrival, logon_time)
-                self.logger.debug(f"DB fallback returned {len(atc_transceivers)} ATC transceivers for {flight_callsign}")
+            atc_transceivers = await load_transceivers_window(atc_start, atc_end, entity_type='atc')
+            self.logger.debug(f"DB loader returned {len(atc_transceivers)} ATC transceivers for {flight_callsign} in window {atc_start} - {atc_end}")
             if not atc_transceivers:
                 self.logger.debug(f"No ATC transceiver data found for flight {flight_callsign} after DB fallback")
                 return self._create_empty_atc_data()
@@ -190,48 +172,16 @@ class ATCDetectionService:
             return self._create_empty_atc_data()
     
     async def _get_flight_transceivers(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime) -> List[Dict[str, Any]]:
-        """Get transceiver data for a specific flight across ALL sessions."""
+        """Get transceiver data for a specific flight across ALL sessions using unified loader."""
         try:
-            # Use exact window from flight_summaries only (no fallback to current time)
             flight_start = logon_time
             completion_time = await self._get_flight_completion_time(flight_callsign, departure, arrival, logon_time)
             if not completion_time:
                 self.logger.info(f"Completion time not found for {flight_callsign}; skipping flight transceiver load")
                 return []
             flight_end = completion_time
-            self.logger.info(f"Loading flight transceivers for {flight_callsign}: {flight_start} to {flight_end}")
-            
-            # ✅ FIX: Query ALL transceivers within the flight's time window
-            query = """
-                SELECT t.callsign, t.frequency, t.timestamp, t.position_lat, t.position_lon
-                FROM transceivers t
-                WHERE t.entity_type = 'flight' 
-                AND t.callsign = :flight_callsign
-                AND t.timestamp >= :flight_start
-                AND t.timestamp <= :flight_end
-                ORDER BY t.timestamp
-            """
-            
-            async with get_database_session() as session:
-                result = await session.execute(text(query), {
-                    "flight_callsign": flight_callsign,
-                    "flight_start": flight_start,
-                    "flight_end": flight_end
-                })
-                
-                transceivers = []
-                for row in result.fetchall():
-                    transceivers.append({
-                        "callsign": row.callsign,
-                        "frequency": row.frequency,
-                        "frequency_mhz": row.frequency / 1000000.0,  # Convert Hz to MHz
-                        "timestamp": row.timestamp,
-                        "position_lat": row.position_lat,
-                        "position_lon": row.position_lon
-                    })
-                
-                return transceivers
-                
+            from app.services.transceiver_loader import load_transceivers_for_callsign
+            return await load_transceivers_for_callsign(flight_start, flight_end, 'flight', flight_callsign)
         except Exception as e:
             self.logger.error(f"Error getting flight transceivers: {e}")
             return []
