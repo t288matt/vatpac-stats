@@ -76,10 +76,10 @@ class FlightDetectionService:
             # Get flight transceivers covering the full controller session.
             # Removing the midpoint prefilter ensures we don't miss valid matches
             # that occur outside a narrow window.
-            from app.services.vatsim_service import get_vatsim_service
-            vatsim = get_vatsim_service()
-            flight_transceivers = await vatsim.get_transceivers_in_window(session_start, session_end, entity_type='flight')
-            self.logger.debug(f"VATSIM loader returned {len(flight_transceivers)} flight transceivers for session {session_start} - {session_end}")
+            # Unified DB-only loader for flights in session window
+            from app.services.transceiver_loader import load_transceivers_window
+            flight_transceivers = await load_transceivers_window(session_start, session_end, entity_type='flight')
+            self.logger.debug(f"DB loader returned {len(flight_transceivers)} flight transceivers for session {session_start} - {session_end}")
             # Proceed even if the VATSIM loader returns an empty list; the DB CTE
             # query below will still run against the full session bounds.
             
@@ -133,75 +133,23 @@ class FlightDetectionService:
             return self._create_empty_flight_data()
     
     async def _get_controller_transceivers(self, controller_callsign: str, session_start: datetime, session_end: datetime) -> List[Dict[str, Any]]:
-        """Get transceiver data for a specific controller session."""
+        """Get transceiver data for a specific controller session using unified loader."""
         try:
-            query = """
-                SELECT t.callsign, t.frequency, t.timestamp, t.position_lat, t.position_lon
-                FROM transceivers t
-                WHERE t.entity_type = 'atc' 
-                AND t.callsign = :controller_callsign
-                AND t.timestamp BETWEEN :session_start AND :session_end
-                ORDER BY t.timestamp
-            """
-            
-            async with get_database_session() as session:
-                result = await session.execute(text(query), {
-                    "controller_callsign": controller_callsign,
-                    "session_start": session_start,
-                    "session_end": session_end
-                })
-                
-                transceivers = []
-                for row in result.fetchall():
-                    transceivers.append({
-                        "callsign": row.callsign,
-                        "frequency": row.frequency,
-                        "frequency_mhz": row.frequency / 1000000.0,  # Convert Hz to MHz
-                        "timestamp": row.timestamp,
-                        "position_lat": row.position_lat,
-                        "position_lon": row.position_lon
-                    })
-                
-                self.logger.info(f"Loaded {len(transceivers)} controller transceiver records for {controller_callsign}")
-                return transceivers
-                
+            from app.services.transceiver_loader import load_transceivers_for_callsign
+            transceivers = await load_transceivers_for_callsign(session_start, session_end, 'atc', controller_callsign)
+            self.logger.info(f"Loaded {len(transceivers)} controller transceiver records for {controller_callsign}")
+            return transceivers
         except Exception as e:
             self.logger.error(f"Error getting controller transceivers: {e}")
             return []
     
     async def _get_flight_transceivers(self, session_start: datetime, session_end: datetime) -> List[Dict[str, Any]]:
-        """Get transceiver data for flights during the controller session period."""
+        """Get transceiver data for flights during the controller session period using unified loader."""
         try:
-            # Optimized query with better filtering and LIMIT to prevent hanging
-            query = """
-                SELECT t.callsign, t.frequency, t.timestamp, t.position_lat, t.position_lon
-                FROM transceivers t
-                WHERE t.entity_type = 'flight' 
-                AND t.timestamp BETWEEN :session_start AND :session_end
-                ORDER BY t.timestamp
-                LIMIT 10000  -- Prevent loading too many records
-            """
-            
-            async with get_database_session() as session:
-                result = await session.execute(text(query), {
-                    "session_start": session_start,
-                    "session_end": session_end
-                })
-                
-                transceivers = []
-                for row in result.fetchall():
-                    transceivers.append({
-                        "callsign": row.callsign,
-                        "frequency": row.frequency,
-                        "frequency_mhz": row.frequency / 1000000.0,  # Convert Hz to MHz
-                        "timestamp": row.timestamp,
-                        "position_lat": row.position_lat,
-                        "position_lon": row.position_lon
-                    })
-                
-                self.logger.info(f"Loaded {len(transceivers)} flight transceiver records")
-                return transceivers
-                
+            from app.services.transceiver_loader import load_transceivers_window
+            transceivers = await load_transceivers_window(session_start, session_end, entity_type='flight')
+            self.logger.info(f"Loaded {len(transceivers)} flight transceiver records")
+            return transceivers
         except Exception as e:
             self.logger.error(f"Error getting flight transceivers: {e}")
             return []
