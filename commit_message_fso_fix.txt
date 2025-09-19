@@ -1,0 +1,42 @@
+﻿Implement Option 1: use authoritative flight.last_updated for sector tracking and backfill tools
+
+Summary:
+- Implemented the recommended minimal fix to use the VATSIM-provided `last_updated` timestamp as the authoritative event time for sector entry and exit. This prevents races between in-memory sector tracking and flight rows not yet persisted to the DB.
+
+What changed (files):
+- `app/services/data_service.py`
+  - Caller now parses `flight_dict['last_updated']` and passes it into `_track_sector_occupancy`.
+  - `_track_sector_occupancy` signature updated to accept `flight_last_updated` and pass it through to transition/close helpers.
+  - `_handle_sector_transition` now prefers `flight_last_updated` over `datetime.now(timezone.utc)` when creating entry timestamps.
+  - `_close_all_open_sectors_for_flight` updated to accept an optional `flight_last_updated` and prefers it when computing exit timestamps/duration.
+  - `_record_sector_exit` updated to compute duration using `GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (...))))::INTEGER` to avoid tiny negative artifacts from sub-second truncation.
+
+- New/updated helper scripts in `scripts/`:
+  - `backfill_fso_by_entry_candidate.sql`  batchable backfill: recompute durations and backfill exit timestamps using earliest `flights.last_updated >= entry_timestamp`, then `flights_archive`, then `flight_summaries`.
+  - `backfill_fso_dryrun.sql`  read-only diagnostics showing candidate timestamps and counts.
+  - `backfill_loop_db_side.sql`  DB-side PL/pgSQL loop that runs recompute+backfill passes until convergence and clamps negative durations to 0.
+  - `backfill_fso_diagnostics.sql`  diagnostics query used before/after backfill runs.
+  - `run_backfill_loop.sh`  helper (not executed inside container due to read-only mount); included for host-based usage.
+
+Why:
+- Root cause: sector entries were inserted using an internally generated timestamp (`datetime.now(...)`) and immediately written with `duration_seconds = 0`. Exits were later computed using the latest visible `flights.last_updated` read from the DB, which could be older or not present if the flight row had not been flushed/committed yet. This mismatch caused many zero or occasionally negative durations after integer truncation.
+- Fix: use the authoritative `flight.last_updated` (when available) as the timestamp for both entry and exit calculations; this removes the DB-visibility race and clock-source mismatch.
+
+What I ran and observed (dev):
+- Performed dry-run diagnostics and ran the backfill scripts in the dev Postgres container.
+- Completed a DB-side backfill loop to process candidates and recompute durations where possible. Result: backfill completed, but a large number of historical rows still have zero duration because no suitable `flights`/archive/summary timestamp existed to produce a multi-minute delta; backfill cannot invent missing flight updates.
+
+Testing notes:
+- Ran backfill and DB diagnostics in dev; backfill loop completed and negatives were clamped to 0.
+- `pytest` in the host environment failed to import the `app` package (ModuleNotFoundError), preventing running the unit test suite locally. This appears to be an environment/PYTHONPATH/test-runner setup issue rather than a code-change failure. Consider running tests inside the app container or fixing the local test environment before full test runs.
+
+Next recommended steps (after commit):
+1. Deploy these code changes to the dev environment (image rebuilt & container restarted). I already initiated a rebuild and restarted the app container in dev.
+2. Monitor sector metrics for 24h (fraction of positive durations, avg positive duration, number of rows with exit_timestamp NULL) to confirm the fix prevents new zero/negative rows.
+3. If metrics look good, prepare a small PR and promote to production following the normal release process.
+4. Optional: consider a schema migration to allow `duration_seconds` NULL for entries until computed (semantic improvement), and a longer-running backfill to re-evaluate historical rows when additional flight archival data becomes available.
+
+Notes:
+- All changes are limited to the data service layer and SQL backfill scripts; no schema changes were performed.
+- Backfill scripts are idempotent and safe to run in batches; they were run against the dev DB for diagnostics and initial remediation.
+

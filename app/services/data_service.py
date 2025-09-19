@@ -307,8 +307,9 @@ class DataService:
                             }
                             bulk_flights.append(flight_data)
                             
-                            # NEW: Track sector occupancy for this flight
-                            await self._track_sector_occupancy(flight_dict, session)
+                            # NEW: Track sector occupancy for this flight - pass authoritative last_updated when available
+                            flight_last_updated = self._parse_timestamp(flight_dict.get('last_updated'))
+                            await self._track_sector_occupancy(flight_dict, session, flight_last_updated)
                             
                         except Exception as e:
                             self.logger.warning(f"Failed to prepare flight data for {flight_dict.get('callsign', 'unknown')}: {e}")
@@ -506,7 +507,7 @@ class DataService:
     # SECTOR TRACKING METHODS
     # ============================================================================
     
-    async def _track_sector_occupancy(self, flight_dict: Dict[str, Any], session: AsyncSession) -> None:
+    async def _track_sector_occupancy(self, flight_dict: Dict[str, Any], session: AsyncSession, flight_last_updated: Optional[datetime] = None) -> None:
         """
         Track sector occupancy for a flight with speed-based entry/exit criteria.
         
@@ -574,11 +575,11 @@ class DataService:
         # Check if we should exit due to 2 consecutive below-30kts polls
         should_exit = exit_counter >= 2
         
-        # Handle sector transitions
+        # Handle sector transitions (pass authoritative timestamp when available)
         if current_sector != previous_sector or should_exit:
             await self._handle_sector_transition(
                 callsign, previous_sector, current_sector, 
-                lat, lon, altitude, session, should_exit
+                lat, lon, altitude, session, should_exit, flight_last_updated
             )
             
             # Update state with combined structure
@@ -608,7 +609,8 @@ class DataService:
     async def _handle_sector_transition(
         self, callsign: str, previous_sector: Optional[str], 
         current_sector: Optional[str], lat: float, lon: float, 
-        altitude: int, session: AsyncSession, should_exit: bool = False
+        altitude: int, session: AsyncSession, should_exit: bool = False,
+        flight_last_updated: Optional[datetime] = None
     ) -> None:
         """
         Handle sector entry/exit transitions with speed-based criteria.
@@ -623,7 +625,8 @@ class DataService:
             session: Database session
             should_exit: Whether to force exit due to speed criteria
         """
-        timestamp = datetime.now(timezone.utc)
+        # Prefer authoritative flight_last_updated when provided to avoid clock/visibility races
+        timestamp = flight_last_updated or datetime.now(timezone.utc)
         
         # CRITICAL FIX: Close ALL open sectors for this flight before entering a new one
         # This prevents multiple open sectors when memory state gets corrupted
@@ -683,7 +686,7 @@ class DataService:
             self.logger.error(f"Failed to record sector entry for {callsign}: {e}")
 
     async def _close_all_open_sectors_for_flight(
-        self, callsign: str, session: AsyncSession
+        self, callsign: str, session: AsyncSession, flight_last_updated: Optional[datetime] = None
     ) -> None:
         """
         Close ALL open sectors for a flight to prevent multiple open sectors.
@@ -709,19 +712,20 @@ class DataService:
             if not open_sectors:
                 return  # No open sectors to close
             
-            # Get the last known flight record for this callsign
-            flight_result = await session.execute(text("""
-                SELECT latitude, longitude, altitude, last_updated
-                FROM flights 
-                WHERE callsign = :callsign 
-                ORDER BY last_updated DESC 
-                LIMIT 1
-            """), {"callsign": callsign})
-            
-            last_flight = flight_result.fetchone()
-            if not last_flight:
-                self.logger.warning(f"No flight record found for {callsign}")
-                return
+            # Get the last known flight record for this callsign unless an authoritative timestamp provided
+            last_flight = None
+            if flight_last_updated is None:
+                flight_result = await session.execute(text("""
+                    SELECT latitude, longitude, altitude, last_updated
+                    FROM flights 
+                    WHERE callsign = :callsign 
+                    ORDER BY last_updated DESC 
+                    LIMIT 1
+                """), {"callsign": callsign})
+                last_flight = flight_result.fetchone()
+                if not last_flight:
+                    self.logger.warning(f"No flight record found for {callsign}")
+                    return
             
             self.logger.debug(f"Closing {len(open_sectors)} open sectors for flight {callsign}")
             
@@ -730,8 +734,9 @@ class DataService:
                 sector_name = sector.sector_name
                 entry_timestamp = sector.entry_timestamp
                 
-                # Calculate duration using last flight record timestamp
-                duration_seconds = int((last_flight.last_updated - entry_timestamp).total_seconds())
+                # Calculate duration using the provided flight_last_updated if present, else last_flight.last_updated
+                exit_ts = flight_last_updated or last_flight.last_updated
+                duration_seconds = int((exit_ts - entry_timestamp).total_seconds())
                 
                 # Update the sector exit
                 await session.execute(text("""
@@ -745,7 +750,7 @@ class DataService:
                     AND sector_name = :sector_name
                     AND exit_timestamp IS NULL
                 """), {
-                    "exit_timestamp": last_flight.last_updated,  # Use last flight record timestamp
+                    "exit_timestamp": exit_ts,  # Use provided flight_last_updated or last flight record timestamp
                     "exit_lat": last_flight.latitude,           # Use last known position
                     "exit_lon": last_flight.longitude,          # Use last known position
                     "exit_altitude": last_flight.altitude,      # Use last known altitude
@@ -786,7 +791,7 @@ class DataService:
                     exit_lat = :lat,
                     exit_lon = :lon,
                     exit_altitude = :altitude,
-                    duration_seconds = EXTRACT(EPOCH FROM (:timestamp - entry_timestamp))::INTEGER
+                    duration_seconds = GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (:timestamp - entry_timestamp))))::INTEGER
                 WHERE callsign = :callsign 
                 AND sector_name = :sector_name 
                 AND exit_timestamp IS NULL
