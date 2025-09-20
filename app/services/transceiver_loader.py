@@ -46,7 +46,7 @@ async def load_transceivers_window(
 
     while True:
         base = (
-            "SELECT id as transceiver_id, callsign, frequency, position_lat, position_lon, timestamp, entity_type "
+            "SELECT id as transceiver_id, callsign, frequency, position_lat, position_lon, height_msl, height_agl, timestamp, entity_type "                                            
             "FROM transceivers WHERE timestamp >= :start AND timestamp <= :end"
         )
         if entity_type:
@@ -76,9 +76,11 @@ async def load_transceivers_window(
                     "transceiver_id": row.transceiver_id,
                     "callsign": row.callsign,
                     "frequency": row.frequency,
-                    "frequency_mhz": (row.frequency / 1000000.0) if row.frequency is not None else None,
+                    "frequency_mhz": (row.frequency / 1000000.0) if row.frequency is not None else None,                                                       
                     "position_lat": row.position_lat,
                     "position_lon": row.position_lon,
+                    "height_msl": row.height_msl,
+                    "height_agl": row.height_agl,
                     "timestamp": row.timestamp,
                     "entity_type": row.entity_type,
                 }
@@ -113,8 +115,8 @@ async def load_transceivers_for_callsign(
 
     while True:
         base = (
-            "SELECT id as transceiver_id, callsign, frequency, position_lat, position_lon, timestamp, entity_type "
-            "FROM transceivers WHERE timestamp >= :start AND timestamp <= :end AND entity_type = :entity_type AND callsign = :callsign"
+            "SELECT id as transceiver_id, callsign, frequency, position_lat, position_lon, height_msl, height_agl, timestamp, entity_type "                                            
+            "FROM transceivers WHERE timestamp >= :start AND timestamp <= :end AND entity_type = :entity_type AND callsign = :callsign"                        
         )
         base += " AND (timestamp > :last_ts OR (timestamp = :last_ts AND id > :last_id)) ORDER BY timestamp, id LIMIT :limit"
 
@@ -140,9 +142,11 @@ async def load_transceivers_for_callsign(
                     "transceiver_id": row.transceiver_id,
                     "callsign": row.callsign,
                     "frequency": row.frequency,
-                    "frequency_mhz": (row.frequency / 1000000.0) if row.frequency is not None else None,
+                    "frequency_mhz": (row.frequency / 1000000.0) if row.frequency is not None else None,                                                       
                     "position_lat": row.position_lat,
                     "position_lon": row.position_lon,
+                    "height_msl": row.height_msl,
+                    "height_agl": row.height_agl,
                     "timestamp": row.timestamp,
                     "entity_type": row.entity_type,
                 }

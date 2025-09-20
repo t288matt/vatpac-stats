@@ -468,9 +468,58 @@ class ATCDetectionService:
             # This represents the percentage of flight time that had ATC contact
             controller_time_percentage = min(100.0, (total_controller_time / total_records) * 100) if total_records > 0 else 0.0
             
-            # Calculate airborne controller time percentage (same as total for now, can be enhanced later)
-            # This represents the percentage of airborne time that had ATC contact
-            airborne_controller_time_percentage = controller_time_percentage
+            # Calculate airborne controller time percentage using transceiver heights (>1500 ft)
+            # Use transceiver height_msl (meters) converted to feet for the threshold
+            AIRBORNE_ALT_FT = 1500
+            AIRBORNE_ALT_M = AIRBORNE_ALT_FT / 3.28084
+
+            # Build a map of match times -> whether that match was airborne (closest transceiver height > threshold)
+            airborne_contact_count = 0
+            # We'll also compute total enroute (airborne) records for denominator using transceivers
+            # Query: count transceiver records for this flight where height_msl > AIRBORNE_ALT_M
+            async with get_database_session() as session:
+                enroute_count_res = await session.execute(text("""
+                    SELECT COUNT(*) FROM transceivers t
+                    WHERE t.entity_type = 'flight'
+                      AND t.callsign = :callsign
+                      AND t.timestamp >= :flight_start
+                      AND t.timestamp <= :flight_end
+                      AND t.height_msl IS NOT NULL
+                      AND t.height_msl > :alt_m
+                """), {
+                    "callsign": flight_callsign,
+                    "flight_start": logon_time,
+                    "flight_end": completion_time if 'completion_time' in locals() else logon_time,
+                    "alt_m": AIRBORNE_ALT_M
+                })
+                enroute_count_row = enroute_count_res.fetchone()
+                enroute_records = enroute_count_row[0] if enroute_count_row else 0
+
+            # Classify each frequency match as airborne if we can find a nearby transceiver record with height_msl > AIRBORNE_ALT_M
+            async with get_database_session() as session:
+                for match in frequency_matches:
+                    match_time = match.get("flight_time")
+                    # Find the closest transceiver height record for this flight at match_time
+                    q = text("""
+                        SELECT height_msl FROM transceivers
+                        WHERE entity_type = 'flight' AND callsign = :callsign AND height_msl IS NOT NULL
+                          AND timestamp <= :t
+                        ORDER BY timestamp DESC
+                        LIMIT 1
+                    """)
+                    res = await session.execute(q, {"callsign": flight_callsign, "t": match_time})
+                    r = res.fetchone()
+                    if r and r[0] is not None and r[0] > AIRBORNE_ALT_M:
+                        airborne_contact_count += 1
+
+            poll_min = (self.vatsim_polling_interval_seconds / 60.0)
+            total_airborne_controller_time_minutes = airborne_contact_count * poll_min
+            total_enroute_time_minutes = enroute_records * poll_min
+
+            if total_enroute_time_minutes <= 0:
+                airborne_controller_time_percentage = 0.0
+            else:
+                airborne_controller_time_percentage = min(100.0, (total_airborne_controller_time_minutes / total_enroute_time_minutes) * 100.0)
             
             return {
                 "controller_callsigns": controller_data,

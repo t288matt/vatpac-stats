@@ -139,11 +139,17 @@ class SummaryEnrichmentWorker:
                     controller_callsigns_json = json.dumps(atc_data.get("controller_callsigns", {}), default=_json_default)
                     await session.execute(text("""
                         UPDATE flight_summaries
-                        SET controller_callsigns = :controller_callsigns, controller_time_percentage = :ctp, enrichment_status = 'completed', enrichment_completed_at = now(), updated_at = now()
+                        SET controller_callsigns = :controller_callsigns,
+                            controller_time_percentage = :ctp,
+                            airborne_controller_time_percentage = :actp,
+                            enrichment_status = 'completed',
+                            enrichment_completed_at = now(),
+                            updated_at = now()
                         WHERE id = :id
                     """), {
                         "controller_callsigns": controller_callsigns_json,
                         "ctp": atc_data.get("controller_time_percentage", None),
+                        "actp": atc_data.get("airborne_controller_time_percentage", None),
                         "id": fs_id
                     })
                     await session.commit()
