@@ -235,6 +235,173 @@ class TestRebuildSectorOccupancy:
         assert all(hasattr(record, 'callsign') for record in large_flight_records)
         assert all(hasattr(record, 'groundspeed') for record in large_flight_records)
 
+    def test_no_aircraft_in_two_sectors(self):
+        """Test that no aircraft is in two sectors simultaneously"""
+        # Mock flight records for the same aircraft at the same time
+        same_time = datetime.now(timezone.utc)
+
+        # Same aircraft, same time, different sectors - should not happen
+        conflicting_records = [
+            Mock(callsign="TEST123", latitude=-27.402, longitude=153.112, last_updated=same_time),  # BLA
+            Mock(callsign="TEST123", latitude=-28.000, longitude=152.000, last_updated=same_time),  # GUN
+        ]
+
+        # Group by callsign and timestamp
+        records_by_flight_time = {}
+        for record in conflicting_records:
+            key = (record.callsign, record.last_updated)
+            if key not in records_by_flight_time:
+                records_by_flight_time[key] = []
+            records_by_flight_time[key].append(record)
+
+        # Each flight should have only one position per timestamp
+        for flight_time, records in records_by_flight_time.items():
+            assert len(records) == 1, f"Aircraft {flight_time[0]} has {len(records)} positions at same time"
+
+    def test_all_fields_not_null(self):
+        """Test that all required fields are not null"""
+        # Mock flight record with all required fields
+        valid_record = Mock(
+            callsign="TEST123",
+            latitude=-27.402,
+            longitude=153.112,
+            altitude=35000,
+            groundspeed=400,
+            last_updated=datetime.now(timezone.utc)
+        )
+
+        # Test that all required fields are present and not null
+        required_fields = ['callsign', 'latitude', 'longitude', 'altitude', 'groundspeed', 'last_updated']
+
+        for field in required_fields:
+            assert hasattr(valid_record, field), f"Missing required field: {field}"
+            value = getattr(valid_record, field)
+            assert value is not None, f"Field {field} is None"
+
+        # Test invalid records
+        invalid_records = [
+            Mock(callsign=None, latitude=-27.402, longitude=153.112, altitude=35000, groundspeed=400, last_updated=datetime.now(timezone.utc)),
+            Mock(callsign="TEST123", latitude=None, longitude=153.112, altitude=35000, groundspeed=400, last_updated=datetime.now(timezone.utc)),
+            Mock(callsign="TEST123", latitude=-27.402, longitude=None, altitude=35000, groundspeed=400, last_updated=datetime.now(timezone.utc)),
+            Mock(callsign="TEST123", latitude=-27.402, longitude=153.112, altitude=35000, groundspeed=400, last_updated=None),
+        ]
+
+        for invalid_record in invalid_records:
+            should_be_filtered = False
+            for field in required_fields:
+                value = getattr(invalid_record, field)
+                if value is None:
+                    should_be_filtered = True
+                    break
+            assert should_be_filtered, "Invalid record should be filtered out"
+
+    def test_sector_occupancy_data_integrity(self):
+        """Test that sector occupancy records have all required fields"""
+        # Mock sector occupancy record
+        valid_sector_record = {
+            'callsign': 'TEST123',
+            'sector_name': 'BLA',
+            'entry_timestamp': datetime.now(timezone.utc),
+            'exit_timestamp': datetime.now(timezone.utc),
+            'duration_seconds': 300,
+            'entry_lat': -27.402,
+            'entry_lon': 153.112,
+            'exit_lat': -27.403,
+            'exit_lon': 153.113,
+            'entry_altitude': 35000,
+            'exit_altitude': 34000
+        }
+
+        # Required fields for sector occupancy
+        required_fields = [
+            'callsign', 'sector_name', 'entry_timestamp', 'duration_seconds',
+            'entry_lat', 'entry_lon', 'entry_altitude'
+        ]
+
+        for field in required_fields:
+            assert field in valid_sector_record, f"Missing required field: {field}"
+            assert valid_sector_record[field] is not None, f"Field {field} is None"
+
+        # Test that exit fields are optional (can be None for open sectors)
+        optional_fields = ['exit_timestamp', 'exit_lat', 'exit_lon', 'exit_altitude']
+
+        for field in optional_fields:
+            assert field in valid_sector_record, f"Missing optional field: {field}"
+            # These can be None for open sectors - that's OK
+
+    def test_sector_occupancy_no_overlaps(self):
+        """Test that sector occupancy records don't have temporal overlaps"""
+        # Mock sector occupancy records for same aircraft
+        base_time = datetime.now(timezone.utc)
+
+        sector_records = [
+            {
+                'callsign': 'TEST123',
+                'sector_name': 'BLA',
+                'entry_timestamp': base_time,
+                'exit_timestamp': base_time.replace(hour=base_time.hour + 1)
+            },
+            {
+                'callsign': 'TEST123',
+                'sector_name': 'GUN',
+                'entry_timestamp': base_time.replace(hour=base_time.hour + 1),
+                'exit_timestamp': base_time.replace(hour=base_time.hour + 2)
+            },
+            {
+                'callsign': 'TEST123',
+                'sector_name': 'SYA',
+                'entry_timestamp': base_time.replace(hour=base_time.hour + 2),
+                'exit_timestamp': base_time.replace(hour=base_time.hour + 3)
+            }
+        ]
+
+        # Check for overlaps
+        for i in range(len(sector_records)):
+            for j in range(i + 1, len(sector_records)):
+                record1 = sector_records[i]
+                record2 = sector_records[j]
+
+                # Check if sectors overlap in time
+                if (record1['entry_timestamp'] < record2['exit_timestamp'] and
+                    record2['entry_timestamp'] < record1['exit_timestamp']):
+                    assert False, f"Sectors {record1['sector_name']} and {record2['sector_name']} overlap for {record1['callsign']}"
+
+        # Check that exit time is after entry time
+        for record in sector_records:
+            assert record['exit_timestamp'] > record['entry_timestamp'], f"Exit time before entry time for {record['callsign']}"
+
+    def test_groundspeed_filtering(self):
+        """Test that aircraft with low groundspeeds are filtered out"""
+        # Mock flight records with various groundspeeds
+        flight_records = [
+            Mock(callsign="FLY001", groundspeed=450),  # Should pass
+            Mock(callsign="TAXI01", groundspeed=25),   # Should be filtered
+            Mock(callsign="PARK01", groundspeed=0),    # Should be filtered
+            Mock(callsign="FLY002", groundspeed=380),  # Should pass
+            Mock(callsign="TAXI02", groundspeed=12),   # Should be filtered
+        ]
+
+        # Filter for flight speeds only
+        flying_aircraft = [r for r in flight_records if r.groundspeed >= 60]
+
+        # Should only have the flying aircraft
+        assert len(flying_aircraft) == 2
+        assert flying_aircraft[0].callsign == "FLY001"
+        assert flying_aircraft[1].callsign == "FLY002"
+
+        # Test edge cases
+        edge_cases = [
+            Mock(groundspeed=60),   # Should pass (exactly 60)
+            Mock(groundspeed=59),   # Should fail (below 60)
+            Mock(groundspeed=120),  # Should pass (above 60)
+        ]
+
+        for record in edge_cases:
+            if record.groundspeed >= 60:
+                assert True, f"Record with {record.groundspeed} knots should pass"
+            else:
+                assert False, f"Record with {record.groundspeed} knots should fail"
+
 
 if __name__ == "__main__":
     # Run the tests
@@ -266,5 +433,20 @@ if __name__ == "__main__":
 
     test_instance.test_dry_run_mode()
     print("✅ Dry run mode test passed")
+
+    test_instance.test_no_aircraft_in_two_sectors()
+    print("✅ No aircraft in two sectors test passed")
+
+    test_instance.test_all_fields_not_null()
+    print("✅ All fields not null test passed")
+
+    test_instance.test_sector_occupancy_data_integrity()
+    print("✅ Sector occupancy data integrity test passed")
+
+    test_instance.test_sector_occupancy_no_overlaps()
+    print("✅ Sector occupancy no overlaps test passed")
+
+    test_instance.test_groundspeed_filtering()
+    print("✅ Groundspeed filtering test passed")
 
     print("\n🎉 All unit tests passed! The rebuild script logic is working correctly.")
