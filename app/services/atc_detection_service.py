@@ -119,8 +119,14 @@ class ATCDetectionService:
             except Exception:
                 self.logger.exception("Failed to log frequency matches sample")
             
-            # Calculate ATC interaction metrics
-            atc_data = await self._calculate_atc_metrics(flight_callsign, departure, arrival, logon_time, frequency_matches)
+            # Determine completion_time (canonical flight end) and pass it into metrics
+            completion_time = await self._get_flight_completion_time(flight_callsign, departure, arrival, logon_time)
+            if not completion_time:
+                self.logger.info(f"Completion time not found for {flight_callsign}; cannot calculate ATC metrics")
+                return self._create_empty_atc_data()
+
+            # Calculate ATC interaction metrics (pass completion_time for accurate enroute counts)
+            atc_data = await self._calculate_atc_metrics(flight_callsign, departure, arrival, logon_time, frequency_matches, completion_time)
             
             self.logger.debug(f"ATC detection completed for {flight_callsign}: {len(atc_data.get('controller_callsigns', {}))} controllers")
             # persist a debug artifact to disk for in-depth analysis
@@ -426,7 +432,7 @@ class ATCDetectionService:
             self.logger.error(f"Error in controller-specific query: {e}")
             return []
     
-    async def _calculate_atc_metrics(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime, frequency_matches: List[Dict]) -> Dict[str, Any]:
+    async def _calculate_atc_metrics(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime, frequency_matches: List[Dict], completion_time: datetime) -> Dict[str, Any]:
         """Calculate ATC interaction metrics for a flight."""
         try:
             if not frequency_matches:
@@ -489,7 +495,7 @@ class ATCDetectionService:
                 """), {
                     "callsign": flight_callsign,
                     "flight_start": logon_time,
-                    "flight_end": completion_time if 'completion_time' in locals() else logon_time,
+                    "flight_end": completion_time,
                     "alt_m": AIRBORNE_ALT_M
                 })
                 enroute_count_row = enroute_count_res.fetchone()
