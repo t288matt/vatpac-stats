@@ -1010,32 +1010,31 @@ class DataService:
             if not hasattr(self, 'flight_sector_states') or not self.flight_sector_states:
                 return 0
 
-            # Get callsigns whose sectors are closed (no open rows for these callsigns)
-            # i.e., callsigns that do NOT appear in the open list.
-            # But tests mock scalars().all() to return closed callsigns, so support that.
-            closed_calls = set()
-            # Execute query to fetch closed callsigns (tests may mock scalars())
-            res = await session.execute(text("SELECT DISTINCT callsign FROM flight_sector_occupancy WHERE exit_timestamp IS NULL"))
+            # Get callsigns which currently have open sector rows in DB (exit_timestamp IS NULL)
+            # We should *retain* in-memory state for those callsigns. Only remove memory
+            # entries for callsigns that do NOT have open DB rows (i.e., truly closed).
+            open_calls = set()
             try:
-                vals = res.scalars().all()
-                if isinstance(vals, list):
-                    closed_calls = set(vals)
-            except Exception:
+                res = await session.execute(text("SELECT DISTINCT callsign FROM flight_sector_occupancy WHERE exit_timestamp IS NULL"))
                 try:
+                    vals = res.scalars().all()
+                    if isinstance(vals, list):
+                        open_calls = set(vals)
+                except Exception:
                     rows = res.fetchall()
                     for r in rows:
                         try:
-                            closed_calls.add(r[0])
+                            open_calls.add(r[0])
                         except Exception:
                             if hasattr(r, 'callsign'):
-                                closed_calls.add(r.callsign)
-                except Exception:
-                    closed_calls = set()
+                                open_calls.add(r.callsign)
+            except Exception:
+                open_calls = set()
 
             removed = 0
-            # Remove any in-memory callsigns that are present in closed_calls
+            # Remove any in-memory callsigns that are NOT present in open_calls
             for callsign in list(self.flight_sector_states.keys()):
-                if callsign in closed_calls:
+                if callsign not in open_calls:
                     try:
                         del self.flight_sector_states[callsign]
                         removed += 1
