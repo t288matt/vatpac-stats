@@ -1648,7 +1648,8 @@ These commands enable operational staff to monitor system health, troubleshoot i
 - **Data Service**: ✅ Operational with background data ingestion
 - **VATSIM Service**: ✅ Active API integration
 - **Geographic Filter**: ✅ Active filtering with performance monitoring
-- **Sector Tracking**: ✅ Real-time sector occupancy monitoring
+- **Sector Tracking**: ✅ Real-time sector occupancy monitoring (Critical bug fixed Sept 2025 - see SECTOR_OCCUPANCY_CRITICAL_FIX_SEPTEMBER_2025.md)  
+  - **Data Recovery Tool**: `scripts/rebuild_sector_occupancy_accurate.py` - Production-ready rebuild capability
 - **Database Service**: ✅ Connection pool management operational
 
 #### **Performance Metrics**
@@ -2315,12 +2316,17 @@ CREATE TABLE controllers (
 -- Sector Occupancy Tracking
 CREATE TABLE flight_sector_occupancy (
     id SERIAL PRIMARY KEY,
-    flight_id INTEGER REFERENCES flights(id),
+    callsign VARCHAR(10) NOT NULL,
     sector_name VARCHAR(10) NOT NULL,
-    entry_time TIMESTAMP WITH TIME ZONE NOT NULL,
-    exit_time TIMESTAMP WITH TIME ZONE,
-    duration_minutes INTEGER,
-    is_active BOOLEAN DEFAULT TRUE
+    entry_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    exit_timestamp TIMESTAMP WITH TIME ZONE,
+    entry_lat DECIMAL(10, 8),
+    entry_lon DECIMAL(11, 8),
+    entry_altitude INTEGER,
+    exit_lat DECIMAL(10, 8),
+    exit_lon DECIMAL(11, 8),
+    exit_altitude INTEGER,
+    duration_seconds INTEGER DEFAULT 0
 );
 ```
 
@@ -2618,6 +2624,9 @@ git pull && docker-compose build --no-cache && docker-compose up -d
 
 # Database backup
 ./scripts/backup-database.sh
+
+# Sector occupancy data recovery (dry-run analysis)
+docker-compose exec app sh -c "cd /app && PYTHONPATH=/app python scripts/rebuild_sector_occupancy_accurate.py --since '2024-09-01T00:00:00+00:00' --dry-run"
 
 # View API documentation
 open http://localhost:8001/api/docs
@@ -3372,7 +3381,8 @@ CLEANUP_FLIGHT_TIMEOUT: 300
 - **Data Service**: ✅ Operational with background data ingestion
 - **VATSIM Service**: ✅ Active API integration
 - **Geographic Filter**: ✅ Active filtering with performance monitoring
-- **Sector Tracking**: ✅ Real-time sector occupancy monitoring
+- **Sector Tracking**: ✅ Real-time sector occupancy monitoring (Critical bug fixed Sept 2025 - see SECTOR_OCCUPANCY_CRITICAL_FIX_SEPTEMBER_2025.md)  
+  - **Data Recovery Tool**: `scripts/rebuild_sector_occupancy_accurate.py` - Production-ready rebuild capability
 - **Database Service**: ✅ Connection pool management operational
 
 #### **Performance Metrics**
@@ -3940,12 +3950,17 @@ CREATE TABLE controllers (
 -- Sector Occupancy Tracking
 CREATE TABLE flight_sector_occupancy (
     id SERIAL PRIMARY KEY,
-    flight_id INTEGER REFERENCES flights(id),
+    callsign VARCHAR(10) NOT NULL,
     sector_name VARCHAR(10) NOT NULL,
-    entry_time TIMESTAMP WITH TIME ZONE NOT NULL,
-    exit_time TIMESTAMP WITH TIME ZONE,
-    duration_minutes INTEGER,
-    is_active BOOLEAN DEFAULT TRUE
+    entry_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    exit_timestamp TIMESTAMP WITH TIME ZONE,
+    entry_lat DECIMAL(10, 8),
+    entry_lon DECIMAL(11, 8),
+    entry_altitude INTEGER,
+    exit_lat DECIMAL(10, 8),
+    exit_lon DECIMAL(11, 8),
+    exit_altitude INTEGER,
+    duration_seconds INTEGER DEFAULT 0
 );
 ```
 
@@ -4224,6 +4239,9 @@ git pull && docker-compose build --no-cache && docker-compose up -d
 
 # Database backup
 ./scripts/backup-database.sh
+
+# Sector occupancy data recovery (dry-run analysis)
+docker-compose exec app sh -c "cd /app && PYTHONPATH=/app python scripts/rebuild_sector_occupancy_accurate.py --since '2024-09-01T00:00:00+00:00' --dry-run"
 
 # View API documentation
 open http://localhost:8001/api/docs
@@ -4978,7 +4996,8 @@ CLEANUP_FLIGHT_TIMEOUT: 300
 - **Data Service**: ✅ Operational with background data ingestion
 - **VATSIM Service**: ✅ Active API integration
 - **Geographic Filter**: ✅ Active filtering with performance monitoring
-- **Sector Tracking**: ✅ Real-time sector occupancy monitoring
+- **Sector Tracking**: ✅ Real-time sector occupancy monitoring (Critical bug fixed Sept 2025 - see SECTOR_OCCUPANCY_CRITICAL_FIX_SEPTEMBER_2025.md)  
+  - **Data Recovery Tool**: `scripts/rebuild_sector_occupancy_accurate.py` - Production-ready rebuild capability
 - **Database Service**: ✅ Connection pool management operational
 
 #### **Performance Metrics**

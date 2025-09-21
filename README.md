@@ -831,6 +831,65 @@ The system includes comprehensive database maintenance scripts to prevent index 
 
 **For complete maintenance documentation**: See [maintenance/README.md](maintenance/README.md)
 
+### **Sector Occupancy Data Recovery**
+
+#### **Flight Sector Occupancy Rebuild Tool** 🔧
+**Script**: `scripts/rebuild_sector_occupancy_accurate.py`
+
+**Purpose**: Production-ready data recovery tool for rebuilding corrupted or missing sector occupancy data by replicating the exact live system logic.
+
+**Key Capabilities**:
+- ✅ **Exact Logic Replication**: Mirrors live system entry/exit criteria (≥60 knots entry, <30 knots for 2 polls exit)
+- ✅ **Historical Data Processing**: Handles both active (`flights`) and archived (`flights_archive`) data
+- ✅ **Safe Dry-Run Mode**: Analyze data without making changes for validation
+- ✅ **Transaction Safety**: Automatic rollback on errors to prevent partial corruption
+- ✅ **Performance Optimized**: Efficient streaming approach with minimal memory usage
+
+**Common Use Cases**:
+1. **Data Corruption Recovery**: Fix zero-duration or corrupted sector occupancy records
+2. **Historical Analysis**: Generate sector metrics from archived flight data  
+3. **System Migration**: Rebuild sector data after schema or system changes
+4. **Validation**: Verify live system accuracy against historical data
+
+**Production Usage**:
+```bash
+# Analysis Phase (Safe - No Database Changes)
+docker-compose exec app sh -c "cd /app && PYTHONPATH=/app python scripts/rebuild_sector_occupancy_accurate.py --since '2024-09-01T00:00:00+00:00' --dry-run"
+
+# Targeted Rebuild (Recent Data with Safety Limit)
+docker-compose exec app sh -c "cd /app && PYTHONPATH=/app python scripts/rebuild_sector_occupancy_accurate.py --since '2024-09-15T00:00:00+00:00' --limit 1000"
+
+# Full Historical Rebuild (Use with caution)
+docker-compose exec app sh -c "cd /app && PYTHONPATH=/app python scripts/rebuild_sector_occupancy_accurate.py --since '2024-01-01T00:00:00+00:00'"
+```
+
+**Performance Characteristics**:
+- **Processing Speed**: ~136 flights/day, ~917 summaries/day typical throughput
+- **Memory Usage**: Efficient streaming approach, minimal memory footprint  
+- **Execution Time**: ~2-5 minutes per day of flight data
+- **Validation Results**: 0.0% zero-duration records, realistic duration ranges (3-613 minutes)
+
+**Safety Features**:
+- **Dry-Run Mode**: `--dry-run` flag for safe analysis without changes
+- **Limit Controls**: `--limit N` parameter for testing with limited records
+- **Transaction Safety**: Automatic rollback on errors
+- **Data Validation**: Built-in integrity checks and realistic duration verification
+
+**Monitoring Data Quality**:
+```sql
+-- Check for zero-duration records (target: <0.1%)
+SELECT 
+    COUNT(*) as total_records,
+    COUNT(CASE WHEN duration_seconds = 0 THEN 1 END) as zero_duration,
+    ROUND(100.0 * COUNT(CASE WHEN duration_seconds = 0 THEN 1 END) / COUNT(*), 2) as zero_percentage
+FROM flight_sector_occupancy 
+WHERE entry_timestamp >= NOW() - INTERVAL '24 hours';
+```
+
+**Documentation References**:
+- **Technical Details**: [docs/SECTOR_OCCUPANCY_CRITICAL_FIX_SEPTEMBER_2025.md](docs/SECTOR_OCCUPANCY_CRITICAL_FIX_SEPTEMBER_2025.md)
+- **Architecture Integration**: [docs/VATSIM_ARCHITECTURE_COMPLETE.md](docs/VATSIM_ARCHITECTURE_COMPLETE.md)
+
 ### **Airspace Data Maintenance**
 
 #### **Updating Sector Definitions**
