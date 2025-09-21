@@ -582,7 +582,7 @@ class DataService:
         if current_sector != previous_sector or should_exit:
             await self._handle_sector_transition(
                 callsign, previous_sector, current_sector, 
-                lat, lon, altitude, session, should_exit, flight_last_updated
+                lat, lon, altitude, session, should_exit, flight_last_updated, flight_dict
             )
             
             # Update state with combined structure
@@ -613,7 +613,7 @@ class DataService:
         self, callsign: str, previous_sector: Optional[str], 
         current_sector: Optional[str], lat: float, lon: float, 
         altitude: int, session: AsyncSession, should_exit: bool = False,
-        flight_last_updated: Optional[datetime] = None
+        flight_last_updated: Optional[datetime] = None, flight_dict: Dict[str, Any] = None
     ) -> None:
         """
         Handle sector entry/exit transitions with speed-based criteria.
@@ -640,13 +640,20 @@ class DataService:
         
         # Enter new sector (only if different from previous)
         if current_sector and current_sector != previous_sector:
+            # Extract additional flight data for sector tracking
+            cid = flight_dict.get("cid") if flight_dict else None
+            departure = flight_dict.get("departure") if flight_dict else None
+            arrival = flight_dict.get("arrival") if flight_dict else None
+            
             await self._record_sector_entry(
-                callsign, current_sector, lat, lon, altitude, timestamp, session
+                callsign, current_sector, lat, lon, altitude, timestamp, session,
+                cid, departure, arrival
             )
 
     async def _record_sector_entry(
         self, callsign: str, sector_name: str, lat: float, lon: float, 
-        altitude: int, timestamp: datetime, session: AsyncSession
+        altitude: int, timestamp: datetime, session: AsyncSession,
+        cid: int = None, departure: str = None, arrival: str = None
     ) -> None:
         """
         Record when a flight enters a sector.
@@ -659,6 +666,9 @@ class DataService:
             altitude: Entry altitude in feet
             timestamp: Entry timestamp
             session: Database session
+            cid: VATSIM user ID
+            departure: Departure airport code
+            arrival: Arrival airport code
         """
         try:
             # Check if there's an open entry record for this flight/sector combination
@@ -673,16 +683,17 @@ class DataService:
                 # Insert the entry record immediately with exit fields as NULL
                 await session.execute(text("""
                     INSERT INTO flight_sector_occupancy (
-                        callsign, sector_name, entry_timestamp, exit_timestamp,
+                        callsign, cid, departure, arrival, sector_name, entry_timestamp, exit_timestamp,
                         duration_seconds, entry_lat, entry_lon, exit_lat, exit_lon,
                         entry_altitude, exit_altitude
                     ) VALUES (
-                        :callsign, :sector_name, :timestamp, NULL, 0,
+                        :callsign, :cid, :departure, :arrival, :sector_name, :timestamp, NULL, 0,
                         :lat, :lon, NULL, NULL, :altitude, NULL
                     )
                 """), {
-                    "callsign": callsign, "sector_name": sector_name,
-                    "timestamp": timestamp, "lat": lat, "lon": lon, "altitude": altitude
+                    "callsign": callsign, "cid": cid, "departure": departure, "arrival": arrival,
+                    "sector_name": sector_name, "timestamp": timestamp, 
+                    "lat": lat, "lon": lon, "altitude": altitude
                 })
                 
                 self.logger.debug(f"Flight {callsign} entered sector {sector_name}")

@@ -238,6 +238,9 @@ class FlightSectorOccupancy(Base):
     
     id = Column(BigInteger, primary_key=True, index=True)
     callsign = Column(String(50), nullable=False, index=True)  # Flight callsign (e.g., QFA123, PHENX88)
+    cid = Column(Integer, nullable=True)  # Controller ID from VATSIM
+    departure = Column(String(10), nullable=True)  # Departure airport code
+    arrival = Column(String(10), nullable=True)  # Arrival airport code
     sector_name = Column(String(10), nullable=False, index=True)  # Australian airspace sector identifier (e.g., SYA, BLA, WOL)
     entry_timestamp = Column(TIMESTAMP(timezone=True), nullable=False, index=True)  # When flight entered sector
     exit_timestamp = Column(TIMESTAMP(timezone=True), nullable=True)  # When flight exited sector (nullable)

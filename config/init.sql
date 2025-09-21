@@ -493,6 +493,9 @@ CREATE TABLE IF NOT EXISTS controllers_archive (
 CREATE TABLE IF NOT EXISTS flight_sector_occupancy (
     id BIGSERIAL PRIMARY KEY,
     callsign VARCHAR(50) NOT NULL,
+    cid INTEGER,                                 -- Controller ID from VATSIM
+    departure VARCHAR(10),                       -- Departure airport code
+    arrival VARCHAR(10),                         -- Arrival airport code
     sector_name VARCHAR(10) NOT NULL,
     entry_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
     exit_timestamp TIMESTAMP WITH TIME ZONE,     -- NULL until flight exits sector
