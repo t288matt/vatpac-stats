@@ -3313,7 +3313,7 @@ RETURNING fso.id;
         async with get_database_session() as session:
             # Find flights old enough to archive
             result = await session.execute(text("""
-                SELECT DISTINCT callsign, departure, arrival, cid, deptime
+                SELECT DISTINCT callsign, departure, arrival, cid, deptime, last_updated
                 FROM flights 
                 WHERE last_updated <= :archive_cutoff
                 ORDER BY last_updated
