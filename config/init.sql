@@ -143,11 +143,10 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_callsign ON flights(callsign
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_callsign_status ON flights(callsign, last_updated);
 
 -- Use BRIN for geographic coordinates - better for range queries and bounding boxes
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_position ON flights USING brin(latitude, longitude);
-
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_departure_arrival ON flights(departure, arrival);
+-- idx_flights_position REMOVED - unused index
+-- idx_flights_departure_arrival REMOVED - unused index
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_cid_server ON flights(cid, server);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_aircraft_short ON flights(aircraft_short);
+-- idx_flights_aircraft_short REMOVED - unused index
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_revision_id ON flights(revision_id);
 
 -- ATC Detection Performance Indexes for flights
@@ -155,25 +154,25 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_callsign_departure_arrival O
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_callsign_logon ON flights(callsign, logon_time);
 
 -- Additional indexes that exist in database but not in original init.sql
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_altitude ON flights(altitude);
+-- idx_flights_altitude REMOVED - unused index
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_flight_rules ON flights(flight_rules);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_planned_altitude ON flights(planned_altitude);
+-- idx_flights_planned_altitude REMOVED - unused index
 
 -- Transceivers indexes (optimized for frequency-based queries) - Using CONCURRENTLY
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_callsign ON transceivers(callsign);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_callsign_timestamp ON transceivers(callsign, "timestamp");
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_frequency ON transceivers(frequency);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_entity ON transceivers(entity_type, entity_id);
+-- idx_transceivers_frequency REMOVED - unused index
+-- idx_transceivers_entity REMOVED - unused index
 
 -- ATC Detection Performance Indexes for transceivers
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_entity_type_callsign ON transceivers(entity_type, callsign);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_entity_type_timestamp ON transceivers(entity_type, "timestamp");
 
 -- High-performance ATC detection indexes for loading ALL controllers
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_atc_simple ON transceivers(entity_type, "timestamp" DESC, callsign) WHERE entity_type = 'atc';
+-- idx_transceivers_atc_simple REMOVED - unused index
 
 -- Performance-optimized indexes for controller flight counting queries
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_flight_frequency_callsign ON transceivers(entity_type, frequency, callsign) WHERE entity_type = 'flight';
+-- idx_transceivers_flight_frequency_callsign REMOVED - unused index
 
 -- Additional indexes that exist in database but not in original init.sql
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_atc_join ON transceivers(callsign, entity_type, "timestamp" DESC) WHERE entity_type = 'atc';
@@ -406,11 +405,11 @@ CREATE INDEX IF NOT EXISTS idx_flight_enrichment_status_run_after ON flight_summ
 CREATE INDEX IF NOT EXISTS idx_flights_archive_callsign ON flights_archive(callsign);
 CREATE INDEX IF NOT EXISTS idx_flights_archive_logon_time ON flights_archive(logon_time);
 CREATE INDEX IF NOT EXISTS idx_flights_archive_last_updated ON flights_archive(last_updated);
-CREATE INDEX IF NOT EXISTS idx_flights_archive_deptime ON flights_archive(deptime);
-CREATE INDEX IF NOT EXISTS idx_flights_archive_controller_callsigns ON flights_archive USING GIN(controller_callsigns);
-CREATE INDEX IF NOT EXISTS idx_flights_archive_controller_time ON flights_archive(controller_time_percentage);
-CREATE INDEX IF NOT EXISTS idx_flights_archive_primary_sector ON flights_archive(primary_enroute_sector);
-CREATE INDEX IF NOT EXISTS idx_flights_archive_sector_breakdown ON flights_archive USING GIN(sector_breakdown);
+-- idx_flights_archive_deptime REMOVED - unused index
+-- idx_flights_archive_controller_callsigns REMOVED - unused index
+-- idx_flights_archive_controller_time REMOVED - unused index
+-- idx_flights_archive_primary_sector REMOVED - unused index
+-- idx_flights_archive_sector_breakdown REMOVED - unused index
 CREATE INDEX IF NOT EXISTS idx_flights_archive_completion_time ON flights_archive(completion_time);
 
 -- Create triggers for updated_at columns on new tables
@@ -518,7 +517,7 @@ CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_entry_timestamp ON flight
 -- Basic lookup indexes
 CREATE INDEX IF NOT EXISTS idx_controller_summaries_callsign ON controller_summaries(callsign);
 CREATE INDEX IF NOT EXISTS idx_controller_summaries_session_time ON controller_summaries(session_start_time, session_end_time);
-CREATE INDEX IF NOT EXISTS idx_controller_summaries_aircraft_count ON controller_summaries(total_aircraft_handled);
+-- idx_controller_summaries_aircraft_count REMOVED - unused index
 CREATE INDEX IF NOT EXISTS idx_controller_summaries_rating ON controller_summaries(rating);
 CREATE INDEX IF NOT EXISTS idx_controller_summaries_facility ON controller_summaries(facility);
 
@@ -527,16 +526,16 @@ CREATE INDEX IF NOT EXISTS idx_controller_enrichment_status_run_after ON control
 
 -- JSONB indexes for complex queries
 CREATE INDEX IF NOT EXISTS idx_controller_summaries_frequencies ON controller_summaries USING GIN(frequencies_used);
-CREATE INDEX IF NOT EXISTS idx_controller_summaries_aircraft_details ON controller_summaries USING GIN(aircraft_details);
+-- idx_controller_summaries_aircraft_details REMOVED - unused index
 CREATE INDEX IF NOT EXISTS idx_controller_summaries_hourly_breakdown ON controller_summaries USING GIN(hourly_aircraft_breakdown);
 
 -- Composite indexes for common query patterns
 CREATE INDEX IF NOT EXISTS idx_controller_summaries_callsign_session ON controller_summaries(callsign, session_start_time);
-CREATE INDEX IF NOT EXISTS idx_controller_summaries_rating_facility ON controller_summaries(rating, facility);
+-- idx_controller_summaries_rating_facility REMOVED - unused index
 CREATE INDEX IF NOT EXISTS idx_controller_summaries_duration_aircraft ON controller_summaries(session_duration_minutes, total_aircraft_handled);
 
 -- Create indexes for controllers_archive table
-CREATE INDEX IF NOT EXISTS idx_controllers_archive_callsign ON controllers_archive(callsign);
+-- idx_controllers_archive_callsign REMOVED - unused index
 CREATE INDEX IF NOT EXISTS idx_controllers_archive_logon_time ON controllers_archive(logon_time);
 CREATE INDEX IF NOT EXISTS idx_controllers_archive_last_updated ON controllers_archive(last_updated);
 
