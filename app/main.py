@@ -97,6 +97,14 @@ async def monitor_scheduled_tasks():
                 data_service.controller_summary_task.exception()):
                 logger.warning("⚠️ Controller summary task failed, restarting...")
                 await data_service.start_scheduled_controller_processing()
+            
+            # Check if flight archiving task is running
+            if (hasattr(data_service, 'flight_archiving_task') and
+                data_service.flight_archiving_task and 
+                data_service.flight_archiving_task.done() and 
+                data_service.flight_archiving_task.exception()):
+                logger.warning("⚠️ Flight archiving task failed, restarting...")
+                await data_service.start_scheduled_flight_archiving()
                 
         except Exception as e:
             logger.error(f"❌ Error monitoring scheduled tasks: {e}")
