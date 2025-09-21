@@ -272,15 +272,18 @@ async def rebuild_sector_occupancy_accurate(since_date: str, dry_run: bool = Tru
                     if current_sector and current_sector != previous_sector:
                         await session.execute(text("""
                             INSERT INTO flight_sector_occupancy (
-                                callsign, sector_name, entry_timestamp, exit_timestamp,
+                                callsign, cid, departure, arrival, sector_name, entry_timestamp, exit_timestamp,
                                 duration_seconds, entry_lat, entry_lon, exit_lat, exit_lon,
                                 entry_altitude, exit_altitude
                             ) VALUES (
-                                :callsign, :sector_name, :entry_ts, NULL, 0,
+                                :callsign, :cid, :departure, :arrival, :sector_name, :entry_ts, NULL, 0,
                                 :entry_lat, :entry_lon, NULL, NULL, :entry_alt, NULL
                             )
                         """), {
                             "callsign": callsign,
+                            "cid": record.cid,
+                            "departure": record.departure,
+                            "arrival": record.arrival,
                             "sector_name": current_sector,
                             "entry_ts": ts,
                             "entry_lat": lat,

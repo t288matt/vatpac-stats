@@ -1603,10 +1603,16 @@ These commands enable operational staff to monitor system health, troubleshoot i
 
 **Flight Summary System:**
 - **System Enablement**: Flight summary processing enabled for data aggregation
-- **Completion Threshold**: 14-hour completion threshold for flight processing
-- **Data Retention**: 168-hour (7-day) retention policy for historical data
-- **Processing Intervals**: 60-second intervals for continuous summary generation
-- **Cleanup Management**: 300-second timeout for flight cleanup operations
+- **Completion Threshold**: 8-hour completion threshold for flight processing
+- **Summary Generation**: Creates flight summaries without immediate archiving
+- **Processing Intervals**: 60-minute intervals for continuous summary generation
+- **Separation of Concerns**: Summary creation independent from data archiving
+
+**Flight Archiving System:**
+- **Archive Delay**: 60-day retention before archiving (FLIGHT_DAYS_BEFORE_ARCHIVE)
+- **Processing Schedule**: Independent hourly archiving process
+- **Policy Compliance**: Enforces proper data retention policies
+- **Archive Management**: Separate from completion processing for clean architecture
 
 ### **Active Features**
 
@@ -1614,6 +1620,7 @@ These commands enable operational staff to monitor system health, troubleshoot i
 - ✅ **Geographic Boundary Filter**: Active with configurable airspace polygon
 - ✅ **Sector Tracking System**: Real-time monitoring of configurable sectors
 - ✅ **Flight Summary System**: Automatic processing every 60 minutes
+- ✅ **Flight Archiving System**: Independent hourly archiving with 60-day retention (Fixed Sept 2025 - see FLIGHT_ARCHIVE_POLICY_FIX_SEPTEMBER_2025.md)
 - ✅ **Controller Proximity Detection**: Intelligent ATC interaction detection
 - ✅ **Automatic Cleanup**: Stale sector management and memory cleanup
 - ✅ **Data Validation**: Flight plan validation for data quality
@@ -2493,10 +2500,16 @@ Flight Positions → Boundary Check → Sector Assignment → Duration Calculati
 
 #### **3. Summary Processing Flow**
 ```
-Active Flights → Completion Check → Summary Generation → Archive → Cleanup
-      ↓              ↓              ↓              ↓          ↓
-   Real-time    >14 hours old?   Aggregated     Historical   Stale Data
-   Positions    (configurable)   Statistics     Storage      Removal
+Active Flights → Completion Check → Summary Generation
+      ↓              ↓              ↓              
+   Real-time    >8 hours old?   Aggregated     
+   Positions    (configurable)   Statistics     
+
+Independent Archiving Process (Hourly):
+Archive Eligible → Archive → Cleanup
+      ↓              ↓          ↓
+   >60 days old?   Historical   Stale Data
+   (configurable)   Storage      Removal
 ```
 
 ### **Data Flow Characteristics**
@@ -3347,6 +3360,7 @@ CLEANUP_FLIGHT_TIMEOUT: 300
 - ✅ **Geographic Boundary Filter**: Active with configurable airspace polygon
 - ✅ **Sector Tracking System**: Real-time monitoring of configurable sectors
 - ✅ **Flight Summary System**: Automatic processing every 60 minutes
+- ✅ **Flight Archiving System**: Independent hourly archiving with 60-day retention (Fixed Sept 2025 - see FLIGHT_ARCHIVE_POLICY_FIX_SEPTEMBER_2025.md)
 - ✅ **Controller Proximity Detection**: Intelligent ATC interaction detection
 - ✅ **Automatic Cleanup**: Stale sector management and memory cleanup
 - ✅ **Data Validation**: Flight plan validation for data quality
@@ -4108,10 +4122,16 @@ Flight Positions → Boundary Check → Sector Assignment → Duration Calculati
 
 #### **3. Summary Processing Flow**
 ```
-Active Flights → Completion Check → Summary Generation → Archive → Cleanup
-      ↓              ↓              ↓              ↓          ↓
-   Real-time    >14 hours old?   Aggregated     Historical   Stale Data
-   Positions    (configurable)   Statistics     Storage      Removal
+Active Flights → Completion Check → Summary Generation
+      ↓              ↓              ↓              
+   Real-time    >8 hours old?   Aggregated     
+   Positions    (configurable)   Statistics     
+
+Independent Archiving Process (Hourly):
+Archive Eligible → Archive → Cleanup
+      ↓              ↓          ↓
+   >60 days old?   Historical   Stale Data
+   (configurable)   Storage      Removal
 ```
 
 ### **Data Flow Characteristics**
@@ -4962,6 +4982,7 @@ CLEANUP_FLIGHT_TIMEOUT: 300
 - ✅ **Geographic Boundary Filter**: Active with configurable airspace polygon
 - ✅ **Sector Tracking System**: Real-time monitoring of configurable sectors
 - ✅ **Flight Summary System**: Automatic processing every 60 minutes
+- ✅ **Flight Archiving System**: Independent hourly archiving with 60-day retention (Fixed Sept 2025 - see FLIGHT_ARCHIVE_POLICY_FIX_SEPTEMBER_2025.md)
 - ✅ **Controller Proximity Detection**: Intelligent ATC interaction detection
 - ✅ **Automatic Cleanup**: Stale sector management and memory cleanup
 - ✅ **Data Validation**: Flight plan validation for data quality

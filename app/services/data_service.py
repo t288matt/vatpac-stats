@@ -135,6 +135,9 @@ class DataService:
             if self.config.controller_summary.enabled:
                 await self.start_scheduled_controller_processing()
             
+            # Start scheduled flight archiving processing
+            await self.start_scheduled_flight_archiving()
+            
             # Start scheduled ATC detection processing
             if self.config.detection.enabled:
                 await self.start_scheduled_atc_detection_processing()
@@ -579,7 +582,7 @@ class DataService:
         if current_sector != previous_sector or should_exit:
             await self._handle_sector_transition(
                 callsign, previous_sector, current_sector, 
-                lat, lon, altitude, session, should_exit, flight_last_updated
+                lat, lon, altitude, session, should_exit, flight_last_updated, flight_dict
             )
             
             # Update state with combined structure
@@ -610,7 +613,7 @@ class DataService:
         self, callsign: str, previous_sector: Optional[str], 
         current_sector: Optional[str], lat: float, lon: float, 
         altitude: int, session: AsyncSession, should_exit: bool = False,
-        flight_last_updated: Optional[datetime] = None
+        flight_last_updated: Optional[datetime] = None, flight_dict: Dict[str, Any] = None
     ) -> None:
         """
         Handle sector entry/exit transitions with speed-based criteria.
@@ -637,13 +640,20 @@ class DataService:
         
         # Enter new sector (only if different from previous)
         if current_sector and current_sector != previous_sector:
+            # Extract additional flight data for sector tracking
+            cid = flight_dict.get("cid") if flight_dict else None
+            departure = flight_dict.get("departure") if flight_dict else None
+            arrival = flight_dict.get("arrival") if flight_dict else None
+            
             await self._record_sector_entry(
-                callsign, current_sector, lat, lon, altitude, timestamp, session
+                callsign, current_sector, lat, lon, altitude, timestamp, session,
+                cid, departure, arrival
             )
 
     async def _record_sector_entry(
         self, callsign: str, sector_name: str, lat: float, lon: float, 
-        altitude: int, timestamp: datetime, session: AsyncSession
+        altitude: int, timestamp: datetime, session: AsyncSession,
+        cid: int = None, departure: str = None, arrival: str = None
     ) -> None:
         """
         Record when a flight enters a sector.
@@ -656,6 +666,9 @@ class DataService:
             altitude: Entry altitude in feet
             timestamp: Entry timestamp
             session: Database session
+            cid: VATSIM user ID
+            departure: Departure airport code
+            arrival: Arrival airport code
         """
         try:
             # Check if there's an open entry record for this flight/sector combination
@@ -670,16 +683,17 @@ class DataService:
                 # Insert the entry record immediately with exit fields as NULL
                 await session.execute(text("""
                     INSERT INTO flight_sector_occupancy (
-                        callsign, sector_name, entry_timestamp, exit_timestamp,
+                        callsign, cid, departure, arrival, sector_name, entry_timestamp, exit_timestamp,
                         duration_seconds, entry_lat, entry_lon, exit_lat, exit_lon,
                         entry_altitude, exit_altitude
                     ) VALUES (
-                        :callsign, :sector_name, :timestamp, NULL, 0,
+                        :callsign, :cid, :departure, :arrival, :sector_name, :timestamp, NULL, 0,
                         :lat, :lon, NULL, NULL, :altitude, NULL
                     )
                 """), {
-                    "callsign": callsign, "sector_name": sector_name,
-                    "timestamp": timestamp, "lat": lat, "lon": lon, "altitude": altitude
+                    "callsign": callsign, "cid": cid, "departure": departure, "arrival": arrival,
+                    "sector_name": sector_name, "timestamp": timestamp, 
+                    "lat": lat, "lon": lon, "altitude": altitude
                 })
                 
                 self.logger.debug(f"Flight {callsign} entered sector {sector_name}")
@@ -1527,53 +1541,6 @@ RETURNING fso.id;
             self.logger.info("🧭 Canonical session pipeline (default) - using selector")
             result = await self._process_completed_flights_canonical()
             # Emit a clear info-level summary for monitoring with number of flights processed
-            num_processed = (
-                result.get("summaries_created")
-                if isinstance(result, dict) and result.get("summaries_created") is not None
-                else result.get("summaries_processed") if isinstance(result, dict) and result.get("summaries_processed") is not None
-                else result.get("sessions_detected") if isinstance(result, dict) and result.get("sessions_detected") is not None
-                else 0
-            )
-            self.logger.info(f"Flight summary processing finished: {num_processed} flights processed")
-            return result
-
-            # Get configuration values
-            completion_hours = getattr(self.config.flight_summary, 'completion_hours', 14)
-            retention_hours = getattr(self.config.flight_summary, 'retention_hours', 168)
-            
-            # Step 1: Identify completed flights
-            completed_flights = await self._identify_completed_flights(completion_hours)
-            
-            if not completed_flights:
-                self.logger.info("📭 No completed flights found to process")
-                return {
-                    "status": "success",
-                    "summaries_created": 0,
-                    "records_archived": 0,
-                    "records_deleted": 0,
-                    "status": "no_work"
-                }
-            
-            self.logger.info(f"📊 Found {len(completed_flights)} completed flights to process")
-            
-            # Step 2: Create summaries
-            summaries_created = await self._create_flight_summaries(completed_flights)
-            
-            # Step 3: Archive completed records
-            records_archived = await self._archive_completed_flights(completed_flights)
-            
-            # Step 4: Delete completed records
-            records_deleted = await self._delete_completed_flights(completed_flights)
-            
-            result = {
-                "status": "success",
-                "summaries_created": summaries_created,
-                "records_archived": records_archived,
-                "records_deleted": records_deleted
-            }
-            
-            self.logger.info(f"✅ Flight summary processing completed: {result}")
-            # Also emit a concise info message with the number of flights processed
             num_processed = (
                 result.get("summaries_created")
                 if isinstance(result, dict) and result.get("summaries_created") is not None
@@ -2530,81 +2497,18 @@ RETURNING fso.id;
                         # Non-fatal: log and continue; the summary was created/updated but enqueue marking failed.
                         self.logger.warning(f"Failed to mark enrichment pending for {callsign} {departure}->{arrival} (cid={cid}) @ {session_start}: {e}")
 
-                    # Archive rows ≤ HWM within window
-                    arch_sql = text("""
-                        INSERT INTO flights_archive (
-                            callsign, aircraft_type, departure, arrival, logon_time,
-                            route, flight_rules, aircraft_faa, planned_altitude, aircraft_short,
-                            cid, name, server, pilot_rating, military_rating,
-                            latitude, longitude, altitude, groundspeed, heading,
-                            last_updated, deptime, controller_callsigns, controller_time_percentage,
-                            time_online_minutes, primary_enroute_sector, total_enroute_sectors,
-                            total_enroute_time_minutes, sector_breakdown, completion_time
-                        )
-                        SELECT 
-                            f.callsign, f.aircraft_type, f.departure, f.arrival, f.logon_time,
-                            f.route, f.flight_rules, f.aircraft_faa, f.planned_altitude, f.aircraft_short,
-                            f.cid, f.name, f.server, f.pilot_rating, f.military_rating,
-                            f.latitude, f.longitude, f.altitude, f.groundspeed, f.heading,
-                            f.last_updated, f.deptime,
-                            NULL::jsonb AS controller_callsigns,
-                            NULL::float AS controller_time_percentage,
-                            NULL::integer AS time_online_minutes,
-                            NULL::varchar(50) AS primary_enroute_sector,
-                            NULL::integer AS total_enroute_sectors,
-                            NULL::integer AS total_enroute_time_minutes,
-                            NULL::jsonb AS sector_breakdown,
-                            NULL::timestamptz AS completion_time
-                        FROM flights f
-                        WHERE f.callsign = :callsign
-                          AND f.cid = :cid
-                          AND f.departure = :departure
-                          AND f.arrival = :arrival
-                          AND f.last_updated BETWEEN :start AND :hwm
-                    """)
-                    arch_res = await session.execute(
-                        arch_sql,
-                        {
-                            "callsign": callsign,
-                            "cid": cid,
-                            "departure": departure,
-                            "arrival": arrival,
-                            "start": session_start,
-                            "hwm": hwm,
-                        },
-                    )
-                    # SQLAlchemy rowcount may be None for INSERT..SELECT; compute deleted rowcount next
-
-                    del_sql = text("""
-                        DELETE FROM flights f
-                        WHERE f.callsign = :callsign
-                          AND f.cid = :cid
-                          AND f.departure = :departure
-                          AND f.arrival = :arrival
-                          AND f.last_updated BETWEEN :start AND :hwm
-                    """)
-                    del_res = await session.execute(
-                        del_sql,
-                        {
-                            "callsign": callsign,
-                            "cid": cid,
-                            "departure": departure,
-                            "arrival": arrival,
-                            "start": session_start,
-                            "hwm": hwm,
-                        },
-                    )
-                    deleted += del_res.rowcount or 0
+                    # Archiving and deletion removed - handled by separate independent process
+                    # that respects FLIGHT_DAYS_BEFORE_ARCHIVE configuration
 
             # Backward-compatible result keys so scheduled logger and callers don't KeyError
             return {
                 "status": "success",
                 "sessions_detected": len(sessions),
                 "summaries_processed": processed,
-                "records_deleted": deleted,
+                "records_deleted": 0,  # No longer deleting in canonical process
                 # Compatibility with legacy callers/loggers:
                 "summaries_created": processed,
-                "records_archived": deleted,
+                "records_archived": 0,  # No longer archiving in canonical process
             }
         except Exception as e:
             self.logger.error(f"❌ Canonical session processing failed: {e}")
@@ -2841,6 +2745,58 @@ RETURNING fso.id;
         except Exception as e:
             self.logger.error(f"❌ Flight summary configuration validation failed: {e}")
             raise
+
+    async def start_scheduled_flight_archiving(self):
+        """Start automatic scheduled flight archiving processing."""
+        try:
+            # Use hourly interval as requested
+            interval_seconds = 3600  # 1 hour
+            
+            self.logger.info(f"🗄️ Starting scheduled flight archiving processing - interval: 60 minutes ({interval_seconds} seconds)")
+            
+            # Start background task and store reference
+            self.flight_archiving_task = asyncio.create_task(self._scheduled_archiving_loop(interval_seconds))
+            
+            # Add callback to handle task completion/failure
+            self.flight_archiving_task.add_done_callback(self._on_flight_archiving_task_done)
+            
+        except Exception as e:
+            self.logger.error(f"Failed to start scheduled flight archiving: {e}")
+
+    async def _scheduled_archiving_loop(self, interval_seconds: int):
+        """Background loop for scheduled flight archiving processing."""
+        self.logger.info(f"⏰ Scheduled flight archiving loop started at {datetime.now(timezone.utc)}")
+
+        while True:
+            try:
+                # Log the scheduled run
+                self.logger.info(f"⏰ Scheduled flight archiving started at {datetime.now(timezone.utc)}")
+
+                # Process flight archiving
+                result = await self.process_flight_archiving()
+                
+                if result.get("status") == "success":
+                    archived = result.get("records_archived", 0)
+                    deleted = result.get("records_deleted", 0)
+                    self.logger.info(f"✅ Scheduled archiving completed: {archived} archived, {deleted} deleted")
+                else:
+                    error = result.get("error", "Unknown error")
+                    self.logger.error(f"❌ Scheduled archiving failed: {error}")
+                
+            except Exception as e:
+                self.logger.error(f"❌ Error in scheduled flight archiving loop: {e}")
+            
+            # Sleep for the configured interval
+            await asyncio.sleep(interval_seconds)
+
+    def _on_flight_archiving_task_done(self, task):
+        """Handle completion/failure of the flight archiving task."""
+        if task.cancelled():
+            self.logger.info("Flight archiving task was cancelled")
+        elif task.exception():
+            self.logger.error(f"Flight archiving task failed with exception: {task.exception()}")
+        else:
+            self.logger.info("Flight archiving task completed")
 
     async def _scheduled_processing_loop(self, interval_seconds: int):
         """Background loop for scheduled flight summary processing.
@@ -3298,6 +3254,87 @@ RETURNING fso.id;
         except Exception as e:
             self.logger.error(f"❌ Error in real-time flight detection: {e}")
             return {"error": str(e), "interactions_detected": 0}
+
+    async def process_flight_archiving(self) -> Dict[str, Any]:
+        """
+        Independent flight archiving process that respects FLIGHT_DAYS_BEFORE_ARCHIVE.
+        
+        This runs separately from completion processing to enforce proper data retention.
+        Flights are only archived when they exceed the configured age threshold.
+        """
+        try:
+            self.logger.info("🗄️ Starting flight archiving process...")
+            
+            # Find flights eligible for archiving (respects 60-day delay)
+            archivable_flights = await self._get_archivable_flights()
+            
+            if not archivable_flights:
+                self.logger.info("📭 No flights ready for archiving")
+                return {
+                    "status": "success",
+                    "records_archived": 0,
+                    "records_deleted": 0,
+                    "message": "no_archivable_flights"
+                }
+            
+            self.logger.info(f"📊 Found {len(archivable_flights)} flights ready for archiving")
+            
+            # Archive the eligible flights
+            records_archived = await self._archive_completed_flights(archivable_flights)
+            
+            # Delete the archived flights
+            records_deleted = await self._delete_completed_flights(archivable_flights)
+            
+            result = {
+                "status": "success", 
+                "records_archived": records_archived,
+                "records_deleted": records_deleted
+            }
+            
+            self.logger.info(f"✅ Flight archiving completed: {result}")
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"❌ Flight archiving failed: {e}")
+            return {"status": "error", "error": str(e)}
+
+    async def _get_archivable_flights(self) -> List[tuple]:
+        """
+        Get flights that are old enough to be archived based on FLIGHT_DAYS_BEFORE_ARCHIVE.
+        
+        Returns:
+            List of flight tuples (callsign, departure, arrival, cid, deptime) ready for archiving
+        """
+        import os
+        from datetime import datetime, timezone, timedelta
+        
+        # Get archive delay from environment
+        days_str = os.getenv("FLIGHT_DAYS_BEFORE_ARCHIVE", "60")
+        try:
+            days_before = int(days_str)
+        except Exception:
+            days_before = 60
+        
+        if days_before <= 0:
+            days_before = 60  # Default safety
+        
+        archive_cutoff = datetime.now(timezone.utc) - timedelta(days=days_before)
+        self.logger.info(f"🗓️ Archiving flights older than {days_before} days (before {archive_cutoff})")
+        
+        async with get_database_session() as session:
+            # Find flights old enough to archive
+            result = await session.execute(text("""
+                SELECT DISTINCT callsign, departure, arrival, cid, deptime, last_updated
+                FROM flights 
+                WHERE last_updated <= :archive_cutoff
+                ORDER BY last_updated
+            """), {"archive_cutoff": archive_cutoff})
+            
+            flights = []
+            for row in result.fetchall():
+                flights.append((row.callsign, row.departure, row.arrival, row.cid, row.deptime))
+            
+            return flights
 
 
 # Global service instance
