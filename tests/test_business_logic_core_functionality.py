@@ -1006,7 +1006,7 @@ class TestCompleteUserWorkflows:
             sig = inspect.signature(data_service._close_all_open_sectors_for_flight)
             params = list(sig.parameters.keys())
             # inspect.signature doesn't include 'self' for bound methods
-            expected_params = ['callsign', 'lat', 'lon', 'altitude', 'timestamp', 'session']
+            expected_params = ['callsign', 'session', 'flight_last_updated', 'current_lat', 'current_lon', 'current_altitude']
             assert params == expected_params, f"Expected parameters {expected_params}, got {params}"
             print("✅ Method signature is correct")
             
