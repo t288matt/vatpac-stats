@@ -8,6 +8,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Dict
 
 def _json_default(obj):
     """JSON serializer helper for non-serializable types used in enrichment results.
@@ -35,6 +36,44 @@ class SummaryEnrichmentWorker:
         self.poll_interval = poll_interval
         self.atc_service = ATCDetectionService()
         self.flight_service = FlightDetectionService()
+        
+        # Load valid controller callsigns for filtering
+        self.valid_controllers = self._load_controller_callsigns()
+        logger.info(f"SummaryEnrichmentWorker: Loaded {len(self.valid_controllers)} valid controller callsigns for validation")
+    
+    def _load_controller_callsigns(self) -> set:
+        """Load valid controller callsigns from config file."""
+        try:
+            with open('airspace_sector_data/controller_callsigns_list.txt', 'r') as f:
+                controllers = {line.strip() for line in f if line.strip()}
+            logger.info(f"Successfully loaded {len(controllers)} valid controller callsigns from config file")
+            return controllers
+        except Exception as e:
+            logger.error(f"Failed to load controller callsigns from config file: {e}")
+            return set()
+    
+    def _filter_valid_controllers(self, atc_data: Dict) -> Dict:
+        """Filter out invalid controllers from ATC data before storing in JSONB."""
+        if not atc_data.get('controller_callsigns') or not self.valid_controllers:
+            return atc_data
+        
+        original_controllers = atc_data['controller_callsigns']
+        filtered_controllers = {}
+        filtered_count = 0
+        
+        for callsign, data in original_controllers.items():
+            if callsign in self.valid_controllers:
+                filtered_controllers[callsign] = data
+            else:
+                logger.debug(f"Filtering out invalid controller from JSONB: {callsign}")
+                filtered_count += 1
+        
+        if filtered_count > 0:
+            logger.info(f"Filtered out {filtered_count} invalid controller callsigns from JSONB data")
+        
+        # Update the ATC data with filtered controllers
+        atc_data['controller_callsigns'] = filtered_controllers
+        return atc_data
 
     async def run_once(self):
         # Attempt to claim a pending flight summary; if none, claim a pending controller summary.
@@ -99,6 +138,10 @@ class SummaryEnrichmentWorker:
             if fs_id:
                 logger.info(f"Enriching flight summary id={fs_id} callsign={callsign}")
                 atc_data = await self.atc_service.detect_flight_atc_interactions_with_timeout(callsign, departure, arrival, logon_time, timeout_seconds=30.0)
+                
+                # Apply controller validation filter before storing to JSONB
+                atc_data = self._filter_valid_controllers(atc_data)
+                
                 # DEBUG: write ATC detection result to a debug file for traceability
                 try:
                     import json
