@@ -41,8 +41,31 @@ class ATCDetectionService:
         # Initialize controller type detector for dynamic proximity ranges
         self.controller_type_detector = ControllerTypeDetector()
         
+        # Initialize logger first
         self.logger = logging.getLogger(__name__)
-        self.logger.info(f"ATC Detection Service initialized: time_window={self.time_window_seconds}s, VATSIM_polling={self.vatsim_polling_interval_seconds}s, dynamic proximity ranges enabled")
+        
+        # Load valid controller callsigns list for filtering
+        self.logger.info("About to call _load_controller_callsigns()")
+        self.valid_controllers = self._load_controller_callsigns()
+        self.logger.info(f"After _load_controller_callsigns(), got {len(self.valid_controllers)} controllers")
+        
+        self.logger.info(f"ATC Detection Service initialized: time_window={self.time_window_seconds}s, VATSIM_polling={self.vatsim_polling_interval_seconds}s, dynamic proximity ranges enabled, loaded {len(self.valid_controllers)} valid controllers")
+    
+    def _load_controller_callsigns(self) -> set:
+        """Load valid controller callsigns from config file."""
+        try:
+            self.logger.info("Attempting to load controller callsigns from airspace_sector_data/controller_callsigns_list.txt")
+            with open('airspace_sector_data/controller_callsigns_list.txt', 'r') as f:
+                controllers = {line.strip() for line in f if line.strip()}
+            self.logger.info(f"Successfully loaded {len(controllers)} valid controller callsigns from config file")
+            return controllers
+        except Exception as e:
+            self.logger.error(f"Failed to load controller callsigns from config file: {e}")
+            return set()
+    
+    def _is_valid_controller(self, callsign: str) -> bool:
+        """Check if a callsign is a valid controller."""
+        return callsign in self.valid_controllers
         
     async def detect_flight_atc_interactions(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime) -> Dict[str, Any]:
         """
@@ -305,13 +328,26 @@ class ATCDetectionService:
             return []
     
     def _group_atc_by_callsign(self, atc_transceivers: List[Dict]) -> Dict[str, List[Dict]]:
-        """Group ATC transceivers by controller callsign."""
+        """Group ATC transceivers by controller callsign, filtering out invalid controllers."""
         grouped = {}
+        filtered_count = 0
+        
         for transceiver in atc_transceivers:
             callsign = transceiver["callsign"]
+            
+            # Only process valid controllers
+            if not self._is_valid_controller(callsign):
+                self.logger.debug(f"Filtering out invalid controller: {callsign}")
+                filtered_count += 1
+                continue
+                
             if callsign not in grouped:
                 grouped[callsign] = []
             grouped[callsign].append(transceiver)
+        
+        if filtered_count > 0:
+            self.logger.info(f"Filtered out {filtered_count} invalid controller callsigns")
+            
         return grouped
     
     async def _find_matches_for_controller(self, flight_transceivers: List[Dict], controller_transceivers: List[Dict], proximity_threshold_nm: float, departure: str, arrival: str, logon_time: datetime) -> List[Dict[str, Any]]:
