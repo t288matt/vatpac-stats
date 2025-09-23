@@ -577,7 +577,9 @@ class ATCDetectionService:
         
         if "CTR" in callsign_upper:
             return "CTR"
-        elif "TMA" in callsign_upper:
+        elif "APP" in callsign_upper:
+            return "TMA"
+        elif "DEP" in callsign_upper:
             return "TMA"
         elif "TWR" in callsign_upper:
             return "TWR"
