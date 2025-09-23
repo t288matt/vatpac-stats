@@ -336,16 +336,28 @@ class ATCDetectionService:
                     AND t.timestamp <= :atc_end_time
                 ),
                 frequency_matches AS (
-                    SELECT ft.callsign as flight_callsign, ft.frequency_mhz, ft.timestamp as flight_time,
-                           at.callsign as atc_callsign, at.timestamp as atc_time,
-                           at.position_lat as atc_lat, at.position_lon as atc_lon,
-                           ft.position_lat as flight_lat, ft.position_lon as flight_lon
+                    SELECT ft.callsign as flight_callsign,
+                           ft.frequency_mhz,
+                           ft.timestamp as flight_time,
+                           at.callsign as atc_callsign,
+                           at.timestamp as atc_time,
+                           at.position_lat as atc_lat,
+                           at.position_lon as atc_lon,
+                           ft.position_lat as flight_lat,
+                           ft.position_lon as flight_lon,
+                           ABS(EXTRACT(EPOCH FROM (ft.timestamp - at.timestamp))) as time_diff_seconds,
+                           (3440.065 * ACOS(
+                                LEAST(1, GREATEST(-1,
+                                    SIN(RADIANS(ft.position_lat)) * SIN(RADIANS(at.position_lat)) +
+                                    COS(RADIANS(ft.position_lat)) * COS(RADIANS(at.position_lat)) *
+                                    COS(RADIANS(ft.position_lon - at.position_lon))
+                                ))
+                           )) AS distance_nm
                     FROM time_filtered_flights ft 
                     JOIN time_filtered_atc at
                       ON ABS(ft.frequency_mhz - at.frequency_mhz) <= 0.005  -- ~5 kHz tolerance
                     WHERE ABS(EXTRACT(EPOCH FROM (ft.timestamp - at.timestamp))) <= :time_window
-                    AND (
-                        -- Haversine formula with controller-specific proximity
+                      AND (
                         (3440.065 * ACOS(
                             LEAST(1, GREATEST(-1, 
                                 SIN(RADIANS(ft.position_lat)) * SIN(RADIANS(at.position_lat)) +
@@ -353,7 +365,11 @@ class ATCDetectionService:
                                 COS(RADIANS(ft.position_lon - at.position_lon))
                             ))
                         )) <= :proximity_threshold_nm
-                    )
+                      )
+                ),
+                ranked_matches AS (
+                    SELECT fm.*, ROW_NUMBER() OVER (PARTITION BY fm.flight_time, fm.atc_callsign ORDER BY fm.distance_nm ASC NULLS LAST) AS rn
+                    FROM frequency_matches fm
                 )
                 SELECT 
                     flight_callsign,
@@ -365,8 +381,9 @@ class ATCDetectionService:
                     flight_lon,
                     atc_lat,
                     atc_lon,
-                    ABS(EXTRACT(EPOCH FROM (flight_time - atc_time))) as time_diff_seconds
-                FROM frequency_matches
+                    time_diff_seconds
+                FROM ranked_matches
+                WHERE rn = 1
                 ORDER BY flight_time, atc_time
             """
             
