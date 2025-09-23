@@ -8,7 +8,7 @@ and assign appropriate geographic proximity ranges for flight detection.
 The detection is based on the last 3 characters of the callsign:
 - GND/DEL → Ground (15nm)
 - TWR → Tower (15nm)  
-- APP/DEP → Approach (60nm)
+- APP/DEP → TMA (60nm)
 - CTR → Center (400nm)
 - FSS → FSS (1000nm)
 """
@@ -40,9 +40,9 @@ class ControllerTypeDetector:
                 int(os.getenv("CONTROLLER_PROXIMITY_TOWER_NM", "15")),
                 int(os.getenv("CONTROLLER_PROXIMITY_TOWER_NM", "15"))
             ),
-            "Approach": (
-                int(os.getenv("CONTROLLER_PROXIMITY_APPROACH_NM", "60")),
-                int(os.getenv("CONTROLLER_PROXIMITY_APPROACH_NM", "60"))
+            "TMA": (
+                int(os.getenv("CONTROLLER_PROXIMITY_TMA_NM", "60")),
+                int(os.getenv("CONTROLLER_PROXIMITY_TMA_NM", "60"))
             ),
             "Center": (
                 int(os.getenv("CONTROLLER_PROXIMITY_CENTER_NM", "400")),
@@ -69,7 +69,7 @@ class ControllerTypeDetector:
             callsign: Controller callsign (e.g., "SY_TWR", "ML_APP")
             
         Returns:
-            Controller type string (Ground, Tower, Approach, Center, FSS)
+            Controller type string (Ground, Tower, TMA, Center, FSS)
             
         Examples:
             >>> detector = ControllerTypeDetector()
@@ -78,7 +78,9 @@ class ControllerTypeDetector:
             >>> detector.detect_controller_type("CB_GND")
             'Ground'
             >>> detector.detect_controller_type("YBBN_APP")
-            'Approach'
+            'TMA'
+            >>> detector.detect_controller_type("ML_DEP")
+            'TMA'
         """
         if not callsign:
             self.logger.warning("Empty callsign provided, defaulting to Ground")
@@ -96,7 +98,7 @@ class ControllerTypeDetector:
         elif last_three == "TWR":
             controller_type = "Tower"  
         elif last_three in ["APP", "DEP"]:
-            controller_type = "Approach"
+            controller_type = "TMA"
         elif last_three == "CTR":
             controller_type = "Center"
         elif last_three == "FSS":
@@ -113,7 +115,7 @@ class ControllerTypeDetector:
         Get proximity range for controller type.
         
         Args:
-            controller_type: Type of controller (Ground, Tower, Approach, Center, FSS)
+            controller_type: Type of controller (Ground, Tower, TMA, Center, FSS)
             
         Returns:
             Tuple of (min_nm, max_nm) for proximity range
@@ -139,7 +141,7 @@ class ControllerTypeDetector:
             
                  Examples:
              >>> detector = ControllerTypeDetector()
-             >>> detector.get_proximity_threshold("Approach")
+             >>> detector.get_proximity_threshold("TMA")
              60
         """
         range_tuple = self.get_proximity_range(controller_type)
