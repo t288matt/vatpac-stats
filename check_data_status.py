@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+https://github.com/t288matt/vatpac-stats/issues#!/usr/bin/env python3
 """Check current state of flights and sector occupancy data."""
 
 from app.database import _get_engine
@@ -58,6 +58,23 @@ def main():
         '''))
         row = result.fetchone()
         print(f'\nFlight summaries (last 7 days): {row.total_summaries:,}')
+
+        # Check for controller callsigns containing "obs" in transceivers
+        result = conn.execute(text('''
+            SELECT callsign, entity_type, COUNT(*) as count
+            FROM transceivers
+            WHERE callsign ILIKE '%obs%'
+            GROUP BY callsign, entity_type
+            ORDER BY callsign
+        '''))
+        print(f'\nController callsigns containing "obs":')
+        print('-' * 50)
+        rows = result.fetchall()
+        if rows:
+            for row in rows:
+                print(f'{row.callsign:<20} | {row.entity_type:<10} | {row.count:,}')
+        else:
+            print('No records found with callsigns containing "obs"')
 
 if __name__ == '__main__':
     main()

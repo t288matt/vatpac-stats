@@ -103,3 +103,6 @@ WHERE indexrelname IN (
 -- flights_pkey (Table: flights) - ESSENTIAL FOR DATA INTEGRITY
 -- controllers_pkey (Table: controllers) - ESSENTIAL FOR DATA INTEGRITY  
 -- controllers_archive_pkey (Table: controllers_archive) - ESSENTIAL FOR DATA INTEGRITY
+
+the outcome needs to run on metabase 
+
