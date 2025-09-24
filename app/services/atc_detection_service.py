@@ -36,36 +36,13 @@ class ATCDetectionService:
         self.time_window_seconds = time_window_seconds or int(os.getenv("FLIGHT_DETECTION_TIME_WINDOW_SECONDS", "180"))
         
         # Load VATSIM polling interval for accurate time calculations
-        self.vatsim_polling_interval_seconds = int(os.getenv("VATSIM_POLLING_INTERVAL", "60"))
+        self.vatsim_polling_interval_seconds = int(os.getenv("VATSIM_TRANSCEIVERS_POLLING_INTERVAL", "120"))
         
         # Initialize controller type detector for dynamic proximity ranges
         self.controller_type_detector = ControllerTypeDetector()
         
-        # Initialize logger first
         self.logger = logging.getLogger(__name__)
-        
-        # Load valid controller callsigns list for filtering
-        self.logger.info("About to call _load_controller_callsigns()")
-        self.valid_controllers = self._load_controller_callsigns()
-        self.logger.info(f"After _load_controller_callsigns(), got {len(self.valid_controllers)} controllers")
-        
-        self.logger.info(f"ATC Detection Service initialized: time_window={self.time_window_seconds}s, VATSIM_polling={self.vatsim_polling_interval_seconds}s, dynamic proximity ranges enabled, loaded {len(self.valid_controllers)} valid controllers")
-    
-    def _load_controller_callsigns(self) -> set:
-        """Load valid controller callsigns from config file."""
-        try:
-            self.logger.info("Attempting to load controller callsigns from airspace_sector_data/controller_callsigns_list.txt")
-            with open('airspace_sector_data/controller_callsigns_list.txt', 'r') as f:
-                controllers = {line.strip() for line in f if line.strip()}
-            self.logger.info(f"Successfully loaded {len(controllers)} valid controller callsigns from config file")
-            return controllers
-        except Exception as e:
-            self.logger.error(f"Failed to load controller callsigns from config file: {e}")
-            return set()
-    
-    def _is_valid_controller(self, callsign: str) -> bool:
-        """Check if a callsign is a valid controller."""
-        return callsign in self.valid_controllers
+        self.logger.info(f"ATC Detection Service initialized: time_window={self.time_window_seconds}s, VATSIM_polling={self.vatsim_polling_interval_seconds}s, dynamic proximity ranges enabled")
         
     async def detect_flight_atc_interactions(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime) -> Dict[str, Any]:
         """
@@ -328,26 +305,13 @@ class ATCDetectionService:
             return []
     
     def _group_atc_by_callsign(self, atc_transceivers: List[Dict]) -> Dict[str, List[Dict]]:
-        """Group ATC transceivers by controller callsign, filtering out invalid controllers."""
+        """Group ATC transceivers by controller callsign."""
         grouped = {}
-        filtered_count = 0
-        
         for transceiver in atc_transceivers:
             callsign = transceiver["callsign"]
-            
-            # Only process valid controllers
-            if not self._is_valid_controller(callsign):
-                self.logger.debug(f"Filtering out invalid controller: {callsign}")
-                filtered_count += 1
-                continue
-                
             if callsign not in grouped:
                 grouped[callsign] = []
             grouped[callsign].append(transceiver)
-        
-        if filtered_count > 0:
-            self.logger.info(f"Filtered out {filtered_count} invalid controller callsigns")
-            
         return grouped
     
     async def _find_matches_for_controller(self, flight_transceivers: List[Dict], controller_transceivers: List[Dict], proximity_threshold_nm: float, departure: str, arrival: str, logon_time: datetime) -> List[Dict[str, Any]]:
@@ -372,16 +336,28 @@ class ATCDetectionService:
                     AND t.timestamp <= :atc_end_time
                 ),
                 frequency_matches AS (
-                    SELECT ft.callsign as flight_callsign, ft.frequency_mhz, ft.timestamp as flight_time,
-                           at.callsign as atc_callsign, at.timestamp as atc_time,
-                           at.position_lat as atc_lat, at.position_lon as atc_lon,
-                           ft.position_lat as flight_lat, ft.position_lon as flight_lon
+                    SELECT ft.callsign as flight_callsign,
+                           ft.frequency_mhz,
+                           ft.timestamp as flight_time,
+                           at.callsign as atc_callsign,
+                           at.timestamp as atc_time,
+                           at.position_lat as atc_lat,
+                           at.position_lon as atc_lon,
+                           ft.position_lat as flight_lat,
+                           ft.position_lon as flight_lon,
+                           ABS(EXTRACT(EPOCH FROM (ft.timestamp - at.timestamp))) as time_diff_seconds,
+                           (3440.065 * ACOS(
+                                LEAST(1, GREATEST(-1,
+                                    SIN(RADIANS(ft.position_lat)) * SIN(RADIANS(at.position_lat)) +
+                                    COS(RADIANS(ft.position_lat)) * COS(RADIANS(at.position_lat)) *
+                                    COS(RADIANS(ft.position_lon - at.position_lon))
+                                ))
+                           )) AS distance_nm
                     FROM time_filtered_flights ft 
                     JOIN time_filtered_atc at
                       ON ABS(ft.frequency_mhz - at.frequency_mhz) <= 0.005  -- ~5 kHz tolerance
                     WHERE ABS(EXTRACT(EPOCH FROM (ft.timestamp - at.timestamp))) <= :time_window
-                    AND (
-                        -- Haversine formula with controller-specific proximity
+                      AND (
                         (3440.065 * ACOS(
                             LEAST(1, GREATEST(-1, 
                                 SIN(RADIANS(ft.position_lat)) * SIN(RADIANS(at.position_lat)) +
@@ -389,7 +365,11 @@ class ATCDetectionService:
                                 COS(RADIANS(ft.position_lon - at.position_lon))
                             ))
                         )) <= :proximity_threshold_nm
-                    )
+                      )
+                ),
+                ranked_matches AS (
+                    SELECT fm.*, ROW_NUMBER() OVER (PARTITION BY fm.flight_time, fm.atc_callsign ORDER BY fm.distance_nm ASC NULLS LAST) AS rn
+                    FROM frequency_matches fm
                 )
                 SELECT 
                     flight_callsign,
@@ -401,8 +381,9 @@ class ATCDetectionService:
                     flight_lon,
                     atc_lat,
                     atc_lon,
-                    ABS(EXTRACT(EPOCH FROM (flight_time - atc_time))) as time_diff_seconds
-                FROM frequency_matches
+                    time_diff_seconds
+                FROM ranked_matches
+                WHERE rn = 1
                 ORDER BY flight_time, atc_time
             """
             
@@ -537,10 +518,12 @@ class ATCDetectionService:
                 enroute_count_row = enroute_count_res.fetchone()
                 enroute_records = enroute_count_row[0] if enroute_count_row else 0
 
-            # Classify each frequency match as airborne if we can find a nearby transceiver record with height_msl > AIRBORNE_ALT_M
+            # Classify each frequency match as airborne if flight is above 1500ft AND controller is airborne type
             async with get_database_session() as session:
                 for match in frequency_matches:
                     match_time = match.get("flight_time")
+                    atc_callsign = match.get("atc_callsign")
+                    
                     # Find the closest transceiver height record for this flight at match_time
                     q = text("""
                         SELECT height_msl FROM transceivers
@@ -551,7 +534,13 @@ class ATCDetectionService:
                     """)
                     res = await session.execute(q, {"callsign": flight_callsign, "t": match_time})
                     r = res.fetchone()
-                    if r and r[0] is not None and r[0] > AIRBORNE_ALT_M:
+                    
+                    # Check both altitude AND controller type
+                    is_airborne_altitude = r and r[0] is not None and r[0] > AIRBORNE_ALT_M
+                    controller_type = self._detect_controller_type(atc_callsign)
+                    is_airborne_controller = controller_type in ["TMA", "CTR", "FSS"]
+                    
+                    if is_airborne_altitude and is_airborne_controller:
                         airborne_contact_count += 1
 
             poll_min = (self.vatsim_polling_interval_seconds / 60.0)
@@ -613,9 +602,7 @@ class ATCDetectionService:
         
         if "CTR" in callsign_upper:
             return "CTR"
-        elif "APP" in callsign_upper:
-            return "TMA"
-        elif "DEP" in callsign_upper:
+        elif "TMA" in callsign_upper:
             return "TMA"
         elif "TWR" in callsign_upper:
             return "TWR"
