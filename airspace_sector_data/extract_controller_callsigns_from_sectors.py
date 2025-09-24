@@ -2,10 +2,10 @@
 """
 Extract Controller Callsigns List from VATSIM Sectors.xml
 
-This script extracts callsigns as a simple list with filtering rules:
+This script extracts callsigns with frequencies as a list with filtering rules:
 - For callsigns ending 'CTR' or 'FSS', only keep those starting 'ML' or 'BN'
 - Retain everything else from the callsign field
-- Output is a list of callsigns as text
+- Output format: "CALLSIGN, FREQUENCY" (e.g., "ML-BIK_CTR, 125.000")
 """
 
 import xml.etree.ElementTree as ET
@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 def extract_callsigns_list(xml_file_path: str) -> list:
-    """Extract callsigns as a simple list with filtering rules."""
+    """Extract callsigns with frequencies as a list with filtering rules."""
     try:
         tree = ET.parse(xml_file_path)
         root = tree.getroot()
@@ -30,24 +30,28 @@ def extract_callsigns_list(xml_file_path: str) -> list:
         if elem.tag.startswith('{'):
             elem.tag = elem.tag.split('}', 1)[1]
     
-    callsigns = []
+    callsigns_with_freq = []
     
     # Process all sectors
     for sector in root.findall('.//Sector'):
         callsign = sector.get('Callsign', '')
-        if callsign:
+        frequency = sector.get('Frequency', '')
+        
+        if callsign and frequency:
             # Apply filtering rules
             if callsign.endswith('_CTR') or callsign.endswith('_FSS'):
                 # Only keep CTR/FSS callsigns starting with ML or BN
                 if callsign.startswith('ML-') or callsign.startswith('BN-'):
-                    if callsign not in callsigns:
-                        callsigns.append(callsign)
+                    entry = f"{callsign}, {frequency}"
+                    if entry not in callsigns_with_freq:
+                        callsigns_with_freq.append(entry)
             else:
                 # Retain all other callsigns
-                if callsign not in callsigns:
-                    callsigns.append(callsign)
+                entry = f"{callsign}, {frequency}"
+                if entry not in callsigns_with_freq:
+                    callsigns_with_freq.append(entry)
     
-    return sorted(callsigns)
+    return sorted(callsigns_with_freq)
 
 
 def main():
@@ -73,10 +77,10 @@ def main():
     print(f"Total callsigns: {len(callsigns)}")
     print(f"Output saved to: {output_file}")
     
-    # Print all callsigns to console
-    print(f"\nAll callsigns:")
-    for callsign in callsigns:
-        print(f"  {callsign}")
+    # Print all callsigns with frequencies to console
+    print(f"\nAll callsigns with frequencies:")
+    for entry in callsigns:
+        print(f"  {entry}")
 
 
 if __name__ == "__main__":
