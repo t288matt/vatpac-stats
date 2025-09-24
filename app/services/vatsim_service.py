@@ -170,12 +170,26 @@ class VATSIMService:
                         cached_snapshot = [dict(t) for t in self._transceivers_cache]
 
                 if cached_snapshot is not None:
-                    transceivers = self._link_transceivers_to_entities(cached_snapshot, flights, controllers)
+                    # CRITICAL FIX: Apply the same filtering used in data_service.py
+                    # This prevents transceiver misclassification by ensuring entity linking uses
+                    # the same filtered flight/controller data that gets stored in the database.
+                    # Without this, flights could be misclassified as ATC controllers when their
+                    # callsigns exist in the unfiltered VATSIM API controller data.
+                    filtered_flights = self._filter_flights(flights)
+                    filtered_controllers = self._filter_controllers(controllers)
+                    transceivers = self._link_transceivers_to_entities(cached_snapshot, filtered_flights, filtered_controllers)
                 else:
                     # Fallback to on-demand fetch if cache is empty
                     transceivers_raw = await self._fetch_transceivers_data()
                     parsed = self._parse_transceivers(transceivers_raw)
-                    transceivers = self._link_transceivers_to_entities(parsed, flights, controllers)
+                    # CRITICAL FIX: Apply the same filtering used in data_service.py
+                    # This prevents transceiver misclassification by ensuring entity linking uses
+                    # the same filtered flight/controller data that gets stored in the database.
+                    # Without this, flights could be misclassified as ATC controllers when their
+                    # callsigns exist in the unfiltered VATSIM API controller data.
+                    filtered_flights = self._filter_flights(flights)
+                    filtered_controllers = self._filter_controllers(controllers)
+                    transceivers = self._link_transceivers_to_entities(parsed, filtered_flights, filtered_controllers)
             except Exception as e:
                 self.logger.warning(f"Failed to fetch transceivers: {e}")
                 transceivers = []
@@ -530,30 +544,98 @@ class VATSIMService:
         """
         Link transceivers to flights and ATC positions based on callsign.
         
+        IMPORTANT: This method now receives FILTERED flight and controller data to prevent
+        misclassification. Previously, it received raw VATSIM API data which could cause
+        flights to be misclassified as ATC controllers when their callsigns existed in
+        both the flight and controller lists from VATSIM.
+        
+        Classification Logic:
+        1. If callsign exists in flight_lookup → entity_type = "flight"
+        2. If callsign exists in controller_lookup → entity_type = "atc"  
+        3. If callsign exists in neither → entity_type = "flight" (default)
+        
         Args:
             transceivers: List of transceivers to link
-            flights: List of flights
-            controllers: List of controllers
+            flights: List of FILTERED flights (geographically filtered for Australian flights)
+            controllers: List of FILTERED controllers (callsign filtered for Australian controllers)
             
         Returns:
             List[Dict[str, Any]]: Transceivers with entity links
         """
-        # Create lookup dictionaries
+        # Create lookup dictionaries from FILTERED data
+        # This ensures classification matches what gets stored in the database
         flight_lookup = {flight["callsign"]: flight for flight in flights}
         controller_lookup = {controller["callsign"]: controller for controller in controllers}
         
         for transceiver in transceivers:
-            # Check if callsign matches a flight
+            # Priority 1: Check if callsign matches a flight (checked first)
             if transceiver["callsign"] in flight_lookup:
                 transceiver["entity_type"] = "flight"
                 # Note: entity_id would be set when storing to database
-            # Check if callsign matches a controller
+            # Priority 2: Check if callsign matches a controller
             elif transceiver["callsign"] in controller_lookup:
                 transceiver["entity_type"] = "atc"
                 # Note: entity_id would be set when storing to database
-            # If no match, keep as "flight" (default)
+            # Priority 3: Default fallback (ensures non-Australian flights default to "flight")
+            else:
+                transceiver["entity_type"] = "flight"
         
         return transceivers
+
+    def _filter_flights(self, flights: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Apply the same geographic filtering used in data_service.py.
+        
+        This method ensures that only Australian flights are used for transceiver classification,
+        preventing non-Australian flights from being misclassified as ATC controllers.
+        
+        The filtering removes flights that are outside the Australian geographic boundaries,
+        keeping only flights that would be stored in the database.
+        
+        Args:
+            flights: Raw flight data from VATSIM API
+            
+        Returns:
+            List[Dict[str, Any]]: Geographically filtered flights (Australian flights only)
+        """
+        try:
+            from app.filters.geographic_boundary_filter import GeographicBoundaryFilter
+            filter_instance = GeographicBoundaryFilter()
+            if filter_instance.config.enabled:
+                filtered_flights = filter_instance.filter_flights_list(flights)
+                self.logger.debug(f"Geographic flight filtering: {len(flights)} → {len(filtered_flights)} flights")
+                return filtered_flights
+        except Exception as e:
+            self.logger.warning(f"Failed to apply geographic filtering to flights: {e}")
+        return flights
+
+    def _filter_controllers(self, controllers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Apply the same callsign filtering used in data_service.py.
+        
+        This method ensures that only Australian controllers are used for transceiver classification,
+        preventing non-Australian controllers from being used in entity linking.
+        
+        The filtering removes controllers that are not in the Australian controller callsign list
+        (config/controller_callsigns_list.txt), keeping only controllers that would be stored
+        in the database.
+        
+        Args:
+            controllers: Raw controller data from VATSIM API
+            
+        Returns:
+            List[Dict[str, Any]]: Callsign filtered controllers (Australian controllers only)
+        """
+        try:
+            from app.filters.controller_callsign_filter import ControllerCallsignFilter
+            filter_instance = ControllerCallsignFilter()
+            if filter_instance.config.enabled:
+                filtered_controllers = filter_instance.filter_controllers_list(controllers)
+                self.logger.debug(f"Controller callsign filtering: {len(controllers)} → {len(filtered_controllers)} controllers")
+                return filtered_controllers
+        except Exception as e:
+            self.logger.warning(f"Failed to apply callsign filtering to controllers: {e}")
+        return controllers
 
     async def load_transceivers_window(self, start: datetime, end: datetime, entity_type: Optional[str] = None, page_size: int = 10000) -> List[Dict[str, Any]]:
         """Load transceivers deterministically using keyset-style pagination.
