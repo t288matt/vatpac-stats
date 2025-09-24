@@ -9,6 +9,8 @@ CTE logic for accurate ATC interaction tracking.
 
 import logging
 from typing import Dict, List, Tuple, Optional, Any
+from decimal import Decimal
+from app.services.config_loader import load_frequency_owners, get_frequency_owner
 from datetime import datetime, timedelta
 from sqlalchemy import text
 from app.database import get_database_session
@@ -40,6 +42,13 @@ class ATCDetectionService:
         
         # Initialize controller type detector for dynamic proximity ranges
         self.controller_type_detector = ControllerTypeDetector()
+        # Load frequency ownership mapping used as a tie-breaker
+        try:
+            self.frequency_owners = load_frequency_owners()
+        except Exception:
+            self.frequency_owners = {}
+        # Frequency tolerance used elsewhere in the code (MHz)
+        self.freq_tolerance_mhz = Decimal("0.005")
         
         self.logger = logging.getLogger(__name__)
         self.logger.info(f"ATC Detection Service initialized: time_window={self.time_window_seconds}s, VATSIM_polling={self.vatsim_polling_interval_seconds}s, dynamic proximity ranges enabled")
@@ -298,7 +307,12 @@ class ATCDetectionService:
                 all_matches.extend(controller_matches)
             
             self.logger.info(f"Controller-specific proximity processing completed: {len(all_matches)} total matches found")
-            return all_matches
+
+            # 3. Apply frequency ownership deduplication: ensure only one controller
+            #    is associated with any single flight transceiver record
+            deduped = self._apply_frequency_owner_deduplication(all_matches)
+            self.logger.info(f"Frequency ownership deduplication completed: {len(deduped)} matches after deduplication")
+            return deduped
             
         except Exception as e:
             self.logger.error(f"Error in controller-specific frequency matching: {e}")
@@ -448,6 +462,48 @@ class ATCDetectionService:
         except Exception as e:
             self.logger.error(f"Error in controller-specific query: {e}")
             return []
+
+    def _apply_frequency_owner_deduplication(self, matches: List[Dict]) -> List[Dict]:
+        """
+        Deduplicate matches so that for any single flight_time + frequency_mhz only
+        a single controller is kept. Preference rules:
+          1) If a frequency owner exists (within tolerance) and is present -> select it
+          2) Else select the match with smallest distance_nm
+          3) Else select by controller type priority -> stable callsign order
+        """
+        if not matches:
+            return []
+
+        from collections import defaultdict
+        grouped = defaultdict(list)
+        for m in matches:
+            key = (m.get("flight_time"), float(m.get("frequency_mhz")))
+            grouped[key].append(m)
+
+        deduped = []
+        for (flight_time, frequency_mhz), group in grouped.items():
+            if len(group) == 1:
+                deduped.append(group[0])
+                continue
+
+            # tolerance-aware owner lookup
+            try:
+                owner = get_frequency_owner(Decimal(str(frequency_mhz)), self.frequency_owners, self.freq_tolerance_mhz)
+            except Exception:
+                owner = None
+
+            if owner:
+                # pick owner if present in group
+                owner_match = next((g for g in group if g.get("atc_callsign") == owner), None)
+                if owner_match:
+                    deduped.append(owner_match)
+                    continue
+
+            # else pick nearest by distance
+            closest = min(group, key=lambda x: x.get("distance_nm", float("inf")))
+            deduped.append(closest)
+
+        return deduped
     
     async def _calculate_atc_metrics(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime, frequency_matches: List[Dict], completion_time: datetime) -> Dict[str, Any]:
         """Calculate ATC interaction metrics for a flight."""
