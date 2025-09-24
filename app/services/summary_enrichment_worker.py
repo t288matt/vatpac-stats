@@ -42,10 +42,21 @@ class SummaryEnrichmentWorker:
         logger.info(f"SummaryEnrichmentWorker: Loaded {len(self.valid_controllers)} valid controller callsigns for validation")
     
     def _load_controller_callsigns(self) -> set:
-        """Load valid controller callsigns from config file."""
+        """Load valid controller callsigns from config file (format: CALLSIGN, FREQUENCY)."""
         try:
+            controllers = set()
             with open('airspace_sector_data/controller_callsigns_list.txt', 'r') as f:
-                controllers = {line.strip() for line in f if line.strip()}
+                for line in f:
+                    line = line.strip()
+                    if line:  # Skip empty lines
+                        # Parse format: CALLSIGN, FREQUENCY
+                        if ',' in line:
+                            callsign = line.split(',')[0].strip()
+                            if callsign:  # Only add if callsign is not empty
+                                controllers.add(callsign)
+                        else:
+                            # Fallback for old format (just callsign)
+                            controllers.add(line)
             logger.info(f"Successfully loaded {len(controllers)} valid controller callsigns from config file")
             return controllers
         except Exception as e:
@@ -185,6 +196,7 @@ class SummaryEnrichmentWorker:
                         SET controller_callsigns = :controller_callsigns,
                             controller_time_percentage = :ctp,
                             airborne_controller_time_percentage = :actp,
+                            time_online_minutes = :time_online,
                             enrichment_status = 'completed',
                             enrichment_completed_at = now(),
                             updated_at = now()
@@ -193,6 +205,7 @@ class SummaryEnrichmentWorker:
                         "controller_callsigns": controller_callsigns_json,
                         "ctp": atc_data.get("controller_time_percentage", None),
                         "actp": atc_data.get("airborne_controller_time_percentage", None),
+                        "time_online": atc_data.get("total_controller_time_minutes", None),
                         "id": fs_id
                     })
                     await session.commit()

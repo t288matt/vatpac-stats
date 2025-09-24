@@ -100,13 +100,20 @@ class ControllerCallsignFilter:
                 logger.error(f"Callsign list file not found: {callsign_file}")
                 return set()
             
-            # Load callsigns from file
+            # Load callsigns from file (format: CALLSIGN, FREQUENCY)
             with open(callsign_file, 'r', encoding='utf-8') as f:
                 callsigns = set()
                 for line in f:
-                    callsign = line.strip()
-                    if callsign and not callsign.startswith('#'):  # Skip empty lines and comments
-                        callsigns.add(callsign)
+                    line = line.strip()
+                    if line and not line.startswith('#'):  # Skip empty lines and comments
+                        # Parse format: CALLSIGN, FREQUENCY
+                        if ',' in line:
+                            callsign = line.split(',')[0].strip()
+                            if callsign:  # Only add if callsign is not empty
+                                callsigns.add(callsign)
+                        else:
+                            # Fallback for old format (just callsign)
+                            callsigns.add(line)
                 
                 logger.info(f"Successfully loaded {len(callsigns)} valid controller callsigns")
                 return callsigns

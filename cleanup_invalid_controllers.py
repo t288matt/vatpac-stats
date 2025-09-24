@@ -19,10 +19,21 @@ from app.database import get_database_session
 from sqlalchemy import text
 
 async def load_valid_controllers():
-    """Load valid controller callsigns from the config file."""
+    """Load valid controller callsigns from the config file (format: CALLSIGN, FREQUENCY)."""
     try:
+        controllers = set()
         with open('airspace_sector_data/controller_callsigns_list.txt', 'r') as f:
-            controllers = {line.strip() for line in f if line.strip()}
+            for line in f:
+                line = line.strip()
+                if line:  # Skip empty lines
+                    # Parse format: CALLSIGN, FREQUENCY
+                    if ',' in line:
+                        callsign = line.split(',')[0].strip()
+                        if callsign:  # Only add if callsign is not empty
+                            controllers.add(callsign)
+                    else:
+                        # Fallback for old format (just callsign)
+                        controllers.add(line)
         print(f"✅ Loaded {len(controllers)} valid controller callsigns")
         return controllers
     except Exception as e:
@@ -206,4 +217,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+
 

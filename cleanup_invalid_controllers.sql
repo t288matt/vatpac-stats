@@ -17,16 +17,22 @@
 -- STEP 1: ANALYSIS - Find invalid controllers in existing data
 -- =============================================================================
 
--- Create temporary table with valid controller callsigns
+-- Create temporary table with valid controller callsigns (format: CALLSIGN, FREQUENCY)
 CREATE TEMP TABLE valid_controllers AS
-SELECT unnest(string_to_array(
-    pg_read_file('/app/airspace_sector_data/controller_callsigns_list.txt'), 
-    E'\n'
-)) AS callsign
-WHERE unnest(string_to_array(
-    pg_read_file('/app/airspace_sector_data/controller_callsigns_list.txt'), 
-    E'\n'
-)) != '';
+SELECT 
+    CASE 
+        WHEN position(',' in line) > 0 THEN 
+            trim(split_part(line, ',', 1))  -- Extract callsign part before comma
+        ELSE 
+            trim(line)  -- Fallback for old format (just callsign)
+    END AS callsign
+FROM (
+    SELECT unnest(string_to_array(
+        pg_read_file('/app/airspace_sector_data/controller_callsigns_list.txt'), 
+        E'\n'
+    )) AS line
+) AS lines
+WHERE trim(line) != '' AND trim(line) IS NOT NULL;
 
 -- Analysis query - shows what will be cleaned
 SELECT 
@@ -146,4 +152,7 @@ LIMIT 20;
 -- CLEANUP
 -- =============================================================================
 DROP TABLE valid_controllers;
+
+
+
 

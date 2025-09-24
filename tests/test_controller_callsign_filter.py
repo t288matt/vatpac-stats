@@ -70,7 +70,7 @@ class TestControllerCallsignFilterConfig:
             config = ControllerCallsignFilterConfig.from_env()
             
             assert config.enabled == True
-            assert config.callsign_list_path == "config/controller_callsigns_list.txt"
+            assert config.callsign_list_path == "airspace_sector_data/controller_callsigns_list.txt"
             assert config.case_sensitive == True
 
 
@@ -99,9 +99,11 @@ class TestControllerCallsignFilter:
             {'callsign': None, 'frequency': '118.1', 'facility': 8},  # None callsign
         ]
         
-        # Create a temporary callsign file for testing
+        # Create a temporary callsign file for testing (format: CALLSIGN, FREQUENCY)
         self.temp_callsign_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
-        self.temp_callsign_file.write('\n'.join(self.sample_callsigns))
+        # Add sample frequencies to each callsign
+        callsigns_with_freq = [f"{callsign}, 118.{i+1}" for i, callsign in enumerate(self.sample_callsigns)]
+        self.temp_callsign_file.write('\n'.join(callsigns_with_freq))
         self.temp_callsign_file.close()
         self.temp_callsign_path = self.temp_callsign_file.name
     
@@ -168,9 +170,9 @@ class TestControllerCallsignFilter:
     
     def test_initialization_enabled_file_with_comments(self):
         """Test filter initialization with file containing comments and empty lines"""
-        # Create file with comments and empty lines
+        # Create file with comments and empty lines (format: CALLSIGN, FREQUENCY)
         comment_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
-        comment_file.write('# This is a comment\n\nSY_TWR\n  \nML_GND\n# Another comment\nBN_APP\n')
+        comment_file.write('# This is a comment\n\nSY_TWR, 118.1\n  \nML_GND, 121.8\n# Another comment\nBN_APP, 125.5\n')
         comment_file.close()
         
         try:
@@ -331,8 +333,8 @@ class TestControllerCallsignFilter:
             initial_count = len(filter_instance._valid_callsigns)
             assert initial_count == 11
             
-            # Create new callsign file with different content
-            new_callsigns = ['NEW_TWR', 'NEW_GND', 'NEW_APP']
+            # Create new callsign file with different content (format: CALLSIGN, FREQUENCY)
+            new_callsigns = ['NEW_TWR, 118.1', 'NEW_GND, 121.8', 'NEW_APP, 125.5']
             new_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
             new_file.write('\n'.join(new_callsigns))
             new_file.close()
@@ -545,9 +547,9 @@ class TestControllerCallsignFilterIntegration:
             }
         ]
         
-        # Create temporary callsign file with just SY_TWR
+        # Create temporary callsign file with just SY_TWR (format: CALLSIGN, FREQUENCY)
         temp_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
-        temp_file.write('SY_TWR\n')
+        temp_file.write('SY_TWR, 118.1\n')
         temp_file.close()
         
         try:
@@ -586,9 +588,9 @@ class TestControllerCallsignFilterIntegration:
             'custom_field': 'custom_value'  # Custom field
         }
         
-        # Create temporary callsign file
+        # Create temporary callsign file (format: CALLSIGN, FREQUENCY)
         temp_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
-        temp_file.write('SY_TWR\n')
+        temp_file.write('SY_TWR, 118.1\n')
         temp_file.close()
         
         try:
