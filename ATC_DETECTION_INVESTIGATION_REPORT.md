@@ -92,14 +92,25 @@ self.valid_controllers = self._load_controller_callsigns()
 self.logger.info(f"After _load_controller_callsigns(), got {len(self.valid_controllers)} controllers")
 ```
 
-**Lines 54-64:** Controller loading method
+**Lines 54-64:** Controller loading method (updated for CALLSIGN, FREQUENCY format)
 ```python
 def _load_controller_callsigns(self) -> set:
-    """Load valid controller callsigns from config file."""
+    """Load valid controller callsigns from config file (format: CALLSIGN, FREQUENCY)."""
     try:
         self.logger.info("Attempting to load controller callsigns from airspace_sector_data/controller_callsigns_list.txt")
+        controllers = set()
         with open('airspace_sector_data/controller_callsigns_list.txt', 'r') as f:
-            controllers = {line.strip() for line in f if line.strip()}
+            for line in f:
+                line = line.strip()
+                if line:  # Skip empty lines
+                    # Parse format: CALLSIGN, FREQUENCY
+                    if ',' in line:
+                        callsign = line.split(',')[0].strip()
+                        if callsign:  # Only add if callsign is not empty
+                            controllers.add(callsign)
+                    else:
+                        # Fallback for old format (just callsign)
+                        controllers.add(line)
         self.logger.info(f"Successfully loaded {len(controllers)} valid controller callsigns from config file")
         return controllers
     except Exception as e:
@@ -219,10 +230,21 @@ The validation methods exist but are never called:
        self.valid_controllers = self._load_controller_callsigns()
    
    def _load_controller_callsigns(self) -> set:
-       """Load valid controller callsigns from config file."""
+       """Load valid controller callsigns from config file (format: CALLSIGN, FREQUENCY)."""
        try:
+           controllers = set()
            with open('airspace_sector_data/controller_callsigns_list.txt', 'r') as f:
-               controllers = {line.strip() for line in f if line.strip()}
+               for line in f:
+                   line = line.strip()
+                   if line:  # Skip empty lines
+                       # Parse format: CALLSIGN, FREQUENCY
+                       if ',' in line:
+                           callsign = line.split(',')[0].strip()
+                           if callsign:  # Only add if callsign is not empty
+                               controllers.add(callsign)
+                       else:
+                           # Fallback for old format (just callsign)
+                           controllers.add(line)
            logger.info(f"Loaded {len(controllers)} valid controller callsigns for enrichment")
            return controllers
        except Exception as e:
@@ -328,4 +350,6 @@ The controller validation implementation is **completely ineffective** due to an
 **Report Status:** Complete  
 **Next Steps:** Implement Phase 1 fixes immediately  
 **Priority:** Critical
+
+
 
