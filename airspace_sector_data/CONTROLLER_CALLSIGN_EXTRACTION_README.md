@@ -13,17 +13,17 @@ The VATSIM API provides real-time data about air traffic controllers worldwide, 
 ### 1. Callsign Extraction Script
 - **Script**: `extract_controller_callsigns_from_sectors.py`
 - **Input**: `Sectors.xml` (VATSIM sector configuration)
-- **Output**: `controller_callsigns_list.txt` (254 unique filtered controller callsigns)
-- **Format**: Plain text, one callsign per line, alphabetically sorted
+- **Output**: `controller_callsigns_list.txt` (254 unique filtered controller callsigns with frequencies)
+- **Format**: Plain text, one entry per line, format: `CALLSIGN, FREQUENCY`, alphabetically sorted
 - **Filtering Rules**:
   - For callsigns ending `_CTR` or `_FSS`: Only keep those starting with `ML-` or `BN-`
   - All other callsigns: Retain regardless of format
   - **Examples**:
-    - `ML-ASP_CTR` → **KEPT** (CTR starting with ML-)
-    - `BN-ARA_CTR` → **KEPT** (CTR starting with BN-)
-    - `VRMF_CTR` → **FILTERED OUT** (CTR not starting with ML- or BN-)
-    - `SY_TWR` → **KEPT** (not CTR/FSS, so retained)
-    - `NFFN_APP` → **KEPT** (not CTR/FSS, so retained)
+    - `ML-ASP_CTR, 128.850` → **KEPT** (CTR starting with ML-)
+    - `BN-ARA_CTR, 133.700` → **KEPT** (CTR starting with BN-)
+    - `VRMF_CTR, 125.000` → **FILTERED OUT** (CTR not starting with ML- or BN-)
+    - `SY_TWR, 120.500` → **KEPT** (not CTR/FSS, so retained)
+    - `NFFN_APP, 118.600` → **KEPT** (not CTR/FSS, so retained)
 
 ### 2. Controller Callsign Filter (`ControllerCallsignFilter`)
 - **Location**: `app/filters/controller_callsign_filter.py`
@@ -60,22 +60,22 @@ The VATSIM API provides real-time data about air traffic controllers worldwide, 
 
 - **Filename**: `controller_callsigns_list.txt`
 - **Location**: `config/` directory (mounted as Docker volume)
-- **Format**: Plain text, one callsign per line
-- **Content**: 254 unique filtered controller callsigns
+- **Format**: Plain text, one entry per line, format: `CALLSIGN, FREQUENCY`
+- **Content**: 254 unique filtered controller callsigns with their frequencies
 - **Example**:
   ```
-  AD-W_APP
-  AD_APP
-  AD_DEL
-  AD_FMP
-  AD_GND
-  AD_TWR
-  BN-ARA_CTR
-  BN-COL_FSS
-  ML-ASP_CTR
-  ML-IND_FSS
-  NFFN_APP
-  SY_TWR
+  AD-W_APP, 124.200
+  AD_APP, 118.200
+  AD_DEL, 126.100
+  AD_FMP, 123.450
+  AD_GND, 121.700
+  AD_TWR, 120.500
+  BN-ARA_CTR, 133.700
+  BN-COL_FSS, 124.900
+  ML-ASP_CTR, 128.850
+  ML-IND_FSS, 125.000
+  NFFN_APP, 118.600
+  SY_TWR, 120.500
   ...
   ```
 
@@ -237,7 +237,7 @@ volumes:
 ### Common Issues
 1. **File Not Found**: Ensure `controller_callsigns_list.txt` exists in `config/` directory
 2. **Permission Errors**: Verify Docker volume mount permissions
-3. **Empty Filter**: Check if callsign file is properly formatted (one per line)
+3. **Empty Filter**: Check if callsign file is properly formatted (one entry per line in format: `CALLSIGN, FREQUENCY`)
 
 ### Debug Commands
 ```bash
