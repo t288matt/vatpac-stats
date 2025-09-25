@@ -7,8 +7,8 @@ and assign appropriate geographic proximity ranges for flight detection.
 
 The detection is based on the last 3 characters of the callsign:
 - GND/DEL → Ground (15nm)
-- TWR → Tower (15nm)  
-- APP/DEP → TMA (60nm)
+- TWR → Tower (15nm)
+- APP/DEP → Approach (60nm)
 - CTR → Center (400nm)
 - FSS → FSS (1000nm)
 """
@@ -31,12 +31,13 @@ class ControllerTypeDetector:
         import os
         
         # Load proximity ranges from environment variables with defaults
+        # Use canonical short codes as keys: GND, TWR, TMA, CTR, FSS
         self.proximity_ranges = {
-            "Ground": (
+            "GND": (
                 int(os.getenv("CONTROLLER_PROXIMITY_GROUND_NM", "15")),
                 int(os.getenv("CONTROLLER_PROXIMITY_GROUND_NM", "15"))
             ),
-            "Tower": (
+            "TWR": (
                 int(os.getenv("CONTROLLER_PROXIMITY_TOWER_NM", "15")),
                 int(os.getenv("CONTROLLER_PROXIMITY_TOWER_NM", "15"))
             ),
@@ -44,9 +45,9 @@ class ControllerTypeDetector:
                 int(os.getenv("CONTROLLER_PROXIMITY_TMA_NM", "60")),
                 int(os.getenv("CONTROLLER_PROXIMITY_TMA_NM", "60"))
             ),
-            "Center": (
-                int(os.getenv("CONTROLLER_PROXIMITY_CENTER_NM", "400")),
-                int(os.getenv("CONTROLLER_PROXIMITY_CENTER_NM", "400"))
+            "CTR": (
+                int(os.getenv("CONTROLLER_PROXIMITY_CTR_NM", "400")),
+                int(os.getenv("CONTROLLER_PROXIMITY_CTR_NM", "400"))
             ),
             "FSS": (
                 int(os.getenv("CONTROLLER_PROXIMITY_FSS_NM", "1000")),
@@ -92,20 +93,21 @@ class ControllerTypeDetector:
         else:
             last_three = callsign.upper()
         
-        # Determine controller type from last 3 characters
+        # Determine canonical controller code from last 3 characters
         if last_three in ["GND", "DEL"]:
-            controller_type = "Ground"
+            controller_type = "GND"
         elif last_three == "TWR":
-            controller_type = "Tower"  
+            controller_type = "TWR"
         elif last_three in ["APP", "DEP"]:
+            # Map APP/DEP to canonical TMA code
             controller_type = "TMA"
         elif last_three == "CTR":
-            controller_type = "Center"
+            controller_type = "CTR"
         elif last_three == "FSS":
             controller_type = "FSS"
         else:
-            # Fallback: Default to ground for unknown patterns
-            controller_type = "Ground"
+            # Fallback: Default to GND
+            controller_type = "GND"
         
         self.logger.debug(f"Controller {callsign} detected as {controller_type} from last 3 characters: {last_three}")
         return controller_type
@@ -127,7 +129,9 @@ class ControllerTypeDetector:
              >>> detector.get_proximity_range("Center")
              (400, 400)
         """
-        return self.proximity_ranges.get(controller_type, self.proximity_ranges["default"])
+        # Accept both human-readable and canonical codes
+        c = self._normalize_controller_type(controller_type)
+        return self.proximity_ranges.get(c, self.proximity_ranges["default"])
     
     def get_proximity_threshold(self, controller_type: str) -> int:
         """
@@ -160,6 +164,7 @@ class ControllerTypeDetector:
             >>> ranges["Tower"]
             (10, 10)
         """
+        # Return a shallow copy of canonical-coded ranges
         return self.proximity_ranges.copy()
     
     def is_valid_controller_type(self, controller_type: str) -> bool:
@@ -179,7 +184,8 @@ class ControllerTypeDetector:
             >>> detector.is_valid_controller_type("Invalid")
             False
         """
-        return controller_type in self.proximity_ranges
+        c = self._normalize_controller_type(controller_type)
+        return c in self.proximity_ranges
     
     def get_controller_info(self, callsign: str) -> Dict[str, Any]:
         """
@@ -231,7 +237,8 @@ class ControllerTypeDetector:
             >>> detector.get_proximity_range("Tower")
             (15, 15)
         """
-        if not self.is_valid_controller_type(controller_type):
+        c = self._normalize_controller_type(controller_type)
+        if not self.is_valid_controller_type(c):
             self.logger.warning(f"Cannot update invalid controller type: {controller_type}")
             return False
         
@@ -239,8 +246,8 @@ class ControllerTypeDetector:
             self.logger.warning(f"Invalid range format: {new_range}. Expected (min_nm, max_nm)")
             return False
         
-        self.proximity_ranges[controller_type] = new_range
-        self.logger.info(f"Updated {controller_type} proximity range to {new_range}")
+        self.proximity_ranges[c] = new_range
+        self.logger.info(f"Updated {c} proximity range to {new_range}")
         return True
     
     def reset_to_defaults(self) -> None:
@@ -248,21 +255,21 @@ class ControllerTypeDetector:
         import os
         
         self.proximity_ranges = {
-            "Ground": (
+            "GND": (
                 int(os.getenv("CONTROLLER_PROXIMITY_GROUND_NM", "15")),
                 int(os.getenv("CONTROLLER_PROXIMITY_GROUND_NM", "15"))
             ),
-            "Tower": (
+            "TWR": (
                 int(os.getenv("CONTROLLER_PROXIMITY_TOWER_NM", "15")),
                 int(os.getenv("CONTROLLER_PROXIMITY_TOWER_NM", "15"))
             ),
-            "Approach": (
-                int(os.getenv("CONTROLLER_PROXIMITY_APPROACH_NM", "60")),
-                int(os.getenv("CONTROLLER_PROXIMITY_APPROACH_NM", "60"))
+            "TMA": (
+                int(os.getenv("CONTROLLER_PROXIMITY_TMA_NM", "60")),
+                int(os.getenv("CONTROLLER_PROXIMITY_TMA_NM", "60"))
             ),
-            "Center": (
-                int(os.getenv("CONTROLLER_PROXIMITY_CENTER_NM", "400")),
-                int(os.getenv("CONTROLLER_PROXIMITY_CENTER_NM", "400"))
+            "CTR": (
+                int(os.getenv("CONTROLLER_PROXIMITY_CTR_NM", "400")),
+                int(os.getenv("CONTROLLER_PROXIMITY_CTR_NM", "400"))
             ),
             "FSS": (
                 int(os.getenv("CONTROLLER_PROXIMITY_FSS_NM", "1000")),
@@ -294,9 +301,34 @@ class ControllerTypeDetector:
             "total_controller_types": len(self.proximity_ranges) - 1,  # Exclude default
             "default_range": self.proximity_ranges["default"][0],
             "configured_ranges": {
-                controller_type: range_tuple 
+                controller_type: range_tuple
                 for controller_type, range_tuple in self.proximity_ranges.items()
                 if controller_type != "default"
             },
             "detection_method": "callsign_pattern_analysis"
         }
+
+    def _normalize_controller_type(self, controller_type: str) -> str:
+        """Normalize various human or code labels to canonical code keys.
+
+        Accepts inputs like 'Approach' or 'TMA' and returns canonical codes
+        used internally (e.g., 'TMA', 'CTR', 'TWR', 'GND', 'FSS').
+        """
+        if not controller_type:
+            return "GND"
+        ct = controller_type.strip()
+        # If already a canonical code, return uppercased
+        up = ct.upper()
+        canonical = {
+            "APPROACH": "TMA",
+            "TMA": "TMA",
+            "CTR": "CTR",
+            "CENTER": "CTR",
+            "TWR": "TWR",
+            "TOWER": "TWR",
+            "GND": "GND",
+            "GROUND": "GND",
+            "DEL": "DEL",
+            "FSS": "FSS",
+        }
+        return canonical.get(up, up)
