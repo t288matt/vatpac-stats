@@ -191,12 +191,36 @@ class SummaryEnrichmentWorker:
                         return False
                     # Use custom default serializer to handle Decimal, datetime, etc.
                     controller_callsigns_json = json.dumps(atc_data.get("controller_callsigns", {}), default=_json_default)
+
+                    # Compute total enroute time (minutes) using flights/flights_archive/transceivers
+                    total_enroute_minutes = None
+                    try:
+                        # Re-read completion_time (ct_val) which we checked exists above
+                        ct_res = await session.execute(text("SELECT completion_time FROM flight_summaries WHERE id = :id"), {"id": fs_id})
+                        ct_val = ct_res.scalar()
+                        if ct_val:
+                            total_enroute = await self.atc_service._get_airborne_time_from_flights(callsign, departure, arrival, logon_time, ct_val)
+                            try:
+                                total_enroute_minutes = int(total_enroute) if total_enroute is not None else 0
+                            except Exception:
+                                logger.exception("Failed to convert total_enroute to int")
+                                total_enroute_minutes = 0
+                        else:
+                            total_enroute_minutes = 0
+                    except Exception:
+                        logger.exception("Failed to compute total_enroute from flights for enrichment")
+                        total_enroute_minutes = 0
+
+                    if total_enroute_minutes == 0:
+                        logger.debug(f"Computed total_enroute_minutes=0 for fs_id={fs_id} callsign={callsign}; may indicate missing archive/transceiver records or short duration")
+
                     await session.execute(text("""
                         UPDATE flight_summaries
                         SET controller_callsigns = :controller_callsigns,
                             controller_time_percentage = :ctp,
                             airborne_controller_time_percentage = :actp,
                             time_online_minutes = :time_online,
+                            total_enroute_time_minutes = :enroute,
                             enrichment_status = 'completed',
                             enrichment_completed_at = now(),
                             updated_at = now()
@@ -206,6 +230,7 @@ class SummaryEnrichmentWorker:
                         "ctp": atc_data.get("controller_time_percentage", None),
                         "actp": atc_data.get("airborne_controller_time_percentage", None),
                         "time_online": atc_data.get("total_controller_time_minutes", None),
+                        "enroute": total_enroute_minutes,
                         "id": fs_id
                     })
                     await session.commit()

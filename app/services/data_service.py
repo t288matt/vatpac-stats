@@ -1304,6 +1304,39 @@ RETURNING fso.id;
     # FLIGHT SUMMARY PROCESSING METHODS
     # ============================================================================
 
+    async def _get_actual_completion_time_from_flights(self, callsign: str, departure: str, arrival: str, cid: int, deptime: str, session: AsyncSession) -> datetime:
+        """Get actual completion time from the most recent record in flights table."""
+        try:
+            # Query flights table for the most recent record for this specific flight
+            result = await session.execute(text("""
+                SELECT MAX(last_updated) as actual_completion_time
+                FROM flights 
+                WHERE callsign = :callsign 
+                AND departure = :departure 
+                AND arrival = :arrival 
+                AND cid = :cid
+                AND deptime = :deptime
+            """), {
+                "callsign": callsign,
+                "departure": departure,
+                "arrival": arrival,
+                "cid": cid,
+                "deptime": deptime
+            })
+            
+            row = result.fetchone()
+            if row and row.actual_completion_time:
+                self.logger.debug(f"Using actual completion time for {callsign}: {row.actual_completion_time}")
+                return row.actual_completion_time
+            else:
+                # This should not happen if the flight was identified as completed
+                self.logger.warning(f"No completion time found for {callsign}, this should not happen")
+                return datetime.now(timezone.utc)
+                
+        except Exception as e:
+            self.logger.error(f"Error getting actual completion time for {callsign}: {e}")
+            return datetime.now(timezone.utc)
+
     async def _identify_completed_flights(self, completion_hours: int) -> List[dict]:
         """Identify flights that have been completed for the specified number of hours."""
         try:
@@ -1369,6 +1402,11 @@ RETURNING fso.id;
                     first_record = records[0]
                     last_record = records[-1]
                     
+                    # Get actual completion time from flights table (most recent record)
+                    actual_completion_time = await self._get_actual_completion_time_from_flights(
+                        callsign, departure, arrival, cid, deptime, session
+                    )
+                    
                     # Calculate time online (handle gaps)
                     total_minutes = 0
                     if len(records) > 1:
@@ -1401,7 +1439,7 @@ RETURNING fso.id;
                     sector_breakdown = await self._calculate_sector_breakdown(
                         callsign, session, 
                         logon_time=first_record.logon_time, 
-                        completion_time=last_record.last_updated
+                        completion_time=actual_completion_time
                     )
                     primary_sector = self._get_primary_sector(sector_breakdown)
                     total_sectors = len(sector_breakdown)
@@ -1433,7 +1471,7 @@ RETURNING fso.id;
                         "total_enroute_sectors": total_sectors,
                         "total_enroute_time_minutes": total_enroute_time,
                         "sector_breakdown": json.dumps(self._convert_for_json(sector_breakdown)),
-                        "completion_time": last_record.last_updated
+                        "completion_time": actual_completion_time
                     }
                     
                     # Attempt to update existing session by signature (callsign, cid, departure, arrival, logon_time)

@@ -12,7 +12,7 @@ from typing import Optional, Dict, Any
 from sqlalchemy import create_engine, text, event
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import QueuePool
+from sqlalchemy.pool import QueuePool, NullPool
 from sqlalchemy.exc import SQLAlchemyError
 import asyncio
 
@@ -30,8 +30,9 @@ DATABASE_URL = config.database.url
 # Convert to async URL format for async operations
 ASYNC_DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
 
-# Engine configuration - simplified
-ENGINE_CONFIG = {
+# Engine configuration - separate sync/async configs
+# Sync config contains pool sizing options; async config keeps only compatible args
+SYNC_ENGINE_CONFIG = {
     "pool_size": config.database.pool_size,
     "max_overflow": config.database.max_overflow,
     "pool_timeout": 30,
@@ -39,6 +40,14 @@ ENGINE_CONFIG = {
     "pool_pre_ping": True,
     "echo": False,
     "echo_pool": False,
+}
+
+ASYNC_ENGINE_CONFIG = {
+    # Async/asyncpg driver does not accept some pool sizing kwargs when used with
+    # certain pool classes (e.g., NullPool). Keep only safe options here.
+    "pool_recycle": 3600,
+    "pool_pre_ping": True,
+    "echo": False,
 }
 
 # Create database engines
@@ -58,7 +67,7 @@ def _create_engines():
         # Create synchronous engine
         engine = create_engine(
             DATABASE_URL,
-            **ENGINE_CONFIG,
+            **SYNC_ENGINE_CONFIG,
             poolclass=QueuePool
         )
         logger.info("✅ Synchronous database engine created successfully")
@@ -72,10 +81,23 @@ def _create_engines():
         logger.info("✅ Synchronous session factory created successfully")
         
         # Create asynchronous engine
+        logger.debug(f"SYNC_ENGINE_CONFIG: {SYNC_ENGINE_CONFIG}")
+        logger.debug(f"ASYNC_ENGINE_CONFIG: {ASYNC_ENGINE_CONFIG}")
+        # Choose pool class for async engine. When running under pytest we prefer
+        # NullPool to avoid connection objects being reused across pytest event
+        # loop boundaries which can cause 'Future attached to a different loop'
+        # errors during test runs.
+        async_poolclass = QueuePool
+        if os.getenv('PYTEST_CURRENT_TEST') or os.getenv('PYTEST_RUNNING'):
+            async_poolclass = NullPool
+
+        # Create async engine with minimal, compatible kwargs to avoid passing
+        # sync-only pool sizing options into the async driver internals.
         async_engine = create_async_engine(
             ASYNC_DATABASE_URL,
-            **ENGINE_CONFIG,
-            poolclass=QueuePool
+            echo=False,
+            future=True,
+            poolclass=async_poolclass,
         )
         logger.info("✅ Asynchronous database engine created successfully")
         
@@ -132,6 +154,7 @@ def _get_async_engine():
     global async_engine
     try:
         if async_engine is None:
+            # Ensure async engine is created lazily and on the running event loop.
             _create_engines()
         return async_engine
     except Exception as e:

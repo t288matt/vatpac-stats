@@ -1,3 +1,25 @@
+import asyncio
+import pytest
+
+from app.database import init_db
+
+
+@pytest.fixture(scope="session")
+def event_loop():
+    """Create a session-scoped event loop for pytest-asyncio to avoid loop conflicts."""
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
+
+
+@pytest.fixture(scope="session", autouse=True)
+async def initialize_database():
+    """Initialize DB engines once on the pytest event loop before tests run."""
+    ok = await init_db()
+    if not ok:
+        pytest.skip("Database initialization failed; skipping tests")
+    yield
+
 #!/usr/bin/env python3
 """
 Test Configuration and Utilities for VATSIM Data Collection System
