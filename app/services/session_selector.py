@@ -42,7 +42,7 @@ async def select_canonical_sessions(
                 deptime,
                 route
             FROM flights
-            WHERE last_updated <= NOW() - ((:completion_hours)::int * INTERVAL '1 hour')
+            WHERE NOW() >= last_updated + ((:completion_hours)::int * INTERVAL '1 hour')
         ), ordered AS (
             SELECT 
                 callsign,
