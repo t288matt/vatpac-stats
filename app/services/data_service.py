@@ -2848,7 +2848,7 @@ RETURNING fso.id;
             if config.retention_hours < config.completion_hours:
                 raise ValueError("FLIGHT_RETENTION_HOURS must be greater than FLIGHT_COMPLETION_HOURS")
             
-            self.logger.info(f"✅ Flight summary configuration validated: interval={config.summary_interval_minutes}min, completion={config.completion_hours}h, retention={config.retention_hours}h")
+            self.logger.info(f"✅ Flight summary configuration validated: completion={config.completion_hours}h, retention={config.retention_hours}h")
             
         except Exception as e:
             self.logger.error(f"❌ Flight summary configuration validation failed: {e}")
