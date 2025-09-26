@@ -2197,7 +2197,7 @@ RETURNING fso.id;
             completion_hours = int(completion_hours_env)
             # Gap and span from decided configuration
             gap_minutes = 120  # 2 hours
-            max_span_hours = completion_hours  # align with FLIGHT_COMPLETION_HOURS
+            max_span_hours = 24  # Allow flights up to 24 hours (covers all realistic flight durations)
 
             self.logger.info(
                 f"🧭 Selecting canonical sessions: horizon={completion_hours}h, gap={gap_minutes}m, max_span={max_span_hours}h"

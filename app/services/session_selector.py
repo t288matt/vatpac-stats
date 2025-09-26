@@ -16,7 +16,7 @@ from app.database import get_database_session
 async def select_canonical_sessions(
     completion_hours: int,
     gap_minutes: int,
-    max_span_hours: int,
+        max_span_hours: int = 24,  # Default to 24 hours, but not enforced (unused)
 ) -> List[Dict[str, Any]]:
     """Select canonical sessions from flights using an inactivity gap and span cap.
 
@@ -113,7 +113,7 @@ async def select_canonical_sessions(
             latest_deptime,
             latest_route
         FROM sessions
-        WHERE (EXTRACT(EPOCH FROM (session_end - session_start)) / 3600.0) <= :max_span_hours
+        -- Removed max_span_hours limit to allow long-haul flights
         ORDER BY session_end DESC
         """
     )
@@ -124,7 +124,6 @@ async def select_canonical_sessions(
             {
                 "completion_hours": int(completion_hours),
                 "gap_minutes": int(gap_minutes),
-                "max_span_hours": int(max_span_hours),
             },
         )
         rows = result.fetchall()
