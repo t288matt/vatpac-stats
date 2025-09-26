@@ -1,40 +1,14 @@
 #!/usr/bin/env python3
-"""
-Session selector: builds canonical flight sessions by merging segments using an inactivity gap.
-
-Signature/grouping: (callsign, cid, departure, arrival)
-Outputs per session: session_start, session_end, latest_deptime, route snapshot
-"""
-
-from typing import List, Dict, Any
-
-from sqlalchemy import text
+import asyncio
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from app.database import get_database_session
+from sqlalchemy import text
 
-
-async def select_canonical_sessions(
-    completion_hours: int,
-    gap_minutes: int,
-        max_span_hours: int = 24,  # Default to 24 hours, but not enforced (unused)
-) -> List[Dict[str, Any]]:
-    """Select canonical sessions from flights using an inactivity gap and span cap.
-
-    Args:
-        completion_hours: Horizon; only consider rows with last_updated <= now - completion_hours
-        gap_minutes: Inactivity gap to split segments (minutes)
-        max_span_hours: Maximum allowed session span; segments exceeding cap are split by gaps inherently
-
-    Returns:
-        List of session dicts with keys: callsign, cid, departure, arrival, session_start, session_end,
-        latest_deptime, latest_route
-    """
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info(f"🔍 DEBUG: Session selector called with completion_hours={completion_hours}, gap_minutes={gap_minutes}, max_span_hours={max_span_hours}")
-    
-    query = text(
-        """
+async def test_direct_query():
+    query = text("""
         WITH base AS (
             SELECT 
                 callsign,
@@ -54,29 +28,8 @@ async def select_canonical_sessions(
                 server,
                 pilot_rating,
                 military_rating
-            FROM flights
-            WHERE NOW() >= last_updated + ((:completion_hours)::int * INTERVAL '1 hour')
-            UNION ALL
-            SELECT 
-                callsign,
-                cid,
-                departure,
-                arrival,
-                COALESCE(logon_time, last_updated) AS logon_time,
-                last_updated,
-                deptime,
-                route,
-                aircraft_type,
-                aircraft_faa,
-                aircraft_short,
-                flight_rules,
-                planned_altitude,
-                name,
-                server,
-                pilot_rating,
-                military_rating
             FROM flights_archive
-            WHERE NOW() >= last_updated + ((:completion_hours)::int * INTERVAL '1 hour')
+            WHERE callsign = 'JST458' AND logon_time >= '2025-09-08' AND logon_time < '2025-09-09'
         ), ordered AS (
             SELECT 
                 callsign,
@@ -122,7 +75,7 @@ async def select_canonical_sessions(
                 military_rating,
                 CASE 
                     WHEN prev_last_updated IS NULL THEN 1
-                    WHEN (EXTRACT(EPOCH FROM (logon_time - prev_last_updated)) / 60.0) > :gap_minutes THEN 1
+                    WHEN (EXTRACT(EPOCH FROM (logon_time - prev_last_updated)) / 60.0) > 30 THEN 1
                     ELSE 0
                 END AS is_new_seg
             FROM ordered
@@ -192,46 +145,17 @@ async def select_canonical_sessions(
             latest_pilot_rating,
             latest_military_rating
         FROM sessions
-        -- Removed max_span_hours limit to allow long-haul flights
+        WHERE callsign = 'JST458'
         ORDER BY session_end DESC
-        """
-    )
-
+    """)
+    
     async with get_database_session() as session:
-        result = await session.execute(
-            query,
-            {
-                "completion_hours": int(completion_hours),
-                "gap_minutes": int(gap_minutes),
-            },
-        )
+        result = await session.execute(query)
         rows = result.fetchall()
-        sessions_out: List[Dict[str, Any]] = []
-        for r in rows:
-            sessions_out.append(
-                {
-                    "callsign": r.callsign,
-                    "cid": r.cid,
-                    "departure": r.departure,
-                    "arrival": r.arrival,
-                    "session_start": r.session_start,
-                    "session_end": r.session_end,
-                    "latest_deptime": r.latest_deptime,
-                    "latest_route": r.latest_route,
-                    "latest_aircraft_type": r.latest_aircraft_type,
-                    "latest_aircraft_faa": r.latest_aircraft_faa,
-                    "latest_aircraft_short": r.latest_aircraft_short,
-                    "latest_flight_rules": r.latest_flight_rules,
-                    "latest_planned_altitude": r.latest_planned_altitude,
-                    "latest_name": r.latest_name,
-                    "latest_server": r.latest_server,
-                    "latest_pilot_rating": r.latest_pilot_rating,
-                    "latest_military_rating": r.latest_military_rating,
-                }
-            )
-        logger.info(f"🔍 DEBUG: Session selector returning {len(sessions_out)} sessions")
-        if len(sessions_out) > 0:
-            logger.info(f"🔍 DEBUG: First session example: {sessions_out[0]}")
-        return sessions_out
+        
+        print(f"Query returned {len(rows)} rows")
+        for i, row in enumerate(rows):
+            print(f"Row {i}: {dict(row._mapping)}")
 
-
+if __name__ == "__main__":
+    asyncio.run(test_direct_query())

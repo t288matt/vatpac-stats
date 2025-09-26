@@ -7,6 +7,11 @@ services:
       POSTGRES_DB: vatsim_data
       POSTGRES_USER: vatsim_user
       POSTGRES_PASSWORD: vatsim_password
+      # Memory optimization settings
+      POSTGRES_SHARED_BUFFERS: 4GB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 16GB
+      POSTGRES_WORK_MEM: 128MB
+      POSTGRES_MAINTENANCE_WORK_MEM: 1GB
     volumes:
       - ./database/vatsim:/var/lib/postgresql/data
       - ./config/init.sql:/docker-entrypoint-initdb.d/01-init.sql
@@ -73,13 +78,12 @@ services:
       FLIGHT_DAYS_BEFORE_ARCHIVE: "60"              # Days before flight data is archived in the archive tables
 
       # Adaptive flight summary batching configuration
-      # Maximum number of canonical summaries to process in a single scheduled batch.
-      # Lower values reduce DB/transaction risk during spikes but increase overall latency.
-      FLIGHT_SUMMARY_MAX_BATCH: 10
+      # REMOVED: FLIGHT_SUMMARY_MAX_BATCH limit - system processes all qualifying sessions
+      # The system has proven it can handle unlimited batch sizes efficiently
       # When a scheduled run processes the full batch (i.e. hit FLIGHT_SUMMARY_MAX_BATCH),
       # the scheduler will sleep this short interval (in seconds) before attempting another batch
-      # to continue draining backlog without waiting the full interval. Set to 5 minutes (300s).
-      FLIGHT_SUMMARY_POLL_INTERVAL_SHORT: 300
+      # to continue draining backlog without waiting the full interval. Set to 1 minute (60s).
+      FLIGHT_SUMMARY_POLL_INTERVAL_SHORT: 60
       # When a scheduled run processes less than the batch size (backlog likely drained),
       # the scheduler will sleep this longer interval (in seconds) between runs. Set to 15 minutes (900s).
       FLIGHT_SUMMARY_POLL_INTERVAL_LONG: 900
