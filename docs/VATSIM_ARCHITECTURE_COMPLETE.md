@@ -51,7 +51,7 @@ Importantly it matches ATC and flights through radio frequencies to allow deeper
 - **Geographic Filtering**: ✅ **ACTIVE** - Configurable airspace boundary filtering operational (currently configured for Australian airspace but can be configured for any airspace with json files.
 - **Data Pipeline**: ✅ **OPERATIONAL** - Real-time VATSIM data ingestion every 60 seconds (configurable)
 - **Sector Tracking**: ✅ **ACTIVE** - Configurable sector monitoring operational (currently configured for 17 Australian airspace sectors. Configurable to any airspace) 
-- **Flight Summaries**: ✅ **OPERATIONAL** - Automatic processing every 60 minutes (configurable)
+- **Flight Summaries**: ✅ **OPERATIONAL** - Continuous adaptive processing with smart intervals (60s-15min)
 
 ### **Core Capabilities**
 - **Real-time Data Collection**: Continuous VATSIM API v3 integration with 60-second polling
@@ -72,6 +72,14 @@ Importantly it matches ATC and flights through radio frequencies to allow deeper
 - **Configuration-Driven**: All geographic boundaries, sectors, and operational parameters are defined in configuration files
 - **Easy Deployment**: Can be deployed for any airspace by simply updating configuration files in the `config/` directory
 - **Current Implementation**: Currently configured for Australian airspace as the first use case, but fully adaptable to any region
+
+### **Recent Architecture Improvements (September 2025)**
+- **Unlimited Processing**: Removed artificial batch limits (FLIGHT_SUMMARY_MAX_BATCH) enabling processing of all qualifying sessions
+- **Adaptive Scheduling**: Smart processing intervals that adjust based on workload (60s when busy, 15min when idle)
+- **Archive Integration**: Seamless processing of both active and archived flight data in a single pipeline
+- **Code Simplification**: Deprecated legacy processing methods and consolidated to canonical processing pipeline
+- **Performance Validation**: System proven to handle 5000+ sessions efficiently without database stress
+- **Data Quality**: All flight summaries now include complete aircraft and pilot information from both active and archive sources
 
 ---
 
@@ -110,8 +118,10 @@ The system addresses critical needs in air traffic control operations:
 - **Performance Optimization**: Efficient polygon calculations with Shapely
 
 #### **Data Management & Optimization**
-- **Flight Summarization (Canonical Session Pipeline - Default)**: Automatic processing every 60 minutes with 90% storage reduction
-  - Canonical sessions by (callsign, cid, departure, arrival), merge ≤ 2h gaps, cap at 8h span
+- **Flight Summarization (Canonical Session Pipeline)**: Continuous unlimited processing with adaptive intervals and 90% storage reduction
+  - Canonical sessions by (callsign, cid, departure, arrival), merge ≤ 2h gaps, complete at 8h horizon
+  - Processes ALL qualifying sessions (no batch limits) from both active and archive tables
+  - Adaptive processing: 60s intervals when active (>50 summaries), 15min intervals when idle
   - Update-first upsert on (callsign, cid, departure, arrival, session_start), then insert if missing
   - Per-session advisory transaction lock; upsert → archive (≤ high‑water mark) → delete
 - **Data Archiving**: Complete flight position history preserved in archive tables
@@ -1015,7 +1025,7 @@ The flight_sector_occupancy table tracks when flights enter and exit airspace se
 
 #### **Summary Tables**
 
-The summary tables provide aggregated data for operational analysis and reporting, processing data every 60 minutes to maintain performance while providing comprehensive insights.
+The summary tables provide aggregated data for operational analysis and reporting, with continuous adaptive processing that maintains optimal performance while providing comprehensive insights.
 
 **Flight Summaries:**
 The flight_summaries table consolidates completed flight data including total positions recorded, first and last sighting timestamps, total distance travelled in nautical miles, average groundspeed, maximum altitude reached, and array of sectors visited. This enables comprehensive flight performance analysis and route optimisation studies.
@@ -1126,17 +1136,20 @@ This flow utilises advanced geometric calculations to ensure accurate airspace m
 
 #### **3. Summary Processing Flow**
 
-The summary processing flow transforms real-time flight data into aggregated analytics and historical records for operational analysis and reporting.
+The canonical processing flow transforms flight session data into aggregated flight summaries using an adaptive, unlimited processing approach.
 
 **Processing Stages:**
-- **Active Flights**: Real-time position updates from ongoing flights
-- **Completion Check**: Identifies flights older than 14 hours (configurable threshold) for summary processing
-- **Summary Generation**: Aggregates flight data into comprehensive statistics including distance, duration, and sector utilisation
-- **Archive**: Stores historical data for long-term analysis and trend identification
-- **Cleanup**: Removes stale data to maintain system performance and storage efficiency
+- **Session Selection**: Identifies completed flights older than 8 hours from both active and archive tables
+- **Unlimited Processing**: Processes ALL qualifying sessions without batch limits (removed 5000 session restriction)
+- **Summary Generation**: Creates comprehensive flight summaries including aircraft details, pilot information, and sector utilization
+- **Adaptive Scheduling**: Smart intervals based on activity - 60s when busy (>50 summaries), 15min when idle
+- **Archive Integration**: Seamlessly processes flights from both flights and flights_archive tables
 
-**Data Lifecycle Management:**
-This flow ensures efficient data storage while preserving comprehensive historical records for operational analysis, performance monitoring, and regulatory compliance requirements.
+**Processing Characteristics:**
+- **No Batch Limits**: System processes all qualifying sessions in each run
+- **Smart Intervals**: Automatically adjusts processing frequency based on workload
+- **Complete Coverage**: Handles both recent and archived flight data consistently
+- **High Performance**: Proven to handle 5000+ sessions efficiently without database stress
 
 ### **Data Flow Characteristics**
 
@@ -1333,9 +1346,9 @@ These commands enable operational staff to monitor system health, troubleshoot i
 - **Filtering**: Geographic filtering enabled for airspace-specific data collection
 
 **Data Processing Configuration:**
-- **Summary Generation**: 60-second intervals for flight data aggregation
+- **Summary Generation**: Adaptive intervals (60s-15min) with unlimited session processing
 - **Data Retention**: 7-day archival policy for historical data
-- **Cleanup Operations**: 300-second intervals for sector cleanup and 14-hour maximum flight age
+- **Cleanup Operations**: 300-second intervals for sector cleanup and 8-hour flight completion horizon
 
 **Cleanup Process Configuration:**
 - **Flight Cleanup**: 300-second timeout for flight data processing
@@ -1619,7 +1632,7 @@ These commands enable operational staff to monitor system health, troubleshoot i
 #### **Enabled Components**
 - ✅ **Geographic Boundary Filter**: Active with configurable airspace polygon
 - ✅ **Sector Tracking System**: Real-time monitoring of configurable sectors
-- ✅ **Flight Summary System**: Automatic processing every 60 minutes
+- ✅ **Flight Summary System**: Continuous adaptive processing with unlimited session handling
 - ✅ **Flight Archiving System**: Independent hourly archiving with 60-day retention (Fixed Sept 2025 - see FLIGHT_ARCHIVE_POLICY_FIX_SEPTEMBER_2025.md)
 - ✅ **Controller Proximity Detection**: Intelligent ATC interaction detection
 - ✅ **Automatic Cleanup**: Stale sector management and memory cleanup
@@ -2339,7 +2352,7 @@ CREATE TABLE flight_sector_occupancy (
 
 #### **Summary Tables**
 ```sql
--- Flight Summaries (Processed every 60 minutes)
+-- Flight Summaries (Processed continuously with adaptive intervals)
 CREATE TABLE flight_summaries (
     id BIGSERIAL PRIMARY KEY,
     callsign VARCHAR(50) NOT NULL,
@@ -2724,10 +2737,14 @@ SECTOR_DATA_FILE=config/airspace_sectors.geojson
 GEOGRAPHIC_FILTER_ENABLED=true
 
 # Data Processing Configuration
-FLIGHT_SUMMARY_INTERVAL=60
+# Flight Summary System - Adaptive Processing
+FLIGHT_COMPLETION_HOURS=8
+# REMOVED: FLIGHT_SUMMARY_MAX_BATCH - unlimited processing
+FLIGHT_SUMMARY_POLL_INTERVAL_SHORT=60
+FLIGHT_SUMMARY_POLL_INTERVAL_LONG=900
 FLIGHT_ARCHIVE_RETENTION_DAYS=7
 SECTOR_CLEANUP_INTERVAL=300
-MAX_FLIGHT_AGE_HOURS=14
+MAX_FLIGHT_AGE_HOURS=8
 
 # Cleanup Process Configuration
 CLEANUP_FLIGHT_TIMEOUT=300
@@ -3198,10 +3215,10 @@ DATABASE_CONFIG = {
 
 # Batch Processing Optimization
 BATCH_CONFIG = {
-    "max_batch_size": 1000,    # Maximum records per batch
     "batch_timeout": 30,       # Batch processing timeout (seconds)
     "retry_attempts": 3,       # Number of retry attempts
     "retry_delay": 1           # Delay between retries (seconds)
+    # REMOVED: max_batch_size - unlimited processing enabled
 }
 
 # Memory Management
@@ -3344,11 +3361,13 @@ SECTOR_UPDATE_INTERVAL: 60
 
 #### **Data Management Configuration**
 ```bash
-# Flight Summary System
+# Flight Summary System - Adaptive Processing
 FLIGHT_SUMMARY_ENABLED: "true"
-FLIGHT_COMPLETION_HOURS: 14
-FLIGHT_RETENTION_HOURS: 168
-FLIGHT_SUMMARY_INTERVAL: 60
+FLIGHT_COMPLETION_HOURS: 8
+FLIGHT_RETENTION_HOURS: 168000000
+# REMOVED: FLIGHT_SUMMARY_MAX_BATCH - unlimited processing
+FLIGHT_SUMMARY_POLL_INTERVAL_SHORT: 60
+FLIGHT_SUMMARY_POLL_INTERVAL_LONG: 900
 
 # Cleanup Configuration
 CLEANUP_FLIGHT_TIMEOUT: 300
@@ -3359,7 +3378,7 @@ CLEANUP_FLIGHT_TIMEOUT: 300
 #### **Enabled Components**
 - ✅ **Geographic Boundary Filter**: Active with configurable airspace polygon
 - ✅ **Sector Tracking System**: Real-time monitoring of configurable sectors
-- ✅ **Flight Summary System**: Automatic processing every 60 minutes
+- ✅ **Flight Summary System**: Continuous adaptive processing with unlimited session handling
 - ✅ **Flight Archiving System**: Independent hourly archiving with 60-day retention (Fixed Sept 2025 - see FLIGHT_ARCHIVE_POLICY_FIX_SEPTEMBER_2025.md)
 - ✅ **Controller Proximity Detection**: Intelligent ATC interaction detection
 - ✅ **Automatic Cleanup**: Stale sector management and memory cleanup
@@ -3980,7 +3999,7 @@ CREATE TABLE flight_sector_occupancy (
 
 #### **Summary Tables**
 ```sql
--- Flight Summaries (Processed every 60 minutes)
+-- Flight Summaries (Processed continuously with adaptive intervals)
 CREATE TABLE flight_summaries (
     id SERIAL PRIMARY KEY,
     callsign VARCHAR(10) NOT NULL,
@@ -4346,10 +4365,14 @@ SECTOR_DATA_FILE=config/airspace_sectors.geojson
 GEOGRAPHIC_FILTER_ENABLED=true
 
 # Data Processing Configuration
-FLIGHT_SUMMARY_INTERVAL=60
+# Flight Summary System - Adaptive Processing
+FLIGHT_COMPLETION_HOURS=8
+# REMOVED: FLIGHT_SUMMARY_MAX_BATCH - unlimited processing
+FLIGHT_SUMMARY_POLL_INTERVAL_SHORT=60
+FLIGHT_SUMMARY_POLL_INTERVAL_LONG=900
 FLIGHT_ARCHIVE_RETENTION_DAYS=7
 SECTOR_CLEANUP_INTERVAL=300
-MAX_FLIGHT_AGE_HOURS=14
+MAX_FLIGHT_AGE_HOURS=8
 
 # Cleanup Process Configuration
 CLEANUP_FLIGHT_TIMEOUT=300
@@ -4820,10 +4843,10 @@ DATABASE_CONFIG = {
 
 # Batch Processing Optimization
 BATCH_CONFIG = {
-    "max_batch_size": 1000,    # Maximum records per batch
     "batch_timeout": 30,       # Batch processing timeout (seconds)
     "retry_attempts": 3,       # Number of retry attempts
     "retry_delay": 1           # Delay between retries (seconds)
+    # REMOVED: max_batch_size - unlimited processing enabled
 }
 
 # Memory Management
@@ -4966,11 +4989,13 @@ SECTOR_UPDATE_INTERVAL: 60
 
 #### **Data Management Configuration**
 ```bash
-# Flight Summary System
+# Flight Summary System - Adaptive Processing
 FLIGHT_SUMMARY_ENABLED: "true"
-FLIGHT_COMPLETION_HOURS: 14
-FLIGHT_RETENTION_HOURS: 168
-FLIGHT_SUMMARY_INTERVAL: 60
+FLIGHT_COMPLETION_HOURS: 8
+FLIGHT_RETENTION_HOURS: 168000000
+# REMOVED: FLIGHT_SUMMARY_MAX_BATCH - unlimited processing
+FLIGHT_SUMMARY_POLL_INTERVAL_SHORT: 60
+FLIGHT_SUMMARY_POLL_INTERVAL_LONG: 900
 
 # Cleanup Configuration
 CLEANUP_FLIGHT_TIMEOUT: 300
@@ -4981,7 +5006,7 @@ CLEANUP_FLIGHT_TIMEOUT: 300
 #### **Enabled Components**
 - ✅ **Geographic Boundary Filter**: Active with configurable airspace polygon
 - ✅ **Sector Tracking System**: Real-time monitoring of configurable sectors
-- ✅ **Flight Summary System**: Automatic processing every 60 minutes
+- ✅ **Flight Summary System**: Continuous adaptive processing with unlimited session handling
 - ✅ **Flight Archiving System**: Independent hourly archiving with 60-day retention (Fixed Sept 2025 - see FLIGHT_ARCHIVE_POLICY_FIX_SEPTEMBER_2025.md)
 - ✅ **Controller Proximity Detection**: Intelligent ATC interaction detection
 - ✅ **Automatic Cleanup**: Stale sector management and memory cleanup

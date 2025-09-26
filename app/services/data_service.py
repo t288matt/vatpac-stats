@@ -2765,20 +2765,15 @@ RETURNING fso.id;
             raise
 
     async def start_scheduled_flight_processing(self):
-        """Start automatic scheduled flight summary processing."""
+        """Start automatic scheduled flight summary processing with adaptive intervals."""
         try:
             # Validate configuration before starting
             self._validate_flight_summary_config()
             
-            # Get interval from config (convert minutes to seconds)
-            interval_minutes = getattr(self.config.flight_summary, 'summary_interval_minutes', 60)
-            interval_seconds = interval_minutes * 60
+            self.logger.info("🚀 Starting scheduled flight summary processing with adaptive intervals")
             
-            self.logger.info(f"🚀 Starting scheduled flight summary processing - interval: {interval_minutes} minutes ({interval_seconds} seconds)")
-            
-            # Start background task and store reference
-            # Pass configured interval_seconds to scheduled loop; the loop will read max_batch from env
-            self.flight_summary_task = asyncio.create_task(self._scheduled_processing_loop(interval_seconds))
+            # Start background task - uses adaptive sleep logic internally
+            self.flight_summary_task = asyncio.create_task(self._scheduled_processing_loop())
             
             # Add callback to handle task completion/failure
             self.flight_summary_task.add_done_callback(self._on_flight_summary_task_done)
@@ -2846,8 +2841,6 @@ RETURNING fso.id;
                 self.logger.info("Flight summary processing is disabled")
                 return
             
-            if config.summary_interval_minutes < 1:
-                raise ValueError("FLIGHT_SUMMARY_INTERVAL must be at least 1 minute")
             
             if config.completion_hours < 1:
                 raise ValueError("FLIGHT_COMPLETION_HOURS must be at least 1 hour")
@@ -2913,21 +2906,25 @@ RETURNING fso.id;
         else:
             self.logger.info("Flight archiving task completed")
 
-    async def _scheduled_processing_loop(self, interval_seconds: int):
-        """Background loop for scheduled flight summary processing.
+    async def _scheduled_processing_loop(self):
+        """Background loop for scheduled flight summary processing with adaptive intervals.
 
-        Adaptive backoff behaviour:
-        - Process up to `FLIGHT_SUMMARY_MAX_BATCH` sessions per iteration.
-        - If the processed count == batch limit, sleep a short interval (busy drain mode).
-        - If processed count < batch limit, sleep a longer interval (idle mode).
+        Simple adaptive behavior:
+        - Process ALL qualifying sessions (no batch limits)
+        - If busy (>50 summaries): sleep 60 seconds
+        - If idle (≤50 summaries): sleep 15 minutes after 3 consecutive low-activity cycles
         """
         self.logger.info(f"⏰ Scheduled flight summary processing loop started at {datetime.now(timezone.utc)}")
 
-        # Load batch and backoff configuration from config (fallback to env)
+        # Load adaptive interval configuration
         max_batch_env = os.getenv("FLIGHT_SUMMARY_MAX_BATCH")
         max_batch = int(max_batch_env) if max_batch_env else None  # None = unlimited
-        short_sleep = int(getattr(self.config.flight_summary, 'poll_interval_short', int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_SHORT", "10"))))
-        long_sleep = int(getattr(self.config.flight_summary, 'poll_interval_long', int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_LONG", str(interval_seconds)))))
+        short_sleep = int(getattr(self.config.flight_summary, 'poll_interval_short', int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_SHORT", "60"))))
+        long_sleep = int(getattr(self.config.flight_summary, 'poll_interval_long', int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_LONG", "900"))))
+
+        # Track consecutive low-activity cycles to determine when to switch to long sleep
+        consecutive_low_activity = 0
+        low_activity_threshold = 3  # Switch to long sleep after 3 consecutive low-activity cycles
 
         while True:
             try:
@@ -2944,18 +2941,37 @@ RETURNING fso.id;
                 archived = result.get('records_archived', result.get('records_deleted', 0))
                 self.logger.info(f"✅ Scheduled processing completed: {summaries} summaries created, {archived} records archived")
 
-                # With unlimited processing, always use long sleep (no backlog concept)
+                # Adaptive sleep logic based on activity
                 if max_batch is None:
-                    # Unlimited processing - always sleep long interval
-                    self.logger.info(f"Unlimited processing completed; sleeping long interval {long_sleep}s")
-                    await asyncio.sleep(long_sleep)
+                    # For unlimited processing, use smart adaptive logic
+                    if isinstance(summaries, int) and summaries > 50:
+                        # High activity - reset counter and use short sleep
+                        consecutive_low_activity = 0
+                        self.logger.info(f"High activity ({summaries} summaries); sleeping short interval {short_sleep}s")
+                        await asyncio.sleep(short_sleep)
+                    else:
+                        # Low activity - increment counter
+                        consecutive_low_activity += 1
+                        if consecutive_low_activity >= low_activity_threshold:
+                            # Multiple consecutive low-activity cycles - use long sleep
+                            self.logger.info(f"Low activity for {consecutive_low_activity} cycles ({summaries} summaries); sleeping long interval {long_sleep}s")
+                            await asyncio.sleep(long_sleep)
+                        else:
+                            # Still in startup/transition phase - use short sleep
+                            self.logger.info(f"Low activity cycle {consecutive_low_activity}/{low_activity_threshold} ({summaries} summaries); sleeping short interval {short_sleep}s")
+                            await asyncio.sleep(short_sleep)
                 else:
                     # Legacy limited processing logic (if someone re-enables the limit)
                     if isinstance(summaries, int) and summaries >= max_batch:
+                        consecutive_low_activity = 0
                         self.logger.info(f"Batch hit max ({max_batch}); sleeping short interval {short_sleep}s to continue draining")
                         await asyncio.sleep(short_sleep)
                     else:
-                        await asyncio.sleep(long_sleep)
+                        consecutive_low_activity += 1
+                        if consecutive_low_activity >= low_activity_threshold:
+                            await asyncio.sleep(long_sleep)
+                        else:
+                            await asyncio.sleep(short_sleep)
 
             except asyncio.CancelledError:
                 self.logger.info("Scheduled flight summary processing task was cancelled")
