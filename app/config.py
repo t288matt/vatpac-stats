@@ -143,7 +143,7 @@ class FlightSummaryConfig:
         return cls(
             completion_hours=int(os.getenv("FLIGHT_COMPLETION_HOURS", "14")),
             retention_hours=int(os.getenv("FLIGHT_RETENTION_HOURS", "24")),
-            summary_interval_minutes=int(os.getenv("FLIGHT_SUMMARY_INTERVAL", "60")),  # Now in minutes
+            summary_interval_minutes=int(os.getenv("FLIGHT_SUMMARY_INTERVAL_MINUTES", "60")),  # Now in minutes
             enabled=os.getenv("FLIGHT_SUMMARY_ENABLED", "true").lower() == "true",
             max_batch=int(os.getenv("FLIGHT_SUMMARY_MAX_BATCH", "100")),
             poll_interval_short=int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_SHORT", "10")),

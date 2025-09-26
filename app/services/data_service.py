@@ -1304,18 +1304,65 @@ RETURNING fso.id;
     # FLIGHT SUMMARY PROCESSING METHODS
     # ============================================================================
 
+    async def _find_sessions_with_null_completion(self, limit: int = 1000) -> List[Dict[str, Any]]:
+        """
+        Find flight summaries that have NULL completion times and need to be fixed.
+        These are sessions that exist in flight_summaries but are missing completion data.
+        """
+        query = text("""
+            SELECT 
+                callsign,
+                cid,
+                departure,
+                arrival,
+                logon_time as session_start,
+                logon_time as session_end,  -- Will be updated with actual completion time
+                deptime as latest_deptime,
+                route as latest_route
+            FROM flight_summaries
+            WHERE completion_time IS NULL
+            ORDER BY created_at DESC
+            LIMIT :limit
+        """)
+        
+        async with get_database_session() as session:
+            result = await session.execute(query, {"limit": limit})
+            rows = result.fetchall()
+            sessions = []
+            for r in rows:
+                sessions.append({
+                    "callsign": r.callsign,
+                    "cid": r.cid,
+                    "departure": r.departure,
+                    "arrival": r.arrival,
+                    "session_start": r.session_start,
+                    "session_end": r.session_end,
+                    "latest_deptime": r.latest_deptime,
+                    "latest_route": r.latest_route,
+                })
+            return sessions
+
     async def _get_actual_completion_time_from_flights(self, callsign: str, departure: str, arrival: str, cid: int, deptime: str, session: AsyncSession) -> datetime:
-        """Get actual completion time from the most recent record in flights table."""
+        """Get actual completion time from the most recent record in flights or flights_archive table."""
         try:
-            # Query flights table for the most recent record for this specific flight
+            # Query both flights and flights_archive tables for the most recent record for this specific flight
             result = await session.execute(text("""
                 SELECT MAX(last_updated) as actual_completion_time
-                FROM flights 
-                WHERE callsign = :callsign 
-                AND departure = :departure 
-                AND arrival = :arrival 
-                AND cid = :cid
-                AND deptime = :deptime
+                FROM (
+                    SELECT last_updated FROM flights 
+                    WHERE callsign = :callsign 
+                    AND departure = :departure 
+                    AND arrival = :arrival 
+                    AND cid = :cid
+                    AND deptime = :deptime
+                    UNION ALL
+                    SELECT last_updated FROM flights_archive 
+                    WHERE callsign = :callsign 
+                    AND departure = :departure 
+                    AND arrival = :arrival 
+                    AND cid = :cid
+                    AND deptime = :deptime
+                ) combined
             """), {
                 "callsign": callsign,
                 "departure": departure,
@@ -1370,7 +1417,17 @@ RETURNING fso.id;
             raise
 
     async def _create_flight_summaries(self, completed_flights: List[dict]) -> int:
-        """Create summary records for completed flights."""
+        """
+        DEPRECATED: Legacy flight summary creation method.
+        
+        This method is no longer used in production. All flight summary processing
+        now goes through _process_completed_flights_canonical() which provides:
+        - Better archive table integration
+        - Consistent field population  
+        - Simplified architecture
+        
+        This method is kept only for potential test compatibility.
+        """
         processed_count = 0
         async with get_database_session() as session:
             for flight_key in completed_flights:
@@ -1445,111 +1502,49 @@ RETURNING fso.id;
                     total_sectors = len(sector_breakdown)
                     total_enroute_time = sum(sector_breakdown.values())
                     
-                    # Create summary data
-                    summary_data = {
-                        "callsign": callsign,
-                        "aircraft_type": first_record.aircraft_type,
-                        "departure": departure,
-                        "arrival": arrival,
-                        "deptime": deptime,
-                        "logon_time": first_record.logon_time,
-                        "route": first_record.route,
-                        "flight_rules": first_record.flight_rules,
-                        "aircraft_faa": first_record.aircraft_faa,
-                        "planned_altitude": first_record.planned_altitude,
-                        "aircraft_short": first_record.aircraft_type,
-                        "cid": first_record.cid,
-                        "name": first_record.name,
-                        "server": first_record.server,
-                        "pilot_rating": first_record.pilot_rating,
-                        "military_rating": first_record.military_rating,
-                        "controller_callsigns": json.dumps(self._convert_for_json(atc_data["controller_callsigns"])),
-                        "controller_time_percentage": atc_data["controller_time_percentage"],
-                        "airborne_controller_time_percentage": atc_data["airborne_controller_time_percentage"],
-                        "time_online_minutes": total_minutes,
-                        "primary_enroute_sector": primary_sector,
-                        "total_enroute_sectors": total_sectors,
-                        "total_enroute_time_minutes": total_enroute_time,
-                        "sector_breakdown": json.dumps(self._convert_for_json(sector_breakdown)),
-                        "completion_time": actual_completion_time
-                    }
+                    # COMMENTED OUT: UNUSED CODE PATH - This code is not being executed by canonical processing
+                    # The actual canonical processing uses _process_completed_flights_canonical() method
+                    # which has its own logic for creating flight summaries
                     
-                    # Attempt to update existing session by signature (callsign, cid, departure, arrival, logon_time)
-                    update_result = await session.execute(text("""
-                        UPDATE flight_summaries
-                        SET
-                            completion_time = GREATEST(completion_time, :completion_time),
-                            deptime = :deptime,
-                            updated_at = NOW()
-                        WHERE callsign = :callsign
-                          AND cid = :cid
-                          AND departure = :departure
-                          AND arrival = :arrival
-                          AND logon_time = :logon_time
-                    """), {
-                        "callsign": summary_data["callsign"],
-                        "cid": summary_data["cid"],
-                        "departure": summary_data["departure"],
-                        "arrival": summary_data["arrival"],
-                        "logon_time": summary_data["logon_time"],
-                        "completion_time": summary_data["completion_time"],
-                        "deptime": summary_data["deptime"],
-                    })
-
-                    if update_result.rowcount and update_result.rowcount > 0:
-                        # Existing session updated - skip insert
-                        processed_count += 1
-                        self.logger.debug(
-                            f"✅ Updated existing flight summary for {callsign} (cid={cid}) at logon {first_record.logon_time}"
-                        )
-                        # DEBUG: if tracing FJI917, dump DB update context
-                        try:
-                            if callsign == 'FJI917':
-                                import json
-                                dbg = {
-                                    'action': 'update',
-                                    'callsign': callsign,
-                                    'cid': cid,
-                                    'logon_time': str(first_record.logon_time),
-                                    'update_rowcount': update_result.rowcount,
-                                    'summary_controller_callsigns': atc_data.get('controller_callsigns')
-                                }
-                                with open(f"/tmp/flight_summary_update_{callsign}.json", 'w') as df:
-                                    json.dump(dbg, df, default=str, indent=2)
-                                self.logger.debug(f"Wrote flight update debug file for {callsign}")
-                        except Exception:
-                            self.logger.exception("Failed to write flight update debug file")
-                    else:
-                        # Insert new summary
-                        await session.execute(text("""
-                            INSERT INTO flight_summaries (
-                                callsign, aircraft_type, departure, arrival, deptime, logon_time,
-                                route, flight_rules, aircraft_faa, planned_altitude, aircraft_short,
-                                cid, name, server, pilot_rating, military_rating,
-                                controller_callsigns, controller_time_percentage, airborne_controller_time_percentage, time_online_minutes,
-                                primary_enroute_sector, total_enroute_sectors, total_enroute_time_minutes, sector_breakdown,
-                                completion_time
-                            ) VALUES (
-                                :callsign, :aircraft_type, :departure, :arrival, :deptime, :logon_time,
-                                :route, :flight_rules, :aircraft_faa, :planned_altitude, :aircraft_short,
-                                :cid, :name, :server, :pilot_rating, :military_rating,
-                                :controller_callsigns, :controller_time_percentage, :airborne_controller_time_percentage, :time_online_minutes,
-                                :primary_enroute_sector, :total_enroute_sectors, :total_enroute_time_minutes, :sector_breakdown,
-                                :completion_time
-                            )
-                        """), summary_data)
-                        
-                        processed_count += 1
-                        # DEBUG: persisted summary insert - write debug artifact for FJI917
-                        try:
-                            if callsign == 'FJI917':
-                                import json
-                                dbg = {'action': 'insert', 'callsign': callsign, 'summary_data': summary_data}
-                                with open(f"/tmp/flight_summary_insert_{callsign}.json", 'w') as df:
-                                    json.dump(dbg, df, default=str, indent=2)
-                                self.logger.debug(f"Wrote flight insert debug file for {callsign}")
-                        except Exception:
-                            self.logger.exception("Failed to write flight insert debug file")
+                    # # Create summary data
+                    # # DEBUG: Log aircraft fields for JST458
+                    # if callsign == 'JST458':
+                    #     self.logger.info(f"🔍 DEBUG: JST458 aircraft fields - type: {getattr(first_record, 'latest_aircraft_type', 'MISSING')}, faa: {getattr(first_record, 'latest_aircraft_faa', 'MISSING')}, short: {getattr(first_record, 'latest_aircraft_short', 'MISSING')}")
+                    #     self.logger.info(f"🔍 DEBUG: JST458 first_record attributes: {dir(first_record)}")
+                    # 
+                    # summary_data = {
+                    #     "callsign": callsign,
+                    #     "aircraft_type": first_record.get('latest_aircraft_type', None),
+                    #     "departure": departure,
+                    #     "arrival": arrival,
+                    #     "deptime": deptime,
+                    #     "logon_time": first_record.get('session_start', first_record.get('logon_time')),
+                    #     "route": first_record.get('latest_route', first_record.get('route')),
+                    #     "flight_rules": first_record.get('latest_flight_rules', None),
+                    #     "aircraft_faa": first_record.get('latest_aircraft_faa', None),
+                    #     "planned_altitude": first_record.get('latest_planned_altitude', None),
+                    #     "aircraft_short": first_record.get('latest_aircraft_short', None),
+                    #     "cid": first_record.get('cid'),
+                    #     "name": first_record.get('latest_name', None),
+                    #     "server": first_record.get('latest_server', None),
+                    #     "pilot_rating": first_record.get('latest_pilot_rating', None),
+                    #     "military_rating": first_record.get('latest_military_rating', None),
+                    #     "controller_callsigns": json.dumps(self._convert_for_json(atc_data["controller_callsigns"])),
+                    #     "controller_time_percentage": atc_data["controller_time_percentage"],
+                    #     "airborne_controller_time_percentage": atc_data["airborne_controller_time_percentage"],
+                    #     "time_online_minutes": total_minutes,
+                    #     "primary_enroute_sector": primary_sector,
+                    #     "total_enroute_sectors": total_sectors,
+                    #     "total_enroute_time_minutes": total_enroute_time,
+                    #     "sector_breakdown": json.dumps(self._convert_for_json(sector_breakdown)),
+                    #     "completion_time": actual_completion_time
+                    # }
+                    
+                    # Skip this entire code path as it's unused - canonical processing uses different method
+                    continue
+                    
+                    # REMOVED: All code after continue statement was unreachable dead code
+                    # that referenced undefined variables (summary_data was commented out).
                     
                 except Exception as e:
                     self.logger.error(f"Failed to process flight {callsign}: {e}")
@@ -2181,11 +2176,13 @@ RETURNING fso.id;
             
             return processed_count
 
-    async def _process_completed_flights_canonical(self) -> Dict[str, Any]:
+    async def _process_completed_flights_canonical(self, limit: Optional[int] = None) -> Dict[str, Any]:
         """Process completed flights using the canonical session selector (feature-flagged).
         
         Stage 2: transactional upsert → archive (≤ HWM) → delete per session under advisory xact lock.
         """
+        # DEBUG: Log that canonical processing is starting
+        self.logger.info("🚀 CANONICAL PROCESSING STARTED - _process_completed_flights_canonical() called")
         async def _process_one_session(session, session_obj) -> int:
             # helper not used externally in this patch, placeholder for future decomposition
             return 1
@@ -2197,7 +2194,7 @@ RETURNING fso.id;
             completion_hours = int(completion_hours_env)
             # Gap and span from decided configuration
             gap_minutes = 120  # 2 hours
-            max_span_hours = 24  # Allow flights up to 24 hours (covers all realistic flight durations)
+            max_span_hours = completion_hours  # align with FLIGHT_COMPLETION_HOURS
 
             self.logger.info(
                 f"🧭 Selecting canonical sessions: horizon={completion_hours}h, gap={gap_minutes}m, max_span={max_span_hours}h"
@@ -2215,21 +2212,44 @@ RETURNING fso.id;
             # To preserve backward compatibility we read a possible dynamic attribute
             caller_limit = getattr(self, "_canonical_limit_override", None)
 
-            limit_to_use = caller_limit or env_limit
+            # Use the limit parameter if provided, otherwise fall back to existing logic
+            limit_to_use = limit or caller_limit or env_limit
 
-            sessions = await select_canonical_sessions(
+            # Get canonical sessions (most recent completed flights)
+            canonical_sessions = await select_canonical_sessions(
                 completion_hours=completion_hours,
                 gap_minutes=gap_minutes,
                 max_span_hours=max_span_hours,
             )
-            # If a limit is configured, truncate the sessions list to that length
+            self.logger.info(f"🧭 Canonical selector produced {len(canonical_sessions)} sessions")
+            
+            # Also get sessions with NULL completion times (need fixing)
+            null_completion_sessions = await self._find_sessions_with_null_completion(limit=limit_to_use or 1000)
+            self.logger.info(f"🔧 Found {len(null_completion_sessions)} sessions with NULL completion times")
+            
+            # Combine and deduplicate sessions
+            all_sessions_map = {
+                (s['callsign'], s['cid'], s['departure'], s['arrival']): s
+                for s in canonical_sessions
+            }
+            
+            # Add null completion sessions if they're not already in the canonical list
+            for s in null_completion_sessions:
+                key = (s['callsign'], s['cid'], s['departure'], s['arrival'])
+                if key not in all_sessions_map:
+                    all_sessions_map[key] = s
+            
+            sessions = list(all_sessions_map.values())
+            
+            # Apply limit to the combined list
             if limit_to_use is not None:
                 try:
                     limit_int = int(limit_to_use)
                     sessions = sessions[:limit_int]
                 except Exception:
                     pass
-            self.logger.info(f"🧭 Canonical selector produced {len(sessions)} sessions")
+            
+            self.logger.info(f"🧭 Combined sessions (canonical + null completion) = {len(sessions)}")
 
             processed = 0
             archived = 0
@@ -2286,26 +2306,67 @@ RETURNING fso.id;
                     # Load latest-in-session flight fields to populate/backfill summary columns
                     latest_sql = text("""
                         SELECT
-                            f.aircraft_type,
-                            f.flight_rules,
-                            f.aircraft_faa,
-                            f.planned_altitude,
-                            f.aircraft_short,
-                            f.cid,
-                            f.name,
-                            f.server,
-                            f.pilot_rating,
-                            f.military_rating
-                        FROM flights f
-                        WHERE f.callsign = :callsign
-                          AND f.cid = :cid
-                          AND f.departure = :departure
-                          AND f.arrival = :arrival
-                          AND f.last_updated BETWEEN :start AND :end
-                        ORDER BY f.last_updated DESC
+                            aircraft_type,
+                            flight_rules,
+                            aircraft_faa,
+                            planned_altitude,
+                            aircraft_short,
+                            cid,
+                            name,
+                            server,
+                            pilot_rating,
+                            military_rating,
+                            last_updated
+                        FROM (
+                            SELECT
+                                f.aircraft_type,
+                                f.flight_rules,
+                                f.aircraft_faa,
+                                f.planned_altitude,
+                                f.aircraft_short,
+                                f.cid,
+                                f.name,
+                                f.server,
+                                f.pilot_rating,
+                                f.military_rating,
+                                f.last_updated
+                            FROM flights f
+                            WHERE f.callsign = :callsign
+                              AND f.cid = :cid
+                              AND f.departure = :departure
+                              AND f.arrival = :arrival
+                              AND f.last_updated BETWEEN :start AND :end
+                            UNION ALL
+                            SELECT
+                                f.aircraft_type,
+                                f.flight_rules,
+                                f.aircraft_faa,
+                                f.planned_altitude,
+                                f.aircraft_short,
+                                f.cid,
+                                f.name,
+                                f.server,
+                                f.pilot_rating,
+                                f.military_rating,
+                                f.last_updated
+                            FROM flights_archive f
+                            WHERE f.callsign = :callsign
+                              AND f.cid = :cid
+                              AND f.departure = :departure
+                              AND f.arrival = :arrival
+                              AND f.last_updated BETWEEN :start AND :end
+                        ) combined
+                        ORDER BY last_updated DESC
                         LIMIT 1
                     """)
 
+                    # DEBUG: Log query execution for JST458 (and show all callsigns for debugging)
+                    if callsign == 'JST458' or callsign.startswith('JST'):
+                        self.logger.info(f"🔍 CANONICAL: Processing {callsign} - cid={cid}, dep={departure}, arr={arrival}")
+                    if callsign == 'JST458':
+                        self.logger.info(f"🔍 CANONICAL: Executing archive query for JST458 - cid={cid}, dep={departure}, arr={arrival}, start={session_start}, end={session_end}")
+                        self.logger.info(f"🔍 CANONICAL: JST458 SQL query parameters - callsign={callsign}, cid={cid}, departure={departure}, arrival={arrival}, start={session_start}, end={session_end}")
+                    
                     latest_row = await session.execute(
                         latest_sql,
                         {
@@ -2318,6 +2379,13 @@ RETURNING fso.id;
                         },
                     )
                     latest_row = latest_row.fetchone()
+                    
+                    # DEBUG: Log query results for JST458
+                    if callsign == 'JST458':
+                        if latest_row:
+                            self.logger.info(f"🔍 DEBUG: JST458 archive query found data - aircraft_type={latest_row.aircraft_type}, name={latest_row.name}")
+                        else:
+                            self.logger.info(f"🔍 DEBUG: JST458 archive query returned NO DATA")
 
                     latest_vals = {
                         "aircraft_type": None,
@@ -2344,6 +2412,10 @@ RETURNING fso.id;
                             "pilot_rating": latest_row.pilot_rating,
                             "military_rating": latest_row.military_rating,
                         })
+                        
+                    # DEBUG: Log final latest_vals for JST458
+                    if callsign == 'JST458':
+                        self.logger.info(f"🔍 DEBUG: JST458 final latest_vals - aircraft_type={latest_vals['aircraft_type']}, name={latest_vals['name']}, server={latest_vals['server']}")
 
                     # Calculate session time and sector metrics from `flights` table (no archive fallback)
                     time_online_minutes = None
@@ -2426,6 +2498,11 @@ RETURNING fso.id;
                           AND arrival = :arrival
                           AND logon_time = :session_start
                     """)
+                    # DEBUG: Log UPDATE parameters for JST458
+                    if callsign == 'JST458':
+                        self.logger.info(f"🔍 CANONICAL: JST458 UPDATE parameters - aircraft_type={latest_vals['aircraft_type']}, aircraft_faa={latest_vals['aircraft_faa']}, name={latest_vals['name']}")
+                        self.logger.info(f"🔍 CANONICAL: JST458 all latest_vals = {latest_vals}")
+                    
                     upd_res = await session.execute(
                         upd_sql,
                         {
@@ -2847,36 +2924,38 @@ RETURNING fso.id;
         self.logger.info(f"⏰ Scheduled flight summary processing loop started at {datetime.now(timezone.utc)}")
 
         # Load batch and backoff configuration from config (fallback to env)
-        max_batch = int(getattr(self.config.flight_summary, 'max_batch', int(os.getenv("FLIGHT_SUMMARY_MAX_BATCH", "100"))))
+        max_batch_env = os.getenv("FLIGHT_SUMMARY_MAX_BATCH")
+        max_batch = int(max_batch_env) if max_batch_env else None  # None = unlimited
         short_sleep = int(getattr(self.config.flight_summary, 'poll_interval_short', int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_SHORT", "10"))))
         long_sleep = int(getattr(self.config.flight_summary, 'poll_interval_long', int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_LONG", str(interval_seconds)))))
 
         while True:
             try:
                 # Log the scheduled run
-                self.logger.info(f"⏰ Scheduled flight summary processing started at {datetime.now(timezone.utc)}; max_batch={max_batch}")
+                batch_info = "unlimited" if max_batch is None else str(max_batch)
+                self.logger.info(f"⏰ Scheduled flight summary processing started at {datetime.now(timezone.utc)}; batch_size={batch_info}")
 
-                # Process completed flights with a limit to avoid large single-run transactions
-                try:
-                    # Use the canonical pipeline but allow a limit to be passed via env var
-                    result = await self._process_completed_flights_canonical(limit=max_batch)
-                except TypeError:
-                    # Fallback if the canonical method signature hasn't been updated
-                    result = await self.process_completed_flights()
+                # Process completed flights (unlimited processing when max_batch is None)
+                self.logger.info(f"🔧 SCHEDULED: Processing flights using canonical method (limit={batch_info})")
+                result = await self._process_completed_flights_canonical(limit=max_batch)
 
                 # Log the results
                 summaries = result.get('summaries_created', result.get('processed', 0))
                 archived = result.get('records_archived', result.get('records_deleted', 0))
                 self.logger.info(f"✅ Scheduled processing completed: {summaries} summaries created, {archived} records archived")
 
-                # Decide sleep interval based on whether we hit the batch limit
-                if isinstance(summaries, int) and summaries >= max_batch:
-                    # Probably more work remaining — short sleep to drain backlog
-                    self.logger.info(f"Batch hit max ({max_batch}); sleeping short interval {short_sleep}s to continue draining")
-                    await asyncio.sleep(short_sleep)
-                else:
-                    # Backlog likely drained — sleep the configured long interval
+                # With unlimited processing, always use long sleep (no backlog concept)
+                if max_batch is None:
+                    # Unlimited processing - always sleep long interval
+                    self.logger.info(f"Unlimited processing completed; sleeping long interval {long_sleep}s")
                     await asyncio.sleep(long_sleep)
+                else:
+                    # Legacy limited processing logic (if someone re-enables the limit)
+                    if isinstance(summaries, int) and summaries >= max_batch:
+                        self.logger.info(f"Batch hit max ({max_batch}); sleeping short interval {short_sleep}s to continue draining")
+                        await asyncio.sleep(short_sleep)
+                    else:
+                        await asyncio.sleep(long_sleep)
 
             except asyncio.CancelledError:
                 self.logger.info("Scheduled flight summary processing task was cancelled")

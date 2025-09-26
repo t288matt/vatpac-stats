@@ -52,3 +52,4 @@ SELECT
 FROM flight_summaries 
 WHERE updated_at >= NOW() - INTERVAL '24 hours';
 
+

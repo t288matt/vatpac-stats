@@ -250,6 +250,13 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Failed to start summary enrichment worker: {e}")
         
+        # Start scheduled flight processing (canonical processing)
+        try:
+            await data_service.start_scheduled_flight_processing()
+            logger.info("✅ Scheduled flight summary processing started")
+        except Exception as e:
+            logger.error(f"Failed to start scheduled flight processing: {e}")
+        
     except Exception as e:
         # Catch critical initialization errors and fail the app
         if "CRITICAL: Sectors file not found" in str(e) or "CRITICAL: No sectors with valid boundaries loaded" in str(e):
@@ -1056,7 +1063,10 @@ async def get_flight_summaries(
 async def trigger_flight_summary_processing():
     """Manually trigger flight summary processing"""
     try:
+        logger.info("🚨 DEBUG: API endpoint /api/flights/summaries/process CALLED")
         data_service = await get_data_service()
+        logger.info(f"🚨 DEBUG: Got data_service instance: {type(data_service)}")
+        logger.info("🚨 DEBUG: About to call data_service.trigger_flight_summary_processing()")
         result = await data_service.trigger_flight_summary_processing()
         
         return {
