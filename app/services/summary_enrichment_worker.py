@@ -123,16 +123,17 @@ class SummaryEnrichmentWorker:
         try:
             async with get_database_session() as session:
                 # Mark flights with max+ attempts as failed to stop infinite loops
+                error_msg = f'MAX_RETRIES_EXCEEDED: Infinite retry loop stopped ({MAX_ENRICHMENT_RETRIES}+ attempts) - DO NOT RESET'
                 result = await session.execute(text("""
                     UPDATE flight_summaries
                     SET enrichment_status = 'failed',
-                        enrichment_last_error = 'MAX_RETRIES_EXCEEDED: Infinite retry loop stopped (:max_retries+ attempts) - DO NOT RESET',
+                        enrichment_last_error = :error_msg,
                         updated_at = NOW()
                     WHERE enrichment_attempts >= :max_retries
                     AND enrichment_status = 'pending'
                     AND completion_time IS NOT NULL
                     RETURNING id, callsign, enrichment_attempts
-                """), {"max_retries": MAX_ENRICHMENT_RETRIES})
+                """), {"max_retries": MAX_ENRICHMENT_RETRIES, "error_msg": error_msg})
                 
                 failed_flights = result.fetchall()
                 if failed_flights:
@@ -207,13 +208,14 @@ class SummaryEnrichmentWorker:
                     
                     # Stop retry loops at configured max attempts
                     if current_attempts >= MAX_ENRICHMENT_RETRIES:
+                        error_msg = f'MAX_RETRIES_EXCEEDED: Stopped after {MAX_ENRICHMENT_RETRIES} attempts - no more retries'
                         await session.execute(text("""
                             UPDATE flight_summaries
                             SET enrichment_status = 'failed',
-                                enrichment_last_error = 'MAX_RETRIES_EXCEEDED: Stopped after :max_retries attempts - no more retries',
+                                enrichment_last_error = :error_msg,
                                 updated_at = now()
                             WHERE id = :id
-                        """), {"id": fs_id, "max_retries": MAX_ENRICHMENT_RETRIES})
+                        """), {"id": fs_id, "error_msg": error_msg})
                         await session.commit()
                         logger.warning(f"MAX_RETRIES_EXCEEDED: flight id={fs_id}, callsign={callsign}, attempts={current_attempts}, max={MAX_ENRICHMENT_RETRIES}")
                         return False
