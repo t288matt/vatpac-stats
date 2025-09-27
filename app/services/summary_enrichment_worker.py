@@ -117,11 +117,11 @@ class SummaryEnrichmentWorker:
         """Stop infinite retry loops by marking problematic flights as failed."""
         try:
             async with get_database_session() as session:
-                # Mark flights with 50+ attempts as failed to stop infinite loops
+                # Mark flights with 50+ attempts as failed to stop infinite loops (ABSOLUTE - never reset)
                 result = await session.execute(text("""
                     UPDATE flight_summaries
                     SET enrichment_status = 'failed',
-                        enrichment_last_error = COALESCE(enrichment_last_error, '') || ' | AUTO_FAILED: Infinite retry loop stopped (50+ attempts)',
+                        enrichment_last_error = 'PERMANENT_FAIL: Infinite retry loop stopped (50+ attempts) - DO NOT RESET',
                         updated_at = NOW()
                     WHERE enrichment_attempts >= 50
                     AND enrichment_status = 'pending'
@@ -131,11 +131,11 @@ class SummaryEnrichmentWorker:
                 
                 failed_flights = result.fetchall()
                 if failed_flights:
-                    logger.warning(f"Stopped {len(failed_flights)} infinite retry loops by marking as failed")
+                    logger.warning(f"PERMANENTLY STOPPED {len(failed_flights)} infinite retry loops by marking as failed")
                     for flight in failed_flights:
-                        logger.error(f"RETRY_LOOP_STOPPED: flight id={flight.id}, callsign={flight.callsign}, attempts={flight.enrichment_attempts}")
+                        logger.error(f"PERMANENT_RETRY_LOOP_STOPPED: flight id={flight.id}, callsign={flight.callsign}, attempts={flight.enrichment_attempts}")
                 
-                # Reset moderate retry counts with exponential backoff
+                # Reset moderate retry counts with exponential backoff (ONLY for 20-49 attempts)
                 result = await session.execute(text("""
                     UPDATE flight_summaries
                     SET enrichment_attempts = 0,
@@ -199,17 +199,17 @@ class SummaryEnrichmentWorker:
                     """), {"id": fs_id})
                     current_attempts = attempts_check.scalar()
                     
-                    # Stop infinite retry loops immediately
+                    # Stop infinite retry loops immediately (PERMANENT FAILURE)
                     if current_attempts >= 50:
                         await session.execute(text("""
                             UPDATE flight_summaries
                             SET enrichment_status = 'failed',
-                                enrichment_last_error = 'IMMEDIATE_FAIL: Retry loop stopped at processing time (50+ attempts)',
+                                enrichment_last_error = 'PERMANENT_FAIL: Retry loop stopped at processing time (50+ attempts) - DO NOT RESET',
                                 updated_at = now()
                             WHERE id = :id
                         """), {"id": fs_id})
                         await session.commit()
-                        logger.error(f"IMMEDIATE_RETRY_LOOP_STOP: flight id={fs_id}, callsign={callsign}, attempts={current_attempts}")
+                        logger.error(f"PERMANENT_IMMEDIATE_RETRY_LOOP_STOP: flight id={fs_id}, callsign={callsign}, attempts={current_attempts}")
                         return False
 
                     # Mark as in_progress but don't commit yet
