@@ -113,19 +113,36 @@ class SummaryEnrichmentWorker:
         except Exception as e:
             logger.error(f"Error recovering stuck flights: {e}")
 
-    async def _reset_excessive_retries(self):
-        """Reset flights with excessive retry counts."""
+    async def _stop_infinite_retry_loops(self):
+        """Stop infinite retry loops by marking problematic flights as failed."""
         try:
             async with get_database_session() as session:
-                # Reset flights with 100+ attempts
+                # Mark flights with 50+ attempts as failed to stop infinite loops
+                result = await session.execute(text("""
+                    UPDATE flight_summaries
+                    SET enrichment_status = 'failed',
+                        enrichment_last_error = COALESCE(enrichment_last_error, '') || ' | AUTO_FAILED: Infinite retry loop stopped (50+ attempts)',
+                        updated_at = NOW()
+                    WHERE enrichment_attempts >= 50
+                    AND enrichment_status = 'pending'
+                    AND completion_time IS NOT NULL
+                    RETURNING id, callsign, enrichment_attempts
+                """))
+                
+                failed_flights = result.fetchall()
+                if failed_flights:
+                    logger.warning(f"Stopped {len(failed_flights)} infinite retry loops by marking as failed")
+                    for flight in failed_flights:
+                        logger.error(f"RETRY_LOOP_STOPPED: flight id={flight.id}, callsign={flight.callsign}, attempts={flight.enrichment_attempts}")
+                
+                # Reset moderate retry counts with exponential backoff
                 result = await session.execute(text("""
                     UPDATE flight_summaries
                     SET enrichment_attempts = 0,
-                        enrichment_status = 'pending',
-                        enrichment_run_after = NOW() + INTERVAL '60 seconds',
-                        enrichment_last_error = 'Reset due to excessive retries',
+                        enrichment_run_after = NOW() + INTERVAL '1 hour',
+                        enrichment_last_error = COALESCE(enrichment_last_error, '') || ' | RESET_WITH_BACKOFF: Retry loop prevention',
                         updated_at = NOW()
-                    WHERE enrichment_attempts >= 100
+                    WHERE enrichment_attempts BETWEEN 20 AND 49
                     AND enrichment_status = 'pending'
                     AND completion_time IS NOT NULL
                     RETURNING id, callsign, enrichment_attempts
@@ -133,22 +150,22 @@ class SummaryEnrichmentWorker:
                 
                 reset_flights = result.fetchall()
                 if reset_flights:
-                    logger.warning(f"Reset {len(reset_flights)} flights with excessive retry counts")
+                    logger.warning(f"Reset {len(reset_flights)} flights with 1-hour backoff to prevent retry loops")
                     for flight in reset_flights:
-                        logger.info(f"Reset flight: id={flight.id}, callsign={flight.callsign}, attempts={flight.enrichment_attempts}")
+                        logger.info(f"BACKOFF_APPLIED: flight id={flight.id}, callsign={flight.callsign}, attempts={flight.enrichment_attempts}")
                 
                 await session.commit()
                 
         except Exception as e:
-            logger.error(f"Error resetting excessive retries: {e}")
+            logger.error(f"Error stopping infinite retry loops: {e}")
 
     async def run_once(self):
         """Process one enrichment job with improved error handling."""
-        # Periodically recover stuck flights
+        # Periodically recover stuck flights and stop infinite retry loops
         import random
         if random.random() < 0.01:  # 1% chance per run
             await self._recover_stuck_flights()
-            await self._reset_excessive_retries()
+            await self._stop_infinite_retry_loops()
 
         fs_id = None
         controller_job = None
@@ -175,6 +192,25 @@ class SummaryEnrichmentWorker:
                     departure = row.departure
                     arrival = row.arrival
                     logon_time = row.logon_time
+
+                    # Check for retry loop before processing
+                    attempts_check = await session.execute(text("""
+                        SELECT enrichment_attempts FROM flight_summaries WHERE id = :id
+                    """), {"id": fs_id})
+                    current_attempts = attempts_check.scalar()
+                    
+                    # Stop infinite retry loops immediately
+                    if current_attempts >= 50:
+                        await session.execute(text("""
+                            UPDATE flight_summaries
+                            SET enrichment_status = 'failed',
+                                enrichment_last_error = 'IMMEDIATE_FAIL: Retry loop stopped at processing time (50+ attempts)',
+                                updated_at = now()
+                            WHERE id = :id
+                        """), {"id": fs_id})
+                        await session.commit()
+                        logger.error(f"IMMEDIATE_RETRY_LOOP_STOP: flight id={fs_id}, callsign={callsign}, attempts={current_attempts}")
+                        return False
 
                     # Mark as in_progress but don't commit yet
                     await session.execute(text("""
