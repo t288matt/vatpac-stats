@@ -141,26 +141,6 @@ class SummaryEnrichmentWorker:
                     for flight in failed_flights:
                         logger.error(f"PERMANENT_RETRY_LOOP_STOPPED: flight id={flight.id}, callsign={flight.callsign}, attempts={flight.enrichment_attempts}")
                 
-                # Reset moderate retry counts with backoff (only for attempts 3-4, since max is 5)
-                reset_threshold = max(1, MAX_ENRICHMENT_RETRIES - 2)
-                result = await session.execute(text("""
-                    UPDATE flight_summaries
-                    SET enrichment_attempts = 0,
-                        enrichment_run_after = NOW() + INTERVAL '1 hour',
-                        enrichment_last_error = COALESCE(enrichment_last_error, '') || ' | RESET_WITH_BACKOFF: Retry loop prevention',
-                        updated_at = NOW()
-                    WHERE enrichment_attempts BETWEEN :reset_threshold AND :max_retries_minus_1
-                    AND enrichment_status = 'pending'
-                    AND completion_time IS NOT NULL
-                    RETURNING id, callsign, enrichment_attempts
-                """), {"reset_threshold": reset_threshold, "max_retries_minus_1": MAX_ENRICHMENT_RETRIES - 1})
-                
-                reset_flights = result.fetchall()
-                if reset_flights:
-                    logger.warning(f"Reset {len(reset_flights)} flights with 1-hour backoff to prevent retry loops")
-                    for flight in reset_flights:
-                        logger.info(f"BACKOFF_APPLIED: flight id={flight.id}, callsign={flight.callsign}, attempts={flight.enrichment_attempts}")
-                
                 await session.commit()
                 
         except Exception as e:
