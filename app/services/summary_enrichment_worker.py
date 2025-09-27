@@ -187,10 +187,11 @@ class SummaryEnrichmentWorker:
                     WHERE enrichment_status = 'pending' 
                     AND enrichment_run_after <= now() 
                     AND completion_time IS NOT NULL
+                    AND COALESCE(enrichment_attempts, 0) < :max_retries
                     LIMIT 1
                     FOR UPDATE SKIP LOCKED
                 """)
-                res = await session.execute(claim_flight_sql)
+                res = await session.execute(claim_flight_sql, {"max_retries": MAX_ENRICHMENT_RETRIES})
                 row = res.fetchone()
                 
                 if row:
