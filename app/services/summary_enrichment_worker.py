@@ -23,10 +23,15 @@ def _json_default(obj):
         return obj.isoformat()
     return str(obj)
 
+import os
 from sqlalchemy import text
 from app.database import get_database_session
 from app.services.atc_detection_service import ATCDetectionService
 from app.services.flight_detection_service import FlightDetectionService
+
+# Get max retries from environment variable
+MAX_ENRICHMENT_RETRIES = int(os.getenv('MAX_ENRICHMENT_RETRIES', '5'))
+
 
 logger = logging.getLogger(__name__)
 
@@ -117,17 +122,17 @@ class SummaryEnrichmentWorker:
         """Stop infinite retry loops by marking problematic flights as failed."""
         try:
             async with get_database_session() as session:
-                # Mark flights with 50+ attempts as failed to stop infinite loops (ABSOLUTE - never reset)
+                # Mark flights with max+ attempts as failed to stop infinite loops
                 result = await session.execute(text("""
                     UPDATE flight_summaries
                     SET enrichment_status = 'failed',
-                        enrichment_last_error = 'PERMANENT_FAIL: Infinite retry loop stopped (50+ attempts) - DO NOT RESET',
+                        enrichment_last_error = 'MAX_RETRIES_EXCEEDED: Infinite retry loop stopped (:max_retries+ attempts) - DO NOT RESET',
                         updated_at = NOW()
-                    WHERE enrichment_attempts >= 50
+                    WHERE enrichment_attempts >= :max_retries
                     AND enrichment_status = 'pending'
                     AND completion_time IS NOT NULL
                     RETURNING id, callsign, enrichment_attempts
-                """))
+                """), {"max_retries": MAX_ENRICHMENT_RETRIES})
                 
                 failed_flights = result.fetchall()
                 if failed_flights:
@@ -135,25 +140,25 @@ class SummaryEnrichmentWorker:
                     for flight in failed_flights:
                         logger.error(f"PERMANENT_RETRY_LOOP_STOPPED: flight id={flight.id}, callsign={flight.callsign}, attempts={flight.enrichment_attempts}")
                 
-                # TEMPORARILY DISABLED: Reset moderate retry counts with exponential backoff
-                # This was causing mass resets that created traffic jams
-                # Instead, just mark them as failed permanently
+                # Reset moderate retry counts with backoff (only for attempts 3-4, since max is 5)
+                reset_threshold = max(1, MAX_ENRICHMENT_RETRIES - 2)
                 result = await session.execute(text("""
                     UPDATE flight_summaries
-                    SET enrichment_status = 'failed',
-                        enrichment_last_error = 'PERMANENT_FAIL: High retry count (20-49 attempts) - DISABLED_RESET_WITH_BACKOFF',
+                    SET enrichment_attempts = 0,
+                        enrichment_run_after = NOW() + INTERVAL '1 hour',
+                        enrichment_last_error = COALESCE(enrichment_last_error, '') || ' | RESET_WITH_BACKOFF: Retry loop prevention',
                         updated_at = NOW()
-                    WHERE enrichment_attempts BETWEEN 20 AND 49
+                    WHERE enrichment_attempts BETWEEN :reset_threshold AND :max_retries_minus_1
                     AND enrichment_status = 'pending'
                     AND completion_time IS NOT NULL
                     RETURNING id, callsign, enrichment_attempts
-                """))
+                """), {"reset_threshold": reset_threshold, "max_retries_minus_1": MAX_ENRICHMENT_RETRIES - 1})
                 
                 reset_flights = result.fetchall()
                 if reset_flights:
-                    logger.warning(f"PERMANENTLY_FAILED {len(reset_flights)} flights with 20-49 attempts (disabled reset_with_backoff)")
+                    logger.warning(f"Reset {len(reset_flights)} flights with 1-hour backoff to prevent retry loops")
                     for flight in reset_flights:
-                        logger.info(f"PERMANENT_FAIL: flight id={flight.id}, callsign={flight.callsign}, attempts={flight.enrichment_attempts}")
+                        logger.info(f"BACKOFF_APPLIED: flight id={flight.id}, callsign={flight.callsign}, attempts={flight.enrichment_attempts}")
                 
                 await session.commit()
                 
@@ -200,17 +205,17 @@ class SummaryEnrichmentWorker:
                     """), {"id": fs_id})
                     current_attempts = attempts_check.scalar()
                     
-                    # Stop infinite retry loops immediately (PERMANENT FAILURE)
-                    if current_attempts >= 50:
+                    # Stop retry loops at configured max attempts
+                    if current_attempts >= MAX_ENRICHMENT_RETRIES:
                         await session.execute(text("""
                             UPDATE flight_summaries
                             SET enrichment_status = 'failed',
-                                enrichment_last_error = 'PERMANENT_FAIL: Retry loop stopped at processing time (50+ attempts) - DO NOT RESET',
+                                enrichment_last_error = 'MAX_RETRIES_EXCEEDED: Stopped after :max_retries attempts - no more retries',
                                 updated_at = now()
                             WHERE id = :id
-                        """), {"id": fs_id})
+                        """), {"id": fs_id, "max_retries": MAX_ENRICHMENT_RETRIES})
                         await session.commit()
-                        logger.error(f"PERMANENT_IMMEDIATE_RETRY_LOOP_STOP: flight id={fs_id}, callsign={callsign}, attempts={current_attempts}")
+                        logger.warning(f"MAX_RETRIES_EXCEEDED: flight id={fs_id}, callsign={callsign}, attempts={current_attempts}, max={MAX_ENRICHMENT_RETRIES}")
                         return False
 
                     # Mark as in_progress but don't commit yet
@@ -301,16 +306,17 @@ class SummaryEnrichmentWorker:
                     except Exception as e:
                         # On any error, reset to pending with proper error logging
                         logger.exception(f"Enrichment failed for id={fs_id} callsign={callsign}: {e}")
-                        # Use exponential backoff based on attempt count
-                        backoff_minutes = min(60, 2 ** current_attempts)  # 2, 4, 8, 16, 32, 60 minutes max
+                        # Use custom backoff schedule: 2, 10, 60, 300, 3600 seconds
+                        backoff_schedule = [2, 10, 60, 300, 3600]  # 2s, 10s, 1m, 5m, 1h
+                        backoff_seconds = backoff_schedule[min(current_attempts, len(backoff_schedule) - 1)]
                         await session.execute(text("""
                             UPDATE flight_summaries
                             SET enrichment_status = 'pending', 
-                                enrichment_run_after = now() + interval ':backoff minutes', 
+                                enrichment_run_after = now() + interval ':backoff seconds', 
                                 enrichment_last_error = :err, 
                                 updated_at = now()
                             WHERE id = :id
-                        """), {"err": str(e), "id": fs_id, "backoff": backoff_minutes})
+                        """), {"err": str(e), "id": fs_id, "backoff": backoff_seconds})
                         await session.commit()
                         return False
                 else:
@@ -386,16 +392,17 @@ class SummaryEnrichmentWorker:
                         """), {"id": controller_job["id"]})
                         current_attempts = attempt_result.fetchone().attempts
                         
-                        # Use exponential backoff based on attempt count
-                        backoff_minutes = min(60, 2 ** current_attempts)  # 2, 4, 8, 16, 32, 60 minutes max
+                        # Use custom backoff schedule: 2, 10, 60, 300, 3600 seconds
+                        backoff_schedule = [2, 10, 60, 300, 3600]  # 2s, 10s, 1m, 5m, 1h
+                        backoff_seconds = backoff_schedule[min(current_attempts, len(backoff_schedule) - 1)]
                         await session.execute(text("""
                             UPDATE controller_summaries
                             SET enrichment_status = 'pending', 
-                                enrichment_run_after = now() + interval ':backoff minutes', 
+                                enrichment_run_after = now() + interval ':backoff seconds', 
                                 enrichment_last_error = :err, 
                                 updated_at = now()
                             WHERE id = :id
-                        """), {"err": str(e), "id": controller_job["id"], "backoff": backoff_minutes})
+                        """), {"err": str(e), "id": controller_job["id"], "backoff": backoff_seconds})
                         await session.commit()
                         return False
 
