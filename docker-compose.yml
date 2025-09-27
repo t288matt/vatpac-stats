@@ -121,6 +121,9 @@ services:
       # Enable/disable controller-specific ranges (used by both services)
       ENABLE_CONTROLLER_SPECIFIC_RANGES: "true"
       
+      # Enrichment Worker Configuration
+      MAX_ENRICHMENT_RETRIES: "5"               # Maximum number of retry attempts before permanent failure
+      
       # Fallback proximity for unknown controller types (used by both services)
       CONTROLLER_PROXIMITY_DEFAULT_NM: "30"
 
