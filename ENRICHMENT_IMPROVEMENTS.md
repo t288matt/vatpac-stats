@@ -165,13 +165,6 @@ async def run_once(self):
 - Add more precise timeout controls for expensive operations
 - Use materialized views for frequently accessed data
 
-### 4. Processing Order Improvements
-
-Prioritize processing based on:
-1. Flights with known high ATC coverage
-2. Recent flights (more likely to be viewed)
-3. Flights with specific equipment types or in specific regions
-
 ## Benefits
 
 1. **Reduced Database Load**: Fewer retries and more efficient processing
