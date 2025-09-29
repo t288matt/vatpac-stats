@@ -57,16 +57,15 @@ Controller Session Ends → Controller Summary Created with enrichment_status='p
 
 **Proposed Flow:**
 ```
-Controller Session Ends → Controller Summary Created with enrichment_status='wait_for_delay' 
-→ 10-Minute Delay → enrichment_status='pending' 
+Controller Session Ends → Controller Summary Created with enrichment_status='pending'
 → Worker Claims → Process Once → Minimal Retries
 ```
 
-**Rationale for Controller Delay:**
-- Controller sessions affect multiple flights that may still be in progress
-- 10-minute delay ensures all related flight data has been processed
-- Significantly reduces retries due to timing-related data availability issues
-- Flight data is typically more stable after this short delay
+**Rationale for Immediate Controller Processing:**
+- Controller enrichment only needs transceiver data from when the controller was active
+- All necessary data already exists when controller session is marked complete
+- The system already waits 15 minutes (CONTROLLER_COMPLETION_MINUTES) of inactivity before marking a session complete
+- No need for additional delay - process immediately for fastest results
 
 ### 2. Implementation Changes
 
