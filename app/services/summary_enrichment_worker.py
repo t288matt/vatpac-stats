@@ -161,6 +161,9 @@ class SummaryEnrichmentWorker:
         but serves as an important safeguard, especially during bulk processing.
         """
         try:
+            # Import json with module alias to avoid scope issues
+            import json as json_module
+            
             async with get_database_session() as session:
                 # Create structured error info
                 error_info = {
@@ -186,7 +189,7 @@ class SummaryEnrichmentWorker:
                 """), {
                     "max_retries": MAX_ENRICHMENT_RETRIES, 
                     "error_msg": error_msg,
-                    "error_info": json.dumps(error_info, default=_json_default)
+                    "error_info": json_module.dumps(error_info, default=_json_default)
                 })
                 
                 failed_flights = result.fetchall()
@@ -208,7 +211,7 @@ class SummaryEnrichmentWorker:
                 """), {
                     "max_retries": MAX_ENRICHMENT_RETRIES, 
                     "error_msg": error_msg,
-                    "error_info": json.dumps(error_info, default=_json_default)
+                    "error_info": json_module.dumps(error_info, default=_json_default)
                 })
                 
                 failed_controllers = controller_result.fetchall()
@@ -296,7 +299,7 @@ class SummaryEnrichmentWorker:
                         """), {
                             "id": fs_id, 
                             "error_msg": error_msg,
-                            "error_info": json.dumps(error_info, default=_json_default)
+                            "error_info": json_module.dumps(error_info, default=_json_default)
                         })
                         await session.commit()
                         logger.warning(f"TECHNICAL FAILURE: flight id={fs_id}, callsign={callsign}, attempts={current_attempts}, max={MAX_ENRICHMENT_RETRIES}")
@@ -354,8 +357,9 @@ class SummaryEnrichmentWorker:
                             logger.exception("Failed to compute total_enroute from flights for enrichment")
                             total_enroute_minutes = 0
 
-                        # Use custom default serializer
-                        controller_callsigns_json = json.dumps(
+                        # Use custom default serializer - ensure we use the global json module
+                        import json as json_module  # Local import with different name
+                        controller_callsigns_json = json_module.dumps(
                             atc_data.get("controller_callsigns", {}), default=_json_default
                         )
 
@@ -410,7 +414,7 @@ class SummaryEnrichmentWorker:
                             """), {
                                 "err": str(e), 
                                 "id": fs_id, 
-                                "error_info": json.dumps(error_info, default=_json_default)
+                                "error_info": json_module.dumps(error_info, default=_json_default)
                             })
                             logger.error(f"DATA ERROR: flight id={fs_id}, callsign={callsign}, error={str(e)}")
                         else:
@@ -428,7 +432,7 @@ class SummaryEnrichmentWorker:
                                 "err": str(e), 
                                 "id": fs_id, 
                                 "backoff": backoff_seconds,
-                                "error_info": json.dumps(error_info, default=_json_default)
+                                "error_info": json_module.dumps(error_info, default=_json_default)
                             })
                         await session.commit()
                         return False
@@ -471,8 +475,8 @@ class SummaryEnrichmentWorker:
 
                         # Use custom default serializer
                         import json
-                        aircraft_details_json = json.dumps(flight_data.get("details", []), default=_json_default)
-                        hourly_json = json.dumps(flight_data.get("hourly_breakdown", {}), default=_json_default)
+                        aircraft_details_json = json_module.dumps(flight_data.get("details", []), default=_json_default)
+                        hourly_json = json_module.dumps(flight_data.get("hourly_breakdown", {}), default=_json_default)
                         
                         await session.execute(text("""
                             UPDATE controller_summaries
@@ -525,7 +529,7 @@ class SummaryEnrichmentWorker:
                             """), {
                                 "err": str(e), 
                                 "id": controller_job["id"], 
-                                "error_info": json.dumps(error_info, default=_json_default)
+                                "error_info": json_module.dumps(error_info, default=_json_default)
                             })
                             logger.error(f"DATA ERROR: controller id={controller_job['id']}, callsign={controller_job['callsign']}, error={str(e)}")
                         else:
@@ -543,7 +547,7 @@ class SummaryEnrichmentWorker:
                                 "err": str(e), 
                                 "id": controller_job["id"], 
                                 "backoff": backoff_seconds,
-                                "error_info": json.dumps(error_info, default=_json_default)
+                                "error_info": json_module.dumps(error_info, default=_json_default)
                             })
                         await session.commit()
                         return False
