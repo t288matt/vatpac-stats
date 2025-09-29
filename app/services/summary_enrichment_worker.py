@@ -5,8 +5,9 @@ and runs enrichment logic using the detection services. It is intentionally mini
 single-threaded to keep behaviour deterministic for initial rollout.
 """
 import asyncio
+import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from decimal import Decimal
 from typing import Dict
 
@@ -30,7 +31,7 @@ from app.services.atc_detection_service import ATCDetectionService
 from app.services.flight_detection_service import FlightDetectionService
 
 # Environment configuration
-MAX_ENRICHMENT_RETRIES = int(os.getenv('MAX_ENRICHMENT_RETRIES', '5'))
+MAX_ENRICHMENT_RETRIES = int(os.getenv('MAX_ENRICHMENT_RETRIES', '1'))  # Reduced from 5 to 1
 ENABLE_ENRICHMENT = os.getenv('ENABLE_ENRICHMENT', 'true').lower() == 'true'
 
 
@@ -69,6 +70,31 @@ class SummaryEnrichmentWorker:
             logger.error(f"Failed to load controller callsigns from config file: {e}")
             return set()
     
+    def _classify_error(self, error):
+        """Classify errors into specific types for better diagnostics."""
+        error_str = str(error).lower()
+        if "timeout" in error_str:
+            return "database_timeout"
+        elif "deadlock" in error_str or "lock" in error_str:
+            return "lock_contention"
+        elif "connection" in error_str:
+            return "connection_error"
+        elif "null value" in error_str or "constraint" in error_str:
+            return "data_constraint_violation"
+        else:
+            return "unknown_error"
+    
+    def is_data_corruption_error(self, error):
+        """Check if the error indicates data corruption rather than a technical issue."""
+        error_str = str(error).lower()
+        return (
+            "invalid input syntax" in error_str or
+            "value too long" in error_str or
+            "violates not-null constraint" in error_str or
+            "violates check constraint" in error_str or
+            "violates unique constraint" in error_str
+        )
+            
     def _filter_valid_controllers(self, atc_data: Dict) -> Dict:
         """Filter out invalid controllers from ATC data before storing in JSONB."""
         if not atc_data.get('controller_callsigns') or not self.valid_controllers:
@@ -120,27 +146,68 @@ class SummaryEnrichmentWorker:
             logger.error(f"Error recovering stuck flights: {e}")
 
     async def _stop_infinite_retry_loops(self):
-        """Stop infinite retry loops by marking problematic flights as failed."""
+        """Stop infinite retry loops by marking problematic records as technical failures.
+        
+        This is a safety mechanism to prevent records from being stuck in the queue
+        indefinitely. With MAX_ENRICHMENT_RETRIES=1, this should rarely be needed
+        but serves as an important safeguard, especially during bulk processing.
+        """
         try:
             async with get_database_session() as session:
-                # Mark flights with max+ attempts as failed to stop infinite loops
-                error_msg = f'MAX_RETRIES_EXCEEDED: Infinite retry loop stopped ({MAX_ENRICHMENT_RETRIES}+ attempts) - DO NOT RESET'
+                # Create structured error info
+                error_info = {
+                    "error_type": "max_retries_exceeded",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "details": f'MAX_RETRIES_EXCEEDED: Safety mechanism triggered ({MAX_ENRICHMENT_RETRIES}+ attempts)',
+                    "retry_count": MAX_ENRICHMENT_RETRIES
+                }
+                
+                # Mark flights with max+ attempts as technical failures
+                # This should only happen if there's a bug or configuration issue
+                error_msg = f'MAX_RETRIES_EXCEEDED: Safety mechanism triggered ({MAX_ENRICHMENT_RETRIES}+ attempts)'
                 result = await session.execute(text("""
                     UPDATE flight_summaries
-                    SET enrichment_status = 'failed',
+                    SET enrichment_status = 'technical_failure',
                         enrichment_last_error = :error_msg,
+                        enrichment_error = :error_info,
                         updated_at = NOW()
-                    WHERE enrichment_attempts >= :max_retries
-                    AND enrichment_status = 'pending'
+                    WHERE enrichment_attempts > :max_retries
+                    AND (enrichment_status = 'pending' OR enrichment_status = 'in_progress')
                     AND completion_time IS NOT NULL
                     RETURNING id, callsign, enrichment_attempts
-                """), {"max_retries": MAX_ENRICHMENT_RETRIES, "error_msg": error_msg})
+                """), {
+                    "max_retries": MAX_ENRICHMENT_RETRIES, 
+                    "error_msg": error_msg,
+                    "error_info": json.dumps(error_info, default=_json_default)
+                })
                 
                 failed_flights = result.fetchall()
                 if failed_flights:
-                    logger.warning(f"PERMANENTLY STOPPED {len(failed_flights)} infinite retry loops by marking as failed")
+                    logger.warning(f"SAFETY: Marked {len(failed_flights)} stuck flight records as technical_failure")
                     for flight in failed_flights:
-                        logger.error(f"PERMANENT_RETRY_LOOP_STOPPED: flight id={flight.id}, callsign={flight.callsign}, attempts={flight.enrichment_attempts}")
+                        logger.error(f"SAFETY_MECHANISM: flight id={flight.id}, callsign={flight.callsign}, attempts={flight.enrichment_attempts}")
+                
+                # Also handle controller summaries with the same approach
+                controller_result = await session.execute(text("""
+                    UPDATE controller_summaries
+                    SET enrichment_status = 'technical_failure',
+                        enrichment_last_error = :error_msg,
+                        enrichment_error = :error_info,
+                        updated_at = NOW()
+                    WHERE enrichment_attempts > :max_retries
+                    AND (enrichment_status = 'pending' OR enrichment_status = 'in_progress')
+                    RETURNING id, callsign, enrichment_attempts
+                """), {
+                    "max_retries": MAX_ENRICHMENT_RETRIES, 
+                    "error_msg": error_msg,
+                    "error_info": json.dumps(error_info, default=_json_default)
+                })
+                
+                failed_controllers = controller_result.fetchall()
+                if failed_controllers:
+                    logger.warning(f"SAFETY: Marked {len(failed_controllers)} stuck controller records as technical_failure")
+                    for controller in failed_controllers:
+                        logger.error(f"SAFETY_MECHANISM: controller id={controller.id}, callsign={controller.callsign}, attempts={controller.enrichment_attempts}")
                 
                 await session.commit()
                 
@@ -154,18 +221,24 @@ class SummaryEnrichmentWorker:
             logger.debug("Enrichment processing is disabled by configuration")
             return False
             
-        # Periodically recover stuck flights and stop infinite retry loops
-        import random
-        if random.random() < 0.01:  # 1% chance per run
-            await self._recover_stuck_flights()
-            await self._stop_infinite_retry_loops()
+        # Recover any stuck records first
+        await self._recover_stuck_flights()
+        await self._stop_infinite_retry_loops()
 
         fs_id = None
         controller_job = None
 
-        # FIX: Use a single transaction for claim and process
+        # Use a single transaction for claim and process with advisory locking
         try:
             async with get_database_session() as session:
+                # Acquire advisory lock for enrichment (prevents duplicate processing)
+                lock_acquired = await session.execute(text(
+                    "SELECT pg_try_advisory_xact_lock(:lock_key)"
+                ), {"lock_key": 12345678})  # Unique lock key for enrichment
+                
+                if not lock_acquired.scalar():
+                    logger.debug("Another worker has the enrichment lock - skipping")
+                    return False
                 # Try flight summary first
                 claim_flight_sql = text("""
                     SELECT id, callsign, departure, arrival, logon_time
@@ -196,15 +269,29 @@ class SummaryEnrichmentWorker:
                     # Stop retry loops at configured max attempts
                     if current_attempts >= MAX_ENRICHMENT_RETRIES:
                         error_msg = f'MAX_RETRIES_EXCEEDED: Stopped after {MAX_ENRICHMENT_RETRIES} attempts - no more retries'
+                        
+                        # Create structured error info
+                        error_info = {
+                            "error_type": "max_retries_exceeded",
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "details": error_msg,
+                            "retry_count": current_attempts
+                        }
+                        
                         await session.execute(text("""
                             UPDATE flight_summaries
-                            SET enrichment_status = 'failed',
+                            SET enrichment_status = 'technical_failure',
                                 enrichment_last_error = :error_msg,
+                                enrichment_error = :error_info,
                                 updated_at = now()
                             WHERE id = :id
-                        """), {"id": fs_id, "error_msg": error_msg})
+                        """), {
+                            "id": fs_id, 
+                            "error_msg": error_msg,
+                            "error_info": json.dumps(error_info, default=_json_default)
+                        })
                         await session.commit()
-                        logger.warning(f"MAX_RETRIES_EXCEEDED: flight id={fs_id}, callsign={callsign}, attempts={current_attempts}, max={MAX_ENRICHMENT_RETRIES}")
+                        logger.warning(f"TECHNICAL FAILURE: flight id={fs_id}, callsign={callsign}, attempts={current_attempts}, max={MAX_ENRICHMENT_RETRIES}")
                         return False
 
                     # Mark as in_progress but don't commit yet
@@ -293,19 +380,49 @@ class SummaryEnrichmentWorker:
                         return True
                         
                     except Exception as e:
-                        # On any error, reset to pending with proper error logging
+                        # On any error, reset to pending with proper error logging and structured error info
                         logger.exception(f"Enrichment failed for id={fs_id} callsign={callsign}: {e}")
-                        # Use custom backoff schedule: 2, 10, 60, 300, 3600 seconds
-                        backoff_schedule = [2, 10, 60, 300, 3600]  # 2s, 10s, 1m, 5m, 1h
-                        backoff_seconds = backoff_schedule[min(current_attempts, len(backoff_schedule) - 1)]
-                        await session.execute(text("""
-                            UPDATE flight_summaries
-                            SET enrichment_status = 'pending', 
-                                enrichment_run_after = now() + interval ':backoff seconds', 
-                                enrichment_last_error = :err, 
-                                updated_at = now()
-                            WHERE id = :id
-                        """), {"err": str(e), "id": fs_id, "backoff": backoff_seconds})
+                        
+                        # Create structured error info
+                        error_info = {
+                            "error_type": self._classify_error(e),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "details": str(e),
+                            "retry_count": current_attempts + 1
+                        }
+                        
+                        # Check for data corruption errors
+                        if self.is_data_corruption_error(e):
+                            await session.execute(text("""
+                                UPDATE flight_summaries
+                                SET enrichment_status = 'data_error', 
+                                    enrichment_last_error = :err,
+                                    enrichment_error = :error_info,
+                                    updated_at = now()
+                                WHERE id = :id
+                            """), {
+                                "err": str(e), 
+                                "id": fs_id, 
+                                "error_info": json.dumps(error_info, default=_json_default)
+                            })
+                            logger.error(f"DATA ERROR: flight id={fs_id}, callsign={callsign}, error={str(e)}")
+                        else:
+                            # Use fixed 5-minute backoff instead of exponential backoff
+                            backoff_seconds = 300  # Fixed 5-minute backoff
+                            await session.execute(text("""
+                                UPDATE flight_summaries
+                                SET enrichment_status = 'pending', 
+                                    enrichment_run_after = now() + interval ':backoff seconds', 
+                                    enrichment_last_error = :err,
+                                    enrichment_error = :error_info,
+                                    updated_at = now()
+                                WHERE id = :id
+                            """), {
+                                "err": str(e), 
+                                "id": fs_id, 
+                                "backoff": backoff_seconds,
+                                "error_info": json.dumps(error_info, default=_json_default)
+                            })
                         await session.commit()
                         return False
                 else:
@@ -375,23 +492,52 @@ class SummaryEnrichmentWorker:
                         
                     except Exception as e:
                         logger.exception(f"Controller enrichment failed for id={controller_job['id']} callsign={controller_job['callsign']}: {e}")
-                        # Get current attempt count for exponential backoff
+                        # Get current attempt count for structured error info
                         attempt_result = await session.execute(text("""
                             SELECT COALESCE(enrichment_attempts, 0) as attempts FROM controller_summaries WHERE id = :id
                         """), {"id": controller_job["id"]})
                         current_attempts = attempt_result.fetchone().attempts
                         
-                        # Use custom backoff schedule: 2, 10, 60, 300, 3600 seconds
-                        backoff_schedule = [2, 10, 60, 300, 3600]  # 2s, 10s, 1m, 5m, 1h
-                        backoff_seconds = backoff_schedule[min(current_attempts, len(backoff_schedule) - 1)]
-                        await session.execute(text("""
-                            UPDATE controller_summaries
-                            SET enrichment_status = 'pending', 
-                                enrichment_run_after = now() + interval ':backoff seconds', 
-                                enrichment_last_error = :err, 
-                                updated_at = now()
-                            WHERE id = :id
-                        """), {"err": str(e), "id": controller_job["id"], "backoff": backoff_seconds})
+                        # Create structured error info
+                        error_info = {
+                            "error_type": self._classify_error(e),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "details": str(e),
+                            "retry_count": current_attempts + 1
+                        }
+                        
+                        # Check for data corruption errors
+                        if self.is_data_corruption_error(e):
+                            await session.execute(text("""
+                                UPDATE controller_summaries
+                                SET enrichment_status = 'data_error', 
+                                    enrichment_last_error = :err,
+                                    enrichment_error = :error_info,
+                                    updated_at = now()
+                                WHERE id = :id
+                            """), {
+                                "err": str(e), 
+                                "id": controller_job["id"], 
+                                "error_info": json.dumps(error_info, default=_json_default)
+                            })
+                            logger.error(f"DATA ERROR: controller id={controller_job['id']}, callsign={controller_job['callsign']}, error={str(e)}")
+                        else:
+                            # Use fixed 5-minute backoff instead of exponential backoff
+                            backoff_seconds = 300  # Fixed 5-minute backoff
+                            await session.execute(text("""
+                                UPDATE controller_summaries
+                                SET enrichment_status = 'pending', 
+                                    enrichment_run_after = now() + interval ':backoff seconds', 
+                                    enrichment_last_error = :err,
+                                    enrichment_error = :error_info,
+                                    updated_at = now()
+                                WHERE id = :id
+                            """), {
+                                "err": str(e), 
+                                "id": controller_job["id"], 
+                                "backoff": backoff_seconds,
+                                "error_info": json.dumps(error_info, default=_json_default)
+                            })
                         await session.commit()
                         return False
 
