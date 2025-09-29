@@ -29,8 +29,9 @@ from app.database import get_database_session
 from app.services.atc_detection_service import ATCDetectionService
 from app.services.flight_detection_service import FlightDetectionService
 
-# Get max retries from environment variable
+# Environment configuration
 MAX_ENRICHMENT_RETRIES = int(os.getenv('MAX_ENRICHMENT_RETRIES', '5'))
+ENABLE_ENRICHMENT = os.getenv('ENABLE_ENRICHMENT', 'true').lower() == 'true'
 
 
 logger = logging.getLogger(__name__)
@@ -148,6 +149,11 @@ class SummaryEnrichmentWorker:
 
     async def run_once(self):
         """Process one enrichment job with improved error handling."""
+        # Check if enrichment is enabled
+        if not ENABLE_ENRICHMENT:
+            logger.debug("Enrichment processing is disabled by configuration")
+            return False
+            
         # Periodically recover stuck flights and stop infinite retry loops
         import random
         if random.random() < 0.01:  # 1% chance per run
@@ -397,6 +403,12 @@ class SummaryEnrichmentWorker:
     async def run_loop(self):
         while True:
             try:
+                # Check if enrichment is enabled at each loop iteration
+                if not ENABLE_ENRICHMENT:
+                    logger.info("Enrichment processing is disabled. Sleeping before checking configuration again.")
+                    await asyncio.sleep(60)  # Check every minute if enrichment has been enabled
+                    continue
+                    
                 did = await self.run_once()
                 if not did:
                     await asyncio.sleep(self.poll_interval)
@@ -409,6 +421,13 @@ class SummaryEnrichmentWorker:
 
 async def main():
     w = SummaryEnrichmentWorker()
+    
+    # Log the enrichment status at startup
+    if ENABLE_ENRICHMENT:
+        logger.info("Enrichment worker starting - enrichment processing is ENABLED")
+    else:
+        logger.warning("Enrichment worker starting - enrichment processing is DISABLED")
+        
     await w.run_loop()
 
 
