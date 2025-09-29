@@ -104,6 +104,14 @@ class SummaryEnrichmentWorker:
         filtered_controllers = {}
         filtered_count = 0
         
+        # Handle case where original_controllers is a list instead of a dict
+        if isinstance(original_controllers, list):
+            controller_dict = {}
+            for controller in original_controllers:
+                if isinstance(controller, dict) and 'callsign' in controller:
+                    controller_dict[controller['callsign']] = controller
+            original_controllers = controller_dict
+            
         for callsign, data in original_controllers.items():
             if callsign in self.valid_controllers:
                 filtered_controllers[callsign] = data
@@ -347,7 +355,6 @@ class SummaryEnrichmentWorker:
                             total_enroute_minutes = 0
 
                         # Use custom default serializer
-                        import json
                         controller_callsigns_json = json.dumps(
                             atc_data.get("controller_callsigns", {}), default=_json_default
                         )
