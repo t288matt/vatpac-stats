@@ -161,6 +161,9 @@ class SummaryEnrichmentWorker:
         but serves as an important safeguard, especially during bulk processing.
         """
         try:
+            # Import json with module alias to avoid scope issues
+            import json as json_module
+            
             async with get_database_session() as session:
                 # Create structured error info
                 error_info = {
