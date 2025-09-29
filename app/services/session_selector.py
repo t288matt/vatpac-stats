@@ -35,7 +35,19 @@ async def select_canonical_sessions(
     
     query = text(
         """
-        WITH base AS (
+        WITH processed_flights AS (
+            -- First get all the processed flights (with completion_time and completed status)
+            -- This reduces the number of queries against flight_summaries
+            SELECT DISTINCT 
+                callsign, 
+                cid, 
+                departure, 
+                arrival
+            FROM flight_summaries
+            WHERE completion_time IS NOT NULL
+            AND enrichment_status = 'completed'
+        ),
+        base AS (
             SELECT 
                 callsign,
                 cid,
@@ -56,6 +68,15 @@ async def select_canonical_sessions(
                 military_rating
             FROM flights
             WHERE NOW() >= last_updated + ((:completion_hours)::int * INTERVAL '1 hour')
+            -- More efficient anti-join using the processed_flights CTE
+            AND NOT EXISTS (
+                SELECT 1
+                FROM processed_flights pf
+                WHERE pf.callsign = flights.callsign
+                AND pf.cid = flights.cid
+                AND pf.departure = flights.departure
+                AND pf.arrival = flights.arrival
+            )
             UNION ALL
             SELECT 
                 callsign,
@@ -77,6 +98,15 @@ async def select_canonical_sessions(
                 military_rating
             FROM flights_archive
             WHERE NOW() >= last_updated + ((:completion_hours)::int * INTERVAL '1 hour')
+            -- More efficient anti-join using the processed_flights CTE
+            AND NOT EXISTS (
+                SELECT 1
+                FROM processed_flights pf
+                WHERE pf.callsign = flights_archive.callsign
+                AND pf.cid = flights_archive.cid
+                AND pf.departure = flights_archive.departure
+                AND pf.arrival = flights_archive.arrival
+            )
         ), ordered AS (
             SELECT 
                 callsign,
