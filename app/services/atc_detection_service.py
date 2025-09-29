@@ -585,8 +585,11 @@ class ATCDetectionService:
             else:
                 airborne_controller_time_percentage = min(100.0, (total_airborne_controller_time_minutes / total_enroute_time_minutes) * 100.0)
             
+            # Convert the controller_data dictionary to an array of values for consistent structure
+            controller_array = list(controller_data.values()) if controller_data else []
+            
             return {
-                "controller_callsigns": controller_data,
+                "controller_callsigns": controller_array,  # Store as array instead of dictionary
                 "controller_time_percentage": round(controller_time_percentage, 1),
                 "airborne_controller_time_percentage": round(airborne_controller_time_percentage, 1),
                 "total_controller_time_minutes": total_controller_time,
@@ -945,7 +948,7 @@ class ATCDetectionService:
     def _create_empty_atc_data(self) -> Dict[str, Any]:
         """Create empty ATC data structure."""
         return {
-            "controller_callsigns": {},
+            "controller_callsigns": [],  # Changed from {} to [] to ensure consistent array structure
             "controller_time_percentage": 0.0,
             "airborne_controller_time_percentage": 0.0,
             "total_controller_time_minutes": 0,
