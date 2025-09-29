@@ -318,6 +318,7 @@ async def lifespan(app: FastAPI):
             except asyncio.CancelledError:
                 pass
             logger.info("Summary enrichment worker cancelled")
+            
 
 # Create FastAPI application
 app = FastAPI(
@@ -343,6 +344,7 @@ async def enrichment_status():
     async with get_database_session() as session:
         q = text("""
             SELECT
+              (SELECT count(*) FROM flight_summaries WHERE enrichment_status='wait_for_completion') AS flight_waiting,
               (SELECT count(*) FROM flight_summaries WHERE enrichment_status='pending') AS flight_pending,
               (SELECT count(*) FROM flight_summaries WHERE enrichment_status='in_progress') AS flight_in_progress,
               (SELECT count(*) FROM flight_summaries WHERE enrichment_status='completed') AS flight_completed,
@@ -355,6 +357,7 @@ async def enrichment_status():
         res = await session.execute(q)
         row = res.fetchone()
         return {
+            "flight_waiting": int(row.flight_waiting),
             "flight_pending": int(row.flight_pending),
             "flight_in_progress": int(row.flight_in_progress),
             "flight_completed": int(row.flight_completed),
