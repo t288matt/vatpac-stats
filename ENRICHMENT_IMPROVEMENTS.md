@@ -224,22 +224,194 @@ This classification provides:
 - More targeted retry strategies based on failure category
 - Clearer reporting on system health
 
-## Implementation Phases
+## Implementation Progress
 
-1. **Phase 1**: Implement the consolidated approach for both entities
-   - For flights: Add wait_for_completion state and transition logic
-   - For controllers: Keep current immediate processing
-   - Implement simplified failure states
+### Phase 1: Implement the consolidated approach (COMPLETED)
 
-2. **Phase 2**: Simplify retry mechanisms
-   - Reduce to single retry with 5-minute backoff
-   - Improve error reporting and diagnostics
-   - Add advisory locking to prevent duplicate processing
+✅ **For flights**: 
+- Added `wait_for_completion` state for newly created flight summaries
+- Implemented automatic transition to `pending` when flight completes
+- Updated API status endpoint to include `wait_for_completion` counts
 
-3. **Phase 3**: Optimize core processing logic
-   - Review and optimize SQL queries in both detection services
-   - Add better indexing for frequency matching
-   - Implement targeted timeouts on expensive operations
+✅ **For controllers**:
+- Kept current immediate processing (no changes needed)
+- Controllers are already complete when created
+
+🔄 **Pending**:
+- Implement simplified failure states
+
+### Phase 2: Simplify retry mechanisms (PENDING)
+
+#### Planned Implementation Details
+
+1. **Reduce to single retry with fixed backoff**:
+   - Modify `MAX_ENRICHMENT_RETRIES` to 1 (from current 5)
+   - Replace exponential backoff with fixed 5-minute delay
+   - Update SQL query that checks retry count:
+   ```sql
+   -- Current check
+   SELECT enrichment_attempts, enrichment_status
+   FROM flight_summaries  -- or controller_summaries
+   WHERE id = :id
+   FOR UPDATE
+   
+   -- Will be modified to fail permanently after just 1 retry
+   ```
+
+2. **Improve error reporting and diagnostics**:
+   - Add structured error information in JSON format:
+   ```python
+   error_info = {
+       "error_type": "database_timeout",  # or "lock_contention", etc.
+       "timestamp": datetime.now(timezone.utc),
+       "details": str(e),
+       "retry_count": attempts + 1
+   }
+   
+   # Store in database
+   await session.execute(text("""
+       UPDATE flight_summaries
+       SET enrichment_error = :error_info
+       WHERE id = :id
+   """), {"id": summary_id, "error_info": json.dumps(error_info)})
+   ```
+
+3. **Add advisory locking to prevent duplicate processing**:
+   - Implement PostgreSQL advisory locks in the worker's run_once method:
+   ```python
+   async def run_once(self):
+       """Process one enrichment job with improved transaction safety."""
+       if not ENABLE_ENRICHMENT:
+           return False
+           
+       async with get_database_session() as session:
+           # Acquire advisory lock for enrichment (prevents duplicate processing)
+           lock_acquired = await session.execute(text(
+               "SELECT pg_try_advisory_xact_lock(:lock_key)"
+           ), {"lock_key": 12345678})  # Unique lock key for enrichment
+           
+           if not lock_acquired.scalar():
+               logger.debug("Another worker has the enrichment lock - skipping")
+               return False
+               
+           # Proceed with claiming and processing
+           # ...
+   ```
+
+4. **Implement new failure classification**:
+   - Add new status values in database schema:
+   ```sql
+   ALTER TYPE enrichment_status_enum ADD VALUE 'technical_failure' AFTER 'failed';
+   ALTER TYPE enrichment_status_enum ADD VALUE 'data_error' AFTER 'technical_failure';
+   ```
+   
+   - Update worker code to use these new statuses:
+   ```python
+   # For technical failures after max retries
+   if attempts >= MAX_ENRICHMENT_RETRIES:
+       await session.execute(text("""
+           UPDATE flight_summaries
+           SET enrichment_status = 'technical_failure',
+               enrichment_error = :error_info,
+               updated_at = NOW()
+           WHERE id = :id
+       """), {"id": summary_id, "error_info": json.dumps(error_info)})
+   
+   # For data corruption issues
+   if is_data_corruption_error(e):
+       await session.execute(text("""
+           UPDATE flight_summaries
+           SET enrichment_status = 'data_error',
+               enrichment_error = :error_info,
+               updated_at = NOW()
+           WHERE id = :id
+       """), {"id": summary_id, "error_info": json.dumps(error_info)})
+   ```
+
+### Phase 3: Optimize core processing logic (PENDING)
+
+- Review and optimize SQL queries in both detection services
+- Add better indexing for frequency matching
+- Implement targeted timeouts on expensive operations
+
+## Implementation Details
+
+### Phase 1 Implementation (2025-09-29)
+
+The following changes were made to implement completion-triggered enrichment:
+
+1. **Modified flight summary creation**:
+   ```sql
+   UPDATE flight_summaries
+   SET
+       enrichment_status = 'wait_for_completion',  -- Changed from 'pending'
+       enrichment_attempts = COALESCE(enrichment_attempts, 0),
+       enrichment_run_after = NOW(),
+       updated_at = NOW()
+   ```
+
+2. **Added automatic transition in canonical processor**:
+   ```sql
+   UPDATE flight_summaries
+   SET
+       -- Other fields...
+       
+       -- Transition from wait_for_completion to pending when flight is completed
+       enrichment_status = CASE 
+           WHEN enrichment_status = 'wait_for_completion' THEN 'pending'
+           ELSE enrichment_status
+       END,
+       enrichment_run_after = CASE 
+           WHEN enrichment_status = 'wait_for_completion' THEN NOW()
+           ELSE enrichment_run_after
+       END
+   ```
+
+3. **Updated API status endpoint**:
+   ```sql
+   SELECT
+     (SELECT count(*) FROM flight_summaries WHERE enrichment_status='wait_for_completion') AS flight_waiting,
+     -- Other counts...
+   ```
+
+## Bulk Processing Capabilities
+
+The enrichment system is designed to handle bulk processing of hundreds of flight or controller completions:
+
+### Current Design Strengths
+
+1. **Robust Queue Management**:
+   - Uses `FOR UPDATE SKIP LOCKED` for non-blocking row access
+   - Records processed in orderly FIFO sequence
+   - No database contention even with large queues
+
+2. **Single-Threaded by Design**:
+   - One worker processing one record at a time (5-second intervals)
+   - Intentionally single-threaded for deterministic behavior
+   - This is a design choice, not a technical limitation
+
+3. **Database-Friendly Processing**:
+   - Only locks ONE record at a time per worker
+   - Locks are held briefly (30-second timeout maximum)
+   - No accumulation of locks that could overwhelm the database
+
+4. **Self-Healing Queue**:
+   - Skipped records remain in pending state
+   - No special requeuing logic needed
+   - Worker automatically picks up available records
+
+### Performance Characteristics
+
+- Processing rate: ~12 records per minute (single worker)
+- Large queue handling: Can process thousands of records
+- No database overwhelm: Only 1 lock per worker at any time
+
+### Bulk Processing Recommendations
+
+For bulk reprocessing scenarios (hundreds of records):
+1. Use the `ENABLE_ENRICHMENT` toggle to control processing
+2. Monitor queue size and processing rate
+3. No changes needed to handle bulk loads - system is designed for this
 
 ## Conclusion
 
@@ -249,5 +421,6 @@ By treating flight and controller enrichment as symmetric, independent processes
 2. **Efficiency**: No unnecessary delays or dependencies
 3. **Reliability**: First-attempt success rate dramatically increases
 4. **Clarity**: Clear distinction between normal results and technical failures
+5. **Scalability**: Graceful handling of bulk processing scenarios
 
 This approach recognizes that the absence of matching data is not a failure state, but a normal, expected outcome in many cases. The system will only retry for true technical issues, which should be rare, and will accurately report the enrichment status.
