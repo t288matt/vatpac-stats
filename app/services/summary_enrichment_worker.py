@@ -474,7 +474,7 @@ class SummaryEnrichmentWorker:
                         )
 
                         # Use custom default serializer
-                        import json
+                        import json as json_module
                         aircraft_details_json = json_module.dumps(flight_data.get("details", []), default=_json_default)
                         hourly_json = json_module.dumps(flight_data.get("hourly_breakdown", {}), default=_json_default)
                         
