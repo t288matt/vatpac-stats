@@ -2592,12 +2592,15 @@ RETURNING fso.id;
                         processed += 1
 
                     # Enqueue enrichment work for this summary instead of running inline.
-                    # Mark enrichment as wait_for_completion in the same transaction that created/updated the summary.
+                    # If completion_time is set, mark as 'pending', otherwise 'wait_for_completion'
                     try:
                         enqueue_sql = text("""
                             UPDATE flight_summaries
                             SET
-                                enrichment_status = 'wait_for_completion',
+                                enrichment_status = CASE 
+                                    WHEN completion_time IS NOT NULL THEN 'pending'
+                                    ELSE 'wait_for_completion'
+                                END,
                                 enrichment_attempts = COALESCE(enrichment_attempts, 0),
                                 enrichment_run_after = NOW(),
                                 updated_at = NOW()

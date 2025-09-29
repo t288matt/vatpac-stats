@@ -36,7 +36,7 @@ async def select_canonical_sessions(
     query = text(
         """
         WITH processed_flights AS (
-            -- First get all the processed flights (with completion_time and completed status)
+            -- First get all the processed flights (any flight summary record exists)
             -- This reduces the number of queries against flight_summaries
             SELECT DISTINCT 
                 callsign, 
@@ -44,8 +44,7 @@ async def select_canonical_sessions(
                 departure, 
                 arrival
             FROM flight_summaries
-            WHERE completion_time IS NOT NULL
-            AND enrichment_status = 'completed'
+            -- No enrichment status filter - canonical only cares if record exists
         ),
         base AS (
             SELECT 

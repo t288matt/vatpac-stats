@@ -5,8 +5,9 @@ and runs enrichment logic using the detection services. It is intentionally mini
 single-threaded to keep behaviour deterministic for initial rollout.
 """
 import asyncio
+import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from decimal import Decimal
 from typing import Dict
 
@@ -220,32 +221,24 @@ class SummaryEnrichmentWorker:
             logger.debug("Enrichment processing is disabled by configuration")
             return False
             
-        # Use advisory locks to prevent race conditions
-        async with get_database_session() as session:
-            # Acquire advisory lock for enrichment (prevents duplicate processing)
-            lock_acquired = await session.execute(text(
-                "SELECT pg_try_advisory_xact_lock(:lock_key)"
-            ), {"lock_key": 12345678})  # Unique lock key for enrichment
-            
-            if not lock_acquired.scalar():
-                logger.debug("Another worker has the enrichment lock - skipping")
-                return False
-                
-            # If we got the lock, continue with processing
-            await session.commit()
-            
-        # Periodically recover stuck flights and stop infinite retry loops
-        import random
-        if random.random() < 0.01:  # 1% chance per run
-            await self._recover_stuck_flights()
-            await self._stop_infinite_retry_loops()
+        # Recover any stuck records first
+        await self._recover_stuck_flights()
+        await self._stop_infinite_retry_loops()
 
         fs_id = None
         controller_job = None
 
-        # FIX: Use a single transaction for claim and process
+        # Use a single transaction for claim and process with advisory locking
         try:
             async with get_database_session() as session:
+                # Acquire advisory lock for enrichment (prevents duplicate processing)
+                lock_acquired = await session.execute(text(
+                    "SELECT pg_try_advisory_xact_lock(:lock_key)"
+                ), {"lock_key": 12345678})  # Unique lock key for enrichment
+                
+                if not lock_acquired.scalar():
+                    logger.debug("Another worker has the enrichment lock - skipping")
+                    return False
                 # Try flight summary first
                 claim_flight_sql = text("""
                     SELECT id, callsign, departure, arrival, logon_time

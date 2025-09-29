@@ -348,10 +348,14 @@ async def enrichment_status():
               (SELECT count(*) FROM flight_summaries WHERE enrichment_status='pending') AS flight_pending,
               (SELECT count(*) FROM flight_summaries WHERE enrichment_status='in_progress') AS flight_in_progress,
               (SELECT count(*) FROM flight_summaries WHERE enrichment_status='completed') AS flight_completed,
+              (SELECT count(*) FROM flight_summaries WHERE enrichment_status='technical_failure') AS flight_tech_failure,
+              (SELECT count(*) FROM flight_summaries WHERE enrichment_status='data_error') AS flight_data_error,
               (SELECT COALESCE(AVG(EXTRACT(epoch FROM (enrichment_completed_at - enrichment_run_after))),0) FROM flight_summaries WHERE enrichment_status='completed' AND enrichment_completed_at IS NOT NULL AND enrichment_run_after IS NOT NULL) AS flight_avg_latency,
               (SELECT count(*) FROM controller_summaries WHERE enrichment_status='pending') AS controller_pending,
               (SELECT count(*) FROM controller_summaries WHERE enrichment_status='in_progress') AS controller_in_progress,
               (SELECT count(*) FROM controller_summaries WHERE enrichment_status='completed') AS controller_completed,
+              (SELECT count(*) FROM controller_summaries WHERE enrichment_status='technical_failure') AS controller_tech_failure,
+              (SELECT count(*) FROM controller_summaries WHERE enrichment_status='data_error') AS controller_data_error,
               (SELECT COALESCE(AVG(EXTRACT(epoch FROM (enrichment_completed_at - enrichment_run_after))),0) FROM controller_summaries WHERE enrichment_status='completed' AND enrichment_completed_at IS NOT NULL AND enrichment_run_after IS NOT NULL) AS controller_avg_latency
         """)
         res = await session.execute(q)
@@ -361,10 +365,14 @@ async def enrichment_status():
             "flight_pending": int(row.flight_pending),
             "flight_in_progress": int(row.flight_in_progress),
             "flight_completed": int(row.flight_completed),
+            "flight_tech_failure": int(row.flight_tech_failure),
+            "flight_data_error": int(row.flight_data_error),
             "flight_avg_latency_s": float(row.flight_avg_latency),
             "controller_pending": int(row.controller_pending),
             "controller_in_progress": int(row.controller_in_progress),
             "controller_completed": int(row.controller_completed),
+            "controller_tech_failure": int(row.controller_tech_failure),
+            "controller_data_error": int(row.controller_data_error),
             "controller_avg_latency_s": float(row.controller_avg_latency),
         }
 
