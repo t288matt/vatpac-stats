@@ -2767,6 +2767,12 @@ RETURNING fso.id;
     async def start_scheduled_flight_processing(self):
         """Start automatic scheduled flight summary processing with adaptive intervals."""
         try:
+            # Check if task is already running
+            if (self.flight_summary_task is not None and 
+                not self.flight_summary_task.done()):
+                self.logger.info("Flight summary task already running - not starting another")
+                return
+                
             # Validate configuration before starting
             self._validate_flight_summary_config()
             
@@ -2784,6 +2790,12 @@ RETURNING fso.id;
     async def start_scheduled_controller_processing(self):
         """Start automatic scheduled controller summary processing."""
         try:
+            # Check if task is already running
+            if (self.controller_summary_task is not None and 
+                not self.controller_summary_task.done()):
+                self.logger.info("Controller summary task already running - not starting another")
+                return
+                
             # Validate configuration before starting
             self._validate_controller_summary_config()
             
