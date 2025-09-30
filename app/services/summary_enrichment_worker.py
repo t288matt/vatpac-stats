@@ -345,17 +345,8 @@ class SummaryEnrichmentWorker:
                             logger.info(f"Deferring flight enrichment id={fs_id} callsign={callsign}: completion_time missing")
                             return False
 
-                        # Compute total enroute time
-                        total_enroute_minutes = 0
-                        try:
-                            if ct_val:
-                                total_enroute = await self.atc_service._get_airborne_time_from_flights(
-                                    callsign, departure, arrival, logon_time, ct_val
-                                )
-                                total_enroute_minutes = int(total_enroute) if total_enroute is not None else 0
-                        except Exception:
-                            logger.exception("Failed to compute total_enroute from flights for enrichment")
-                            total_enroute_minutes = 0
+                        # Note: Total enroute time calculation has been removed
+                        # It's now handled properly by canonical processing instead of enrichment
 
                         # Use custom default serializer - ensure we use the global json module
                         import json as json_module  # Local import with different name
@@ -369,8 +360,6 @@ class SummaryEnrichmentWorker:
                             SET controller_callsigns = :controller_callsigns,
                                 controller_time_percentage = :ctp,
                                 airborne_controller_time_percentage = :actp,
-                                time_online_minutes = :time_online,
-                                total_enroute_time_minutes = :enroute,
                                 enrichment_status = 'completed',
                                 enrichment_completed_at = now(),
                                 enrichment_last_error = NULL,
@@ -380,10 +369,8 @@ class SummaryEnrichmentWorker:
                             "controller_callsigns": controller_callsigns_json,
                             "ctp": atc_data.get("controller_time_percentage", None),
                             "actp": atc_data.get("airborne_controller_time_percentage", None),
-                            "time_online": atc_data.get("total_controller_time_minutes", None),
-                            "enroute": total_enroute_minutes,
                             "id": fs_id
-                        })
+                        })  # Update flight summary with enriched data - fixed to not overwrite canonical processing fields
                         
                         # Commit everything together - either all succeeds or all fails
                         await session.commit()
