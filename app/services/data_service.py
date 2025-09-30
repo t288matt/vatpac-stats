@@ -1263,11 +1263,12 @@ RETURNING fso.id;
         cleanup_timeout = int(os.getenv("CLEANUP_FLIGHT_TIMEOUT", "300"))
         # Acquire in-process lock to avoid concurrent cleanup runs
         async with self._cleanup_lock:
-            # Try to obtain a Postgres advisory lock to coordinate across processes
+            # Try to obtain a Postgres transaction-level advisory lock to coordinate across processes
+            # Using pg_try_advisory_xact_lock ensures the lock is automatically released when the transaction ends
             async with get_database_session() as session:
                 got_lock = False
                 try:
-                    res = await session.execute(text('SELECT pg_try_advisory_lock(:k) AS taken'), {"k": _CLEANUP_ADVISORY_LOCK_KEY})
+                    res = await session.execute(text('SELECT pg_try_advisory_xact_lock(:k) AS taken'), {"k": _CLEANUP_ADVISORY_LOCK_KEY})
                     # res.fetchone() may be a coroutine in tests/mocks; handle both
                     maybe = res.fetchone()
                     if asyncio.iscoroutine(maybe):
@@ -1279,18 +1280,24 @@ RETURNING fso.id;
                     # If advisory lock check fails (e.g., test mocks), assume lock acquired
                     got_lock = True
 
-                try:
-                    # Call DB-wide close helper
-                    sectors_closed = await self._close_stale_sectors(session, cleanup_timeout)
+                # If we didn't get the lock, skip cleanup (another process is handling it)
+                if not got_lock:
+                    self.logger.debug("Skipping cleanup, another process has the advisory lock")
+                    return {
+                        "status": "skipped",
+                        "sectors_closed": 0,
+                        "memory_states_cleaned": 0,
+                        "cleanup_time_seconds": 0,
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    }
 
-                    # Clean up in-memory states for closed sectors
-                    memory_states_cleaned = await self._cleanup_memory_state_for_closed_sectors(session)
-                finally:
-                    # Release advisory lock
-                    try:
-                        await session.execute(text('SELECT pg_advisory_unlock(:k)'), {"k": _CLEANUP_ADVISORY_LOCK_KEY})
-                    except Exception:
-                        self.logger.exception("Failed to release advisory lock")
+                # Call DB-wide close helper
+                sectors_closed = await self._close_stale_sectors(session, cleanup_timeout)
+
+                # Clean up in-memory states for closed sectors
+                memory_states_cleaned = await self._cleanup_memory_state_for_closed_sectors(session)
+
+                # No need to release the lock in finally block - xact lock is automatically released when transaction ends
 
             return {
                 "status": "success",
