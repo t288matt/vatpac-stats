@@ -16,6 +16,8 @@ from sqlalchemy.pool import QueuePool, NullPool
 from sqlalchemy.exc import SQLAlchemyError
 import asyncio
 
+from app.sequence_verification import verify_and_sync_sequences
+
 from app.config import get_config
 from app.utils.logging import get_logger_for_module
 from app.utils.error_handling import handle_service_errors, log_operation
@@ -271,6 +273,21 @@ async def init_db():
             async with async_session_factory() as session:
                 result = await session.execute(text("SELECT 1"))
                 logger.info("✅ Asynchronous database connection successful")
+                
+                # Verify and sync database sequences to prevent primary key conflicts
+                try:
+                    logger.info("🔍 Verifying database sequences...")
+                    success = await verify_and_sync_sequences(session)
+                    if success:
+                        logger.info("✅ Database sequences verified and synced successfully")
+                    else:
+                        error_msg = "🚨 CRITICAL: Database sequence verification failed"
+                        logger.critical(error_msg)
+                        raise RuntimeError("Database sequence verification failed - cannot start with misaligned sequences")
+                except Exception as seq_error:
+                    error_msg = f"🚨 CRITICAL: Database sequence verification error: {seq_error}"
+                    logger.critical(error_msg)
+                    raise RuntimeError(f"Database sequence error: {seq_error}")
         except Exception as e:
             error_msg = f"🚨 CRITICAL: Asynchronous database connection failed: {e}"
             logger.critical(error_msg)

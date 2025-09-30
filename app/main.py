@@ -38,6 +38,7 @@ from app.services.vatsim_service import get_vatsim_service
 from app.services.data_service import get_data_service
 from app.services.summary_enrichment_worker import SummaryEnrichmentWorker
 from app.database import get_database_session
+from app.sequence_verification import verify_and_sync_sequences
 from app.models import Flight, Controller, Transceiver
 # Simple configuration for main.py
 class SimpleConfig:
@@ -126,6 +127,15 @@ async def lifespan(app: FastAPI):
             # Test basic connection
             await session.execute(text("SELECT 1"))
             logger.info("✅ Database connection successful")
+            
+            # Verify sequence alignment to prevent primary key conflicts
+            logger.info("🔍 Verifying database sequences...")
+            success = await verify_and_sync_sequences(session)
+            if not success:
+                error_msg = "🚨 CRITICAL: Database sequence verification failed"
+                logger.critical(error_msg)
+                exit_application("Database sequence verification failed - cannot start with misaligned sequences")
+            logger.info("✅ Database sequences verified and synced successfully")
             
             # Check if all required tables exist - MORE ROBUST VALIDATION
             logger.info("🔍 Verifying database schema...")
