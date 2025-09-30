@@ -909,6 +909,53 @@ class DataService:
         
         return max(sector_breakdown.items(), key=lambda x: x[1])[0]
 
+    async def _get_total_airborne_time(self, callsign: str, session: AsyncSession, 
+                                 logon_time: datetime = None, completion_time: datetime = None) -> int:
+        """
+        Calculate time spent above 1500ft for a completed flight.
+        
+        Args:
+            callsign: Flight callsign
+            session: Database session
+            logon_time: Flight logon time to filter data
+            completion_time: Flight completion time to filter data
+            
+        Returns:
+            Total minutes spent above 1500ft
+        """
+        try:
+            # Build the query with flight session boundary filtering
+            query = """
+                SELECT COUNT(*) as airborne_count
+                FROM flights
+                WHERE callsign = :callsign 
+                AND altitude > 1500
+            """
+            
+            params = {"callsign": callsign}
+            
+            # Add flight session boundary filtering if timestamps are provided
+            if logon_time and completion_time:
+                query += " AND last_updated BETWEEN :logon_time AND :completion_time"
+                params["logon_time"] = logon_time
+                params["completion_time"] = completion_time
+            
+            result = await session.execute(text(query), params)
+            
+            # Calculate minutes based on polling interval from environment variables
+            airborne_count = result.scalar() or 0
+            
+            # Get polling interval from environment (default to 60 seconds if not set)
+            vatsim_polling_interval = int(os.getenv('VATSIM_POLLING_INTERVAL', '60'))
+            polling_interval_minutes = vatsim_polling_interval / 60.0
+            
+            self.logger.info(f"Using VATSIM polling interval of {vatsim_polling_interval} seconds ({polling_interval_minutes} minutes)")
+            return int(airborne_count * polling_interval_minutes)
+        
+        except Exception as e:
+            self.logger.error(f"Failed to calculate airborne time for {callsign}: {e}")
+            return 0
+    
     async def _cleanup_sector_states(self) -> None:
         """
         Clean up sector states for flights that are no longer active.
@@ -2465,7 +2512,13 @@ RETURNING fso.id;
                                 )
                                 primary_sector = self._get_primary_sector(sector_breakdown)
                                 total_sectors = len(sector_breakdown)
-                                total_enroute_time = sum(sector_breakdown.values())
+                                
+                                # Use altitude-based calculation exclusively for total_enroute_time
+                                total_enroute_time = await self._get_total_airborne_time(
+                                    callsign, session,
+                                    logon_time=fl_row.first_updated,
+                                    completion_time=fl_row.last_updated
+                                )
                             except Exception:
                                 sector_breakdown = None
                                 primary_sector = None
@@ -2493,10 +2546,18 @@ RETURNING fso.id;
                             aircraft_faa = COALESCE(aircraft_faa, :aircraft_faa),
                             planned_altitude = COALESCE(planned_altitude, :planned_altitude),
                             aircraft_short = COALESCE(aircraft_short, :aircraft_short),
-                            time_online_minutes = COALESCE(time_online_minutes, :time_online_minutes),
+                            -- Do not update time_online_minutes if it already has a value
+                            time_online_minutes = CASE
+                                WHEN time_online_minutes IS NULL THEN :time_online_minutes
+                                ELSE time_online_minutes
+                            END,
                             primary_enroute_sector = COALESCE(primary_enroute_sector, :primary_enroute_sector),
                             total_enroute_sectors = COALESCE(total_enroute_sectors, :total_enroute_sectors),
-                            total_enroute_time_minutes = COALESCE(total_enroute_time_minutes, :total_enroute_time_minutes),
+                            -- Do not update total_enroute_time_minutes if it already has a value
+                            total_enroute_time_minutes = CASE
+                                WHEN total_enroute_time_minutes IS NULL THEN :total_enroute_time_minutes
+                                ELSE total_enroute_time_minutes
+                            END,
                             sector_breakdown = COALESCE(sector_breakdown, :sector_breakdown),
                             -- Transition from wait_for_completion to pending when flight is completed
                             enrichment_status = CASE 
