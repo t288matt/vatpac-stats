@@ -59,72 +59,15 @@ async def reset_flights_sequence():
             await session.rollback()
             return False
 
-async def check_other_sequences():
-    """Check if other tables might have similar sequence issues"""
-    async with get_database_session() as session:
-        try:
-            # Get a list of all tables with sequences
-            result = await session.execute(text("""
-                SELECT 
-                    c.relname as table_name,
-                    a.attname as column_name,
-                    pg_get_serial_sequence(c.relname, a.attname) as sequence_name
-                FROM 
-                    pg_class c
-                JOIN 
-                    pg_attribute a ON a.attrelid = c.oid
-                WHERE 
-                    c.relkind = 'r' AND
-                    a.attnum > 0 AND 
-                    NOT a.attisdropped AND
-                    pg_get_serial_sequence(c.relname, a.attname) IS NOT NULL
-            """))
-            
-            sequences = result.fetchall()
-            logger.info(f"Found {len(sequences)} tables with sequences")
-            
-            # Check each sequence
-            for seq in sequences:
-                table_name = seq.table_name
-                column_name = seq.column_name
-                sequence_name = seq.sequence_name
-                
-                # Skip system tables
-                if table_name.startswith('pg_') or table_name.startswith('sql_'):
-                    continue
-                
-                # Get the current sequence value
-                seq_result = await session.execute(text(f"SELECT last_value FROM {sequence_name}"))
-                current_seq = seq_result.scalar() or 0
-                
-                # Get the maximum ID from the table
-                max_id_result = await session.execute(text(f"SELECT MAX({column_name}) FROM {table_name}"))
-                max_id = max_id_result.scalar() or 0
-                
-                if max_id > 0 and current_seq <= max_id:
-                    logger.warning(f"Table {table_name}: Sequence {sequence_name} ({current_seq}) is behind MAX({column_name}) ({max_id})")
-                    
-            return True
-        except Exception as e:
-            logger.error(f"Error checking sequences: {e}")
-            return False
-
 async def main():
-    """Main entry point."""
-    logger.info("Starting fix_flights_sequence script")
-    
-    # Reset the flights_id_seq
+    """Main entry point for the script."""
+    logger.info("Starting flights sequence reset procedure")
     success = await reset_flights_sequence()
     if success:
-        logger.info("Flights sequence reset completed successfully")
+        logger.info("✅ Flights sequence reset completed successfully")
     else:
-        logger.error("Failed to reset flights sequence")
-    
-    # Check other sequences
-    logger.info("Checking other sequences for potential issues...")
-    await check_other_sequences()
-    
-    logger.info("Script completed")
+        logger.error("❌ Failed to reset flights sequence")
+        exit(1)
 
 if __name__ == "__main__":
     asyncio.run(main())
