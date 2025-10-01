@@ -42,7 +42,7 @@ services:
       
      
       # VATSIM Data Collection Intervals (seconds)
-      VATSIM_POLLING_INTERVAL: 60    # How often to fetch VATSIM data (60 seconds)
+      VATSIM_POLLING_INTERVAL: 90    # How often to fetch VATSIM data (60 seconds)
       VATSIM_TRANSCEIVERS_POLLING_INTERVAL: 120  # How often to fetch transceivers-data.json (seconds)
       # VATSIM API retry attempts removed; service now logs and handles failures gracefully
       
@@ -75,7 +75,7 @@ services:
       FLIGHT_SUMMARY_ENABLED: "true"          # Enable flight summary processing
       FLIGHT_COMPLETION_HOURS: 8             # Hours after first logon to mark flight as complete. effectively the long fligth time that can happen
       FLIGHT_RETENTION_HOURS: 168000000            # Hours to keep detailed flight data in the archive tables (approx)
-      FLIGHT_DAYS_BEFORE_ARCHIVE: "60"              # Days before flight data is archived in the archive tables
+      FLIGHT_DAYS_BEFORE_ARCHIVE: "90"              # Days before flight data is archived in the archive tables
 
       # Adaptive flight summary batching configuration
       # REMOVED: FLIGHT_SUMMARY_MAX_BATCH limit - system processes all qualifying sessions
@@ -104,7 +104,7 @@ services:
       CONTROLLER_RETENTION_HOURS: "1680000000"  # Max retention time for completed controller sessions. Once eligible for summarization, sessions will be archived and deleted after this time period.
       CONTROLLER_SUMMARY_INTERVAL: "30"   # Scheduler cadence. How often the background task runs to process/archive any sessions that have become eligible.
       CONTROLLER_RECONNECTION_THRESHOLD_MINUTES: "5"  # Minutes to merge controller reconnections into one session
-      CONTROLLER_DAYS_BEFORE_ARCHIVE: "60"            # Days before controller data is archived in the archive tables
+      CONTROLLER_DAYS_BEFORE_ARCHIVE: "120"            # Days before controller data is archived in the archive tables
       
       # Shared Configuration for Both Detection Services
       # Used by: FlightDetectionService (ATC → Flight) AND ATCDetectionService (Flight → ATC)
