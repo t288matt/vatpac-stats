@@ -3003,16 +3003,16 @@ RETURNING fso.id;
 
         Simple adaptive behavior:
         - Process ALL qualifying sessions (no batch limits)
-        - If busy (>50 summaries): sleep 60 seconds
-        - If idle (≤50 summaries): sleep 15 minutes after 3 consecutive low-activity cycles
+        - If busy (>50 summaries): sleep FLIGHT_SUMMARY_POLL_INTERVAL_SHORT seconds
+        - If idle (≤50 summaries): sleep FLIGHT_SUMMARY_POLL_INTERVAL_LONG seconds
         """
         self.logger.info(f"⏰ Scheduled flight summary processing loop started at {datetime.now(timezone.utc)}")
 
         # Load adaptive interval configuration
         max_batch_env = os.getenv("FLIGHT_SUMMARY_MAX_BATCH")
         max_batch = int(max_batch_env) if max_batch_env else None  # None = unlimited
-        short_sleep = int(getattr(self.config.flight_summary, 'poll_interval_short', int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_SHORT", "60"))))
-        long_sleep = int(getattr(self.config.flight_summary, 'poll_interval_long', int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_LONG", "900"))))
+        short_sleep = self.config.flight_summary.poll_interval_short
+        long_sleep = self.config.flight_summary.poll_interval_long
 
         while True:
             try:
@@ -3030,8 +3030,8 @@ RETURNING fso.id;
                 self.logger.info(f"✅ Scheduled processing completed: {summaries} summaries created, {archived} records archived")
 
                 # Simple adaptive sleep logic based on workload:
-                # - Created 50+ summaries: System is busy → check again in 1 minute (might be more work)
-                # - Created <50 summaries: System is quiet → wait 15 minutes before checking again
+                # - Created 50+ summaries: System is busy → check again using short interval (might be more work)
+                # - Created <50 summaries: System is quiet → wait long interval before checking again
                 if isinstance(summaries, int) and summaries >= 50:
                     # High activity - lots of work being processed
                     self.logger.info(f"High activity ({summaries} summaries); sleeping short interval {short_sleep}s")
@@ -3047,7 +3047,7 @@ RETURNING fso.id;
             except Exception as e:
                 self.logger.error(f"❌ Error in scheduled flight processing: {e}")
                 # Wait a bit before retrying, but don't wait the full interval
-                await asyncio.sleep(60)  # Wait 1 minute before retry
+                await asyncio.sleep(short_sleep)  # Wait short interval before retry
 
     async def _scheduled_controller_processing_loop(self, interval_seconds: int):
         """Background loop for scheduled controller summary processing."""
@@ -3073,7 +3073,7 @@ RETURNING fso.id;
             except Exception as e:
                 self.logger.error(f"❌ Error in scheduled controller processing: {e}")
                 # Wait a bit before retrying, but don't wait the full interval
-                await asyncio.sleep(60)  # Wait 1 minute before retry
+                await asyncio.sleep(self.config.flight_summary.poll_interval_short)  # Wait short interval before retry
 
     async def trigger_flight_summary_processing(self) -> Dict[str, Any]:
         """Manually trigger flight summary processing (for testing/admin use)."""
@@ -3286,7 +3286,7 @@ RETURNING fso.id;
             except Exception as e:
                 self.logger.error(f"❌ Error in scheduled ATC detection processing: {e}")
                 # Wait a bit before retrying, but don't wait the full interval
-                await asyncio.sleep(60)  # Wait 1 minute before retry
+                await asyncio.sleep(self.config.flight_summary.poll_interval_short)  # Wait short interval before retry
 
     async def _scheduled_flight_detection_processing_loop(self, interval_seconds: int):
         """Background loop for scheduled flight detection processing."""
@@ -3312,7 +3312,7 @@ RETURNING fso.id;
             except Exception as e:
                 self.logger.error(f"❌ Error in scheduled flight detection processing: {e}")
                 # Wait a bit before retrying, but don't wait the full interval
-                await asyncio.sleep(60)  # Wait 1 minute before retry
+                await asyncio.sleep(self.config.flight_summary.poll_interval_short)  # Wait short interval before retry
 
     def _on_atc_detection_task_done(self, task):
         """Callback when ATC detection task completes or fails."""
