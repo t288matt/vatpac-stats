@@ -178,6 +178,11 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_entity_type_timestamp O
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_atc_join ON transceivers(callsign, entity_type, "timestamp" DESC) WHERE entity_type = 'atc';
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_atc_performance ON transceivers(entity_type, callsign, "timestamp" DESC, frequency, position_lat, position_lon) WHERE entity_type = 'atc';
 
+-- Production performance index for flight frequency queries
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_flight_frequency_time_optimized 
+ON transceivers (frequency, timestamp) 
+WHERE entity_type = 'flight';
+
 -- Create triggers for updated_at columns
 CREATE TRIGGER update_controllers_updated_at 
     BEFORE UPDATE ON controllers 
