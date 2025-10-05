@@ -90,8 +90,8 @@ services:
       
       # Sector Tracking Configuration (used by DataService)
       SECTOR_TRACKING_ENABLED: "true"         # Enable real-time sector occupancy tracking
-      SECTOR_UPDATE_INTERVAL: 60              # Seconds between sector position updates (1 minute)
-      
+      SECTOR_UPDATE_INTERVAL: 60              #i dont thjink this is used anymore. delete?
+            
       # Cleanup Configuration
       # How long (in seconds) a flight must be without updates before being considered "stale"
       # Stale flights have their open sector entries automatically closed with last known position

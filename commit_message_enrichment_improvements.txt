@@ -1,0 +1,14 @@
+Implement enrichment improvements and fix technical failures
+
+- Simplified enrichment retry mechanism with fixed 5-minute backoff
+- Limited retries to 1 attempt before marking as technical failure
+- Added structured error reporting with detailed error classification
+- Fixed session selector to exclude all existing flight summaries
+- Added advisory locking to prevent duplicate processing
+- Added scripts to fix stuck records in wait_for_completion and technical_failure status
+- Updated docker-compose.yml with ENABLE_ENRICHMENT environment variable
+
+These changes improve the reliability and efficiency of the enrichment process,
+reduce database contention, and provide better error diagnostics.
+
+

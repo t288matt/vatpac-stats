@@ -1,0 +1,19 @@
+fix: Implement database sequence verification during startup
+
+This commit addresses critical sequence-data inconsistency issues that caused 
+primary key constraint violations in the flights table.
+
+Key changes:
+1. Added sequence_verification module to detect and fix misaligned sequences
+2. Integrated verification into application startup flow in main.py
+3. Added fail-fast behavior to prevent running with misaligned sequences
+4. Added SQL migration script for immediate production fixes
+5. Added Python utility script for ad-hoc fixes via application code
+6. Fixed comparison logic to only reset sequences when truly behind data
+
+The verification occurs during application startup and ensures all tables
+have their sequences properly aligned with their maximum ID values. If a
+sequence is behind its table's maximum ID, it gets automatically reset to
+prevent future primary key conflicts.
+
+Fixes issue: "duplicate key value violates unique constraint flights_pkey"

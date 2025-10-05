@@ -14,3 +14,4 @@ SELECT
 FROM pg_indexes 
 WHERE tablename = 'transceivers' 
     AND indexname = 'idx_transceivers_flight_frequency_time_optimized';
+

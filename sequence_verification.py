@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""
+Database sequence verification and synchronization utility.
+
+This module provides functions to verify and synchronize PostgreSQL sequences
+with their respective table data to prevent primary key conflicts.
+"""
+
+import logging
+from sqlalchemy import text
+
+logger = logging.getLogger(__name__)
+
+async def verify_and_sync_sequences(session):
+    """
+    Verify that all PostgreSQL sequences are properly aligned with their tables 
+    and reset them if necessary.
+    
+    This function should be called during application startup to prevent
+    primary key conflicts due to sequence-data inconsistencies.
+    
+    Args:
+        session: SQLAlchemy async session
+        
+    Returns:
+        bool: True if all sequences are properly aligned or were successfully reset
+    """
+    try:
+        # Get a list of all tables with sequences
+        result = await session.execute(text("""
+            SELECT 
+                c.relname as table_name,
+                a.attname as column_name,
+                pg_get_serial_sequence(c.relname, a.attname) as sequence_name
+            FROM 
+                pg_class c
+            JOIN 
+                pg_attribute a ON a.attrelid = c.oid
+            WHERE 
+                c.relkind = 'r' AND
+                a.attnum > 0 AND 
+                NOT a.attisdropped AND
+                pg_get_serial_sequence(c.relname, a.attname) IS NOT NULL
+        """))
+        
+        sequences = result.fetchall()
+        logger.info(f"Verifying {len(sequences)} sequences")
+        
+        # Check and reset each sequence if needed
+        for seq in sequences:
+            table_name = seq.table_name
+            column_name = seq.column_name
+            sequence_name = seq.sequence_name
+            
+            # Skip system tables
+            if table_name.startswith('pg_') or table_name.startswith('sql_'):
+                continue
+            
+            # Get the current sequence value
+            seq_result = await session.execute(text(f"SELECT last_value FROM {sequence_name}"))
+            current_seq = seq_result.scalar() or 0
+            
+            # Get the maximum ID from the table
+            max_id_result = await session.execute(text(f"SELECT MAX({column_name}) FROM {table_name}"))
+            max_id = max_id_result.scalar() or 0
+            
+            if max_id > 0 and current_seq <= max_id:
+                new_seq_value = max_id + 1
+                logger.warning(
+                    f"Table {table_name}: Sequence {sequence_name} ({current_seq}) "
+                    f"is behind MAX({column_name}) ({max_id}), resetting to {new_seq_value}"
+                )
+                
+                # Reset the sequence
+                await session.execute(
+                    text(f"SELECT setval('{sequence_name}', {new_seq_value}, false)")
+                )
+        
+        # Commit all changes
+        await session.commit()
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error verifying sequences: {e}")
+        await session.rollback()
+        return False
+
+async def verify_flights_sequence(session):
+    """
+    Specifically verify and fix the flights_id_seq sequence.
+    
+    Args:
+        session: SQLAlchemy async session
+        
+    Returns:
+        bool: True if sequence was properly aligned or successfully reset
+    """
+    try:
+        # Get the current sequence value
+        seq_result = await session.execute(text("SELECT last_value FROM flights_id_seq"))
+        current_seq = seq_result.scalar() or 0
+        
+        # Get the maximum ID from the flights table
+        max_id_result = await session.execute(text("SELECT MAX(id) FROM flights"))
+        max_id = max_id_result.scalar() or 0
+        
+        # Only reset if sequence is behind max ID
+        if max_id > 0 and current_seq <= max_id:
+            new_seq_value = max_id + 1
+            logger.warning(
+                f"flights_id_seq ({current_seq}) is behind MAX(id) ({max_id}), "
+                f"resetting to {new_seq_value}"
+            )
+            
+            await session.execute(
+                text(f"SELECT setval('flights_id_seq', {new_seq_value}, false)")
+            )
+            await session.commit()
+        
+        return True
+    except Exception as e:
+        logger.error(f"Error verifying flights sequence: {e}")
+        await session.rollback()
+        return False
