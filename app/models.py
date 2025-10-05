@@ -157,6 +157,7 @@ class Flight(Base, TimestampMixin):
         CheckConstraint('heading >= 0 AND heading <= 360', name='valid_heading'),
         CheckConstraint('groundspeed >= 0', name='valid_groundspeed'),
         CheckConstraint('pilot_rating >= 0 AND pilot_rating <= 63', name='valid_pilot_rating'),
+        Index('idx_flights_callsign', 'callsign'),
         Index('idx_flights_callsign_status', 'callsign', 'last_updated'),
         # Use BRIN for geographic coordinates - better for range queries and bounding boxes
         # Index('idx_flights_position', 'latitude', 'longitude', postgresql_using='brin'), # REMOVED - unused
@@ -215,6 +216,7 @@ class Transceiver(Base):
         # This will be created by the database schema (init.sql)
         # The database creates this as: WHERE entity_type = 'flight' for optimized flight frequency queries
         # Index('idx_transceivers_flight_frequency_callsign', 'entity_type', 'frequency', 'callsign'), # REMOVED - unused
+        # Note: idx_transceivers_flight_frequency_time_optimized is created by init.sql with WHERE clause
         
         # Additional indexes that exist in database but not in original models.py
         # Note: WHERE clauses and complex index structures are handled by init.sql

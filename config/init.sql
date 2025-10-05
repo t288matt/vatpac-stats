@@ -136,6 +136,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_controllers_simple ON controllers(ca
 
 -- Flights indexes - Using CONCURRENTLY to prevent corruption during high-frequency writes
 -- Removed low-selectivity indexes: altitude, planned_altitude, flight_rules
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_callsign ON flights(callsign);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_callsign_status ON flights(callsign, last_updated);
 
 -- Use BRIN for geographic coordinates - better for range queries and bounding boxes
@@ -172,7 +173,9 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_entity_type_timestamp O
 -- idx_transceivers_atc_performance REMOVED - unused index
 
 -- Production performance index for flight frequency queries
--- idx_transceivers_flight_frequency_time_optimized REMOVED - unused index
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_flight_frequency_time_optimized 
+ON transceivers (frequency, timestamp) 
+WHERE entity_type = 'flight';
 
 -- Create triggers for updated_at columns
 CREATE TRIGGER update_controllers_updated_at 
