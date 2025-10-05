@@ -125,6 +125,7 @@ CREATE TABLE IF NOT EXISTS transceivers (
 -- Controllers indexes - Using CONCURRENTLY to prevent corruption during high-frequency writes
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_controllers_cid ON controllers(cid);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_controllers_cid_rating ON controllers(cid, rating);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_controllers_facility_server ON controllers(facility, server);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_controllers_last_updated ON controllers(last_updated);
 
 -- ATC Detection Performance Indexes for controllers
@@ -390,12 +391,12 @@ CREATE TABLE IF NOT EXISTS flights_archive (
 
 -- Create indexes for flight_summaries table
 CREATE INDEX IF NOT EXISTS idx_flight_summaries_callsign ON flight_summaries(callsign);
+CREATE INDEX IF NOT EXISTS idx_flight_summaries_completion_time ON flight_summaries(completion_time);
+CREATE INDEX IF NOT EXISTS idx_flight_summaries_flight_rules ON flight_summaries(flight_rules);
 
 -- Additional index that exists in database but not in original init.sql
 -- idx_flight_summaries_airborne_controller_time REMOVED - unused index
 -- idx_flight_summaries_controller_time REMOVED - unused index
--- idx_flight_summaries_completion_time REMOVED - unused index
--- idx_flight_summaries_flight_rules REMOVED - unused index
 
 -- Enrichment queue indexes (keep in sync with migrations)
 CREATE INDEX IF NOT EXISTS idx_flight_enrichment_status_run_after ON flight_summaries (enrichment_status, enrichment_run_after);
@@ -403,12 +404,12 @@ CREATE INDEX IF NOT EXISTS idx_flight_enrichment_status_run_after ON flight_summ
 -- Create indexes for flights_archive table
 CREATE INDEX IF NOT EXISTS idx_flights_archive_callsign ON flights_archive(callsign);
 CREATE INDEX IF NOT EXISTS idx_flights_archive_last_updated ON flights_archive(last_updated);
+CREATE INDEX IF NOT EXISTS idx_flights_archive_completion_time ON flights_archive(completion_time);
 -- idx_flights_archive_deptime REMOVED - unused index
 -- idx_flights_archive_controller_callsigns REMOVED - unused index
 -- idx_flights_archive_controller_time REMOVED - unused index
 -- idx_flights_archive_primary_sector REMOVED - unused index
 -- idx_flights_archive_sector_breakdown REMOVED - unused index
--- idx_flights_archive_completion_time REMOVED - unused index
 -- idx_flights_archive_logon_time REMOVED - unused index
 
 -- Create triggers for updated_at columns on new tables
@@ -514,7 +515,9 @@ CREATE INDEX IF NOT EXISTS idx_flight_sector_occupancy_entry_timestamp ON flight
 
 -- Create indexes for controller_summaries table
 -- Basic lookup indexes
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_callsign ON controller_summaries(callsign);
 CREATE INDEX IF NOT EXISTS idx_controller_summaries_session_time ON controller_summaries(session_start_time, session_end_time);
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_rating ON controller_summaries(rating);
 -- idx_controller_summaries_aircraft_count REMOVED - unused index
 CREATE INDEX IF NOT EXISTS idx_controller_summaries_facility ON controller_summaries(facility);
 
@@ -526,16 +529,14 @@ CREATE INDEX IF NOT EXISTS idx_controller_enrichment_status_run_after ON control
 
 -- Composite indexes for common query patterns
 CREATE INDEX IF NOT EXISTS idx_controller_summaries_callsign_session ON controller_summaries(callsign, session_start_time);
+CREATE INDEX IF NOT EXISTS idx_controller_summaries_duration_aircraft ON controller_summaries(session_duration_minutes, total_aircraft_handled);
 -- idx_controller_summaries_rating_facility REMOVED - unused index
--- idx_controller_summaries_callsign REMOVED - unused index
--- idx_controller_summaries_rating REMOVED - unused index
 -- idx_controller_summaries_frequencies REMOVED - unused index
 -- idx_controller_summaries_hourly_breakdown REMOVED - unused index
--- idx_controller_summaries_duration_aircraft REMOVED - unused index
 
 -- Create indexes for controllers_archive table
 -- idx_controllers_archive_callsign REMOVED - unused index
--- idx_controllers_archive_logon_time REMOVED - unused index
+CREATE INDEX IF NOT EXISTS idx_controllers_archive_logon_time ON controllers_archive(logon_time);
 -- idx_controllers_archive_last_updated REMOVED - unused index
 
 -- Create triggers for updated_at columns on controller tables

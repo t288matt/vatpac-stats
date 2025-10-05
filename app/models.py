@@ -83,6 +83,7 @@ class Controller(Base, TimestampMixin):
         CheckConstraint('visual_range >= 0', name='valid_visual_range'),
         Index('idx_controllers_cid', 'cid'),
         Index('idx_controllers_cid_rating', 'cid', 'rating'),
+        Index('idx_controllers_facility_server', 'facility', 'server'),
         Index('idx_controllers_last_updated', 'last_updated'),
         
         # ATC Detection Performance Indexes
@@ -309,14 +310,14 @@ class FlightSummary(Base, TimestampMixin):
         Index('idx_flight_summaries_departure_arrival', 'departure', 'arrival'),
         Index('idx_flight_summaries_primary_sector', 'primary_enroute_sector'),
         Index('idx_flight_summaries_cid', 'cid'),
+        Index('idx_flight_summaries_completion_time', 'completion_time'),
+        Index('idx_flight_summaries_flight_rules', 'flight_rules'),
         
         # Additional index that exists in database but not in original models.py
         # Index('idx_flight_summaries_airborne_controller_time', 'airborne_controller_time_percentage'), # REMOVED - unused
         
         # Additional indexes that exist in database but not in original models.py
-        # Index('idx_flight_summaries_flight_rules', 'flight_rules'), # REMOVED - unused
         # Index('idx_flight_summaries_controller_time', 'controller_time_percentage'), # REMOVED - unused
-        # Index('idx_flight_summaries_completion_time', 'completion_time'), # REMOVED - unused
     )
 
 class ControllerSummary(Base, TimestampMixin):
@@ -346,9 +347,12 @@ class ControllerSummary(Base, TimestampMixin):
         CheckConstraint('peak_aircraft_count >= 0 AND peak_aircraft_count <= total_aircraft_handled', name='valid_peak_aircraft'),
         CheckConstraint('session_duration_minutes >= 0', name='valid_session_duration'),
         CheckConstraint('session_end_time IS NULL OR session_end_time > session_start_time', name='valid_session_times'),
+        Index('idx_controller_summaries_callsign', 'callsign'),
         Index('idx_controller_summaries_callsign_session', 'callsign', 'session_start_time'),
         Index('idx_controller_summaries_session_time', 'session_start_time', 'session_end_time'),
+        Index('idx_controller_summaries_rating', 'rating'),
         Index('idx_controller_summaries_facility', 'facility'),
+        Index('idx_controller_summaries_duration_aircraft', 'session_duration_minutes', 'total_aircraft_handled'),
         # Index('idx_controller_summaries_rating_facility', 'rating', 'facility'), # REMOVED - unused
         # Index('idx_controller_summaries_aircraft_count', 'total_aircraft_handled'), # REMOVED - unused
         
@@ -357,9 +361,6 @@ class ControllerSummary(Base, TimestampMixin):
         # Index('idx_controller_summaries_frequencies', 'frequencies_used'), # REMOVED - unused
         # Index('idx_controller_summaries_aircraft_details', 'aircraft_details'), # REMOVED - unused
         # Index('idx_controller_summaries_hourly_breakdown', 'hourly_aircraft_breakdown'), # REMOVED - unused
-        # Index('idx_controller_summaries_callsign', 'callsign'), # REMOVED - unused
-        # Index('idx_controller_summaries_rating', 'rating'), # REMOVED - unused
-        # Index('idx_controller_summaries_duration_aircraft', 'session_duration_minutes', 'total_aircraft_handled'), # REMOVED - unused
     )
 
 class ControllersArchive(Base, TimestampMixin):
@@ -392,9 +393,9 @@ class ControllersArchive(Base, TimestampMixin):
         # Index('idx_controllers_archive_callsign', 'callsign'), # REMOVED - unused
         Index('idx_controllers_archive_cid', 'cid'),
         Index('idx_controllers_archive_archived_at', 'archived_at'),
+        Index('idx_controllers_archive_logon_time', 'logon_time'),
         
         # Additional indexes that exist in database but not in original models.py
-        # Index('idx_controllers_archive_logon_time', 'logon_time'), # REMOVED - unused
         # Index('idx_controllers_archive_last_updated', 'last_updated'), # REMOVED - unused
     )
 
@@ -448,9 +449,9 @@ class FlightsArchive(Base, TimestampMixin):
         CheckConstraint('total_enroute_time_minutes >= 0', name='valid_enroute_time'),
         Index('idx_flights_archive_callsign', 'callsign'),
         Index('idx_flights_archive_last_updated', 'last_updated'),
+        Index('idx_flights_archive_completion_time', 'completion_time'),
         # Index('idx_flights_archive_logon_time', 'logon_time'), # REMOVED - unused
         # Index('idx_flights_archive_deptime', 'deptime'), # REMOVED - unused
-        # Index('idx_flights_archive_completion_time', 'completion_time'), # REMOVED - unused
         # Index('idx_flights_archive_primary_sector', 'primary_enroute_sector'), # REMOVED - unused
         
         # Additional indexes that exist in database but not in original models.py
