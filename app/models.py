@@ -199,13 +199,13 @@ class Transceiver(Base):
     __table_args__ = (
         CheckConstraint('frequency >= 0', name='valid_frequency'),
         CheckConstraint('entity_type IN (\'flight\', \'atc\')', name='valid_entity_type'),
-        Index('idx_transceivers_callsign_timestamp', 'callsign', 'timestamp'),
         # Index('idx_transceivers_entity', 'entity_type', 'entity_id'), # REMOVED - unused
         # Index('idx_transceivers_frequency', 'frequency'), # REMOVED - unused
         
         # ATC Detection Performance Indexes
-        Index('idx_transceivers_entity_type_callsign', 'entity_type', 'callsign'),
-        Index('idx_transceivers_entity_type_timestamp', 'entity_type', 'timestamp'),
+        # Index('idx_transceivers_entity_type_callsign', 'entity_type', 'callsign'), # REMOVED - unused
+        # Index('idx_transceivers_entity_type_timestamp', 'entity_type', 'timestamp'), # REMOVED - unused
+        # Index('idx_transceivers_callsign_timestamp', 'callsign', 'timestamp'), # REMOVED - unused
         # Simplified ATC detection index - focus on most common query patterns
         Index('idx_transceivers_atc_detection', 'entity_type', 'callsign', 'timestamp'),
         

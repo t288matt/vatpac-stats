@@ -155,13 +155,13 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_flight_rules ON flights(flig
 -- idx_flights_planned_altitude REMOVED - unused index
 
 -- Transceivers indexes (optimized for frequency-based queries) - Using CONCURRENTLY
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_callsign_timestamp ON transceivers(callsign, "timestamp");
 -- idx_transceivers_frequency REMOVED - unused index
 -- idx_transceivers_entity REMOVED - unused index
 
 -- ATC Detection Performance Indexes for transceivers
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_entity_type_callsign ON transceivers(entity_type, callsign);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_entity_type_timestamp ON transceivers(entity_type, "timestamp");
+-- idx_transceivers_entity_type_callsign REMOVED - unused index
+-- idx_transceivers_entity_type_timestamp REMOVED - unused index
+-- idx_transceivers_callsign_timestamp REMOVED - unused index
 
 -- High-performance ATC detection indexes for loading ALL controllers
 -- idx_transceivers_atc_simple REMOVED - unused index
