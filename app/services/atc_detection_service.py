@@ -602,12 +602,11 @@ class ATCDetectionService:
             return self._create_empty_atc_data()
     
     async def _get_flight_record_count(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime) -> int:
-        """Get total flight record count using same data source order as _get_airborne_time_from_flights.
+        """Get total flight record count from flight-based sources only.
         
         Preference order:
         1. `flights` (live records)
-        2. `flights_archive` (time-series snapshots)  
-        3. `transceivers` (unfiltered flight records)
+        2. `flights_archive` (time-series snapshots)
         """
         try:
             # Determine the exact end time from flight_summaries; if absent, no records (ongoing not supported here)
@@ -615,7 +614,7 @@ class ATCDetectionService:
             if not completion_time:
                 return 0
 
-            # 1) Try flights table first (same as _get_airborne_time_from_flights)
+            # 1) Try flights table first
             async with get_database_session() as session:
                 q = text("""
                     SELECT COUNT(*) as record_count
@@ -654,39 +653,23 @@ class ATCDetectionService:
                 if row and row.record_count > 0:
                     return row.record_count
 
-            # 3) Last resort: transceivers
-            async with get_database_session() as session:
-                q = text("""
-                    SELECT COUNT(*) as record_count
-                    FROM transceivers
-                    WHERE entity_type = 'flight'
-                      AND callsign = :callsign
-                      AND timestamp >= :start
-                      AND timestamp <= :end
-                      AND height_msl IS NOT NULL
-                """)
-                res = await session.execute(q, {
-                    "callsign": flight_callsign,
-                    "start": logon_time,
-                    "end": completion_time
-                })
-                row = res.fetchone()
-                return row.record_count if row else 0
+            # If no records found in either table, return 0
+            self.logger.warning(f"No flight records found in flights or flights_archive for {flight_callsign}")
+            return 0
                 
         except Exception as e:
             self.logger.error(f"Error getting flight record count: {e}")
             return 0
 
     async def _get_airborne_time_from_flights(self, flight_callsign: str, departure: str, arrival: str, logon_time: datetime, completion_time: datetime) -> float:
-        """Get total airborne time (minutes) using time-series sources.
+        """Get total airborne time (minutes) using flight-based time-series sources.
 
         Preference order:
-        1. `flights_archive` (time-series snapshots)
-        2. `transceivers` (unfiltered flight records with height_msl)
-        3. `flights` (live snapshot count approximation)
+        1. `flights` (live records)
+        2. `flights_archive` (time-series snapshots)
         """
         try:
-            # 1) Attempt flights (live records) first per requested preference
+            # 1) Attempt flights (live records) first
             async with get_database_session() as session:
                 q = text("""
                     SELECT last_updated AS ts
@@ -759,42 +742,15 @@ class ATCDetectionService:
                 minutes = round(secs / 60.0)
                 return float(minutes)
 
-            # 3) Last resort: transceivers
-            async with get_database_session() as session:
-                q = text("""
-                    SELECT timestamp AS ts
-                    FROM transceivers
-                    WHERE entity_type = 'flight'
-                      AND callsign = :callsign
-                      AND timestamp >= :start
-                      AND timestamp <= :end
-                      AND height_msl IS NOT NULL
-                      AND height_msl > :alt_m
-                    ORDER BY timestamp
-                """)
-                res = await session.execute(q, {
-                    "callsign": flight_callsign,
-                    "start": logon_time,
-                    "end": completion_time,
-                    "alt_m": 1500 / 3.28084
-                })
-                rows = res.fetchall()
-                logger.debug(f"_get_airborne_time_from_flights: transceivers rows={len(rows)} for {flight_callsign} [{logon_time}..{completion_time}]")
-
-            if rows:
-                timestamps = [r.ts for r in rows]
-                secs = _sum_from_timestamps(timestamps, self.transceivers_polling_interval_seconds, self.enroute_gap_tolerance_multiplier)
-                minutes = round(secs / 60.0)
-                return float(minutes)
-
-            # If no data found in any source, return 0
+            # If no data found in flight-based sources, return 0
+            self.logger.warning(f"No airborne data found in flights or flights_archive for {flight_callsign}")
             return 0.0
         except Exception as e:
             self.logger.error(f"Error in _get_airborne_time_from_flights: {e}")
             return 0.0
 
     async def _count_airborne_controller_contacts(self, flight_callsign: str, frequency_matches: List[Dict], completion_time: datetime) -> int:
-        """Count controller contacts that occurred while aircraft was airborne using flights archive or transceiver altitude.
+        """Count controller contacts that occurred while aircraft was airborne using flight-based altitude data.
         Returns count of matches that occurred while aircraft altitude > 1500ft.
         """
         try:
@@ -830,20 +786,8 @@ class ATCDetectionService:
                         r_arc = res_arc.fetchone()
                         if r_arc:
                             alt_ft = r_arc[0]
-                        else:
-                            # 3) Fallback: transceivers height
-                            q3 = text("""
-                                SELECT height_msl FROM transceivers
-                                WHERE entity_type = 'flight' AND callsign = :callsign
-                                  AND timestamp <= :t
-                                  AND height_msl IS NOT NULL
-                                ORDER BY timestamp DESC
-                                LIMIT 1
-                            """)
-                            res3 = await session.execute(q3, {"callsign": flight_callsign, "t": match_time})
-                            r3 = res3.fetchone()
-                            if r3:
-                                alt_ft = r3[0] * 3.28084
+                    
+                    # Only count if we have a valid altitude from flight-based sources
                     if alt_ft is not None and alt_ft > 1500:
                         # check controller type
                         atc_callsign = match.get("atc_callsign")

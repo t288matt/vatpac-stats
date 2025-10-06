@@ -3003,20 +3003,16 @@ RETURNING fso.id;
 
         Simple adaptive behavior:
         - Process ALL qualifying sessions (no batch limits)
-        - If busy (>50 summaries): sleep 60 seconds
-        - If idle (≤50 summaries): sleep 15 minutes after 3 consecutive low-activity cycles
+        - If busy (>50 summaries): sleep FLIGHT_SUMMARY_POLL_INTERVAL_SHORT seconds
+        - If idle (≤50 summaries): sleep FLIGHT_SUMMARY_POLL_INTERVAL_LONG seconds
         """
         self.logger.info(f"⏰ Scheduled flight summary processing loop started at {datetime.now(timezone.utc)}")
 
         # Load adaptive interval configuration
         max_batch_env = os.getenv("FLIGHT_SUMMARY_MAX_BATCH")
         max_batch = int(max_batch_env) if max_batch_env else None  # None = unlimited
-        short_sleep = int(getattr(self.config.flight_summary, 'poll_interval_short', int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_SHORT", "60"))))
-        long_sleep = int(getattr(self.config.flight_summary, 'poll_interval_long', int(os.getenv("FLIGHT_SUMMARY_POLL_INTERVAL_LONG", "900"))))
-
-        # Track consecutive low-activity cycles to determine when to switch to long sleep
-        consecutive_low_activity = 0
-        low_activity_threshold = 3  # Switch to long sleep after 3 consecutive low-activity cycles
+        short_sleep = self.config.flight_summary.poll_interval_short
+        long_sleep = self.config.flight_summary.poll_interval_long
 
         while True:
             try:
@@ -3033,37 +3029,17 @@ RETURNING fso.id;
                 archived = result.get('records_archived', result.get('records_deleted', 0))
                 self.logger.info(f"✅ Scheduled processing completed: {summaries} summaries created, {archived} records archived")
 
-                # Adaptive sleep logic based on activity
-                if max_batch is None:
-                    # For unlimited processing, use smart adaptive logic
-                    if isinstance(summaries, int) and summaries > 50:
-                        # High activity - reset counter and use short sleep
-                        consecutive_low_activity = 0
-                        self.logger.info(f"High activity ({summaries} summaries); sleeping short interval {short_sleep}s")
-                        await asyncio.sleep(short_sleep)
-                    else:
-                        # Low activity - increment counter
-                        consecutive_low_activity += 1
-                        if consecutive_low_activity >= low_activity_threshold:
-                            # Multiple consecutive low-activity cycles - use long sleep
-                            self.logger.info(f"Low activity for {consecutive_low_activity} cycles ({summaries} summaries); sleeping long interval {long_sleep}s")
-                            await asyncio.sleep(long_sleep)
-                        else:
-                            # Still in startup/transition phase - use short sleep
-                            self.logger.info(f"Low activity cycle {consecutive_low_activity}/{low_activity_threshold} ({summaries} summaries); sleeping short interval {short_sleep}s")
-                            await asyncio.sleep(short_sleep)
+                # Simple adaptive sleep logic based on workload:
+                # - Created 50+ summaries: System is busy → check again using short interval (might be more work)
+                # - Created <50 summaries: System is quiet → wait long interval before checking again
+                if isinstance(summaries, int) and summaries >= 50:
+                    # High activity - lots of work being processed
+                    self.logger.info(f"High activity ({summaries} summaries); sleeping short interval {short_sleep}s")
+                    await asyncio.sleep(short_sleep)
                 else:
-                    # Legacy limited processing logic (if someone re-enables the limit)
-                    if isinstance(summaries, int) and summaries >= max_batch:
-                        consecutive_low_activity = 0
-                        self.logger.info(f"Batch hit max ({max_batch}); sleeping short interval {short_sleep}s to continue draining")
-                        await asyncio.sleep(short_sleep)
-                    else:
-                        consecutive_low_activity += 1
-                        if consecutive_low_activity >= low_activity_threshold:
-                            await asyncio.sleep(long_sleep)
-                        else:
-                            await asyncio.sleep(short_sleep)
+                    # Low activity - little or no work to process
+                    self.logger.info(f"Low activity ({summaries} summaries); sleeping long interval {long_sleep}s")
+                    await asyncio.sleep(long_sleep)
 
             except asyncio.CancelledError:
                 self.logger.info("Scheduled flight summary processing task was cancelled")
@@ -3071,7 +3047,7 @@ RETURNING fso.id;
             except Exception as e:
                 self.logger.error(f"❌ Error in scheduled flight processing: {e}")
                 # Wait a bit before retrying, but don't wait the full interval
-                await asyncio.sleep(60)  # Wait 1 minute before retry
+                await asyncio.sleep(short_sleep)  # Wait short interval before retry
 
     async def _scheduled_controller_processing_loop(self, interval_seconds: int):
         """Background loop for scheduled controller summary processing."""
@@ -3097,7 +3073,7 @@ RETURNING fso.id;
             except Exception as e:
                 self.logger.error(f"❌ Error in scheduled controller processing: {e}")
                 # Wait a bit before retrying, but don't wait the full interval
-                await asyncio.sleep(60)  # Wait 1 minute before retry
+                await asyncio.sleep(self.config.flight_summary.poll_interval_short)  # Wait short interval before retry
 
     async def trigger_flight_summary_processing(self) -> Dict[str, Any]:
         """Manually trigger flight summary processing (for testing/admin use)."""
@@ -3310,7 +3286,7 @@ RETURNING fso.id;
             except Exception as e:
                 self.logger.error(f"❌ Error in scheduled ATC detection processing: {e}")
                 # Wait a bit before retrying, but don't wait the full interval
-                await asyncio.sleep(60)  # Wait 1 minute before retry
+                await asyncio.sleep(self.config.flight_summary.poll_interval_short)  # Wait short interval before retry
 
     async def _scheduled_flight_detection_processing_loop(self, interval_seconds: int):
         """Background loop for scheduled flight detection processing."""
@@ -3336,7 +3312,7 @@ RETURNING fso.id;
             except Exception as e:
                 self.logger.error(f"❌ Error in scheduled flight detection processing: {e}")
                 # Wait a bit before retrying, but don't wait the full interval
-                await asyncio.sleep(60)  # Wait 1 minute before retry
+                await asyncio.sleep(self.config.flight_summary.poll_interval_short)  # Wait short interval before retry
 
     def _on_atc_detection_task_done(self, task):
         """Callback when ATC detection task completes or fails."""
@@ -3417,7 +3393,7 @@ RETURNING fso.id;
             for flight in flights:
                 try:
                     result = await self.atc_detection_service.detect_flight_atc_interactions_with_timeout(
-                        flight.callsign, flight.departure, flight.arrival, flight.logon_time, timeout_seconds=10.0
+                        flight.callsign, flight.departure, flight.arrival, flight.logon_time, timeout_seconds=20.0
                     )
                     if result.get("interactions_detected", 0) > 0:
                         total_interactions += result["interactions_detected"]
@@ -3465,7 +3441,7 @@ RETURNING fso.id;
                     # Use current time as session end for real-time processing
                     session_end = datetime.now(timezone.utc)
                     result = await self.flight_detection_service.detect_controller_flight_interactions_with_timeout(
-                        controller.callsign, controller.logon_time, session_end, timeout_seconds=10.0
+                        controller.callsign, controller.logon_time, session_end, timeout_seconds=20.0
                     )
                     if result.get("interactions_detected", 0) > 0:
                         total_interactions += result["interactions_detected"]

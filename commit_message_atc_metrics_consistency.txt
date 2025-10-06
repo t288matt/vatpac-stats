@@ -1,0 +1,19 @@
+fix: Remove transceivers fallbacks from ATC metrics calculations
+
+Fixed inconsistent ATC metrics by removing the fallback to transceivers data for:
+- _get_flight_record_count: Now only uses flights and flights_archive tables 
+- _get_airborne_time_from_flights: Now only uses flights and flights_archive tables
+- _count_airborne_controller_contacts: Now only uses altitude data from flights and flights_archive
+
+These changes ensure consistent polling intervals (60s) across all metrics calculations,
+preventing inconsistencies that would occur when falling back to transceiver data (120s polling).
+
+Added a test_atc_fixes.py script to verify the changes.
+
+Related to issue #82 - Fix Airborne Time Percentage Calculation
+
+
+
+
+
+

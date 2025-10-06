@@ -81,12 +81,10 @@ class Controller(Base, TimestampMixin):
         CheckConstraint('rating >= -1 AND rating <= 12', name='valid_rating'),
         CheckConstraint('facility >= 0 AND facility <= 6', name='valid_facility'),
         CheckConstraint('visual_range >= 0', name='valid_visual_range'),
-        Index('idx_controllers_callsign', 'callsign'),
         Index('idx_controllers_cid', 'cid'),
         Index('idx_controllers_cid_rating', 'cid', 'rating'),
         Index('idx_controllers_facility_server', 'facility', 'server'),
         Index('idx_controllers_last_updated', 'last_updated'),
-        Index('idx_controllers_rating_last_updated', 'rating', 'last_updated'),
         
         # ATC Detection Performance Indexes
         Index('idx_controllers_callsign_facility', 'callsign', 'facility'),
@@ -165,10 +163,8 @@ class Flight(Base, TimestampMixin):
         # Use BRIN for geographic coordinates - better for range queries and bounding boxes
         # Index('idx_flights_position', 'latitude', 'longitude', postgresql_using='brin'), # REMOVED - unused
         # Index('idx_flights_departure_arrival', 'departure', 'arrival'), # REMOVED - unused
-        Index('idx_flights_cid_server', 'cid', 'server'),
         # Removed low-selectivity indexes: altitude, flight_rules, planned_altitude
         # Index('idx_flights_aircraft_short', 'aircraft_short'), # REMOVED - unused
-        Index('idx_flights_revision_id', 'revision_id'),
         
         # ATC Detection Performance Indexes
         Index('idx_flights_callsign_departure_arrival', 'callsign', 'departure', 'arrival'),
@@ -203,14 +199,13 @@ class Transceiver(Base):
     __table_args__ = (
         CheckConstraint('frequency >= 0', name='valid_frequency'),
         CheckConstraint('entity_type IN (\'flight\', \'atc\')', name='valid_entity_type'),
-        Index('idx_transceivers_callsign', 'callsign'),
-        Index('idx_transceivers_callsign_timestamp', 'callsign', 'timestamp'),
         # Index('idx_transceivers_entity', 'entity_type', 'entity_id'), # REMOVED - unused
         # Index('idx_transceivers_frequency', 'frequency'), # REMOVED - unused
         
         # ATC Detection Performance Indexes
-        Index('idx_transceivers_entity_type_callsign', 'entity_type', 'callsign'),
-        Index('idx_transceivers_entity_type_timestamp', 'entity_type', 'timestamp'),
+        # Index('idx_transceivers_entity_type_callsign', 'entity_type', 'callsign'), # REMOVED - unused
+        # Index('idx_transceivers_entity_type_timestamp', 'entity_type', 'timestamp'), # REMOVED - unused
+        # Index('idx_transceivers_callsign_timestamp', 'callsign', 'timestamp'), # REMOVED - unused
         # Simplified ATC detection index - focus on most common query patterns
         Index('idx_transceivers_atc_detection', 'entity_type', 'callsign', 'timestamp'),
         
@@ -222,12 +217,18 @@ class Transceiver(Base):
         # This will be created by the database schema (init.sql)
         # The database creates this as: WHERE entity_type = 'flight' for optimized flight frequency queries
         # Index('idx_transceivers_flight_frequency_callsign', 'entity_type', 'frequency', 'callsign'), # REMOVED - unused
+        # Note: idx_transceivers_flight_frequency_time_optimized is created by init.sql with WHERE clause
         
         # Additional indexes that exist in database but not in original models.py
         # Note: WHERE clauses and complex index structures are handled by init.sql
         # These are simplified versions for SQLAlchemy compatibility
-        Index('idx_transceivers_atc_join', 'callsign', 'entity_type', 'timestamp'),
-        Index('idx_transceivers_atc_performance', 'entity_type', 'callsign', 'timestamp', 'frequency', 'position_lat', 'position_lon'),
+        # Index('idx_transceivers_atc_join', 'callsign', 'entity_type', 'timestamp'), # REMOVED - unused
+        # Index('idx_transceivers_atc_performance', 'entity_type', 'callsign', 'timestamp', 'frequency', 'position_lat', 'position_lon'), # REMOVED - unused
+        
+        # Flight Detection Performance Optimization Indexes
+        # Note: idx_transceivers_flight_frequency_time_optimized is created by init.sql with WHERE clause
+        # General frequency index for transceivers
+        Index('idx_transceivers_frequency_concurrent', 'frequency'),
     )
     
     # Validation handled by database constraints - no Python validators needed
@@ -312,16 +313,16 @@ class FlightSummary(Base, TimestampMixin):
         CheckConstraint('total_enroute_time_minutes >= 0', name='valid_enroute_time'),
         Index('idx_flight_summaries_callsign', 'callsign'),
         Index('idx_flight_summaries_departure_arrival', 'departure', 'arrival'),
-        Index('idx_flight_summaries_completion_time', 'completion_time'),
         Index('idx_flight_summaries_primary_sector', 'primary_enroute_sector'),
         Index('idx_flight_summaries_cid', 'cid'),
+        Index('idx_flight_summaries_completion_time', 'completion_time'),
+        Index('idx_flight_summaries_flight_rules', 'flight_rules'),
         
         # Additional index that exists in database but not in original models.py
-        Index('idx_flight_summaries_airborne_controller_time', 'airborne_controller_time_percentage'),
+        # Index('idx_flight_summaries_airborne_controller_time', 'airborne_controller_time_percentage'), # REMOVED - unused
         
         # Additional indexes that exist in database but not in original models.py
-        Index('idx_flight_summaries_flight_rules', 'flight_rules'),
-        Index('idx_flight_summaries_controller_time', 'controller_time_percentage'),
+        # Index('idx_flight_summaries_controller_time', 'controller_time_percentage'), # REMOVED - unused
     )
 
 class ControllerSummary(Base, TimestampMixin):
@@ -362,9 +363,9 @@ class ControllerSummary(Base, TimestampMixin):
         
         # Additional indexes that exist in database but not in original models.py
         # Note: JSONB indexes are handled by init.sql with GIN for optimal JSON query performance
-        Index('idx_controller_summaries_frequencies', 'frequencies_used'),
+        # Index('idx_controller_summaries_frequencies', 'frequencies_used'), # REMOVED - unused
         # Index('idx_controller_summaries_aircraft_details', 'aircraft_details'), # REMOVED - unused
-        Index('idx_controller_summaries_hourly_breakdown', 'hourly_aircraft_breakdown'),
+        # Index('idx_controller_summaries_hourly_breakdown', 'hourly_aircraft_breakdown'), # REMOVED - unused
     )
 
 class ControllersArchive(Base, TimestampMixin):
@@ -397,10 +398,10 @@ class ControllersArchive(Base, TimestampMixin):
         # Index('idx_controllers_archive_callsign', 'callsign'), # REMOVED - unused
         Index('idx_controllers_archive_cid', 'cid'),
         Index('idx_controllers_archive_archived_at', 'archived_at'),
+        Index('idx_controllers_archive_logon_time', 'logon_time'),
         
         # Additional indexes that exist in database but not in original models.py
-        Index('idx_controllers_archive_logon_time', 'logon_time'),
-        Index('idx_controllers_archive_last_updated', 'last_updated'),
+        # Index('idx_controllers_archive_last_updated', 'last_updated'), # REMOVED - unused
     )
 
 class FlightsArchive(Base, TimestampMixin):
@@ -452,10 +453,10 @@ class FlightsArchive(Base, TimestampMixin):
         CheckConstraint('total_enroute_sectors >= 0', name='valid_total_sectors'),
         CheckConstraint('total_enroute_time_minutes >= 0', name='valid_enroute_time'),
         Index('idx_flights_archive_callsign', 'callsign'),
-        Index('idx_flights_archive_logon_time', 'logon_time'),
         Index('idx_flights_archive_last_updated', 'last_updated'),
-        # Index('idx_flights_archive_deptime', 'deptime'), # REMOVED - unused
         Index('idx_flights_archive_completion_time', 'completion_time'),
+        # Index('idx_flights_archive_logon_time', 'logon_time'), # REMOVED - unused
+        # Index('idx_flights_archive_deptime', 'deptime'), # REMOVED - unused
         # Index('idx_flights_archive_primary_sector', 'primary_enroute_sector'), # REMOVED - unused
         
         # Additional indexes that exist in database but not in original models.py

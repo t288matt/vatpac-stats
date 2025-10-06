@@ -1,0 +1,12 @@
+Fix controller_callsigns format to ensure consistent array structure
+
+This commit addresses a PostgreSQL error with jsonb_array_length() function:
+- Modified ATC detection service to always return arrays (not objects) for controller_callsigns
+- Changed _create_empty_atc_data() to use empty array ([]) instead of empty object ({})
+- Modified _calculate_atc_metrics() to convert controller_data dictionary to an array
+- Added migration to fix existing data, converting 2587 records from objects to arrays
+- Ensures proper behavior with jsonb_array_length() queries
+
+Issue detected: controller_callsigns JSONB field was sometimes stored as objects
+instead of arrays, causing PostgreSQL array functions to fail.
+
