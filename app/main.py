@@ -2067,27 +2067,6 @@ async def get_performance_overview():
         logger.error(f"Error fetching performance overview: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.post("/api/controller-summaries/process")
-@handle_service_errors
-@log_operation("trigger_controller_processing")
-async def trigger_controller_processing():
-    """Manually trigger controller summary processing."""
-    try:
-        data_service = await get_data_service()
-        
-        # Process completed controllers
-        result = await data_service.process_completed_controllers()
-        
-        return {
-            "status": "success",
-            "message": "Controller summary processing completed",
-            "result": result,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error triggering controller processing: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.post("/api/flights/archive/populate-summary")
 @handle_service_errors

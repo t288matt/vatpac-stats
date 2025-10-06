@@ -1620,6 +1620,15 @@ These commands enable operational staff to monitor system health, troubleshoot i
 - **Summary Generation**: Creates flight summaries without immediate archiving
 - **Processing Intervals**: 60-minute intervals for continuous summary generation
 - **Separation of Concerns**: Summary creation independent from data archiving
+- **Scheduled Only**: Flight processing occurs ONLY on schedule, with no manual API trigger
+
+**Controller Summary System:**
+- **System Enablement**: Controller summary processing enabled for data aggregation
+- **Completion Threshold**: 8-hour completion threshold for controller processing
+- **Summary Generation**: Creates controller summaries without immediate archiving
+- **Processing Intervals**: 60-minute intervals for continuous summary generation
+- **Separation of Concerns**: Summary creation independent from data archiving
+- **Scheduled Only**: Controller processing occurs ONLY on schedule, with no manual API trigger
 
 **Flight Archiving System:**
 - **Archive Delay**: 60-day retention before archiving (FLIGHT_DAYS_BEFORE_ARCHIVE)

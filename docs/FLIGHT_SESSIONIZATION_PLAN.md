@@ -4,6 +4,7 @@
 - Unify flight processing behind one canonical session selector.
 - A session is computed by merging segments for the same (callsign, cid, departure) using an inactivity gap.
 - All downstream steps (summary upsert, archive, delete, ATC detection) consume this single selector.
+- Flight processing happens ONLY on a scheduled basis, with no manual API trigger.
 
 ### Configuration (Decided)
 - Inactivity gap (merge threshold): 2 hours (120 minutes)
