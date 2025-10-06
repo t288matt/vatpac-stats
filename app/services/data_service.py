@@ -3393,7 +3393,7 @@ RETURNING fso.id;
             for flight in flights:
                 try:
                     result = await self.atc_detection_service.detect_flight_atc_interactions_with_timeout(
-                        flight.callsign, flight.departure, flight.arrival, flight.logon_time, timeout_seconds=10.0
+                        flight.callsign, flight.departure, flight.arrival, flight.logon_time, timeout_seconds=20.0
                     )
                     if result.get("interactions_detected", 0) > 0:
                         total_interactions += result["interactions_detected"]
@@ -3441,7 +3441,7 @@ RETURNING fso.id;
                     # Use current time as session end for real-time processing
                     session_end = datetime.now(timezone.utc)
                     result = await self.flight_detection_service.detect_controller_flight_interactions_with_timeout(
-                        controller.callsign, controller.logon_time, session_end, timeout_seconds=10.0
+                        controller.callsign, controller.logon_time, session_end, timeout_seconds=20.0
                     )
                     if result.get("interactions_detected", 0) > 0:
                         total_interactions += result["interactions_detected"]

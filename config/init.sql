@@ -178,6 +178,11 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_flight_frequency_time_o
 ON transceivers (frequency, timestamp) 
 WHERE entity_type = 'flight';
 
+-- General frequency index for transceivers
+-- This index helps with general frequency-based queries
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_frequency_concurrent 
+ON transceivers (frequency);
+
 -- Create triggers for updated_at columns
 CREATE TRIGGER update_controllers_updated_at 
     BEFORE UPDATE ON controllers 

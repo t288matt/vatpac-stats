@@ -224,6 +224,11 @@ class Transceiver(Base):
         # These are simplified versions for SQLAlchemy compatibility
         # Index('idx_transceivers_atc_join', 'callsign', 'entity_type', 'timestamp'), # REMOVED - unused
         # Index('idx_transceivers_atc_performance', 'entity_type', 'callsign', 'timestamp', 'frequency', 'position_lat', 'position_lon'), # REMOVED - unused
+        
+        # Flight Detection Performance Optimization Indexes
+        # Note: idx_transceivers_flight_frequency_time_optimized is created by init.sql with WHERE clause
+        # General frequency index for transceivers
+        Index('idx_transceivers_frequency_concurrent', 'frequency'),
     )
     
     # Validation handled by database constraints - no Python validators needed
