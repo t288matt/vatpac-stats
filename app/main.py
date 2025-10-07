@@ -853,24 +853,7 @@ async def get_database_status():
 # CLEANUP ENDPOINTS
 # ============================================================================
 
-@app.post("/api/cleanup/stale-sectors")
-@handle_service_errors
-@log_operation("cleanup_stale_sectors")
-async def cleanup_stale_sectors():
-    """Manually trigger cleanup of stale sector entries"""
-    try:
-        data_service = await get_data_service()
-        result = await data_service.cleanup_stale_sectors()
-        
-        return {
-            "status": "success",
-            "message": "Cleanup job completed successfully",
-            "result": result
-        }
-        
-    except Exception as e:
-        logger.error(f"Error during cleanup: {e}")
-        raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")
+# Endpoint removed: POST /api/cleanup/stale-sectors
 
 @app.get("/api/cleanup/status")
 @handle_service_errors
@@ -1078,28 +1061,7 @@ async def get_flight_summaries(
         logger.error(f"Error getting flight summaries: {e}")
         raise HTTPException(status_code=500, detail=f"Error getting flight summaries: {str(e)}")
 
-@app.post("/api/flights/summaries/process")
-@handle_service_errors
-@log_operation("trigger_flight_summary_processing")
-async def trigger_flight_summary_processing():
-    """Manually trigger flight summary processing"""
-    try:
-        logger.info("🚨 DEBUG: API endpoint /api/flights/summaries/process CALLED")
-        data_service = await get_data_service()
-        logger.info(f"🚨 DEBUG: Got data_service instance: {type(data_service)}")
-        logger.info("🚨 DEBUG: About to call data_service.trigger_flight_summary_processing()")
-        result = await data_service.trigger_flight_summary_processing()
-        
-        return {
-            "status": "success",
-            "message": "Flight summary processing triggered successfully",
-            "result": result,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error triggering flight summary processing: {e}")
-        raise HTTPException(status_code=500, detail=f"Error triggering flight summary processing: {str(e)}")
+# Endpoint removed: POST /api/flights/summaries/process
 
 @app.get("/api/flights/summaries/status")
 @handle_service_errors
@@ -1692,36 +1654,7 @@ async def get_controller_callsign_filter_status():
         logger.error(f"Error getting controller callsign filter status: {e}")
         raise HTTPException(status_code=500, detail=f"Error getting controller callsign filter status: {str(e)}")
 
-@app.post("/api/filter/controller-callsign/reload")
-@handle_service_errors
-@log_operation("reload_controller_callsign_filter")
-async def reload_controller_callsign_filter():
-    """Reload the controller callsign list from file"""
-    try:
-        # Get controller callsign filter and reload
-        data_service = await get_data_service()
-        controller_filter = data_service.controller_callsign_filter
-        
-        # Attempt to reload callsigns
-        success = controller_filter.reload_callsigns()
-        
-        if success:
-            # Get updated status
-            filter_status = controller_filter.get_filter_status()
-            return {
-                "message": "Controller callsign filter reloaded successfully",
-                "status": "success",
-                "callsigns_loaded": filter_status["valid_callsigns_loaded"],
-                "filtering_active": filter_status["filtering_active"]
-            }
-        else:
-            raise HTTPException(status_code=500, detail="Failed to reload controller callsign filter")
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error reloading controller callsign filter: {e}")
-        raise HTTPException(status_code=500, detail=f"Error reloading controller callsign filter: {str(e)}")
+# Endpoint removed: POST /api/filter/controller-callsign/reload
 
 # Analytics Endpoints
 
@@ -1773,15 +1706,7 @@ async def get_performance_metrics():
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
-@app.post("/api/performance/optimize")
-@handle_service_errors
-@log_operation("trigger_performance_optimization")
-async def trigger_performance_optimization():
-    """System status check - simplified"""
-    return {
-        "status": "operational",
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
+# Endpoint removed: POST /api/performance/optimize
 
 # Transceiver Data Endpoints
 
@@ -1865,45 +1790,7 @@ class DatabaseQueryRequest(BaseModel):
     query: str
     limit: int = 1000
 
-@app.post("/api/database/query")
-@handle_service_errors
-@log_operation("execute_database_query")
-async def execute_database_query(request: DatabaseQueryRequest):
-    """Execute custom SQL queries (admin only) - simplified"""
-    # Basic query validation
-    dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'ALTER', 'CREATE', 'INSERT', 'UPDATE']
-    if any(keyword in request.query.upper() for keyword in dangerous):
-        raise HTTPException(status_code=400, detail="Dangerous query")
-    
-    # Additional validation
-    if not request.query.strip():
-        raise HTTPException(status_code=400, detail="Query cannot be empty")
-    
-    if request.limit < 1 or request.limit > 10000:
-        raise HTTPException(status_code=400, detail="Limit must be between 1 and 10000")
-    
-    try:
-        async with get_database_session() as session:
-            result = await session.execute(text(f"{request.query} LIMIT {request.limit}"))
-            rows = result.fetchall()
-            columns = result.keys()
-            
-            # Convert to list of dicts
-            data = []
-            for row in rows:
-                row_dict = {}
-                for i, column in enumerate(columns):
-                    value = row[i]
-                    if hasattr(value, 'isoformat'):
-                        value = value.isoformat()
-                    row_dict[column] = value
-                data.append(row_dict)
-            
-            return {"results": data, "count": len(data)}
-            
-    except Exception as e:
-        logger.error(f"Query error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# Endpoint removed: POST /api/database/query
 
 # Controller Summary Endpoints
 
@@ -2067,49 +1954,8 @@ async def get_performance_overview():
         logger.error(f"Error fetching performance overview: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.post("/api/controller-summaries/process")
-@handle_service_errors
-@log_operation("trigger_controller_processing")
-async def trigger_controller_processing():
-    """Manually trigger controller summary processing."""
-    try:
-        data_service = await get_data_service()
-        
-        # Process completed controllers
-        result = await data_service.process_completed_controllers()
-        
-        return {
-            "status": "success",
-            "message": "Controller summary processing completed",
-            "result": result,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error triggering controller processing: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.post("/api/flights/archive/populate-summary")
-@handle_service_errors
-@log_operation("populate_flights_archive_summary")
-async def populate_flights_archive_summary():
-    """Manually populate summary fields in flights_archive from flight_summaries."""
-    try:
-        data_service = await get_data_service()
-        
-        # Populate summary fields
-        result = await data_service.populate_flights_archive_summary_fields()
-        
-        return {
-            "status": "success",
-            "message": "Flights archive summary fields populated",
-            "records_updated": result,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error populating flights archive summary fields: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+# Endpoint removed: POST /api/flights/archive/populate-summary
 
 @app.get("/api/flights/archive/sync-status")
 @handle_service_errors

@@ -135,6 +135,10 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_controllers_callsign_facility ON con
 -- Additional index that exists in database but not in original init.sql
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_controllers_simple ON controllers(callsign, facility);
 
+-- ATC Detection Service Optimization Index for controllers
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_controllers_callsign_facility_last_updated 
+ON controllers (callsign, facility, last_updated);
+
 -- Flights indexes - Using CONCURRENTLY to prevent corruption during high-frequency writes
 -- Removed low-selectivity indexes: altitude, planned_altitude, flight_rules
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_callsign ON flights(callsign);
@@ -153,6 +157,17 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_callsign_logon ON flights(ca
 -- idx_flights_altitude REMOVED - unused index
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_flight_rules ON flights(flight_rules);
 -- idx_flights_planned_altitude REMOVED - unused index
+
+-- ATC Detection Service Optimization Indexes for flights
+-- Add compound index for the flight data lookup queries in _get_flight_record_count
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_callsign_altitude_last_updated 
+ON flights (callsign, last_updated) 
+WHERE altitude IS NOT NULL;
+
+-- Add compound index for airborne detection in _get_airborne_time_from_flights
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_callsign_altitude_gt1500 
+ON flights (callsign, last_updated) 
+WHERE altitude > 1500;
 
 -- Transceivers indexes (optimized for frequency-based queries) - Using CONCURRENTLY
 -- idx_transceivers_frequency REMOVED - unused index
@@ -182,6 +197,25 @@ WHERE entity_type = 'flight';
 -- This index helps with general frequency-based queries
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_frequency_concurrent 
 ON transceivers (frequency);
+
+-- ATC Detection Service Optimization Indexes
+-- Index for transceivers table to optimize ATC detection queries
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_entity_type_callsign_timestamp 
+ON transceivers (entity_type, callsign, timestamp);
+
+-- Index for flight + timestamp queries in _count_airborne_controller_contacts and _get_airborne_time_from_flights
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_callsign_timestamp_entity_flight 
+ON transceivers (callsign, timestamp)
+WHERE entity_type = 'flight';
+
+-- Index for ATC + timestamp queries in _find_frequency_matches
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_callsign_timestamp_entity_atc 
+ON transceivers (callsign, timestamp)
+WHERE entity_type = 'atc';
+
+-- Add index to optimize the frequency matching query
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transceivers_frequency_pos_timestamp 
+ON transceivers (frequency, position_lat, position_lon, timestamp);
 
 -- Create triggers for updated_at columns
 CREATE TRIGGER update_controllers_updated_at 
@@ -403,6 +437,15 @@ CREATE INDEX IF NOT EXISTS idx_flight_summaries_flight_rules ON flight_summaries
 -- idx_flight_summaries_airborne_controller_time REMOVED - unused index
 -- idx_flight_summaries_controller_time REMOVED - unused index
 
+-- ATC Detection Service Optimization Indexes for flight_summaries
+-- Add compound index for flight lookups in ATC detection service
+CREATE INDEX IF NOT EXISTS idx_flight_summaries_callsign_dep_arr_logon 
+ON flight_summaries (callsign, departure, arrival, logon_time);
+
+-- Add index for completion_time queries in _get_flight_completion_time
+CREATE INDEX IF NOT EXISTS idx_flight_summaries_callsign_completion
+ON flight_summaries (callsign, completion_time);
+
 -- Enrichment queue indexes (keep in sync with migrations)
 CREATE INDEX IF NOT EXISTS idx_flight_enrichment_status_run_after ON flight_summaries (enrichment_status, enrichment_run_after);
 
@@ -416,6 +459,17 @@ CREATE INDEX IF NOT EXISTS idx_flights_archive_completion_time ON flights_archiv
 -- idx_flights_archive_primary_sector REMOVED - unused index
 -- idx_flights_archive_sector_breakdown REMOVED - unused index
 -- idx_flights_archive_logon_time REMOVED - unused index
+
+-- ATC Detection Service Optimization Indexes for flights_archive
+-- Add compound index for the flights_archive table used in _get_flight_record_count
+CREATE INDEX IF NOT EXISTS idx_flights_archive_callsign_altitude_last_updated 
+ON flights_archive (callsign, last_updated) 
+WHERE altitude IS NOT NULL;
+
+-- Add compound index for airborne detection in _get_airborne_time_from_flights for archive
+CREATE INDEX IF NOT EXISTS idx_flights_archive_callsign_altitude_gt1500 
+ON flights_archive (callsign, last_updated) 
+WHERE altitude > 1500;
 
 -- Create triggers for updated_at columns on new tables
 CREATE TRIGGER update_flight_summaries_updated_at 

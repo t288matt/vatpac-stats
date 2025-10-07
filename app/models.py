@@ -91,6 +91,9 @@ class Controller(Base, TimestampMixin):
         
         # Additional index that exists in database but not in original models.py
         Index('idx_controllers_simple', 'callsign', 'facility'),
+        
+        # ATC Detection Service Optimization Index
+        Index('idx_controllers_callsign_facility_last_updated', 'callsign', 'facility', 'last_updated'),
     )
     
     # Validation handled by database constraints - no Python validators needed
@@ -174,6 +177,11 @@ class Flight(Base, TimestampMixin):
         # Index('idx_flights_altitude', 'altitude'), # REMOVED - unused
         Index('idx_flights_flight_rules', 'flight_rules'),
         # Index('idx_flights_planned_altitude', 'planned_altitude'), # REMOVED - unused
+        
+        # ATC Detection Service Optimization Indexes - WHERE clauses defined in init.sql
+        # These are simplified versions without WHERE clauses for SQLAlchemy compatibility
+        Index('idx_flights_callsign_altitude_last_updated', 'callsign', 'last_updated'),
+        Index('idx_flights_callsign_altitude_gt1500', 'callsign', 'last_updated'),
     )
     
     # Validation handled by database constraints - no Python validators needed
@@ -229,6 +237,13 @@ class Transceiver(Base):
         # Note: idx_transceivers_flight_frequency_time_optimized is created by init.sql with WHERE clause
         # General frequency index for transceivers
         Index('idx_transceivers_frequency_concurrent', 'frequency'),
+        
+        # ATC Detection Service Optimization Indexes - WHERE clauses defined in init.sql
+        # These are simplified versions for SQLAlchemy compatibility
+        Index('idx_transceivers_entity_type_callsign_timestamp', 'entity_type', 'callsign', 'timestamp'),
+        # The following indexes have WHERE clauses in init.sql
+        Index('idx_transceivers_callsign_timestamp', 'callsign', 'timestamp'),
+        Index('idx_transceivers_frequency_pos_timestamp', 'frequency', 'position_lat', 'position_lon', 'timestamp'),
     )
     
     # Validation handled by database constraints - no Python validators needed
@@ -323,6 +338,10 @@ class FlightSummary(Base, TimestampMixin):
         
         # Additional indexes that exist in database but not in original models.py
         # Index('idx_flight_summaries_controller_time', 'controller_time_percentage'), # REMOVED - unused
+        
+        # ATC Detection Service Optimization Indexes
+        Index('idx_flight_summaries_callsign_dep_arr_logon', 'callsign', 'departure', 'arrival', 'logon_time'),
+        Index('idx_flight_summaries_callsign_completion', 'callsign', 'completion_time'),
     )
 
 class ControllerSummary(Base, TimestampMixin):
@@ -462,6 +481,11 @@ class FlightsArchive(Base, TimestampMixin):
         # Additional indexes that exist in database but not in original models.py
         # Note: JSONB indexes are handled by init.sql with GIN for optimal JSON query performance
         # Index('idx_flights_archive_controller_time', 'controller_time_percentage'), # REMOVED - unused
+        
+        # ATC Detection Service Optimization Indexes - WHERE clauses defined in init.sql
+        # These are simplified versions without WHERE clauses for SQLAlchemy compatibility
+        Index('idx_flights_archive_callsign_altitude_last_updated', 'callsign', 'last_updated'),
+        Index('idx_flights_archive_callsign_altitude_gt1500', 'callsign', 'last_updated'),
     )
 
 # Event listeners for automatic timestamp updates

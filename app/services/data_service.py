@@ -3075,27 +3075,7 @@ RETURNING fso.id;
                 # Wait a bit before retrying, but don't wait the full interval
                 await asyncio.sleep(self.config.flight_summary.poll_interval_short)  # Wait short interval before retry
 
-    async def trigger_flight_summary_processing(self) -> Dict[str, Any]:
-        """Manually trigger flight summary processing (for testing/admin use)."""
-        try:
-            self.logger.info("🔧 Manual flight summary processing triggered")
-            result = await self.process_completed_flights()
-            self.logger.info(f"✅ Manual processing completed: {result}")
-            return result
-        except Exception as e:
-            self.logger.error(f"❌ Manual processing failed: {e}")
-            raise
 
-    async def trigger_controller_summary_processing(self) -> Dict[str, Any]:
-        """Manually trigger controller summary processing (for testing/admin use)."""
-        try:
-            self.logger.info("🔧 Manual controller summary processing triggered")
-            result = await self.process_completed_controllers()
-            self.logger.info(f"✅ Manual processing completed: {result}")
-            return result
-        except Exception as e:
-            self.logger.error(f"❌ Manual processing failed: {e}")
-            raise
 
     def _on_flight_summary_task_done(self, task):
         """Callback when flight summary task completes or fails."""
