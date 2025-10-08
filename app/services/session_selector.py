@@ -42,7 +42,8 @@ async def select_canonical_sessions(
                 callsign, 
                 cid, 
                 departure, 
-                arrival
+                arrival,
+                logon_time  -- Add logon_time field for session_start matching
             FROM flight_summaries
             -- No enrichment status filter - canonical only cares if record exists
         ),
@@ -67,15 +68,6 @@ async def select_canonical_sessions(
                 military_rating
             FROM flights
             WHERE NOW() >= last_updated + ((:completion_hours)::int * INTERVAL '1 hour')
-            -- More efficient anti-join using the processed_flights CTE
-            AND NOT EXISTS (
-                SELECT 1
-                FROM processed_flights pf
-                WHERE pf.callsign = flights.callsign
-                AND pf.cid = flights.cid
-                AND pf.departure = flights.departure
-                AND pf.arrival = flights.arrival
-            )
             UNION ALL
             SELECT 
                 callsign,
@@ -97,15 +89,6 @@ async def select_canonical_sessions(
                 military_rating
             FROM flights_archive
             WHERE NOW() >= last_updated + ((:completion_hours)::int * INTERVAL '1 hour')
-            -- More efficient anti-join using the processed_flights CTE
-            AND NOT EXISTS (
-                SELECT 1
-                FROM processed_flights pf
-                WHERE pf.callsign = flights_archive.callsign
-                AND pf.cid = flights_archive.cid
-                AND pf.departure = flights_archive.departure
-                AND pf.arrival = flights_archive.arrival
-            )
         ), ordered AS (
             SELECT 
                 callsign,
@@ -221,8 +204,18 @@ async def select_canonical_sessions(
             latest_pilot_rating,
             latest_military_rating
         FROM sessions
-        -- Removed max_span_hours limit to allow long-haul flights
-        ORDER BY session_end DESC
+-- Apply exclusion after sessions are generated
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM processed_flights pf
+        WHERE pf.callsign = sessions.callsign
+        AND pf.cid = sessions.cid
+        AND pf.departure = sessions.departure
+        AND pf.arrival = sessions.arrival
+        AND pf.logon_time = sessions.session_start  -- Match on session_start
+    )
+    -- Removed max_span_hours limit to allow long-haul flights
+    ORDER BY session_end DESC
         """
     )
 
