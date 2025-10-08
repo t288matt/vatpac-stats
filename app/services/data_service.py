@@ -925,20 +925,34 @@ class DataService:
         """
         try:
             # Build the query with flight session boundary filtering
-            query = """
-                SELECT COUNT(*) as airborne_count
+            # Query both flights and flights_archive tables to handle archived data
+            base_query = """
+                SELECT altitude, last_updated
                 FROM flights
-                WHERE callsign = :callsign 
-                AND altitude > 1500
+                WHERE callsign = :callsign
             """
             
             params = {"callsign": callsign}
             
             # Add flight session boundary filtering if timestamps are provided
             if logon_time and completion_time:
-                query += " AND last_updated BETWEEN :logon_time AND :completion_time"
+                base_query += " AND last_updated BETWEEN :logon_time AND :completion_time"
                 params["logon_time"] = logon_time
                 params["completion_time"] = completion_time
+            
+            # Combine with archive table
+            query = f"""
+                SELECT COUNT(*) as airborne_count
+                FROM (
+                    {base_query}
+                    UNION ALL
+                    SELECT altitude, last_updated
+                    FROM flights_archive
+                    WHERE callsign = :callsign
+                    {"AND last_updated BETWEEN :logon_time AND :completion_time" if logon_time and completion_time else ""}
+                ) combined
+                WHERE altitude > 1500
+            """
             
             result = await session.execute(text(query), params)
             
@@ -2471,7 +2485,7 @@ RETURNING fso.id;
                     if callsign == 'JST458':
                         self.logger.info(f"🔍 DEBUG: JST458 final latest_vals - aircraft_type={latest_vals['aircraft_type']}, name={latest_vals['name']}, server={latest_vals['server']}")
 
-                    # Calculate session time and sector metrics from `flights` table (no archive fallback)
+                    # Calculate session time and sector metrics from `flights` and `flights_archive` tables
                     time_online_minutes = None
                     sector_breakdown = None
                     primary_sector = None
@@ -2480,12 +2494,23 @@ RETURNING fso.id;
                     try:
                         first_last_sql = text("""
                             SELECT MIN(last_updated) AS first_updated, MAX(last_updated) AS last_updated
-                            FROM flights
-                            WHERE callsign = :callsign
-                              AND cid = :cid
-                              AND departure = :departure
-                              AND arrival = :arrival
-                              AND last_updated BETWEEN :start AND :end
+                            FROM (
+                                SELECT last_updated
+                                FROM flights
+                                WHERE callsign = :callsign
+                                  AND cid = :cid
+                                  AND departure = :departure
+                                  AND arrival = :arrival
+                                  AND last_updated BETWEEN :start AND :end
+                                UNION ALL
+                                SELECT last_updated
+                                FROM flights_archive
+                                WHERE callsign = :callsign
+                                  AND cid = :cid
+                                  AND departure = :departure
+                                  AND arrival = :arrival
+                                  AND last_updated BETWEEN :start AND :end
+                            ) combined
                         """)
                         fl_res = await session.execute(
                             first_last_sql,
