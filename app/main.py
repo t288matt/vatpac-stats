@@ -513,7 +513,7 @@ async def get_system_status():
                 data_freshness["controllers"] = {
                     "last_update": controllers_freshness.isoformat(),
                     "age_seconds": int((datetime.now(timezone.utc) - controllers_freshness).total_seconds()),
-                    "status": "fresh" if (datetime.now(timezone.utc) - controllers_freshness).total_seconds() < 300 else "stale"
+                    "status": "fresh" if (datetime.now(timezone.utc) - controllers_freshness).total_seconds() < 43200 else "stale"
                 }
             
             # Flights - check last_updated_api (VATSIM API timestamp)
