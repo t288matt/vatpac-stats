@@ -47,48 +47,85 @@ async def select_canonical_sessions(
             FROM flight_summaries
             -- No enrichment status filter - canonical only cares if record exists
         ),
-        base AS (
+        flight_completion_times AS (
+            -- FIX: Find the latest record time for each flight
+            -- This ensures we only process flights when ALL their records are old enough
             SELECT 
                 callsign,
                 cid,
                 departure,
                 arrival,
-                COALESCE(logon_time, last_updated) AS logon_time,
-                last_updated,
-                deptime,
-                route,
-                aircraft_type,
-                aircraft_faa,
-                aircraft_short,
-                flight_rules,
-                planned_altitude,
-                name,
-                server,
-                pilot_rating,
-                military_rating
-            FROM flights
-            WHERE NOW() >= last_updated + ((:completion_hours)::int * INTERVAL '1 hour')
+                MAX(last_updated) AS latest_record_time
+            FROM (
+                SELECT callsign, cid, departure, arrival, last_updated
+                FROM flights
+                UNION ALL
+                SELECT callsign, cid, departure, arrival, last_updated
+                FROM flights_archive
+            ) all_records
+            GROUP BY callsign, cid, departure, arrival
+        ),
+        eligible_flights AS (
+            -- FIX: Only include flights where the LATEST record is old enough
+            -- This prevents processing flights during the "dangerous window" where only
+            -- some records are eligible, which caused the zero minutes bug
+            SELECT callsign, cid, departure, arrival
+            FROM flight_completion_times
+            WHERE NOW() >= latest_record_time + ((:completion_hours)::int * INTERVAL '1 hour')
+        ),
+        base AS (
+            -- FIX: Get ALL records for eligible flights (no time filter on individual records!)
+            -- By using INNER JOIN with eligible_flights, we ensure that when a flight is processed,
+            -- ALL of its records are included, not just the ones that are individually 8+ hours old
+            SELECT 
+                f.callsign,
+                f.cid,
+                f.departure,
+                f.arrival,
+                COALESCE(f.logon_time, f.last_updated) AS logon_time,
+                f.last_updated,
+                f.deptime,
+                f.route,
+                f.aircraft_type,
+                f.aircraft_faa,
+                f.aircraft_short,
+                f.flight_rules,
+                f.planned_altitude,
+                f.name,
+                f.server,
+                f.pilot_rating,
+                f.military_rating
+            FROM flights f
+            INNER JOIN eligible_flights ef
+                ON f.callsign = ef.callsign
+                AND f.cid = ef.cid
+                AND f.departure = ef.departure
+                AND f.arrival = ef.arrival
             UNION ALL
             SELECT 
-                callsign,
-                cid,
-                departure,
-                arrival,
-                COALESCE(logon_time, last_updated) AS logon_time,
-                last_updated,
-                deptime,
-                route,
-                aircraft_type,
-                aircraft_faa,
-                aircraft_short,
-                flight_rules,
-                planned_altitude,
-                name,
-                server,
-                pilot_rating,
-                military_rating
-            FROM flights_archive
-            WHERE NOW() >= last_updated + ((:completion_hours)::int * INTERVAL '1 hour')
+                fa.callsign,
+                fa.cid,
+                fa.departure,
+                fa.arrival,
+                COALESCE(fa.logon_time, fa.last_updated) AS logon_time,
+                fa.last_updated,
+                fa.deptime,
+                fa.route,
+                fa.aircraft_type,
+                fa.aircraft_faa,
+                fa.aircraft_short,
+                fa.flight_rules,
+                fa.planned_altitude,
+                fa.name,
+                fa.server,
+                fa.pilot_rating,
+                fa.military_rating
+            FROM flights_archive fa
+            INNER JOIN eligible_flights ef
+                ON fa.callsign = ef.callsign
+                AND fa.cid = ef.cid
+                AND fa.departure = ef.departure
+                AND fa.arrival = ef.arrival
         ), ordered AS (
             SELECT 
                 callsign,
