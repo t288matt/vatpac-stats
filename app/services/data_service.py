@@ -631,8 +631,14 @@ class DataService:
         # Prefer authoritative flight_last_updated when provided to avoid clock/visibility races
         timestamp = flight_last_updated or datetime.now(timezone.utc)
         
-        # CRITICAL FIX: Close ALL open sectors for this flight before entering a new one
-        # This prevents multiple open sectors when memory state gets corrupted
+        # CRITICAL FIX: Always close any open entry for this flight-sector combination
+        # This prevents overlapping entries when a flight re-enters the same sector
+        if current_sector:
+            await self._close_open_sector_for_flight_and_sector(
+                callsign, current_sector, session, flight_last_updated, lat, lon, altitude
+            )
+
+        # Also close all open sectors if transitioning to different sector or exiting
         if current_sector != previous_sector or should_exit:
             await self._close_all_open_sectors_for_flight(
                 callsign, session, flight_last_updated, lat, lon, altitude
@@ -700,6 +706,64 @@ class DataService:
     
         except Exception as e:
             self.logger.error(f"Failed to record sector entry for {callsign}: {e}")
+
+    async def _close_open_sector_for_flight_and_sector(
+        self, callsign: str, sector_name: str, session: AsyncSession, 
+        flight_last_updated: Optional[datetime] = None,
+        current_lat: Optional[float] = None, current_lon: Optional[float] = None, 
+        current_altitude: Optional[int] = None
+    ) -> None:
+        """
+        Close any open entry for this specific flight-sector combination.
+        This prevents overlapping entries when a flight re-enters the same sector.
+        
+        Args:
+            callsign: Flight callsign
+            sector_name: Name of the sector
+            session: Database session
+            flight_last_updated: Authoritative timestamp for exit (optional)
+            current_lat: Current flight latitude (optional)
+            current_lon: Current flight longitude (optional)
+            current_altitude: Current flight altitude (optional)
+        """
+        try:
+            # Find any open entry for this callsign+sector combination
+            result = await session.execute(text("""
+                SELECT id, entry_timestamp FROM flight_sector_occupancy 
+                WHERE callsign = :callsign 
+                AND sector_name = :sector_name 
+                AND exit_timestamp IS NULL
+            """), {"callsign": callsign, "sector_name": sector_name})
+            
+            open_entry = result.fetchone()
+            
+            if open_entry:
+                # Calculate exit timestamp and duration
+                exit_timestamp = flight_last_updated or datetime.now(timezone.utc)
+                duration_seconds = int((exit_timestamp - open_entry.entry_timestamp).total_seconds())
+                
+                # Close the open entry
+                await session.execute(text("""
+                    UPDATE flight_sector_occupancy 
+                    SET exit_timestamp = :exit_timestamp,
+                        exit_lat = :exit_lat,
+                        exit_lon = :exit_lon,
+                        exit_altitude = :exit_altitude,
+                        duration_seconds = :duration_seconds
+                    WHERE id = :id
+                """), {
+                    "id": open_entry.id,
+                    "exit_timestamp": exit_timestamp,
+                    "exit_lat": current_lat,
+                    "exit_lon": current_lon,
+                    "exit_altitude": current_altitude,
+                    "duration_seconds": duration_seconds
+                })
+                
+                self.logger.debug(f"Closed open sector entry for {callsign} in {sector_name}")
+                
+        except Exception as e:
+            self.logger.error(f"Failed to close open sector for {callsign} in {sector_name}: {e}")
 
     async def _close_all_open_sectors_for_flight(
         self, callsign: str, session: AsyncSession, flight_last_updated: Optional[datetime] = None,
