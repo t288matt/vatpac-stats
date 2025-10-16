@@ -672,13 +672,11 @@ class ATCDetectionService:
             # 1) Attempt flights (live records) first
             async with get_database_session() as session:
                 q = text("""
-                    SELECT last_updated AS ts
+                    SELECT last_updated AS ts, groundspeed
                     FROM flights
                     WHERE callsign = :callsign
                       AND last_updated >= :start
                       AND last_updated <= :end
-                      AND altitude IS NOT NULL
-                      AND altitude > :alt_threshold
                     ORDER BY last_updated
                 """)
                 res = await session.execute(q, {
@@ -709,8 +707,9 @@ class ATCDetectionService:
                 return total
 
             if rows:
-                # flights table provided timestamped records
-                timestamps = [r.ts for r in rows]
+                # Use airborne detection to filter timestamps
+                from app.utils.airborne_detection import is_airborne
+                timestamps = [r.ts for r in rows if is_airborne(r.groundspeed)]
                 secs = _sum_from_timestamps(timestamps, self.flights_polling_interval_seconds, self.enroute_gap_tolerance_multiplier)
                 minutes = round(secs / 60.0)
                 return float(minutes)
@@ -718,13 +717,11 @@ class ATCDetectionService:
             # 2) Fallback: flights_archive (time-series snapshots)
             async with get_database_session() as session:
                 q = text("""
-                    SELECT last_updated AS ts
+                    SELECT last_updated AS ts, groundspeed
                     FROM flights_archive
                     WHERE callsign = :callsign
                       AND last_updated >= :start
                       AND last_updated <= :end
-                      AND altitude IS NOT NULL
-                      AND altitude > :alt_threshold
                     ORDER BY last_updated
                 """)
                 res = await session.execute(q, {
