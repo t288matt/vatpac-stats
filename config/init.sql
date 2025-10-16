@@ -470,7 +470,6 @@ WHERE altitude IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_flights_archive_callsign_groundspeed_ge60 
 ON flights_archive (callsign, last_updated) 
 WHERE groundspeed >= 60;
-
 -- Create triggers for updated_at columns on new tables
 CREATE TRIGGER update_flight_summaries_updated_at 
     BEFORE UPDATE ON flight_summaries 
