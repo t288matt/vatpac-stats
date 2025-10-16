@@ -557,9 +557,10 @@ class ATCDetectionService:
             # Calculate total controller time percentage
             total_controller_time = sum(ctrl["time_minutes"] for ctrl in controller_data.values())
             
-            # Calculate percentage based on actual time, not record count
+            # Calculate percentage based on actual time (both in minutes)
             # This represents the percentage of flight time that had ATC contact
-            controller_time_percentage = min(100.0, (total_controller_time / total_records) * 100) if total_records > 0 else 0.0
+            flight_time_minutes = (completion_time - logon_time).total_seconds() / 60.0
+            controller_time_percentage = min(100.0, (total_controller_time / flight_time_minutes) * 100) if flight_time_minutes > 0 else 0.0
             
             # Calculate airborne controller time percentage using transceiver heights (>1500 ft)
             # Use transceiver height_msl (meters) converted to feet for the threshold
