@@ -559,7 +559,9 @@ class DataService:
         current_sector = None
         
         # Entry logic: Must be above 60 knots to enter sector
-        if groundspeed is not None and groundspeed >= 60:
+        from app.utils.airborne_detection import is_airborne
+        
+        if is_airborne(groundspeed):
             current_sector = geographic_sector
         elif groundspeed is None:
             # Missing speed data - defer entry decision
@@ -976,7 +978,7 @@ class DataService:
     async def _get_total_airborne_time(self, callsign: str, session: AsyncSession, 
                                  logon_time: datetime = None, completion_time: datetime = None) -> int:
         """
-        Calculate time spent above 1500ft for a completed flight.
+        Calculate time spent airborne (≥60 knots) for a completed flight.
         
         Args:
             callsign: Flight callsign
@@ -985,13 +987,13 @@ class DataService:
             completion_time: Flight completion time to filter data
             
         Returns:
-            Total minutes spent above 1500ft
+            Total minutes spent airborne (≥60 knots)
         """
         try:
             # Build the query with flight session boundary filtering
             # Query both flights and flights_archive tables to handle archived data
             base_query = """
-                SELECT altitude, last_updated
+                SELECT groundspeed, last_updated
                 FROM flights
                 WHERE callsign = :callsign
             """
@@ -1010,12 +1012,12 @@ class DataService:
                 FROM (
                     {base_query}
                     UNION ALL
-                    SELECT altitude, last_updated
+                    SELECT groundspeed, last_updated
                     FROM flights_archive
                     WHERE callsign = :callsign
                     {"AND last_updated BETWEEN :logon_time AND :completion_time" if logon_time and completion_time else ""}
                 ) combined
-                WHERE altitude > 1500
+                WHERE groundspeed >= 60
             """
             
             result = await session.execute(text(query), params)

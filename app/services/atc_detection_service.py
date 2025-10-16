@@ -557,9 +557,10 @@ class ATCDetectionService:
             # Calculate total controller time percentage
             total_controller_time = sum(ctrl["time_minutes"] for ctrl in controller_data.values())
             
-            # Calculate percentage based on actual time, not record count
+            # Calculate percentage based on actual time (both in minutes)
             # This represents the percentage of flight time that had ATC contact
-            controller_time_percentage = min(100.0, (total_controller_time / total_records) * 100) if total_records > 0 else 0.0
+            flight_time_minutes = (completion_time - logon_time).total_seconds() / 60.0
+            controller_time_percentage = min(100.0, (total_controller_time / flight_time_minutes) * 100) if flight_time_minutes > 0 else 0.0
             
             # Calculate airborne controller time percentage using transceiver heights (>1500 ft)
             # Use transceiver height_msl (meters) converted to feet for the threshold
@@ -672,13 +673,11 @@ class ATCDetectionService:
             # 1) Attempt flights (live records) first
             async with get_database_session() as session:
                 q = text("""
-                    SELECT last_updated AS ts
+                    SELECT last_updated AS ts, groundspeed
                     FROM flights
                     WHERE callsign = :callsign
                       AND last_updated >= :start
                       AND last_updated <= :end
-                      AND altitude IS NOT NULL
-                      AND altitude > :alt_threshold
                     ORDER BY last_updated
                 """)
                 res = await session.execute(q, {
@@ -709,8 +708,9 @@ class ATCDetectionService:
                 return total
 
             if rows:
-                # flights table provided timestamped records
-                timestamps = [r.ts for r in rows]
+                # Use airborne detection to filter timestamps
+                from app.utils.airborne_detection import is_airborne
+                timestamps = [r.ts for r in rows if is_airborne(r.groundspeed)]
                 secs = _sum_from_timestamps(timestamps, self.flights_polling_interval_seconds, self.enroute_gap_tolerance_multiplier)
                 minutes = round(secs / 60.0)
                 return float(minutes)
@@ -718,13 +718,11 @@ class ATCDetectionService:
             # 2) Fallback: flights_archive (time-series snapshots)
             async with get_database_session() as session:
                 q = text("""
-                    SELECT last_updated AS ts
+                    SELECT last_updated AS ts, groundspeed
                     FROM flights_archive
                     WHERE callsign = :callsign
                       AND last_updated >= :start
                       AND last_updated <= :end
-                      AND altitude IS NOT NULL
-                      AND altitude > :alt_threshold
                     ORDER BY last_updated
                 """)
                 res = await session.execute(q, {
@@ -787,8 +785,39 @@ class ATCDetectionService:
                         if r_arc:
                             alt_ft = r_arc[0]
                     
-                    # Only count if we have a valid altitude from flight-based sources
-                    if alt_ft is not None and alt_ft > 1500:
+                    # Get groundspeed at contact time for airborne detection
+                    from app.utils.airborne_detection import is_airborne
+                    
+                    # Query for groundspeed at match time
+                    q_speed = text("""
+                        SELECT groundspeed FROM flights
+                        WHERE callsign = :callsign
+                          AND last_updated <= :t
+                          AND groundspeed IS NOT NULL
+                        ORDER BY last_updated DESC
+                        LIMIT 1
+                    """)
+                    res_speed = await session.execute(q_speed, {"callsign": flight_callsign, "t": match_time})
+                    r_speed = res_speed.fetchone()
+                    
+                    if not r_speed:
+                        # Fallback to archive
+                        q_speed_arc = text("""
+                            SELECT groundspeed FROM flights_archive
+                            WHERE callsign = :callsign
+                              AND last_updated <= :t
+                              AND groundspeed IS NOT NULL
+                            ORDER BY last_updated DESC
+                            LIMIT 1
+                        """)
+                        res_speed_arc = await session.execute(q_speed_arc, {"callsign": flight_callsign, "t": match_time})
+                        r_speed_arc = res_speed_arc.fetchone()
+                        groundspeed = r_speed_arc[0] if r_speed_arc else None
+                    else:
+                        groundspeed = r_speed[0]
+                    
+                    # Only count if aircraft was airborne (≥60 knots) at contact time
+                    if is_airborne(groundspeed):
                         # check controller type
                         atc_callsign = match.get("atc_callsign")
                         controller_type = self._detect_controller_type(atc_callsign)
