@@ -787,8 +787,39 @@ class ATCDetectionService:
                         if r_arc:
                             alt_ft = r_arc[0]
                     
-                    # Only count if we have a valid altitude from flight-based sources
-                    if alt_ft is not None and alt_ft > 1500:
+                    # Get groundspeed at contact time for airborne detection
+                    from app.utils.airborne_detection import is_airborne
+                    
+                    # Query for groundspeed at match time
+                    q_speed = text("""
+                        SELECT groundspeed FROM flights
+                        WHERE callsign = :callsign
+                          AND last_updated <= :t
+                          AND groundspeed IS NOT NULL
+                        ORDER BY last_updated DESC
+                        LIMIT 1
+                    """)
+                    res_speed = await session.execute(q_speed, {"callsign": flight_callsign, "t": match_time})
+                    r_speed = res_speed.fetchone()
+                    
+                    if not r_speed:
+                        # Fallback to archive
+                        q_speed_arc = text("""
+                            SELECT groundspeed FROM flights_archive
+                            WHERE callsign = :callsign
+                              AND last_updated <= :t
+                              AND groundspeed IS NOT NULL
+                            ORDER BY last_updated DESC
+                            LIMIT 1
+                        """)
+                        res_speed_arc = await session.execute(q_speed_arc, {"callsign": flight_callsign, "t": match_time})
+                        r_speed_arc = res_speed_arc.fetchone()
+                        groundspeed = r_speed_arc[0] if r_speed_arc else None
+                    else:
+                        groundspeed = r_speed[0]
+                    
+                    # Only count if aircraft was airborne (≥60 knots) at contact time
+                    if is_airborne(groundspeed):
                         # check controller type
                         atc_callsign = match.get("atc_callsign")
                         controller_type = self._detect_controller_type(atc_callsign)

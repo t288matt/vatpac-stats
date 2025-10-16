@@ -181,7 +181,7 @@ class Flight(Base, TimestampMixin):
         # ATC Detection Service Optimization Indexes - WHERE clauses defined in init.sql
         # These are simplified versions without WHERE clauses for SQLAlchemy compatibility
         Index('idx_flights_callsign_altitude_last_updated', 'callsign', 'last_updated'),
-        Index('idx_flights_callsign_altitude_gt1500', 'callsign', 'last_updated'),
+        Index('idx_flights_callsign_groundspeed_ge60', 'callsign', 'last_updated'),
     )
     
     # Validation handled by database constraints - no Python validators needed
@@ -485,7 +485,7 @@ class FlightsArchive(Base, TimestampMixin):
         # ATC Detection Service Optimization Indexes - WHERE clauses defined in init.sql
         # These are simplified versions without WHERE clauses for SQLAlchemy compatibility
         Index('idx_flights_archive_callsign_altitude_last_updated', 'callsign', 'last_updated'),
-        Index('idx_flights_archive_callsign_altitude_gt1500', 'callsign', 'last_updated'),
+        Index('idx_flights_archive_callsign_groundspeed_ge60', 'callsign', 'last_updated'),
     )
 
 # Event listeners for automatic timestamp updates

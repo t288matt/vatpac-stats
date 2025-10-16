@@ -165,9 +165,9 @@ ON flights (callsign, last_updated)
 WHERE altitude IS NOT NULL;
 
 -- Add compound index for airborne detection in _get_airborne_time_from_flights
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_callsign_altitude_gt1500 
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flights_callsign_groundspeed_ge60 
 ON flights (callsign, last_updated) 
-WHERE altitude > 1500;
+WHERE groundspeed >= 60;
 
 -- Transceivers indexes (optimized for frequency-based queries) - Using CONCURRENTLY
 -- idx_transceivers_frequency REMOVED - unused index
@@ -467,9 +467,9 @@ ON flights_archive (callsign, last_updated)
 WHERE altitude IS NOT NULL;
 
 -- Add compound index for airborne detection in _get_airborne_time_from_flights for archive
-CREATE INDEX IF NOT EXISTS idx_flights_archive_callsign_altitude_gt1500 
+CREATE INDEX IF NOT EXISTS idx_flights_archive_callsign_groundspeed_ge60 
 ON flights_archive (callsign, last_updated) 
-WHERE altitude > 1500;
+WHERE groundspeed >= 60;
 
 -- Create triggers for updated_at columns on new tables
 CREATE TRIGGER update_flight_summaries_updated_at 
