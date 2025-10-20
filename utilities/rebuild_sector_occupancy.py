@@ -576,8 +576,8 @@ class SectorOccupancyRebuilder:
 
 async def main():
     """Main function to run the rebuild"""
-    db_url = "postgresql+asyncpg://vatsim_user:vatsim_password@postgres:5432/vatsim_data"
-    geojson_path = "/app/airspace_sector_data/australian_airspace_sectors.geojson"
+    db_url = "postgresql+asyncpg://vatsim_user:vatsim_password@localhost:5432/vatsim_data"
+    geojson_path = "config/australian_airspace_sectors.geojson"
     
     rebuilder = SectorOccupancyRebuilder(db_url, geojson_path)
     
@@ -590,10 +590,40 @@ async def main():
             limit = int(sys.argv[2]) if len(sys.argv) > 2 else None
             print(f"Rebuilding all flights (limit: {limit})...")
             await rebuilder.rebuild_all_flights(limit)
+        elif sys.argv[1] == "single":
+            if len(sys.argv) < 4:
+                print("Usage: python3 rebuild_sector_occupancy.py single <callsign> <completion_time>")
+                print("Example: python3 rebuild_sector_occupancy.py single QFA123 '2025-01-15 10:30:00'")
+                sys.exit(1)
+            callsign = sys.argv[2]
+            completion_time_str = sys.argv[3]
+            try:
+                from datetime import datetime
+                completion_time = datetime.fromisoformat(completion_time_str.replace('Z', '+00:00'))
+                print(f"Rebuilding single flight: {callsign} (completion: {completion_time})...")
+                # Get CID for the flight
+                async with rebuilder.session_factory() as session:
+                    result = await session.execute(text("""
+                        SELECT cid FROM flight_summaries 
+                        WHERE callsign = :callsign AND completion_time = :completion_time
+                        LIMIT 1
+                    """), {"callsign": callsign, "completion_time": completion_time})
+                    row = result.fetchone()
+                    if not row:
+                        print(f"ERROR: Flight {callsign} with completion time {completion_time} not found")
+                        sys.exit(1)
+                    cid = row[0]
+                
+                records = await rebuilder.rebuild_flight_sectors(callsign, cid, completion_time)
+                print(f"SUCCESS: Rebuilt {len(records)} sector records for {callsign}")
+            except Exception as e:
+                print(f"ERROR: Error rebuilding flight: {e}")
+                sys.exit(1)
         else:
             print("Usage:")
             print("  python3 rebuild_sector_occupancy.py priority  # Rebuild flights missing sector data")
             print("  python3 rebuild_sector_occupancy.py all [limit]  # Rebuild all flights")
+            print("  python3 rebuild_sector_occupancy.py single <callsign> <completion_time>  # Rebuild single flight")
             sys.exit(1)
     else:
         # Interactive mode

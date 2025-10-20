@@ -1,0 +1,14 @@
+fix: Remove manual API triggers for flight and controller summary processing
+
+This commit removes the manual API endpoints for triggering flight and controller summary processing, ensuring that all processing happens only on the scheduled basis. This prevents premature processing of active flights and ensures consistent completion_time values.
+
+Changes:
+- Removed /api/flights/summaries/process endpoint
+- Removed /api/controller-summaries/process endpoint
+- Removed trigger_flight_summary_processing method from data_service.py
+- Removed trigger_controller_summary_processing method from data_service.py
+- Updated documentation to reflect that processing happens only on schedule
+
+This change ensures that flight summaries are only created after the proper inactivity period (8 hours), preventing issues with incomplete flight data and incorrect completion_time values.
+
+
