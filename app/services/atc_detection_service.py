@@ -86,11 +86,11 @@ class ATCDetectionService:
             # Wrap the entire ATC detection process with a timeout
             return await asyncio.wait_for(
                 self._detect_flight_atc_interactions_internal(flight_callsign, departure, arrival, logon_time),
-                timeout=45.0  # 45 second timeout for entire ATC detection process
+                timeout=90.0  # 90 second timeout for entire ATC detection process
             )
             
         except asyncio.TimeoutError:
-            self.logger.error(f"ATC detection process timed out after 45 seconds for flight {flight_callsign}")
+            self.logger.error(f"ATC detection process timed out after 90 seconds for flight {flight_callsign}")
             return self._create_empty_atc_data()
         except Exception as e:
             self.logger.error(f"Error detecting ATC interactions for flight {flight_callsign}: {e}")

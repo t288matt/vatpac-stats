@@ -1,0 +1,22 @@
+fix: Add database indexes to optimize ATC detection service
+
+This commit adds several missing indexes to improve the performance of the ATC
+detection service queries:
+
+- Added partial indexes on transceivers for entity_type filtering
+- Added compound indexes for frequency matching with positional data
+- Added indexes for flight altitude queries in flights and flights_archive
+- Added indexes for flight summary lookups with callsign, departure, and arrival
+
+These indexes resolve the timeout issues that were occurring during ATC detection
+for flights, particularly for flight VHHAL which was timing out after 30 seconds.
+
+The optimizations particularly help these functions:
+- _find_matches_for_controller
+- _get_flight_completion_time
+- _get_flight_record_count
+- _get_airborne_time_from_flights
+- _count_airborne_controller_contacts
+
+Documentation added in INDEX_OPTIMIZATION_ATC_DETECTION.md
+

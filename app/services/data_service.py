@@ -3512,7 +3512,7 @@ RETURNING fso.id;
                     # Use current time as session end for real-time processing
                     session_end = datetime.now(timezone.utc)
                     result = await self.flight_detection_service.detect_controller_flight_interactions_with_timeout(
-                        controller.callsign, controller.logon_time, session_end, timeout_seconds=45.0
+                        controller.callsign, controller.logon_time, session_end, timeout_seconds=90.0
                     )
                     if result.get("interactions_detected", 0) > 0:
                         total_interactions += result["interactions_detected"]
