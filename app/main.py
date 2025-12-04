@@ -524,7 +524,7 @@ async def get_system_status():
                 data_freshness["flights"] = {
                     "last_update": flights_freshness.isoformat(),
                     "age_seconds": int((datetime.now(timezone.utc) - flights_freshness).total_seconds()),
-                    "status": "fresh" if (datetime.now(timezone.utc) - flights_freshness).total_seconds() < 300 else "fresh"
+                    "status": "fresh" if (datetime.now(timezone.utc) - flights_freshness).total_seconds() < 300 else "stale"
                 }
             
             # Transceivers - check timestamp (when data received)
@@ -2122,6 +2122,26 @@ async def root():
         "status": "operational",
         "version": "1.0.0"
     }
+
+@app.get("/api/health")
+async def health_check():
+    """Lightweight health check endpoint for Docker healthchecks
+
+    This endpoint performs a minimal database connectivity check without
+    expensive queries. Used by Docker healthchecks to verify the application
+    is running and can connect to the database.
+
+    Returns:
+        dict: Health status (healthy/unhealthy)
+    """
+    try:
+        # Only check database connectivity - no expensive queries
+        async with get_database_session() as session:
+            await session.scalar(text("SELECT 1"))
+        return {"status": "healthy"}
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        raise HTTPException(status_code=503, detail="Service unhealthy")
 
 @app.get("/api/startup/health")
 async def startup_health_check():
