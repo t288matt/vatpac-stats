@@ -480,18 +480,8 @@ async def get_system_status():
         }
     
     try:
-        # Get database session for counts and freshness checks
+        # Get database session for freshness checks
         async with get_database_session() as session:
-            # Get counts from database
-            flights_count = await session.scalar(text("SELECT COUNT(*) FROM flights"))
-            controllers_count = await session.scalar(text("SELECT COUNT(*) FROM controllers"))
-            transceivers_count = await session.scalar(text("SELECT COUNT(*) FROM transceivers"))
-            flight_summaries_count = await session.scalar(text("SELECT COUNT(*) FROM flight_summaries"))
-            flights_archive_count = await session.scalar(text("SELECT COUNT(*) FROM flights_archive"))
-            sector_occupancy_count = await session.scalar(text("SELECT COUNT(*) FROM flight_sector_occupancy"))
-            controller_summaries_count = await session.scalar(text("SELECT COUNT(*) FROM controller_summaries"))
-            controllers_archive_count = await session.scalar(text("SELECT COUNT(*) FROM controllers_archive"))
-            
             # Get recent activity (last 5 minutes)
             recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
             recent_flights = await session.scalar(
@@ -638,15 +628,7 @@ async def get_system_status():
             "critical_issues": critical_issues,
             "cache_status": "disabled",
             "statistics": {
-                "flights_count": flights_count,
-                "controllers_count": controllers_count,
-                "transceivers_count": transceivers_count,
-                "flight_summaries_count": flight_summaries_count,
-                "flights_archive_count": flights_archive_count,
-                "sector_occupancy_count": sector_occupancy_count,
-                "recent_flights": recent_flights,
-                "controller_summaries_count": controller_summaries_count,
-                "controllers_archive_count": controllers_archive_count
+                "recent_flights": recent_flights
             },
             "performance": {
                 "api_response_time_ms": 45,
