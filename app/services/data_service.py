@@ -1477,9 +1477,9 @@ RETURNING fso.id;
             return sessions
 
     async def _get_actual_completion_time_from_flights(self, callsign: str, departure: str, arrival: str, cid: int, deptime: str, session: AsyncSession) -> datetime:
-        """Get actual completion time from the most recent record in flights or flights_archive table."""
+        """Get actual completion time from the most recent record in flights table."""
         try:
-            # Query both flights and flights_archive tables for the most recent record for this specific flight
+            # Query flights table for the most recent record for this specific flight
             result = await session.execute(text("""
                 SELECT MAX(last_updated) as actual_completion_time
                 FROM (
@@ -1489,13 +1489,13 @@ RETURNING fso.id;
                     AND arrival = :arrival 
                     AND cid = :cid
                     AND deptime = :deptime
-                    UNION ALL
-                    SELECT last_updated FROM flights_archive 
-                    WHERE callsign = :callsign 
-                    AND departure = :departure 
-                    AND arrival = :arrival 
-                    AND cid = :cid
-                    AND deptime = :deptime
+                    -- UNION ALL
+                    -- SELECT last_updated FROM flights_archive 
+                    -- WHERE callsign = :callsign 
+                    -- AND departure = :departure 
+                    -- AND arrival = :arrival 
+                    -- AND cid = :cid
+                    -- AND deptime = :deptime
                 ) combined
             """), {
                 "callsign": callsign,
