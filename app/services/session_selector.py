@@ -59,9 +59,9 @@ async def select_canonical_sessions(
             FROM (
                 SELECT callsign, cid, departure, arrival, last_updated
                 FROM flights
-                UNION ALL
-                SELECT callsign, cid, departure, arrival, last_updated
-                FROM flights_archive
+                -- UNION ALL
+                -- SELECT callsign, cid, departure, arrival, last_updated
+                -- FROM flights_archive
             ) all_records
             GROUP BY callsign, cid, departure, arrival
         ),
